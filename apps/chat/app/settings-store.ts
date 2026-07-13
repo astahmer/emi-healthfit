@@ -20,7 +20,7 @@ const defaultSettings: ChatSettings = {
   apiKey: "",
   model: "gpt-4o-mini",
   systemPrompt:
-    "You are Emi, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
+    "You are EmiFit, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
   coachMode: false,
 };
 

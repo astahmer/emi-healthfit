@@ -39,7 +39,7 @@ const buildToolSet = (
 export const createDirectAdapter = (settings: ChatSettings): ChatModelAdapter => ({
   async *run(options: ChatModelRunOptions) {
     const openai = createOpenAI({
-      apiKey: settings.apiKey,
+      apiKey: settings.apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "",
       baseURL: settings.baseUrl || undefined,
     });
 

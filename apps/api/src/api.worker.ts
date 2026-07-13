@@ -82,7 +82,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }
 
         if (url.pathname === "/api/chat" && request.method === "POST") {
-          return yield* handleAiSdkChat(request);
+          return yield* handleAiSdkChat(env, request);
         }
 
         if (url.pathname === "/api/tools" && request.method === "GET") {
@@ -329,7 +329,7 @@ const ChatStreamRequestSchema = Schema.Struct({
   coachMode: Schema.optional(Schema.Boolean),
 });
 
-const handleAiSdkChat = (request: HttpServerRequest) =>
+const handleAiSdkChat = (env: Record<string, unknown>, request: HttpServerRequest) =>
   Effect.gen(function* () {
     const text = yield* request.text;
     const raw = JSON.parse(text || "{}") as unknown;
@@ -342,7 +342,16 @@ const handleAiSdkChat = (request: HttpServerRequest) =>
       );
     }
 
-    const response = yield* Effect.promise(() => streamChat(parsed.value as ChatStreamRequest));
+    const chatRequest = parsed.value as ChatStreamRequest;
+    const apiKey = chatRequest.config.apiKey !== ""
+      ? chatRequest.config.apiKey
+      : (env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "");
+    const requestWithKey: ChatStreamRequest = {
+      ...chatRequest,
+      config: { ...chatRequest.config, apiKey },
+    };
+
+    const response = yield* Effect.promise(() => streamChat(requestWithKey));
 
     const headers = new Headers(response.headers);
     for (const [key, value] of Object.entries(corsHeaders(request))) {

@@ -65,7 +65,7 @@ function ProxyRuntime({ children }: { children: ReactNode }) {
             metadata: options.requestMetadata,
             config: {
               provider: settings.provider,
-              apiKey: settings.apiKey,
+              apiKey: settings.apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "",
               baseUrl: settings.baseUrl || undefined,
               model: settings.model,
             },
