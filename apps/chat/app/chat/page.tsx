@@ -141,7 +141,7 @@ function ChatPageInner() {
               }}
             >
               <div className="flex h-full flex-1 flex-col">
-                <div className="flex items-center gap-2 border-b px-4 py-2">
+                <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                   <SidebarTrigger />
                   {sessionId && <ExportThreadButton sessionId={sessionId} className="ms-auto" />}
                 </div>

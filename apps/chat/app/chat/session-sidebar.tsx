@@ -147,7 +147,7 @@ export const SessionSidebar = () => {
         <SidebarContent>
           <div className="px-2 pt-2">
             <SidebarInput
-              placeholder="Search sessions…"
+              placeholder="Search by title or message…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

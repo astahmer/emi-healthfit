@@ -273,11 +273,28 @@ const handleChatRoute = (
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
+interface SuggestionsConfigBody {
+  provider?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+}
+
 interface SuggestionsRequestBody {
   threadId?: string;
   lastAssistantText?: string;
   lastUserText?: string;
+  config?: SuggestionsConfigBody;
 }
+
+const resolveSuggestionsApiKey = (
+  env: Record<string, unknown>,
+  config?: SuggestionsConfigBody,
+): string => {
+  if (config?.apiKey !== undefined && config.apiKey !== "") return config.apiKey;
+  if (env.OPENAI_API_KEY !== undefined) return String(env.OPENAI_API_KEY);
+  return "";
+};
 
 const handleSuggestions = (
   db: QueryDatabaseClient,
@@ -304,15 +321,22 @@ const handleSuggestions = (
       });
     }
 
-    const apiKey = env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "";
+    const apiKey = resolveSuggestionsApiKey(env, body.config);
     if (apiKey === "") {
       return yield* HttpServerResponse.json({ suggestions: [] });
     }
 
+    const baseUrl =
+      body.config?.baseUrl !== undefined && body.config.baseUrl !== ""
+        ? body.config.baseUrl
+        : env.OPENAI_BASE_URL !== undefined
+          ? String(env.OPENAI_BASE_URL)
+          : undefined;
+
     const suggestions = yield* Effect.promise(() =>
       generateSuggestions({
         apiKey,
-        baseUrl: env.OPENAI_BASE_URL !== undefined ? String(env.OPENAI_BASE_URL) : undefined,
+        baseUrl,
         lastAssistantText,
         lastUserText: body.lastUserText,
       }),

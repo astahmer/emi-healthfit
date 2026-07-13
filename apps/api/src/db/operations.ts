@@ -588,12 +588,14 @@ export const getThreads = (db: QueryDatabaseClient, search?: string) =>
       const term = `%${search.trim()}%`;
       const result = yield* db
         .prepare(`
-        SELECT * FROM threads
-        WHERE status = 'regular' AND title LIKE ?
-        ORDER BY updated_at DESC
+        SELECT DISTINCT t.*
+        FROM threads t
+        LEFT JOIN messages m ON m.thread_id = t.id
+        WHERE t.status = 'regular' AND (t.title LIKE ? OR m.parts LIKE ?)
+        ORDER BY t.updated_at DESC
         LIMIT 100
       `)
-        .bind(term)
+        .bind(term, term)
         .all<Thread>();
       return result.results;
     }

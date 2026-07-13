@@ -36,18 +36,22 @@ const buildToolSet = (
   );
 };
 
-export const createDirectAdapter = (settings: ChatSettings): ChatModelAdapter => ({
+export const createDirectAdapter = (
+  settings: ChatSettings,
+  systemPrompt?: string,
+): ChatModelAdapter => ({
   async *run(options: ChatModelRunOptions) {
     const openai = createOpenAI({
       apiKey: settings.apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "",
       baseURL: settings.baseUrl || undefined,
     });
 
+    const system = systemPrompt ?? settings.systemPrompt;
     const messages = toLanguageModelMessages(options.messages);
     const result = streamText({
       model: openai(settings.model),
       messages,
-      ...(settings.systemPrompt ? { system: settings.systemPrompt } : {}),
+      ...(system ? { system } : {}),
       tools: buildToolSet(options.context.tools),
     });
 

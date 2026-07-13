@@ -3,6 +3,7 @@
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { Button } from "@/components/ui/button";
 import { fetchSuggestions } from "@/app/suggestions";
+import { useSettings } from "@/app/settings-store";
 import { useEffect, useRef, useState } from "react";
 
 interface TextPart {
@@ -40,6 +41,7 @@ export const FollowUpChips = () => {
   const message = useAuiState((s) => s.message as MessageWithParts);
   const isRunning = useAuiState((s) => s.thread.isRunning);
   const messages = useAuiState((s) => asMessagesWithParts(s.thread.messages));
+  const settings = useSettings((state) => state.settings);
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,6 +92,12 @@ export const FollowUpChips = () => {
         messageId: message.id,
         lastAssistantText: assistantText,
         lastUserText,
+        config: {
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl,
+          model: settings.model,
+        },
       });
 
     if (existing === undefined) {
@@ -128,15 +136,7 @@ export const FollowUpChips = () => {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="mt-2 flex flex-wrap gap-2">
-        <div className="text-muted-foreground text-xs">Loading suggestions…</div>
-      </div>
-    );
-  }
-
-  if (error !== null || suggestions.length === 0) return null;
+  if (loading || error !== null || suggestions.length === 0) return null;
 
   return (
     <div className="mt-2 flex flex-wrap gap-2">

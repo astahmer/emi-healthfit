@@ -9,6 +9,7 @@ const tabs = [
   { href: "/chat", label: "Chat" },
   { href: "/upload", label: "Upload" },
   { href: "/workouts", label: "Workouts" },
+  { href: "/memory", label: "Memory" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -16,7 +17,7 @@ export const NavHeader: FC = () => {
   const pathname = usePathname();
 
   return (
-    <header className="relative z-50 flex items-center justify-between border-b bg-background px-4 py-3">
+    <header className="relative z-50 flex items-center justify-between border-b bg-background px-4 py-2 md:py-3">
       <div>
         <h1 className="text-lg font-semibold">Emi HealthFit</h1>
         <p className="text-muted-foreground text-xs">Personal gym assistant</p>

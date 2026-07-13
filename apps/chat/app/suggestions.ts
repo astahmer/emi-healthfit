@@ -1,8 +1,16 @@
+export interface SuggestionsConfig {
+  provider?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+}
+
 export interface SuggestionsRequest {
   threadId?: string;
   messageId?: string;
   lastAssistantText: string;
   lastUserText?: string;
+  config?: SuggestionsConfig;
 }
 
 export interface SuggestionsResponse {

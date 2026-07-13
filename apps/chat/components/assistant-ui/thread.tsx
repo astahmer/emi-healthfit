@@ -87,7 +87,7 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
       >
         <div
           className={cn(
-            "mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4",
+            "mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-0 pt-0 md:px-4 md:pt-4",
             isEmpty && "justify-center",
           )}
         >
@@ -95,13 +95,16 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
             <ThreadWelcome />
           </AuiIf>
 
-          <div data-slot="aui_message-group" className="mb-14 flex flex-col gap-y-6 empty:hidden">
+          <div
+            data-slot="aui_message-group"
+            className="mb-4 flex flex-col gap-y-6 empty:hidden md:mb-14"
+          >
             <ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
           </div>
 
           <ThreadPrimitive.ViewportFooter
             className={cn(
-              "aui-thread-viewport-footer bg-background flex flex-col gap-4 overflow-visible pb-4 md:pb-6",
+              "aui-thread-viewport-footer bg-background flex flex-col gap-4 overflow-visible px-0 pb-2 md:px-4 md:pb-6",
               !isEmpty && "sticky bottom-0 mt-auto rounded-t-(--composer-radius)",
             )}
           >

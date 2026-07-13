@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
+import { buildMemoryContext, useMemoryStore } from "./memory-store";
 
 export interface ChatSessionConfig {
   model: string;
@@ -19,6 +20,7 @@ export interface ChatSessionConfig {
 
 function ToolRegistrar({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
+  const notes = useMemoryStore((state) => state.notes);
   const [definitions, setDefinitions] = useState<ToolDefinition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const aui = useAui();
@@ -33,13 +35,16 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
     const tools: Record<string, Tool<Record<string, unknown>, unknown>> = buildFrontendTools(
       definitions,
     );
+    const memoryContext = buildMemoryContext(notes);
+    const system =
+      memoryContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${memoryContext}`;
     return aui.modelContext().register({
       getModelContext: () => ({
-        system: settings.systemPrompt,
+        system,
         tools,
       }),
     });
-  }, [aui, definitions, settings.systemPrompt]);
+  }, [aui, definitions, settings.systemPrompt, notes]);
 
   return (
     <>
@@ -98,7 +103,11 @@ function ProxyRuntime({
 
 function DirectRuntime({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
-  const adapter = createDirectAdapter(settings);
+  const notes = useMemoryStore((state) => state.notes);
+  const memoryContext = buildMemoryContext(notes);
+  const system =
+    memoryContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${memoryContext}`;
+  const adapter = createDirectAdapter(settings, system);
   const runtime = useLocalRuntime(adapter);
 
   return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
