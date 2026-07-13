@@ -311,3 +311,117 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
 
     return sessions.results;
   });
+
+export interface Thread {
+  id: string;
+  title: string | null;
+  status: "regular" | "archived";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreadMessage {
+  id: string;
+  thread_id: string;
+  role: string;
+  parts: string;
+  created_at: string;
+}
+
+const nowIso = (): string => new Date().toISOString();
+
+export const createThread = (db: QueryDatabaseClient, title?: string) =>
+  Effect.gen(function* () {
+    const id = crypto.randomUUID();
+    const createdAt = nowIso();
+    yield* db.prepare(`
+      INSERT INTO threads (id, title, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(id, title ?? null, "regular", createdAt, createdAt).run();
+    return id;
+  });
+
+export const getThreads = (db: QueryDatabaseClient, search?: string) =>
+  Effect.gen(function* () {
+    if (search !== undefined && search.trim() !== "") {
+      const term = `%${search.trim()}%`;
+      const result = yield* db.prepare(`
+        SELECT * FROM threads
+        WHERE status = 'regular' AND title LIKE ?
+        ORDER BY updated_at DESC
+        LIMIT 100
+      `).bind(term).all<Thread>();
+      return result.results;
+    }
+
+    const result = yield* db.prepare(`
+      SELECT * FROM threads
+      WHERE status = 'regular'
+      ORDER BY updated_at DESC
+      LIMIT 100
+    `).all<Thread>();
+    return result.results;
+  });
+
+export const getThread = (db: QueryDatabaseClient, threadId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db.prepare(`
+      SELECT * FROM threads WHERE id = ?
+    `).bind(threadId).first<Thread>();
+    return result ?? null;
+  });
+
+export const deleteThread = (db: QueryDatabaseClient, threadId: string) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`DELETE FROM threads WHERE id = ?`).bind(threadId).run();
+  });
+
+export const renameThread = (db: QueryDatabaseClient, threadId: string, title: string) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`
+      UPDATE threads SET title = ?, updated_at = ? WHERE id = ?
+    `).bind(title, nowIso(), threadId).run();
+  });
+
+export const updateThreadTimestamp = (db: QueryDatabaseClient, threadId: string) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`
+      UPDATE threads SET updated_at = ? WHERE id = ?
+    `).bind(nowIso(), threadId).run();
+  });
+
+export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db.prepare(`
+      SELECT * FROM messages
+      WHERE thread_id = ?
+      ORDER BY created_at ASC
+    `).bind(threadId).all<ThreadMessage>();
+    return result.results;
+  });
+
+export const saveThreadMessages = (
+  db: QueryDatabaseClient,
+  threadId: string,
+  messages: Array<{ role: string; parts: unknown[] }>,
+) =>
+  Effect.gen(function* () {
+    if (messages.length === 0) return;
+
+    const createdAt = nowIso();
+    const statements = messages.map((message) =>
+      db.prepare(`
+        INSERT INTO messages (id, thread_id, role, parts, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        crypto.randomUUID(),
+        threadId,
+        message.role,
+        JSON.stringify(message.parts),
+        createdAt,
+      )
+    );
+
+    yield* runBatches(db, statements);
+    yield* updateThreadTimestamp(db, threadId);
+  });

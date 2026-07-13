@@ -9,10 +9,17 @@ import { buildChatContext } from "./chat/context.ts";
 import { handleChat } from "./chat/handler.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
+  createThread,
+  deleteThread,
   getDataSummary,
+  getThread,
+  getThreadMessages,
+  getThreads,
   getWorkouts,
   insertHealthWorkouts,
   type QueryDatabaseClient,
+  renameThread,
+  saveThreadMessages,
   updateSyncCursor,
   upsertBodyMetrics,
   upsertDailyActivity,
@@ -104,6 +111,26 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname === "/api/workouts" && request.method === "GET") {
           return yield* withCors(handleWorkouts(db), request);
+        }
+
+        if (url.pathname === "/api/threads" && request.method === "GET") {
+          return yield* withCors(handleThreadsList(db, request), request);
+        }
+
+        if (url.pathname === "/api/threads" && request.method === "POST") {
+          return yield* withCors(handleThreadsCreate(db), request);
+        }
+
+        if (url.pathname.startsWith("/api/threads/") && request.method === "GET") {
+          return yield* withCors(handleThreadMessages(db, request), request);
+        }
+
+        if (url.pathname.startsWith("/api/threads/") && request.method === "PATCH") {
+          return yield* withCors(handleThreadRename(db, request), request);
+        }
+
+        if (url.pathname.startsWith("/api/threads/") && request.method === "DELETE") {
+          return yield* withCors(handleThreadDelete(db, request), request);
         }
 
         return HttpServerResponse.text("Not Found", { status: 404 });
@@ -275,6 +302,100 @@ const handleWorkouts = (
   Effect.gen(function* () {
     const workouts = yield* getWorkouts(db);
     return yield* HttpServerResponse.json({ workouts });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const handleThreadsList = (
+  db: QueryDatabaseClient,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const search = url.searchParams.get("search") ?? undefined;
+    const threads = yield* getThreads(db, search);
+    return yield* HttpServerResponse.json({ threads });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const handleThreadsCreate = (db: QueryDatabaseClient) =>
+  Effect.gen(function* () {
+    const id = yield* createThread(db);
+    return yield* HttpServerResponse.json({ id }, { status: 201 });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const getThreadIdFromPath = (pathname: string): string | undefined => {
+  const match = pathname.match(/^\/api\/threads\/([^/]+)$/);
+  return match?.[1];
+};
+
+const handleThreadMessages = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const threadId = getThreadIdFromPath(url.pathname);
+    if (threadId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid thread id" }, { status: 400 });
+    }
+
+    const thread = yield* getThread(db, threadId);
+    if (thread === null) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+
+    const rows = yield* getThreadMessages(db, threadId);
+    const messages = rows.map((row) => ({
+      id: row.id,
+      role: row.role,
+      parts: JSON.parse(row.parts) as unknown[],
+    }));
+    return yield* HttpServerResponse.json({ thread, messages });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const handleThreadRename = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const threadId = getThreadIdFromPath(url.pathname);
+    if (threadId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid thread id" }, { status: 400 });
+    }
+
+    const text = yield* request.text;
+    const body = JSON.parse(text || "{}") as { title?: string };
+    if (body.title === undefined || body.title.trim() === "") {
+      return yield* HttpServerResponse.json({ error: "title is required" }, { status: 400 });
+    }
+
+    yield* renameThread(db, threadId, body.title.trim());
+    return yield* HttpServerResponse.json({ success: true });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const handleThreadDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const threadId = getThreadIdFromPath(url.pathname);
+    if (threadId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid thread id" }, { status: 400 });
+    }
+
+    yield* deleteThread(db, threadId);
+    return yield* HttpServerResponse.json({ success: true });
   }).pipe(
     Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
