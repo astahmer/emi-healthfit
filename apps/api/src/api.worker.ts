@@ -30,7 +30,7 @@ import {
 } from "./db/operations.ts";
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
-import { createChatStream, generateThreadTitle, type ChatStreamRequest } from "./chat/ai-sdk.ts";
+import { createChatStream, generateSuggestions, generateThreadTitle, type ChatStreamRequest } from "./chat/ai-sdk.ts";
 import { handleToolExecute, handleToolsList } from "./tools/api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -92,6 +92,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname === "/api/chat" && request.method === "POST") {
           return yield* handleAiSdkChat(db, env, request);
+        }
+
+        if (url.pathname === "/api/suggestions" && request.method === "POST") {
+          return yield* withCors(handleSuggestions(env, request), request);
         }
 
         if (url.pathname === "/api/tools" && request.method === "GET") {
@@ -262,6 +266,52 @@ const handleChatRoute = (
   }).pipe(
     Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+interface SuggestionsRequestBody {
+  threadId?: string;
+  lastAssistantText?: string;
+  lastUserText?: string;
+}
+
+const handleSuggestions = (
+  env: Record<string, unknown>,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const text = yield* request.text;
+    const body = JSON.parse(text || "{}") as SuggestionsRequestBody;
+
+    const lastAssistantText = body.lastAssistantText?.trim();
+    if (lastAssistantText === undefined || lastAssistantText === "") {
+      return yield* HttpServerResponse.json(
+        { error: "lastAssistantText is required" },
+        { status: 400 },
+      );
+    }
+
+    const apiKey = env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "";
+    if (apiKey === "") {
+      return yield* HttpServerResponse.json(
+        { error: "OpenAI API key is not configured" },
+        { status: 500 },
+      );
+    }
+
+    const suggestions = yield* Effect.promise(() =>
+      generateSuggestions({
+        apiKey,
+        baseUrl: env.OPENAI_BASE_URL !== undefined ? String(env.OPENAI_BASE_URL) : undefined,
+        lastAssistantText,
+        lastUserText: body.lastUserText,
+      })
+    );
+
+    return yield* HttpServerResponse.json({ suggestions });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 }),
     ),
   );
 

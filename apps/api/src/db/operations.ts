@@ -243,6 +243,207 @@ export const updateSyncCursor = (
     `).bind(source, lastSync).run();
   });
 
+export interface WorkoutHistoryItem {
+  session_id: string;
+  title: string | null;
+  start_time: string;
+  total_volume_kg: number | null;
+  exercise_count: number;
+  set_count: number;
+}
+
+export const getWorkoutHistory = (db: QueryDatabaseClient, limit = 10) =>
+  Effect.gen(function* () {
+    const result = yield* db.prepare(`
+      SELECT
+        s.session_id,
+        s.title,
+        s.start_time,
+        s.total_volume_kg,
+        COUNT(DISTINCT st.exercise_title) as exercise_count,
+        COUNT(st.set_index) as set_count
+      FROM hevy_sessions s
+      LEFT JOIN hevy_sets st ON st.session_id = s.session_id
+      GROUP BY s.session_id
+      ORDER BY s.start_time DESC
+      LIMIT ?
+    `).bind(limit).all<WorkoutHistoryItem>();
+
+    return result.results;
+  });
+
+export interface ExerciseProgressSet {
+  session_id: string;
+  title: string | null;
+  start_time: string;
+  max_weight_kg: number | null;
+  max_volume_kg: number | null;
+  total_volume_kg: number | null;
+  total_reps: number | null;
+  sets: number;
+}
+
+export interface ExerciseProgress {
+  exercise_title: string;
+  weeks: number;
+  workouts: ExerciseProgressSet[];
+  personalRecord: {
+    weight_kg: number | null;
+    reps: number | null;
+    volume_kg: number | null;
+  };
+}
+
+const isoDateDaysAgo = (days: number): string => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
+};
+
+export const getExerciseProgress = (
+  db: QueryDatabaseClient,
+  exerciseTitle: string,
+  weeks = 8,
+) =>
+  Effect.gen(function* () {
+    const since = isoDateDaysAgo(weeks * 7);
+
+    const workouts = yield* db.prepare(`
+      SELECT
+        s.session_id,
+        s.title,
+        s.start_time,
+        MAX(st.weight_kg) as max_weight_kg,
+        MAX(st.weight_kg * st.reps) as max_volume_kg,
+        SUM(st.weight_kg * st.reps) as total_volume_kg,
+        SUM(st.reps) as total_reps,
+        COUNT(*) as sets
+      FROM hevy_sets st
+      JOIN hevy_sessions s ON s.session_id = st.session_id
+      WHERE st.exercise_title = ? AND s.start_time >= ?
+      GROUP BY s.session_id
+      ORDER BY s.start_time ASC
+    `).bind(exerciseTitle, since).all<ExerciseProgressSet>();
+
+    const prRow = yield* db.prepare(`
+      SELECT
+        MAX(weight_kg) as pr_weight_kg,
+        MAX(weight_kg * reps) as pr_volume_kg
+      FROM hevy_sets
+      WHERE exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
+    `).bind(exerciseTitle).first<{ pr_weight_kg: number | null; pr_volume_kg: number | null }>();
+
+    const prSet = yield* db.prepare(`
+      SELECT weight_kg, reps
+      FROM hevy_sets
+      WHERE exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
+      ORDER BY weight_kg * reps DESC
+      LIMIT 1
+    `).bind(exerciseTitle).first<{ weight_kg: number | null; reps: number | null }>();
+
+    return {
+      exercise_title: exerciseTitle,
+      weeks,
+      workouts: workouts.results,
+      personalRecord: {
+        weight_kg: prSet?.weight_kg ?? null,
+        reps: prSet?.reps ?? null,
+        volume_kg: prRow?.pr_volume_kg ?? null,
+      },
+    } satisfies ExerciseProgress;
+  });
+
+export interface SleepTrend {
+  days: number;
+  avg_in_bed_min: number | null;
+  avg_asleep_min: number | null;
+  avg_awake_min: number | null;
+  avg_sleep_hours: number | null;
+}
+
+export const getSleepTrend = (db: QueryDatabaseClient, days = 7) =>
+  Effect.gen(function* () {
+    const since = isoDateDaysAgo(days);
+    const row = yield* db.prepare(`
+      SELECT
+        COUNT(*) as days,
+        AVG(in_bed_min) as avg_in_bed_min,
+        AVG(asleep_min) as avg_asleep_min,
+        AVG(awake_min) as avg_awake_min
+      FROM sleep_sessions
+      WHERE date >= ?
+    `).bind(since).first<{
+      days: number;
+      avg_in_bed_min: number | null;
+      avg_asleep_min: number | null;
+      avg_awake_min: number | null;
+    }>();
+
+    const asleepMin = row?.avg_asleep_min ?? null;
+
+    return {
+      days: row?.days ?? 0,
+      avg_in_bed_min: row?.avg_in_bed_min ?? null,
+      avg_asleep_min: asleepMin,
+      avg_awake_min: row?.avg_awake_min ?? null,
+      avg_sleep_hours: asleepMin !== null ? Number((asleepMin / 60).toFixed(2)) : null,
+    } satisfies SleepTrend;
+  });
+
+export interface WorkoutStreak {
+  current_streak: number;
+  longest_streak: number;
+  last_workout_date: string | null;
+}
+
+const computeStreaks = (dates: string[]): { current: number; longest: number; last: string | null } => {
+  if (dates.length === 0) return { current: 0, longest: 0, last: null };
+
+  const sorted = [...new Set(dates)].sort();
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+  let longest = 1;
+  let current = 1;
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1]);
+    const curr = new Date(sorted[i]);
+    const diffDays = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (diffDays === 1) {
+      current += 1;
+      longest = Math.max(longest, current);
+    } else {
+      current = 1;
+    }
+  }
+
+  const last = sorted[sorted.length - 1];
+  const currentStreak = last === today || last === yesterdayStr ? current : 0;
+
+  return { current: currentStreak, longest, last };
+};
+
+export const getWorkoutStreak = (db: QueryDatabaseClient) =>
+  Effect.gen(function* () {
+    const result = yield* db.prepare(`
+      SELECT DISTINCT date(start_time) as workout_date
+      FROM hevy_sessions
+      ORDER BY workout_date ASC
+    `).all<{ workout_date: string }>();
+
+    const streaks = computeStreaks(result.results.map((row) => row.workout_date));
+
+    return {
+      current_streak: streaks.current,
+      longest_streak: streaks.longest,
+      last_workout_date: streaks.last,
+    } satisfies WorkoutStreak;
+  });
+
 export interface DataSummary {
   dailyActivity: number;
   healthWorkouts: number;

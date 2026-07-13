@@ -14,7 +14,7 @@ Current tools are `get_summary`, `get_recovery`, and `query_database`. Chat uses
 
 ---
 
-## 1. Session history / shareable sessions (in progress)
+## 1. Session history / shareable sessions (done)
 
 Goal: ChatGPT-style sessions that persist in D1, have auto-generated titles, are searchable, and each has its own URL (`/chat?id=<sessionId>`).
 

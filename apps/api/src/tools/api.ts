@@ -2,7 +2,14 @@ import * as Effect from "effect/Effect";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import type { JSONSchema7 } from "json-schema";
-import { getDataSummary, type QueryDatabaseClient } from "../db/operations.ts";
+import {
+  getDataSummary,
+  getExerciseProgress,
+  getSleepTrend,
+  getWorkoutHistory,
+  getWorkoutStreak,
+  type QueryDatabaseClient,
+} from "../db/operations.ts";
 import { buildChatContext } from "../chat/context.ts";
 
 export interface ToolDefinition {
@@ -35,6 +42,55 @@ const tools: ToolDefinition[] = [
       },
       required: ["query"],
     },
+  },
+  {
+    name: "get_workout_history",
+    description: "List recent strength workouts with date, title, volume, exercise count, and set count.",
+    parameters: {
+      type: "object",
+      properties: {
+        limit: {
+          type: "integer",
+          description: "Maximum number of workouts to return (default 10).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_exercise_progress",
+    description: "Get weight, rep, and volume trend plus the current PR for a specific exercise over recent weeks.",
+    parameters: {
+      type: "object",
+      properties: {
+        exercise_title: {
+          type: "string",
+          description: "Exact exercise name as it appears in Hevy (e.g. 'Bench Press (Barbell)').",
+        },
+        weeks: {
+          type: "integer",
+          description: "Number of weeks to look back (default 8).",
+        },
+      },
+      required: ["exercise_title"],
+    },
+  },
+  {
+    name: "get_sleep_trend",
+    description: "Get average sleep duration over the last N days.",
+    parameters: {
+      type: "object",
+      properties: {
+        days: {
+          type: "integer",
+          description: "Number of days to average (default 7).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_workout_streak",
+    description: "Get current and longest consecutive workout streaks from Hevy sessions.",
+    parameters: { type: "object", properties: {} },
   },
 ];
 
@@ -119,6 +175,24 @@ const executeTool = (
         Effect.map((result) => result.results),
       );
     }
+    case "get_workout_history": {
+      const limit = typeof args.limit === "number" ? args.limit : 10;
+      return getWorkoutHistory(db, limit);
+    }
+    case "get_exercise_progress": {
+      const exerciseTitle = args.exercise_title;
+      if (typeof exerciseTitle !== "string") {
+        return Effect.fail(new Error("exercise_title is required"));
+      }
+      const weeks = typeof args.weeks === "number" ? args.weeks : 8;
+      return getExerciseProgress(db, exerciseTitle, weeks);
+    }
+    case "get_sleep_trend": {
+      const days = typeof args.days === "number" ? args.days : 7;
+      return getSleepTrend(db, days);
+    }
+    case "get_workout_streak":
+      return getWorkoutStreak(db);
     default:
       return Effect.fail(new Error(`Unknown tool: ${name}`));
   }

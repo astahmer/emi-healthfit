@@ -3,6 +3,7 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
+import { FollowUpChips } from "@/components/assistant-ui/follow-up-chips";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
@@ -287,6 +288,7 @@ const AssistantMessage: FC = () => {
           </span>
         </AuiIf>
         <MessageError />
+        <FollowUpChips />
       </div>
 
       <div

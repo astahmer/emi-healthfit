@@ -80,6 +80,48 @@ export const createChatStream = async (
   });
 };
 
+export interface SuggestionsRequest {
+  apiKey: string;
+  baseUrl?: string | undefined;
+  lastAssistantText: string;
+  lastUserText?: string | undefined;
+}
+
+export const generateSuggestions = async (
+  request: SuggestionsRequest,
+): Promise<string[]> => {
+  const openai = createOpenAI({ apiKey: request.apiKey, baseURL: request.baseUrl });
+
+  const context = request.lastUserText !== undefined && request.lastUserText !== ""
+    ? `User: ${request.lastUserText}\nAssistant: ${request.lastAssistantText}`
+    : `Assistant: ${request.lastAssistantText}`;
+
+  const result = await generateText({
+    model: openai.chat("gpt-4o-mini"),
+    prompt:
+      `Given this conversation, suggest up to 5 short, natural follow-up questions the user might ask. ` +
+      `Return only a JSON array of strings, no markdown.\n\n${context}`,
+  });
+
+  const text = result.text.trim();
+  const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === "string").slice(0, 5);
+    }
+  } catch {
+    // Fall through to line extraction.
+  }
+
+  return cleaned
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-\d.*]+\s*["']?|["']?\s*$/g, "").trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 5);
+};
+
 export const generateThreadTitle = async (
   apiKey: string,
   baseUrl: string | undefined,
