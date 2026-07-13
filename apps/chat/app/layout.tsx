@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavHeader } from "./nav-header";
 import "./globals.css";
@@ -29,7 +30,9 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <TooltipProvider>
           <div className="flex h-dvh flex-col bg-background text-foreground">
-            <NavHeader />
+            <Suspense>
+              <NavHeader />
+            </Suspense>
             <div className="flex-1 overflow-hidden">{children}</div>
           </div>
         </TooltipProvider>

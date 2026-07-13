@@ -10,6 +10,7 @@ import { handleChat } from "./chat/handler.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
   getDataSummary,
+  getWorkouts,
   insertHealthWorkouts,
   type QueryDatabaseClient,
   updateSyncCursor,
@@ -99,6 +100,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname === "/api/summary" && request.method === "GET") {
           return yield* withCors(handleSummary(db), request);
+        }
+
+        if (url.pathname === "/api/workouts" && request.method === "GET") {
+          return yield* withCors(handleWorkouts(db), request);
         }
 
         return HttpServerResponse.text("Not Found", { status: 404 });
@@ -264,6 +269,18 @@ const handleSummary = (
     ),
   );
 
+const handleWorkouts = (
+  db: QueryDatabaseClient,
+) =>
+  Effect.gen(function* () {
+    const workouts = yield* getWorkouts(db);
+    return yield* HttpServerResponse.json({ workouts });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
 const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
   const origin = request.headers["origin"] ?? "*";
   return {
@@ -327,6 +344,7 @@ const ChatStreamRequestSchema = Schema.Struct({
     system: Schema.optional(Schema.String),
   }),
   coachMode: Schema.optional(Schema.Boolean),
+  webSearch: Schema.optional(Schema.Boolean),
 });
 
 const handleAiSdkChat = (env: Record<string, unknown>, request: HttpServerRequest) =>

@@ -23,22 +23,33 @@ export interface ChatStreamRequest {
   tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
   config: ChatConfig;
   coachMode?: boolean | undefined;
+  webSearch?: boolean | undefined;
 }
 
 const buildToolSet = (
   tools: ChatStreamRequest["tools"] | undefined,
+  webSearch: boolean,
+  openai: ReturnType<typeof createOpenAI>,
 ): ToolSet | undefined => {
-  if (tools === undefined || Object.keys(tools).length === 0) return undefined;
+  const customTools =
+    tools === undefined || Object.keys(tools).length === 0
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(tools).map(([name, definition]) => [
+            name,
+            {
+              description: definition.description,
+              inputSchema: jsonSchema(definition.parameters),
+            },
+          ]),
+        );
 
-  return Object.fromEntries(
-    Object.entries(tools).map(([name, definition]) => [
-      name,
-      {
-        description: definition.description,
-        inputSchema: jsonSchema(definition.parameters),
-      },
-    ]),
-  );
+  if (!webSearch) return customTools;
+
+  return {
+    ...customTools,
+    web_search: openai.tools.webSearch(),
+  };
 };
 
 export const streamChat = async (request: ChatStreamRequest) => {
@@ -51,11 +62,15 @@ export const streamChat = async (request: ChatStreamRequest) => {
     ? fitnessCoachV1
     : (request.system ?? request.config.system);
 
+  const model = request.webSearch
+    ? openai.responses(request.config.model)
+    : openai.chat(request.config.model);
+
   const result = streamText({
-    model: openai(request.config.model),
+    model,
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
-    tools: buildToolSet(request.tools),
+    tools: buildToolSet(request.tools, request.webSearch ?? false, openai),
   });
 
   return result.toUIMessageStreamResponse({

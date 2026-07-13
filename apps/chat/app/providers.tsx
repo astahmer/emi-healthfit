@@ -9,6 +9,12 @@ import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
 
+export interface ChatSessionConfig {
+  model: string;
+  coachMode: boolean;
+  webSearch: boolean;
+}
+
 function ToolRegistrar({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
   const [definitions, setDefinitions] = useState<ToolDefinition[]>([]);
@@ -45,7 +51,13 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
   );
 }
 
-function ProxyRuntime({ children }: { children: ReactNode }) {
+function ProxyRuntime({
+  sessionConfig,
+  children,
+}: {
+  sessionConfig: ChatSessionConfig;
+  children: ReactNode;
+}) {
   const settings = useSettings((state) => state.settings);
 
   const runtime = useChatRuntime({
@@ -67,9 +79,10 @@ function ProxyRuntime({ children }: { children: ReactNode }) {
               provider: settings.provider,
               apiKey: settings.apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "",
               baseUrl: settings.baseUrl || undefined,
-              model: settings.model,
+              model: sessionConfig.model,
             },
-            coachMode: settings.coachMode,
+            coachMode: sessionConfig.coachMode,
+            webSearch: sessionConfig.webSearch,
           },
         };
       },
@@ -87,13 +100,28 @@ function DirectRuntime({ children }: { children: ReactNode }) {
   return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+function ChatRuntime({
+  sessionConfig,
+  children,
+}: {
+  sessionConfig: ChatSessionConfig;
+  children: ReactNode;
+}) {
   const mode = useSettings((state) => state.settings.mode);
-  const RuntimeProvider = mode === "direct" ? DirectRuntime : ProxyRuntime;
+  if (mode === "direct") return <DirectRuntime>{children}</DirectRuntime>;
+  return <ProxyRuntime sessionConfig={sessionConfig}>{children}</ProxyRuntime>;
+}
 
+export function ChatProviders({
+  sessionConfig,
+  children,
+}: {
+  sessionConfig: ChatSessionConfig;
+  children: ReactNode;
+}) {
   return (
-    <RuntimeProvider>
+    <ChatRuntime sessionConfig={sessionConfig}>
       <ToolRegistrar>{children}</ToolRegistrar>
-    </RuntimeProvider>
+    </ChatRuntime>
   );
 }

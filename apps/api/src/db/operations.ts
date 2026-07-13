@@ -279,3 +279,35 @@ export const getDataSummary = (db: QueryDatabaseClient) =>
       lastHevySync: cursorMap.get("hevy") ?? null,
     } satisfies DataSummary;
   });
+
+export interface WorkoutSession {
+  session_id: string;
+  title: string | null;
+  start_time: string;
+  end_time: string | null;
+  duration_sec: number | null;
+  total_volume_kg: number | null;
+  sets: number;
+  exercises: number;
+}
+
+export const getWorkouts = (db: QueryDatabaseClient) =>
+  Effect.gen(function* () {
+    const sessions = yield* db.prepare(`
+      SELECT
+        s.session_id,
+        s.title,
+        s.start_time,
+        s.end_time,
+        s.duration_sec,
+        s.total_volume_kg,
+        COUNT(DISTINCT st.set_index) as sets,
+        COUNT(DISTINCT st.exercise_title) as exercises
+      FROM hevy_sessions s
+      LEFT JOIN hevy_sets st ON st.session_id = s.session_id
+      GROUP BY s.session_id
+      ORDER BY s.start_time DESC
+    `).all<WorkoutSession>();
+
+    return sessions.results;
+  });
