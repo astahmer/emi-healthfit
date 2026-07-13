@@ -200,13 +200,16 @@ const Composer: FC<{ controls?: ComposerControls }> = ({ controls }) => {
 const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         <ComposerAddAttachment />
         {controls && (
           <>
-            <Separator orientation="vertical" className="mx-0.5 h-4" />
+            <Separator orientation="vertical" className="mx-1 h-4" />
             <Select value={controls.model} onValueChange={controls.onModelChange}>
-              <SelectTrigger className="h-7 w-auto gap-1 px-2 text-xs" aria-label="Select model">
+              <SelectTrigger
+                className="h-8 w-auto gap-1.5 px-2.5 text-xs"
+                aria-label="Select model"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -223,7 +226,10 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
               type="button"
               variant={controls.coachMode ? "default" : "ghost"}
               size="icon"
-              className="size-7 rounded-full"
+              className={cn(
+                "size-8 rounded-full",
+                controls.coachMode && "bg-primary/10 text-primary hover:bg-primary/20",
+              )}
               onClick={() => controls.onCoachModeChange(!controls.coachMode)}
             >
               <GraduationCapIcon className="size-4" />
@@ -234,7 +240,10 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
               type="button"
               variant={controls.webSearch ? "default" : "ghost"}
               size="icon"
-              className="size-7 rounded-full"
+              className={cn(
+                "size-8 rounded-full",
+                controls.webSearch && "bg-primary/10 text-primary hover:bg-primary/20",
+              )}
               disabled={!controls.canWebSearch}
               onClick={() => controls.onWebSearchChange(!controls.webSearch)}
             >
@@ -253,7 +262,7 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="aui-composer-dictate size-7 rounded-full"
+                className="aui-composer-dictate size-8 rounded-full"
                 aria-label="Start voice input"
               >
                 <MicIcon className="aui-composer-dictate-icon size-4" />
@@ -268,7 +277,7 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
+                className="aui-composer-stop-dictation text-destructive size-8 rounded-full"
                 aria-label="Stop voice input"
               >
                 <SquareIcon className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
@@ -284,7 +293,7 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-send size-7 rounded-full"
+              className="aui-composer-send size-8 rounded-full"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4.5" />
@@ -297,7 +306,7 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel size-7 rounded-full"
+              className="aui-composer-cancel size-8 rounded-full"
               aria-label="Stop generating"
             >
               <SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
