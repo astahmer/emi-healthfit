@@ -36,7 +36,7 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
   return (
     <>
       {error !== null && (
-        <div className="fixed right-4 top-4 z-50 rounded-md bg-red-100 px-4 py-2 text-sm text-red-800 dark:bg-red-900 dark:text-red-100">
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-md bg-red-100 px-4 py-2 text-sm text-red-800 dark:bg-red-900 dark:text-red-100">
           {error}
         </div>
       )}

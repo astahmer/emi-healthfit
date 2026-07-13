@@ -284,14 +284,15 @@ const withCors = <E, R>(
 ) =>
   Effect.gen(function* () {
     const response = yield* effect;
-    const headers = new Headers(response.headers);
+    const webResponse = HttpServerResponse.toWeb(response);
+    const headers = new Headers(webResponse.headers);
     for (const [key, value] of Object.entries(corsHeaders(request))) {
       headers.set(key, value);
     }
     return HttpServerResponse.fromWeb(
-      new Response(response.body as unknown as BodyInit, {
-        status: response.status,
-        statusText: response.statusText,
+      new Response(webResponse.body, {
+        status: webResponse.status,
+        statusText: webResponse.statusText,
         headers,
       }),
     );
