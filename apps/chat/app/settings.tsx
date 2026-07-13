@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { chatModels, defaultModel } from "./models";
 import { useSettings } from "./settings-store";
 
 export function SettingsPanel() {
@@ -70,13 +71,17 @@ export function SettingsPanel() {
 
         <div>
           <label className="text-sm font-medium">Model</label>
-          <input
-            type="text"
+          <select
             value={settings.model}
             onChange={(e) => update({ model: e.target.value })}
-            placeholder="gpt-4o-mini"
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
+          >
+            {chatModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.label} — {model.description}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -115,9 +120,9 @@ export function SettingsPanel() {
               mode: "proxy",
               baseUrl: "",
               apiKey: "",
-              model: "gpt-4o-mini",
+              model: defaultModel.id,
               systemPrompt:
-                "You are EmiFit, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
+                "You are Emi, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
               coachMode: false,
             })
           }

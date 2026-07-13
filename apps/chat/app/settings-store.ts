@@ -18,7 +18,7 @@ const defaultSettings: ChatSettings = {
   provider: "openai",
   baseUrl: "",
   apiKey: "",
-  model: "gpt-4o-mini",
+  model: "gpt-5.2-chat-latest",
   systemPrompt:
     "You are EmiFit, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
   coachMode: false,
