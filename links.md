@@ -47,3 +47,8 @@ This is probably the cleaner native route, but I didn’t even know it existed a
 ---
 
 https://apps.apple.com/us/app/health-export-kit/id6762845329
+
+
+---
+
+https://mavgpt.ai/resources/claude-fitness-coach-setup-2026

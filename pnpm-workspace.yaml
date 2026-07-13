@@ -1,5 +1,5 @@
 packages:
-  - "."
+  - "apps/*"
 allowBuilds:
   msgpackr-extract: true
   workerd: true
