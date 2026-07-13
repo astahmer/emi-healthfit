@@ -6,16 +6,16 @@ import type { HevySessionRow, HevySetRow } from "../db/schema.ts";
 const HevyRow = Schema.Struct({
   title: Schema.String,
   start_time: Schema.String,
-  end_time: Schema.optionalWith(Schema.String, { as: "Option" }),
+  end_time: Schema.OptionFromOptional(Schema.String),
   exercise_title: Schema.String,
-  exercise_notes: Schema.optionalWith(Schema.String, { as: "Option" }),
+  exercise_notes: Schema.OptionFromOptional(Schema.String),
   set_index: Schema.String,
-  set_type: Schema.optionalWith(Schema.String, { as: "Option" }),
-  weight_kg: Schema.optionalWith(Schema.String, { as: "Option" }),
-  reps: Schema.optionalWith(Schema.String, { as: "Option" }),
-  distance_km: Schema.optionalWith(Schema.String, { as: "Option" }),
-  duration_seconds: Schema.optionalWith(Schema.String, { as: "Option" }),
-  rpe: Schema.optionalWith(Schema.String, { as: "Option" }),
+  set_type: Schema.OptionFromOptional(Schema.String),
+  weight_kg: Schema.OptionFromOptional(Schema.String),
+  reps: Schema.OptionFromOptional(Schema.String),
+  distance_km: Schema.OptionFromOptional(Schema.String),
+  duration_seconds: Schema.OptionFromOptional(Schema.String),
+  rpe: Schema.OptionFromOptional(Schema.String),
 });
 
 type HevyRow = typeof HevyRow.Type;
@@ -66,6 +66,11 @@ const parseCsvLine = (line: string): string[] => {
   return values;
 };
 
+const toDateTimeLocal = (date: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 export const parseHevyCsv = (text: string): Effect.Effect<{
   sessions: HevySessionRow[];
   sets: HevySetRow[];
@@ -86,7 +91,7 @@ export const parseHevyCsv = (text: string): Effect.Effect<{
         record[header] = values[index] ?? "";
       });
 
-      const decoded = yield* Schema.decodeUnknown(HevyRow)(record).pipe(
+      const decoded = yield* Schema.decodeUnknownEffect(HevyRow)(record).pipe(
         Effect.mapError((error) => new Error(`Hevy CSV schema error: ${JSON.stringify(error)}`)),
       );
       rows.push(decoded);
@@ -102,7 +107,7 @@ export const parseHevyCsv = (text: string): Effect.Effect<{
       if (!sessionsById.has(sessionId)) {
         const endDate = yield* Option.match(row.end_time, {
           onNone: () => Effect.succeed(null),
-          onSome: (end) => parseHevyDate(end).pipe(Effect.map((d) => d)),
+          onSome: (end) => parseHevyDate(end).pipe(Effect.map((date) => date)),
         });
 
         const durationSec = endDate !== null
@@ -134,7 +139,7 @@ export const parseHevyCsv = (text: string): Effect.Effect<{
     }
 
     for (const session of sessionsById.values()) {
-      const sessionSets = sets.filter((s) => s.session_id === session.session_id);
+      const sessionSets = sets.filter((set) => set.session_id === session.session_id);
       session.total_volume_kg = sessionSets.reduce((sum, set) => {
         if (set.weight_kg !== null && set.reps !== null) {
           return sum + set.weight_kg * set.reps;
@@ -145,8 +150,3 @@ export const parseHevyCsv = (text: string): Effect.Effect<{
 
     return { sessions: Array.from(sessionsById.values()), sets };
   });
-
-const toDateTimeLocal = (date: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};

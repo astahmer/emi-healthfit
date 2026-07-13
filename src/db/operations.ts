@@ -1,4 +1,4 @@
-import type { QueryDatabaseClient } from "alchemy/Cloudflare/D1/QueryDatabase";
+import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import type {
   BodyMetricRow,
@@ -8,6 +8,8 @@ import type {
   HevySetRow,
   SleepSessionRow,
 } from "./schema.ts";
+
+export type QueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
 
 export const upsertDailyActivity = (
   db: QueryDatabaseClient,

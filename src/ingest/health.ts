@@ -10,22 +10,22 @@ import type {
 
 const HealthDailyActivity = Schema.Struct({
   date: Schema.String,
-  activeEnergyKcal: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  steps: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  distanceKm: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  exerciseMinutes: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  flightsClimbed: Schema.optionalWith(Schema.Number, { as: "Option" }),
+  activeEnergyKcal: Schema.OptionFromOptional(Schema.Number),
+  steps: Schema.OptionFromOptional(Schema.Number),
+  distanceKm: Schema.OptionFromOptional(Schema.Number),
+  exerciseMinutes: Schema.OptionFromOptional(Schema.Number),
+  flightsClimbed: Schema.OptionFromOptional(Schema.Number),
 });
 
 const HealthWorkout = Schema.Struct({
   type: Schema.String,
-  durationSec: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  activeEnergyKcal: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  averageHeartRateBpm: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  maxHeartRateBpm: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  minHeartRateBpm: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  distanceKm: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  source: Schema.optionalWith(Schema.String, { as: "Option" }),
+  durationSec: Schema.OptionFromOptional(Schema.Number),
+  activeEnergyKcal: Schema.OptionFromOptional(Schema.Number),
+  averageHeartRateBpm: Schema.OptionFromOptional(Schema.Number),
+  maxHeartRateBpm: Schema.OptionFromOptional(Schema.Number),
+  minHeartRateBpm: Schema.OptionFromOptional(Schema.Number),
+  distanceKm: Schema.OptionFromOptional(Schema.Number),
+  source: Schema.OptionFromOptional(Schema.String),
   start: Schema.String,
 });
 
@@ -33,18 +33,18 @@ const SleepStage = Schema.Struct({
   stage: Schema.String,
   start: Schema.String,
   end: Schema.String,
-  durationSec: Schema.optionalWith(Schema.Number, { as: "Option" }),
+  durationSec: Schema.OptionFromOptional(Schema.Number),
 });
 
 const SleepSession = Schema.Struct({
   start: Schema.String,
   end: Schema.String,
-  durationSec: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  inBedSec: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  asleepSec: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  awakeSec: Schema.optionalWith(Schema.Number, { as: "Option" }),
-  source: Schema.optionalWith(Schema.String, { as: "Option" }),
-  stages: Schema.optionalWith(Schema.Array(SleepStage), { as: "Option" }),
+  durationSec: Schema.OptionFromOptional(Schema.Number),
+  inBedSec: Schema.OptionFromOptional(Schema.Number),
+  asleepSec: Schema.OptionFromOptional(Schema.Number),
+  awakeSec: Schema.OptionFromOptional(Schema.Number),
+  source: Schema.OptionFromOptional(Schema.String),
+  stages: Schema.OptionFromOptional(Schema.Array(SleepStage)),
 });
 
 const HealthExport = Schema.Struct({
@@ -55,22 +55,21 @@ const HealthExport = Schema.Struct({
   sleep: Schema.Struct({
     sessions: Schema.Array(SleepSession),
   }),
-  additional: Schema.optionalWith(
+  additional: Schema.OptionFromOptional(
     Schema.Struct({
       body: Schema.Struct({
         daily: Schema.Array(
           Schema.Struct({
             date: Schema.String,
             values: Schema.Struct({
-              bodyMass: Schema.optionalWith(Schema.Number, { as: "Option" }),
-              bodyFat: Schema.optionalWith(Schema.Number, { as: "Option" }),
-              leanMass: Schema.optionalWith(Schema.Number, { as: "Option" }),
+              bodyMass: Schema.OptionFromOptional(Schema.Number),
+              bodyFat: Schema.OptionFromOptional(Schema.Number),
+              leanMass: Schema.OptionFromOptional(Schema.Number),
             }),
           }),
         ),
       }),
     }),
-    { as: "Option" },
   ),
 });
 
@@ -139,7 +138,7 @@ export const parseHealthExport = (text: string, startYear: number): Effect.Effec
       catch: (error) => new Error(`Failed to parse health JSON: ${error}`),
     });
 
-    const parsed = yield* Schema.decodeUnknown(HealthExport)(raw).pipe(
+    const parsed = yield* Schema.decodeUnknownEffect(HealthExport)(raw).pipe(
       Effect.mapError((error) => new Error(`Health export schema error: ${JSON.stringify(error)}`)),
     );
 

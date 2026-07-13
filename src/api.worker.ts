@@ -3,22 +3,26 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { buildChatContext, renderContextPrompt } from "./chat/context.ts";
+import { buildChatContext } from "./chat/context.ts";
 import { handleChat } from "./chat/handler.ts";
-import { parseHealthExport } from "./ingest/health.ts";
-import { parseHevyCsv } from "./ingest/hevy.ts";
 import {
   insertHealthWorkouts,
+  type QueryDatabaseClient,
   upsertBodyMetrics,
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
 } from "./db/operations.ts";
+import { parseHealthExport } from "./ingest/health.ts";
+import { parseHevyCsv } from "./ingest/hevy.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
 const AiGateway = Cloudflare.AI.Gateway("AiGateway");
+
+type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
+type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
@@ -32,7 +36,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const db = yield* Cloudflare.D1.QueryDatabase(DB);
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
     const aiGateway = yield* Cloudflare.AI.QueryGateway(AiGateway);
-    const env = yield* Cloudflare.CloudflareEnvironment;
+    const env = (yield* yield* Cloudflare.CloudflareEnvironment) as Record<string, unknown>;
 
     return {
       fetch: Effect.gen(function* () {
@@ -66,13 +70,14 @@ export default class Api extends Cloudflare.Worker<Api>()(
 ) {}
 
 const handleIngest = (
-  db: ReturnType<typeof Cloudflare.D1.QueryDatabase> extends Effect.Effect<infer T> ? T : never,
-  bucket: ReturnType<typeof Cloudflare.R2.ReadWriteBucket> extends Effect.Effect<infer T> ? T : never,
-  request: typeof HttpServerRequest.Service,
-): Effect.Effect<typeof HttpServerResponse.HttpServerResponse> =>
+  db: QueryDatabaseClient,
+  bucket: ReadWriteBucketClient,
+  request: HttpServerRequest,
+): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
   Effect.gen(function* () {
+    const nativeRequest = request.source as Request;
     const formData = yield* Effect.tryPromise({
-      try: () => request.formData(),
+      try: () => nativeRequest.formData(),
       catch: (error) => new Error(`Failed to read form data: ${error}`),
     });
 
@@ -142,23 +147,19 @@ const handleIngest = (
       hevy: hevySummary,
     });
   }).pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
     ),
   );
 
 const handleChatRoute = (
-  db: ReturnType<typeof Cloudflare.D1.QueryDatabase> extends Effect.Effect<infer T> ? T : never,
-  aiGateway: ReturnType<typeof Cloudflare.AI.QueryGateway> extends Effect.Effect<infer T> ? T : never,
+  db: QueryDatabaseClient,
+  aiGateway: QueryGatewayClient,
   env: Record<string, unknown>,
-  request: typeof HttpServerRequest.Service,
-): Effect.Effect<typeof HttpServerResponse.HttpServerResponse> =>
+  request: HttpServerRequest,
+): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
   Effect.gen(function* () {
-    const text = yield* Effect.tryPromise({
-      try: () => request.text(),
-      catch: (error) => new Error(`Failed to read request body: ${error}`),
-    });
-
+    const text = yield* request.text;
     const body = JSON.parse(text || "{}") as { message?: string };
     const message = body.message?.trim();
 
@@ -172,14 +173,14 @@ const handleChatRoute = (
     const result = yield* handleChat(db, aiGateway, env, { message });
     return yield* HttpServerResponse.json(result);
   }).pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
     ),
   );
 
 const handleRecovery = (
-  db: ReturnType<typeof Cloudflare.D1.QueryDatabase> extends Effect.Effect<infer T> ? T : never,
-): Effect.Effect<typeof HttpServerResponse.HttpServerResponse> =>
+  db: QueryDatabaseClient,
+): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
   Effect.gen(function* () {
     const ctx = yield* buildChatContext(db);
     return yield* HttpServerResponse.json({
@@ -192,7 +193,7 @@ const handleRecovery = (
       recentVolume: ctx.lastWorkout.recentVolume,
     });
   }).pipe(
-    Effect.catchAll((error) =>
+    Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
     ),
   );

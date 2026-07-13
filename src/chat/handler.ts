@@ -1,10 +1,10 @@
-import type { QueryGatewayClient } from "alchemy/Cloudflare/AI/QueryGateway";
+import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
-import { buildChatContext, renderContextPrompt, type ChatContext } from "./context.ts";
-import type { QueryDatabaseClient } from "alchemy/Cloudflare/D1/QueryDatabase";
+import type { QueryDatabaseClient } from "../db/operations.ts";
+import { buildChatContext, renderContextPrompt } from "./context.ts";
 
 export interface ChatRequest {
   message: string;
@@ -15,6 +15,8 @@ export interface ChatResponse {
   recoveryLabel: string;
   model: string;
 }
+
+type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
 
 const getLlmProvider = (env: Record<string, unknown>): {
   provider: "workers-ai" | "openai";

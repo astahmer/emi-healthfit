@@ -1,6 +1,5 @@
-import type { QueryDatabaseClient } from "alchemy/Cloudflare/D1/QueryDatabase";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
+import type { QueryDatabaseClient } from "../db/operations.ts";
 import type { HevySetRow, SleepSessionRow } from "../db/schema.ts";
 
 export interface WorkoutContext {
@@ -8,7 +7,7 @@ export interface WorkoutContext {
   lastSessionSummary: string;
   recentVolume: number;
   recentWorkoutCount: number;
-  recentSets: HevySetRow[];
+  recentSets: Array<HevySetRow & { session_start: string }>;
 }
 
 export interface SleepContext {
@@ -96,7 +95,7 @@ export const buildChatContext = (
       steps: number;
     }>();
 
-    const recentVolume = recentSets.results.reduce((sum, set) => {
+    const recentVolume = recentSets.results.reduce((sum: number, set: HevySetRow) => {
       if (set.weight_kg !== null && set.reps !== null) {
         return sum + set.weight_kg * set.reps;
       }
@@ -104,7 +103,7 @@ export const buildChatContext = (
     }, 0);
 
     const recentWorkoutCount = new Set(
-      recentSets.results.map((set) => set.session_id),
+      recentSets.results.map((set: HevySetRow) => set.session_id),
     ).size;
 
     const lastSessionDate = lastSessions.results[0]?.start_time.slice(0, 10) ?? null;
@@ -116,19 +115,16 @@ export const buildChatContext = (
       : "No recent workouts found";
 
     const sleepMinutes = sleepRows.results
-      .map((s) => s.asleep_min ?? s.in_bed_min)
+      .map((s: SleepSessionRow) => s.asleep_min ?? s.in_bed_min)
       .filter((m): m is number => m !== null);
 
     const sevenDaySleepAvg = sleepMinutes.length > 0
-      ? sleepMinutes.reduce((a, b) => a + b, 0) / sleepMinutes.length
+      ? sleepMinutes.reduce((a: number, b: number) => a + b, 0) / sleepMinutes.length
       : null;
 
-    const strain48h = recentSets.results
-      .filter((set) => {
-        const sessionStart = lastSets.results.find((s) => s.session_id === set.session_id)?.session_start ?? "";
-        return sessionStart >= twoDaysAgo;
-      })
-      .reduce((sum, set) => {
+    const strain48h = lastSets.results
+      .filter((set: HevySetRow & { session_start: string }) => set.session_start >= twoDaysAgo)
+      .reduce((sum: number, set: HevySetRow) => {
         if (set.weight_kg !== null && set.reps !== null) {
           return sum + set.weight_kg * set.reps;
         }
@@ -136,7 +132,8 @@ export const buildChatContext = (
       }, 0);
 
     const activeKcalAvg = dailyActivity.results.length > 0
-      ? dailyActivity.results.reduce((sum, d) => sum + (d.active_kcal ?? 0), 0) / dailyActivity.results.length
+      ? dailyActivity.results.reduce((sum: number, d: { active_kcal: number }) => sum + (d.active_kcal ?? 0), 0) /
+        dailyActivity.results.length
       : null;
 
     const { label, explanation } = computeRecoveryLabel(
