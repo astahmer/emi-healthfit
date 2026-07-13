@@ -13,12 +13,17 @@
     "verify": "node --experimental-strip-types scripts/verify-parsers.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.74",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^6.0.209",
     "alchemy": "2.0.0-beta.59",
-    "effect": "4.0.0-beta.88"
+    "effect": "4.0.0-beta.88",
+    "zod": "^3.25.56"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20250805.0",
     "@effect/platform-node": "4.0.0-beta.88",
+    "@types/json-schema": "^7.0.15",
     "typescript": "7.0.1-rc"
   }
 }

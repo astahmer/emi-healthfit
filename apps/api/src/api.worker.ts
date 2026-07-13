@@ -19,6 +19,8 @@ import {
 } from "./db/operations.ts";
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
+import { handleMcp } from "./mcp/handler.ts";
+import { streamChat } from "./chat/ai-sdk.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -47,15 +49,22 @@ export default class Api extends Cloudflare.Worker<Api>()(
       | undefined;
     const assetsFetcher = assetsBinding?.fetch;
 
+    const runtime = yield* Effect.runtime<never>();
+
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const url = new URL(request.url, "http://localhost");
 
+        if (request.method === "OPTIONS") {
+          return yield* handleCorsPreflight(request);
+        }
+
         if (request.method === "GET" && assetsFetcher !== undefined) {
           const isAssetPath = url.pathname === "/" ||
             url.pathname === "/index.html" ||
-            url.pathname.startsWith("/assets/");
+            url.pathname.startsWith("/assets/") ||
+            url.pathname.startsWith("/_next/");
           if (isAssetPath) {
             const response = yield* Effect.promise(() => assetsFetcher(request.source as Request));
             if (response.status !== 404) {
@@ -65,19 +74,27 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }
 
         if (url.pathname === "/ingest" && request.method === "POST") {
-          return yield* handleIngest(db, bucket, request);
+          return yield* withCors(handleIngest(db, bucket, request), request);
         }
 
         if (url.pathname === "/chat" && request.method === "POST") {
-          return yield* handleChatRoute(db, aiGateway, env, request);
+          return yield* withCors(handleChatRoute(db, aiGateway, env, request), request);
+        }
+
+        if (url.pathname === "/api/chat" && request.method === "POST") {
+          return yield* handleAiSdkChat(request);
+        }
+
+        if (url.pathname === "/api/mcp") {
+          return yield* handleMcp(db, request);
         }
 
         if (url.pathname === "/api/recovery" && request.method === "GET") {
-          return yield* handleRecovery(db);
+          return yield* withCors(handleRecovery(db), request);
         }
 
         if (url.pathname === "/api/summary" && request.method === "GET") {
-          return yield* handleSummary(db);
+          return yield* withCors(handleSummary(db), request);
         }
 
         return HttpServerResponse.text("Not Found", { status: 404 });
@@ -240,5 +257,67 @@ const handleSummary = (
   }).pipe(
     Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
+  const origin = request.headers["origin"] ?? "*";
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers":
+      "authorization, content-type, mcp-session-id, last-event-id, mcp-protocol-version",
+    "access-control-expose-headers": "mcp-session-id, mcp-protocol-version",
+  };
+};
+
+const handleCorsPreflight = (request: HttpServerRequest) =>
+  Effect.succeed(
+    HttpServerResponse.text("", { headers: corsHeaders(request) }),
+  );
+
+const withCors = <E, R>(
+  effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const response = yield* effect;
+    const headers = new Headers(response.headers);
+    for (const [key, value] of Object.entries(corsHeaders(request))) {
+      headers.set(key, value);
+    }
+    return HttpServerResponse.fromWeb(
+      new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      }),
+    );
+  });
+
+const handleAiSdkChat = (request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const text = yield* request.text;
+    const body = JSON.parse(text || "{}") as unknown;
+    const response = yield* Effect.promise(() => streamChat(body as Parameters<typeof streamChat>[0]));
+
+    const headers = new Headers(response.headers);
+    for (const [key, value] of Object.entries(corsHeaders(request))) {
+      headers.set(key, value);
+    }
+
+    return HttpServerResponse.fromWeb(
+      new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      }),
+    );
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 500 },
+      ),
     ),
   );
