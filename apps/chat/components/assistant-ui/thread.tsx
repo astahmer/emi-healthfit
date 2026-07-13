@@ -263,7 +263,10 @@ const MessageTokenBadge: FC = () => {
   if (usage === undefined || usage.totalTokens === null || usage.totalTokens === 0) return null;
 
   return (
-    <span className="text-muted-foreground text-xs tabular-nums" title="Tokens used for this message">
+    <span
+      className="text-muted-foreground text-xs tabular-nums"
+      title="Tokens used for this message"
+    >
       {usage.totalTokens.toLocaleString()} tokens
     </span>
   );

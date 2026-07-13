@@ -47,9 +47,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <AlertTriangleIcon className="text-destructive size-10" />
         <div>
           <p className="text-lg font-medium">Something went wrong</p>
-          <p className="text-muted-foreground mt-1 max-w-md text-sm">
-            {this.state.error.message}
-          </p>
+          <p className="text-muted-foreground mt-1 max-w-md text-sm">{this.state.error.message}</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={this.handleReset} variant="outline" className="gap-2">

@@ -2,10 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AssistantRuntimeProvider, useAui, useLocalRuntime, type Tool } from "@assistant-ui/react";
-import {
-  useChatRuntime,
-  AssistantChatTransport,
-} from "@assistant-ui/react-ai-sdk";
+import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";

@@ -16,7 +16,7 @@ export const NavHeader: FC = () => {
   const pathname = usePathname();
 
   return (
-    <header className="flex items-center justify-between border-b px-4 py-3">
+    <header className="relative z-50 flex items-center justify-between border-b bg-background px-4 py-3">
       <div>
         <h1 className="text-lg font-semibold">Emi HealthFit</h1>
         <p className="text-muted-foreground text-xs">Personal gym assistant</p>

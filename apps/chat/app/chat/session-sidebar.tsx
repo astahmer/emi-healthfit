@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MenuIcon, XIcon } from "lucide-react";
-import { createThread, deleteThread, fetchThreads, renameThread, type Thread } from "../sessions";
+import { deleteThread, fetchThreads, renameThread, type Thread } from "../sessions";
 
 interface SessionSidebarProps {
   isOpen: boolean;
@@ -39,10 +39,9 @@ export const SessionSidebar = ({ isOpen, onToggle }: SessionSidebarProps) => {
     load();
   }, [search]);
 
-  const handleNew = async () => {
-    const id = await createThread();
+  const handleNew = () => {
     onToggle();
-    router.push(`/chat?id=${id}`);
+    router.push("/chat");
   };
 
   const handleSelect = (threadId: string) => {
@@ -73,14 +72,14 @@ export const SessionSidebar = ({ isOpen, onToggle }: SessionSidebarProps) => {
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
           onClick={onToggle}
           aria-hidden="true"
         />
       )}
       <aside
-        className={`flex w-64 flex-col border-r bg-muted/30 ${
-          isOpen ? "fixed inset-y-0 left-0 z-50 flex" : "hidden md:flex"
+        className={`flex w-64 flex-col border-r bg-background transition-transform duration-200 ease-in-out ${
+          isOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden md:flex"
         }`}
       >
         <div className="flex items-center gap-2 border-b p-3">
@@ -147,7 +146,9 @@ export const SessionSidebar = ({ isOpen, onToggle }: SessionSidebarProps) => {
                     }}
                     className="flex items-center justify-between p-2"
                   >
-                    <span className="line-clamp-1 flex-1 text-sm">{thread.title ?? "New chat"}</span>
+                    <span className="line-clamp-1 flex-1 text-sm">
+                      {thread.title ?? "New chat"}
+                    </span>
                     <span className="text-muted-foreground text-xs">
                       {formatDate(thread.updated_at)}
                     </span>

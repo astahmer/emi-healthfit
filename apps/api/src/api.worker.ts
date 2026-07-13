@@ -294,10 +294,7 @@ const handleSuggestions = (
 
     const apiKey = env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "";
     if (apiKey === "") {
-      return yield* HttpServerResponse.json(
-        { error: "OpenAI API key is not configured" },
-        { status: 500 },
-      );
+      return yield* HttpServerResponse.json({ suggestions: [] });
     }
 
     const suggestions = yield* Effect.promise(() =>
@@ -475,10 +472,10 @@ const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
   const origin = request.headers["origin"] ?? "*";
   return {
     "access-control-allow-origin": origin,
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "access-control-allow-headers":
       "authorization, content-type, mcp-session-id, last-event-id, mcp-protocol-version",
-    "access-control-expose-headers": "mcp-session-id, mcp-protocol-version",
+    "access-control-expose-headers": "mcp-session-id, mcp-protocol-version, x-thread-id",
   };
 };
 
@@ -677,6 +674,14 @@ const handleAiSdkChat = (
     const needsTitle = thread.title === null || thread.title === "";
     const services = yield* Effect.context<RuntimeContext>();
 
+    if (needsTitle && firstUserText !== undefined) {
+      const title = yield* Effect.tryPromise({
+        try: () => generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
+        catch: (error) => new Error(`Failed to generate title: ${error}`),
+      });
+      yield* renameThread(db, sessionId, title);
+    }
+
     const result = yield* Effect.promise(() =>
       createChatStream(requestWithHistory, async (event) => {
         await Effect.runPromiseWith(services)(
@@ -692,15 +697,6 @@ const handleAiSdkChat = (
             },
           ]),
         );
-
-        if (needsTitle && firstUserText !== undefined) {
-          const title = await generateThreadTitle(
-            apiKey,
-            chatRequest.config.baseUrl,
-            firstUserText,
-          );
-          await Effect.runPromiseWith(services)(renameThread(db, sessionId, title));
-        }
       }),
     );
 

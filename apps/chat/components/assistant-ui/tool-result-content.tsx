@@ -71,10 +71,7 @@ const isWorkoutHistory = (value: unknown): value is WorkoutHistoryItem[] =>
   Array.isArray(value) &&
   value.every(
     (item) =>
-      typeof item === "object" &&
-      item !== null &&
-      "session_id" in item &&
-      "start_time" in item,
+      typeof item === "object" && item !== null && "session_id" in item && "start_time" in item,
   );
 
 const isExerciseProgress = (value: unknown): value is ExerciseProgress =>
@@ -84,9 +81,7 @@ const isExerciseProgress = (value: unknown): value is ExerciseProgress =>
   Array.isArray((value as ExerciseProgress).workouts);
 
 const isRecoveryResult = (value: unknown): value is RecoveryResult =>
-  typeof value === "object" &&
-  value !== null &&
-  ("label" in value || "explanation" in value);
+  typeof value === "object" && value !== null && ("label" in value || "explanation" in value);
 
 const getCitations = (value: unknown): Citation[] | undefined => {
   if (typeof value !== "object" || value === null) return undefined;
