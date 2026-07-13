@@ -7,6 +7,7 @@ import {
 } from "ai";
 import { streamText } from "ai";
 import type { JSONSchema7 } from "json-schema";
+import { fitnessCoachV1 } from "./prompts/fitness-coach-v1.ts";
 
 export interface ChatConfig {
   provider: "openai";
@@ -17,10 +18,11 @@ export interface ChatConfig {
 }
 
 export interface ChatStreamRequest {
-  messages: UIMessage[];
+  messages: Array<Omit<UIMessage, "id">>;
   system?: string | undefined;
   tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
   config: ChatConfig;
+  coachMode?: boolean | undefined;
 }
 
 const buildToolSet = (
@@ -45,7 +47,9 @@ export const streamChat = async (request: ChatStreamRequest) => {
     baseURL: request.config.baseUrl,
   });
 
-  const system = request.system ?? request.config.system;
+  const system = request.coachMode
+    ? fitnessCoachV1
+    : (request.system ?? request.config.system);
 
   const result = streamText({
     model: openai(request.config.model),

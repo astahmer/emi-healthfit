@@ -89,6 +89,25 @@ export function SettingsPanel() {
           />
         </div>
 
+        <div className="flex items-start gap-3">
+          <input
+            id="coach-mode"
+            type="checkbox"
+            checked={settings.coachMode}
+            onChange={(e) => update({ coachMode: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-input"
+          />
+          <div>
+            <label htmlFor="coach-mode" className="text-sm font-medium">
+              Coach mode
+            </label>
+            <p className="text-muted-foreground text-xs">
+              Injects the fitness coach pre-prompt before the user message. Only applies in proxy
+              mode.
+            </p>
+          </div>
+        </div>
+
         <Button
           onClick={() =>
             update({
@@ -99,6 +118,7 @@ export function SettingsPanel() {
               model: "gpt-4o-mini",
               systemPrompt:
                 "You are Emi, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
+              coachMode: false,
             })
           }
           variant="outline"

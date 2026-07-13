@@ -1,6 +1,8 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { buildChatContext } from "./chat/context.ts";
@@ -19,7 +21,7 @@ import {
 } from "./db/operations.ts";
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
-import { streamChat } from "./chat/ai-sdk.ts";
+import { streamChat, type ChatStreamRequest } from "./chat/ai-sdk.ts";
 import { handleToolExecute, handleToolsList } from "./tools/api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -305,11 +307,42 @@ const withCors = <E, R>(
     ),
   );
 
+const ChatStreamRequestSchema = Schema.Struct({
+  messages: Schema.mutable(Schema.Array(Schema.Unknown)),
+  system: Schema.optional(Schema.String),
+  tools: Schema.optional(
+    Schema.Record(
+      Schema.String,
+      Schema.Struct({
+        description: Schema.optional(Schema.String),
+        parameters: Schema.Record(Schema.String, Schema.Unknown),
+      }),
+    ),
+  ),
+  config: Schema.Struct({
+    provider: Schema.Literal("openai"),
+    baseUrl: Schema.optional(Schema.String),
+    apiKey: Schema.String,
+    model: Schema.String,
+    system: Schema.optional(Schema.String),
+  }),
+  coachMode: Schema.optional(Schema.Boolean),
+});
+
 const handleAiSdkChat = (request: HttpServerRequest) =>
   Effect.gen(function* () {
     const text = yield* request.text;
-    const body = JSON.parse(text || "{}") as unknown;
-    const response = yield* Effect.promise(() => streamChat(body as Parameters<typeof streamChat>[0]));
+    const raw = JSON.parse(text || "{}") as unknown;
+    const parsed = Schema.decodeUnknownOption(ChatStreamRequestSchema)(raw);
+
+    if (Option.isNone(parsed)) {
+      return yield* HttpServerResponse.json(
+        { error: "Invalid request" },
+        { status: 400 },
+      );
+    }
+
+    const response = yield* Effect.promise(() => streamChat(parsed.value as ChatStreamRequest));
 
     const headers = new Headers(response.headers);
     for (const [key, value] of Object.entries(corsHeaders(request))) {

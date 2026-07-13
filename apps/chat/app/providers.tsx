@@ -53,16 +53,23 @@ function ProxyRuntime({ children }: { children: ReactNode }) {
     transport: new AssistantChatTransport({
       api: "/api/chat",
       prepareSendMessagesRequest: async (options) => {
+        const baseBody = (options.body ?? {}) as Record<string, unknown>;
         return {
           ...options,
           body: {
-            ...(options.body as Record<string, unknown>),
+            ...baseBody,
+            id: options.id,
+            messages: options.messages,
+            trigger: options.trigger,
+            messageId: options.messageId,
+            metadata: options.requestMetadata,
             config: {
               provider: settings.provider,
               apiKey: settings.apiKey,
               baseUrl: settings.baseUrl || undefined,
               model: settings.model,
             },
+            coachMode: settings.coachMode,
           },
         };
       },
