@@ -521,11 +521,20 @@ export interface Thread {
   updated_at: string;
 }
 
+export interface MessageUsage {
+  prompt_tokens?: number | undefined;
+  completion_tokens?: number | undefined;
+  total_tokens?: number | undefined;
+}
+
 export interface ThreadMessage {
   id: string;
   thread_id: string;
   role: string;
   parts: string;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
   created_at: string;
 }
 
@@ -594,7 +603,8 @@ export const updateThreadTimestamp = (db: QueryDatabaseClient, threadId: string)
 export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
     const result = yield* db.prepare(`
-      SELECT * FROM messages
+      SELECT id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, created_at
+      FROM messages
       WHERE thread_id = ?
       ORDER BY created_at ASC
     `).bind(threadId).all<ThreadMessage>();
@@ -604,7 +614,7 @@ export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
 export const saveThreadMessages = (
   db: QueryDatabaseClient,
   threadId: string,
-  messages: Array<{ role: string; parts: unknown[] }>,
+  messages: Array<{ role: string; parts: unknown[]; usage?: MessageUsage }>,
 ) =>
   Effect.gen(function* () {
     if (messages.length === 0) return;
@@ -612,13 +622,16 @@ export const saveThreadMessages = (
     const createdAt = nowIso();
     const statements = messages.map((message) =>
       db.prepare(`
-        INSERT INTO messages (id, thread_id, role, parts, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO messages (id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         crypto.randomUUID(),
         threadId,
         message.role,
         JSON.stringify(message.parts),
+        message.usage?.prompt_tokens ?? null,
+        message.usage?.completion_tokens ?? null,
+        message.usage?.total_tokens ?? null,
         createdAt,
       )
     );

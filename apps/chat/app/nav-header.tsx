@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FC, ReactNode } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
 const tabs = [
   { href: "/chat", label: "Chat" },
@@ -20,13 +21,16 @@ export const NavHeader: FC = () => {
         <h1 className="text-lg font-semibold">Emi HealthFit</h1>
         <p className="text-muted-foreground text-xs">Personal gym assistant</p>
       </div>
-      <nav className="flex gap-1">
-        {tabs.map((tab) => (
-          <TabButton key={tab.href} href={tab.href} active={pathname === tab.href}>
-            {tab.label}
-          </TabButton>
-        ))}
-      </nav>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <nav className="flex gap-1">
+          {tabs.map((tab) => (
+            <TabButton key={tab.href} href={tab.href} active={pathname === tab.href}>
+              {tab.label}
+            </TabButton>
+          ))}
+        </nav>
+      </div>
     </header>
   );
 };

@@ -3,13 +3,15 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Thread } from "@/components/assistant-ui/thread";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
-import { fetchThreadMessages } from "../sessions";
-import { SessionSidebar } from "./session-sidebar";
+import { fetchThreadMessages, type MessageWithUsage } from "../sessions";
+import { SessionSidebar, SessionSidebarToggle } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
+import { UsageProvider, useUsage } from "../usage-context";
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
@@ -20,9 +22,10 @@ function ChatPageInner() {
   const [coachMode, setCoachMode] = useSessionFlag("coach", settings.coachMode);
   const [webSearch, setWebSearch] = useSessionFlag("web", false);
 
-  const [initialMessages, setInitialMessages] = useState<UIMessage[] | undefined>(undefined);
+  const [initialMessages, setInitialMessages] = useState<MessageWithUsage[] | undefined>(undefined);
   const [loading, setLoading] = useState(sessionId !== undefined);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (sessionId === undefined) {
@@ -43,7 +46,7 @@ function ChatPageInner() {
 
   return (
     <div className="flex h-full">
-      <SessionSidebar />
+      <SessionSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen((open) => !open)} />
 
       {sessionId === undefined ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -57,20 +60,45 @@ function ChatPageInner() {
           Loading session…
         </div>
       ) : error !== null ? (
-        <div className="flex flex-1 items-center justify-center text-destructive">{error}</div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-destructive">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              fetchThreadMessages(sessionId)
+                .then((data) => setInitialMessages(data.messages))
+                .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+                .finally(() => setLoading(false));
+            }}
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
-        <ChatProviders
-          sessionConfig={{
-            model,
-            coachMode,
-            webSearch,
-            sessionId,
-            initialMessages,
-          }}
-        >
-          <div className="flex h-full flex-1 flex-col">
-            <div className="flex flex-wrap items-center gap-4 border-b px-4 py-2">
-              <div className="flex items-center gap-2">
+        <ErrorBoundary key={sessionId}>
+          <UsageProvider
+            usages={(initialMessages ?? [])
+              .filter((message): message is MessageWithUsage & { usage: NonNullable<MessageWithUsage["usage"]> } =>
+                message.usage !== undefined,
+              )
+              .map((message) => ({ messageId: message.id, usage: message.usage }))}
+          >
+            <ChatProviders
+              sessionConfig={{
+                model,
+                coachMode,
+                webSearch,
+                sessionId,
+                initialMessages: initialMessages as UIMessage[] | undefined,
+              }}
+            >
+              <div className="flex h-full flex-1 flex-col">
+                <div className="flex flex-wrap items-center gap-4 border-b px-4 py-2">
+                  <SessionSidebarToggle onToggle={() => setSidebarOpen((open) => !open)} />
+
+                <div className="flex items-center gap-2">
                 <label htmlFor="session-model" className="text-sm font-medium">
                   Model
                 </label>
@@ -115,17 +143,33 @@ function ChatPageInner() {
                 />
                 Web search
               </label>
+
+              <TokenBadge />
             </div>
 
             <div className="flex-1 overflow-hidden">
               <Thread />
             </div>
-          </div>
-        </ChatProviders>
+              </div>
+            </ChatProviders>
+          </UsageProvider>
+        </ErrorBoundary>
       )}
     </div>
   );
 }
+
+const TokenBadge = () => {
+  const { totalUsage } = useUsage();
+
+  if (totalUsage.totalTokens === 0) return null;
+
+  return (
+    <span className="ms-auto text-xs text-muted-foreground tabular-nums">
+      {totalUsage.totalTokens.toLocaleString()} tokens
+    </span>
+  );
+};
 
 export default function ChatPage() {
   return (

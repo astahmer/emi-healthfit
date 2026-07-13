@@ -32,6 +32,7 @@ import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
 import { createChatStream, generateSuggestions, generateThreadTitle, type ChatStreamRequest } from "./chat/ai-sdk.ts";
 import { handleToolExecute, handleToolsList } from "./tools/api.ts";
+import { TtlCache } from "./cache.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -335,11 +336,20 @@ const handleRecovery = (
     ),
   );
 
+const summaryCache = new TtlCache<DataSummary>();
+const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
+
 const handleSummary = (
   db: QueryDatabaseClient,
 ) =>
   Effect.gen(function* () {
+    const cached = summaryCache.get("summary");
+    if (cached !== undefined) {
+      return yield* HttpServerResponse.json(cached);
+    }
+
     const summary = yield* getDataSummary(db);
+    summaryCache.set("summary", summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);
   }).pipe(
     Effect.catch((error) =>
@@ -407,6 +417,14 @@ const handleThreadMessages = (db: QueryDatabaseClient, request: HttpServerReques
       id: row.id,
       role: row.role,
       parts: JSON.parse(row.parts) as unknown[],
+      usage:
+        row.prompt_tokens !== null || row.completion_tokens !== null || row.total_tokens !== null
+          ? {
+              promptTokens: row.prompt_tokens,
+              completionTokens: row.completion_tokens,
+              totalTokens: row.total_tokens,
+            }
+          : undefined,
     }));
     return yield* HttpServerResponse.json({ thread, messages });
   }).pipe(
@@ -541,6 +559,42 @@ const getFirstUserText = (
   return undefined;
 };
 
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+
+const getAttachmentSize = (part: Record<string, unknown>): number => {
+  if (part.type === "file" && typeof part.data === "string") {
+    return part.data.length;
+  }
+  if (part.type === "image" && typeof part.image === "string") {
+    return part.image.length;
+  }
+  return 0;
+};
+
+const validateAttachments = (messages: Array<{ parts: unknown[] }>): string | undefined => {
+  for (const message of messages) {
+    const attachments = message.parts.filter((part) => {
+      if (typeof part !== "object" || part === null) return false;
+      const record = part as Record<string, unknown>;
+      return record.type === "file" || record.type === "image";
+    });
+
+    if (attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+      return `Too many attachments. Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} per message.`;
+    }
+
+    for (const attachment of attachments) {
+      const size = getAttachmentSize(attachment as Record<string, unknown>);
+      if (size > MAX_ATTACHMENT_BYTES * 2) {
+        return "One attachment is too large. Maximum size is 5 MB.";
+      }
+    }
+  }
+
+  return undefined;
+};
+
 const handleAiSdkChat = (
   db: QueryDatabaseClient,
   env: Record<string, unknown>,
@@ -599,6 +653,14 @@ const handleAiSdkChat = (
       parts: message.parts,
     }));
 
+    const attachmentError = validateAttachments(incomingMessages);
+    if (attachmentError !== undefined) {
+      return yield* HttpServerResponse.json(
+        { error: attachmentError },
+        { status: 400 },
+      );
+    }
+
     const requestWithHistory: ChatStreamRequest = {
       ...requestWithKey,
       messages: [...existingMessages, ...incomingMessages] as ChatStreamRequest["messages"],
@@ -622,6 +684,11 @@ const handleAiSdkChat = (
             {
               role: "assistant",
               parts: [{ type: "text", text: event.text }],
+              usage: {
+                prompt_tokens: event.usage.promptTokens,
+                completion_tokens: event.usage.completionTokens,
+                total_tokens: event.usage.totalTokens,
+              },
             },
           ]),
         );

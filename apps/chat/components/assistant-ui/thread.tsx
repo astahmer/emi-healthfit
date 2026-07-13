@@ -9,6 +9,7 @@ import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useUsage } from "@/app/usage-context";
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
@@ -254,6 +255,20 @@ const MessageError: FC = () => {
   );
 };
 
+const MessageTokenBadge: FC = () => {
+  const { usageByMessageId } = useUsage();
+  const messageId = useAuiState((s) => s.message.id);
+  const usage = usageByMessageId.get(messageId);
+
+  if (usage === undefined || usage.totalTokens === null || usage.totalTokens === 0) return null;
+
+  return (
+    <span className="text-muted-foreground text-xs tabular-nums" title="Tokens used for this message">
+      {usage.totalTokens.toLocaleString()} tokens
+    </span>
+  );
+};
+
 const AssistantMessage: FC = () => {
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
@@ -296,6 +311,7 @@ const AssistantMessage: FC = () => {
         className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
       >
         <BranchPicker />
+        <MessageTokenBadge />
         <AssistantActionBar />
       </div>
     </MessagePrimitive.Root>

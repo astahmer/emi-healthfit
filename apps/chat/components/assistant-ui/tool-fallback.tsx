@@ -14,6 +14,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ToolResultContent } from "./tool-result-content";
 
 const ANIMATION_DURATION = 200;
 
@@ -512,7 +513,12 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
             respondToApproval={respondToApproval}
           />
         )}
-        {!isCancelled && <ToolFallbackResult result={result} />}
+        {!isCancelled && (
+          <div className="pt-1">
+            <p className="text-muted-foreground text-xs font-medium">Result:</p>
+            <ToolResultContent toolName={toolName} result={result} />
+          </div>
+        )}
       </ToolFallbackContent>
     </ToolFallbackRoot>
   );

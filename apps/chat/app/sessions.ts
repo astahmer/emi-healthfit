@@ -8,9 +8,19 @@ export interface Thread {
   updated_at: string;
 }
 
+export interface MessageUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface MessageWithUsage extends UIMessage {
+  usage?: MessageUsage;
+}
+
 export interface ThreadWithMessages {
   thread: Thread;
-  messages: UIMessage[];
+  messages: MessageWithUsage[];
 }
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);

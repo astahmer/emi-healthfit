@@ -3,6 +3,7 @@ import {
   convertToModelMessages,
   generateText,
   jsonSchema,
+  type LanguageModelUsage,
   type ToolSet,
   type UIMessage,
 } from "ai";
@@ -56,7 +57,7 @@ const buildToolSet = (
 
 export const createChatStream = async (
   request: ChatStreamRequest,
-  onFinish?: (event: { text: string }) => void | Promise<void>,
+  onFinish?: (event: { text: string; usage: LanguageModelUsage }) => void | Promise<void>,
 ) => {
   const openai = createOpenAI({
     apiKey: request.config.apiKey,
@@ -76,7 +77,9 @@ export const createChatStream = async (
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai),
-    onFinish: onFinish as Parameters<typeof streamText>[0]["onFinish"],
+    onFinish: (event) => {
+      void onFinish?.(event);
+    },
   });
 };
 
