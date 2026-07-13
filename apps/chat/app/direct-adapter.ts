@@ -1,5 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { streamText, type ToolSet, tool, jsonSchema } from "ai";
+import { streamText, type ToolSet, jsonSchema } from "ai";
 import { toLanguageModelMessages } from "@assistant-ui/react-data-stream";
 import type {
   ChatModelAdapter,
@@ -20,10 +20,10 @@ const buildToolSet = (
       .filter(([, t]) => t.type === "frontend" && !t.disabled)
       .map(([name, t]) => [
         name,
-        tool({
+        {
           description: t.description,
-          parameters: jsonSchema(t.parameters as JSONSchema7),
-          execute: async (args) => {
+          inputSchema: jsonSchema(t.parameters as JSONSchema7),
+          execute: async (args: Record<string, unknown>) => {
             if (t.execute === undefined) return "no execute";
             return await t.execute(args, {
               toolCallId: name,
@@ -31,7 +31,7 @@ const buildToolSet = (
               human: async () => undefined,
             });
           },
-        }),
+        },
       ]),
   );
 };
@@ -50,7 +50,7 @@ export const createDirectAdapter = (
       model: openai(settings.model),
       messages,
       ...(settings.systemPrompt ? { system: settings.systemPrompt } : {}),
-      tools: buildToolSet(options.context.getModelContext().tools),
+      tools: buildToolSet(options.context.tools),
     });
 
     let content: ThreadAssistantMessagePart[] = [];
@@ -61,9 +61,9 @@ export const createDirectAdapter = (
           const last = content[content.length - 1];
           if (last !== undefined && last.type === "text") {
             content = content.slice(0, -1);
-            content.push({ type: "text", text: last.text + part.textDelta });
+            content.push({ type: "text", text: last.text + part.text });
           } else {
-            content = [...content, { type: "text", text: part.textDelta }];
+            content = [...content, { type: "text", text: part.text }];
           }
           break;
         }
@@ -74,8 +74,8 @@ export const createDirectAdapter = (
               type: "tool-call",
               toolName: part.toolName,
               toolCallId: part.toolCallId,
-              argsText: JSON.stringify(part.args),
-              args: part.args,
+              argsText: JSON.stringify(part.input),
+              args: part.input as Record<string, unknown>,
             } as ThreadAssistantMessagePart,
           ];
           break;
@@ -91,7 +91,7 @@ export const createDirectAdapter = (
             if (existing !== undefined && existing.type === "tool-call") {
               updated[index] = {
                 ...existing,
-                result: part.result,
+                result: part.output,
               };
               content = updated;
             }
