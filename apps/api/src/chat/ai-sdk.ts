@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
+  generateText,
   jsonSchema,
   type ToolSet,
   type UIMessage,
@@ -24,6 +25,7 @@ export interface ChatStreamRequest {
   config: ChatConfig;
   coachMode?: boolean | undefined;
   webSearch?: boolean | undefined;
+  sessionId?: string | undefined;
 }
 
 const buildToolSet = (
@@ -52,7 +54,10 @@ const buildToolSet = (
   };
 };
 
-export const streamChat = async (request: ChatStreamRequest) => {
+export const createChatStream = async (
+  request: ChatStreamRequest,
+  onFinish?: (event: { text: string }) => void | Promise<void>,
+) => {
   const openai = createOpenAI({
     apiKey: request.config.apiKey,
     baseURL: request.config.baseUrl,
@@ -66,16 +71,24 @@ export const streamChat = async (request: ChatStreamRequest) => {
     ? openai.responses(request.config.model)
     : openai.chat(request.config.model);
 
-  const result = streamText({
+  return streamText({
     model,
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai),
+    onFinish: onFinish as Parameters<typeof streamText>[0]["onFinish"],
   });
+};
 
-  return result.toUIMessageStreamResponse({
-    sendReasoning: true,
-    onError: (error: unknown) =>
-      error instanceof Error ? error.message : String(error),
+export const generateThreadTitle = async (
+  apiKey: string,
+  baseUrl: string | undefined,
+  firstUserMessage: string,
+): Promise<string> => {
+  const openai = createOpenAI({ apiKey, baseURL: baseUrl });
+  const result = await generateText({
+    model: openai.chat("gpt-4o-mini"),
+    prompt: `Generate a short, concise 2-5 word title for a fitness chat that starts with this message. Reply with only the title, no quotes.\n\nMessage: ${firstUserMessage}`,
   });
+  return result.text.trim().replace(/^["']|["']$/g, "");
 };

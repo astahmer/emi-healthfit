@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { AssistantRuntimeProvider, useAui, useLocalRuntime, type Tool } from "@assistant-ui/react";
 import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
-import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
@@ -13,6 +13,8 @@ export interface ChatSessionConfig {
   model: string;
   coachMode: boolean;
   webSearch: boolean;
+  sessionId?: string;
+  initialMessages?: UIMessage[];
 }
 
 function ToolRegistrar({ children }: { children: ReactNode }) {
@@ -62,6 +64,7 @@ function ProxyRuntime({
 
   const runtime = useChatRuntime({
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    messages: sessionConfig.initialMessages,
     transport: new AssistantChatTransport({
       api: "/api/chat",
       prepareSendMessagesRequest: async (options) => {
@@ -83,6 +86,7 @@ function ProxyRuntime({
             },
             coachMode: sessionConfig.coachMode,
             webSearch: sessionConfig.webSearch,
+            sessionId: sessionConfig.sessionId,
           },
         };
       },

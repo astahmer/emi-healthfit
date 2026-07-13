@@ -1,4 +1,5 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -29,7 +30,7 @@ import {
 } from "./db/operations.ts";
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
-import { streamChat, type ChatStreamRequest } from "./chat/ai-sdk.ts";
+import { createChatStream, generateThreadTitle, type ChatStreamRequest } from "./chat/ai-sdk.ts";
 import { handleToolExecute, handleToolsList } from "./tools/api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -90,7 +91,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }
 
         if (url.pathname === "/api/chat" && request.method === "POST") {
-          return yield* handleAiSdkChat(env, request);
+          return yield* handleAiSdkChat(db, env, request);
         }
 
         if (url.pathname === "/api/tools" && request.method === "GET") {
@@ -466,9 +467,35 @@ const ChatStreamRequestSchema = Schema.Struct({
   }),
   coachMode: Schema.optional(Schema.Boolean),
   webSearch: Schema.optional(Schema.Boolean),
+  sessionId: Schema.optional(Schema.String),
 });
 
-const handleAiSdkChat = (env: Record<string, unknown>, request: HttpServerRequest) =>
+const getFirstUserText = (
+  messages: Array<{ role: string; parts: unknown[] }>,
+): string | undefined => {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    for (const part of message.parts) {
+      if (
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        (part as Record<string, unknown>).type === "text" &&
+        "text" in part
+      ) {
+        const text = (part as Record<string, unknown>).text;
+        if (typeof text === "string" && text.trim() !== "") return text.trim();
+      }
+    }
+  }
+  return undefined;
+};
+
+const handleAiSdkChat = (
+  db: QueryDatabaseClient,
+  env: Record<string, unknown>,
+  request: HttpServerRequest,
+) =>
   Effect.gen(function* () {
     const text = yield* request.text;
     const raw = JSON.parse(text || "{}") as unknown;
@@ -485,14 +512,89 @@ const handleAiSdkChat = (env: Record<string, unknown>, request: HttpServerReques
     const apiKey = chatRequest.config.apiKey !== ""
       ? chatRequest.config.apiKey
       : (env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "");
+
+    if (apiKey === "") {
+      return yield* HttpServerResponse.json(
+        { error: "OpenAI API key is required" },
+        { status: 400 },
+      );
+    }
+
     const requestWithKey: ChatStreamRequest = {
       ...chatRequest,
       config: { ...chatRequest.config, apiKey },
     };
 
-    const response = yield* Effect.promise(() => streamChat(requestWithKey));
+    const sessionId =
+      chatRequest.sessionId !== undefined && chatRequest.sessionId !== ""
+        ? chatRequest.sessionId
+        : yield* createThread(db);
+
+    const thread = yield* getThread(db, sessionId);
+    if (thread === null) {
+      return yield* HttpServerResponse.json(
+        { error: "Thread not found" },
+        { status: 404 },
+      );
+    }
+
+    const existingRows = yield* getThreadMessages(db, sessionId);
+    const existingMessages = existingRows.map((row) => ({
+      role: row.role as "system" | "user" | "assistant",
+      parts: JSON.parse(row.parts) as unknown[],
+    }));
+
+    const incomingMessages = chatRequest.messages.map((message) => ({
+      role: message.role,
+      parts: message.parts,
+    }));
+
+    const requestWithHistory: ChatStreamRequest = {
+      ...requestWithKey,
+      messages: [...existingMessages, ...incomingMessages] as ChatStreamRequest["messages"],
+      sessionId,
+    };
+
+    yield* saveThreadMessages(
+      db,
+      sessionId,
+      incomingMessages as Array<{ role: string; parts: unknown[] }>,
+    );
+
+    const firstUserText = getFirstUserText(incomingMessages);
+    const needsTitle = thread.title === null || thread.title === "";
+    const services = yield* Effect.context<RuntimeContext>();
+
+    const result = yield* Effect.promise(() =>
+      createChatStream(requestWithHistory, async (event) => {
+        await Effect.runPromiseWith(services)(
+          saveThreadMessages(db, sessionId, [
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: event.text }],
+            },
+          ]),
+        );
+
+        if (needsTitle && firstUserText !== undefined) {
+          const title = await generateThreadTitle(
+            apiKey,
+            chatRequest.config.baseUrl,
+            firstUserText,
+          );
+          await Effect.runPromiseWith(services)(renameThread(db, sessionId, title));
+        }
+      }),
+    );
+
+    const response = result.toUIMessageStreamResponse({
+      sendReasoning: true,
+      onError: (error: unknown) =>
+        error instanceof Error ? error.message : String(error),
+    });
 
     const headers = new Headers(response.headers);
+    headers.set("x-thread-id", sessionId);
     for (const [key, value] of Object.entries(corsHeaders(request))) {
       headers.set(key, value);
     }
