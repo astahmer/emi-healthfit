@@ -28,6 +28,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   {
     main: import.meta.url,
+    assets: "./public",
     observability: {
       enabled: true,
     },

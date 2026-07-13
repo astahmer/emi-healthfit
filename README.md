@@ -80,7 +80,13 @@ Alchemy will create/update:
 - `AiGateway` AI Gateway
 - `Api` Worker with bindings to the above
 
-The command prints the deployed Worker URL.
+The command prints the deployed Worker URL. Open that URL in a browser to use the built-in upload + chat UI.
+
+## Using the assistant
+
+For a non-technical, step-by-step guide (iPhone exports, web UI, OpenWebUI, Shortcuts), see [`docs/USER_GUIDE.md`](./docs/USER_GUIDE.md).
+
+The web UI is served directly from the Worker at the root URL after deploying.
 
 ## API
 
