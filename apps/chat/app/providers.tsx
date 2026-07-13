@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
   useAui,
+  useLocalRuntime,
   type Tool,
 } from "@assistant-ui/react";
 import {
@@ -14,6 +15,7 @@ import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
+import { createDirectAdapter } from "./direct-adapter";
 
 function ToolRegistrar({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
@@ -52,7 +54,7 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
   );
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+function ProxyRuntime({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
 
   const runtime = useChatRuntime({
@@ -78,7 +80,30 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <ToolRegistrar>{children}</ToolRegistrar>
+      {children}
     </AssistantRuntimeProvider>
+  );
+}
+
+function DirectRuntime({ children }: { children: ReactNode }) {
+  const settings = useSettings((state) => state.settings);
+  const adapter = createDirectAdapter(settings);
+  const runtime = useLocalRuntime(adapter);
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      {children}
+    </AssistantRuntimeProvider>
+  );
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  const mode = useSettings((state) => state.settings.mode);
+  const RuntimeProvider = mode === "direct" ? DirectRuntime : ProxyRuntime;
+
+  return (
+    <RuntimeProvider>
+      <ToolRegistrar>{children}</ToolRegistrar>
+    </RuntimeProvider>
   );
 }

@@ -5,7 +5,7 @@ import { parseHevyCsv } from "../src/ingest/hevy.ts";
 
 const run = async () => {
   const healthText = await readFile(
-    "data/health-export-json-2022-01-01-0000_to_2026-07-13-1526.json",
+    "../../data/health-export-json-2022-01-01-0000_to_2026-07-13-1526.json",
     "utf8",
   );
   const health = await Effect.runPromise(parseHealthExport(healthText, 2022));
@@ -17,7 +17,7 @@ const run = async () => {
   console.log("  first workout date:", health.workouts[0]?.date);
   console.log("  last workout date:", health.workouts.at(-1)?.date);
 
-  const hevyText = await readFile("data/hevy/workout_data.csv", "utf8");
+  const hevyText = await readFile("../../data/hevy/workout_data.csv", "utf8");
   const hevy = await Effect.runPromise(parseHevyCsv(hevyText));
   console.log("\nHevy CSV parsed:");
   console.log("  sessions:", hevy.sessions.length);
