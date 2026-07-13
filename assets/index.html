@@ -12,6 +12,7 @@
         --muted: #94a3b8;
         --accent: #22c55e;
         --accent-2: #3b82f6;
+        --accent-3: #a855f7;
         --danger: #ef4444;
         --radius: 14px;
       }
@@ -75,6 +76,10 @@
       }
       button.secondary {
         background: var(--accent-2);
+        color: white;
+      }
+      button.tertiary {
+        background: var(--accent-3);
         color: white;
       }
       button:disabled {
@@ -150,6 +155,38 @@
       }
       .panel { display: none; }
       .panel.active { display: block; }
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .checkbox-row input {
+        width: auto;
+        transform: scale(1.2);
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .summary-item {
+        background: #0f172a;
+        padding: 14px;
+        border-radius: 10px;
+        text-align: center;
+      }
+      .summary-item .number {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .summary-item .label {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 4px;
+      }
       footer {
         text-align: center;
         color: var(--muted);
@@ -163,14 +200,9 @@
       <h1>Emi HealthFit</h1>
       <p class="subtitle">Your personal gym assistant</p>
 
-      <div class="card">
-        <label for="url">Worker URL</label>
-        <input type="text" id="url" placeholder="https://emi-healthfit.your-subdomain.workers.dev" />
-        <p class="hint">Paste the URL printed when you ran <code>pnpm deploy</code>.</p>
-      </div>
-
       <div class="tabs">
         <button class="tab active" data-tab="upload">Upload data</button>
+        <button class="tab" data-tab="summary">Summary</button>
         <button class="tab" data-tab="chat">Chat</button>
       </div>
 
@@ -189,10 +221,24 @@
         </div>
       </div>
 
+      <div id="summary-panel" class="panel">
+        <div class="card">
+          <button id="refresh-summary" class="tertiary">Refresh summary</button>
+          <div id="summary-status" class="status" style="display: none;"></div>
+          <div id="summary-grid" class="summary-grid" style="display: none;"></div>
+        </div>
+      </div>
+
       <div id="chat-panel" class="panel">
         <div class="card">
           <label for="message">Ask anything</label>
           <textarea id="message" placeholder="what should I train today?"></textarea>
+
+          <div class="checkbox-row">
+            <input type="checkbox" id="coach-mode" />
+            <label for="coach-mode" style="margin: 0; font-weight: 400;">Coach mode (use detailed fitness coach prompt)</label>
+          </div>
+
           <button id="chat-btn" class="secondary">Send</button>
           <div id="chat-status" class="status" style="display: none;"></div>
           <div id="chat-history" class="chat-history"></div>
@@ -203,15 +249,7 @@
     <footer>Powered by Apple Health, Hevy, Cloudflare, and Effect.</footer>
 
     <script>
-      const urlInput = document.getElementById("url");
-      urlInput.value = localStorage.getItem("healthfit-url") || "";
-      urlInput.addEventListener("input", () => localStorage.setItem("healthfit-url", urlInput.value));
-
-      function baseUrl() {
-        let url = urlInput.value.trim();
-        if (!url) throw new Error("Please enter the Worker URL first.");
-        return url.replace(/\/$/, "");
-      }
+      const baseUrl = () => window.location.origin;
 
       function setStatus(el, text, type) {
         el.style.display = "block";
@@ -225,6 +263,9 @@
           document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
           tab.classList.add("active");
           document.getElementById(tab.dataset.tab + "-panel").classList.add("active");
+          if (tab.dataset.tab === "summary") {
+            loadSummary();
+          }
         });
       });
 
@@ -254,6 +295,44 @@
           setStatus(status, err.message, "error");
         }
       });
+
+      async function loadSummary() {
+        const grid = document.getElementById("summary-grid");
+        const status = document.getElementById("summary-status");
+        try {
+          setStatus(status, "Loading…", "");
+          grid.style.display = "none";
+          const res = await fetch(baseUrl() + "/api/summary");
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || "Failed to load summary.");
+
+          const items = [
+            { number: json.dailyActivity, label: "Daily activity" },
+            { number: json.healthWorkouts, label: "Health workouts" },
+            { number: json.sleepSessions, label: "Sleep sessions" },
+            { number: json.bodyMetrics, label: "Body metrics" },
+            { number: json.hevySessions, label: "Hevy sessions" },
+            { number: json.hevySets, label: "Hevy sets" },
+          ];
+
+          grid.innerHTML = items.map((item) => `
+            <div class="summary-item">
+              <div class="number">${item.number}</div>
+              <div class="label">${item.label}</div>
+            </div>
+          `).join("");
+
+          const lastHealth = json.lastHealthSync ? new Date(json.lastHealthSync).toLocaleString() : "never";
+          const lastHevy = json.lastHevySync ? new Date(json.lastHevySync).toLocaleString() : "never";
+
+          setStatus(status, `Last health sync: ${lastHealth}\nLast Hevy sync: ${lastHevy}`, "ok");
+          grid.style.display = "grid";
+        } catch (err) {
+          setStatus(status, err.message, "error");
+        }
+      }
+
+      document.getElementById("refresh-summary").addEventListener("click", loadSummary);
 
       const history = document.getElementById("chat-history");
 
@@ -289,10 +368,11 @@
         setStatus(status, "Thinking…", "");
 
         try {
+          const coachMode = document.getElementById("coach-mode").checked;
           const res = await fetch(baseUrl() + "/chat", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({ message: text, coachMode }),
           });
           const json = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(json.error || "Chat failed.");

@@ -225,6 +225,57 @@ export const upsertBodyMetrics = (
       )
     );
 
-    yield* db.batch(statements);
+    yield* runBatches(db, statements);
     return rows.length;
+  });
+
+export const updateSyncCursor = (
+  db: QueryDatabaseClient,
+  source: string,
+  lastSync: string,
+) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`
+      INSERT INTO sync_cursors (source, last_sync)
+      VALUES (?, ?)
+      ON CONFLICT(source) DO UPDATE SET
+        last_sync = excluded.last_sync
+    `).bind(source, lastSync).run();
+  });
+
+export interface DataSummary {
+  dailyActivity: number;
+  healthWorkouts: number;
+  hevySessions: number;
+  hevySets: number;
+  sleepSessions: number;
+  bodyMetrics: number;
+  lastHealthSync: string | null;
+  lastHevySync: string | null;
+}
+
+export const getDataSummary = (db: QueryDatabaseClient) =>
+  Effect.gen(function* () {
+    const [daily, workouts, sessions, sets, sleep, body, cursors] = yield* Effect.all([
+      db.prepare("SELECT COUNT(*) as c FROM daily_activity").first<{ c: number }>(),
+      db.prepare("SELECT COUNT(*) as c FROM health_workouts").first<{ c: number }>(),
+      db.prepare("SELECT COUNT(*) as c FROM hevy_sessions").first<{ c: number }>(),
+      db.prepare("SELECT COUNT(*) as c FROM hevy_sets").first<{ c: number }>(),
+      db.prepare("SELECT COUNT(*) as c FROM sleep_sessions").first<{ c: number }>(),
+      db.prepare("SELECT COUNT(*) as c FROM body_metrics").first<{ c: number }>(),
+      db.prepare("SELECT source, last_sync FROM sync_cursors").all<{ source: string; last_sync: string }>(),
+    ]);
+
+    const cursorMap = new Map(cursors.results.map((row) => [row.source, row.last_sync]));
+
+    return {
+      dailyActivity: daily?.c ?? 0,
+      healthWorkouts: workouts?.c ?? 0,
+      hevySessions: sessions?.c ?? 0,
+      hevySets: sets?.c ?? 0,
+      sleepSessions: sleep?.c ?? 0,
+      bodyMetrics: body?.c ?? 0,
+      lastHealthSync: cursorMap.get("apple_health") ?? null,
+      lastHevySync: cursorMap.get("hevy") ?? null,
+    } satisfies DataSummary;
   });

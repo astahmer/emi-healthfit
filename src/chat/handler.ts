@@ -8,6 +8,7 @@ import { buildChatContext, renderContextPrompt } from "./context.ts";
 
 export interface ChatRequest {
   message: string;
+  systemPrompt?: string;
 }
 
 export interface ChatResponse {
@@ -17,6 +18,15 @@ export interface ChatResponse {
 }
 
 type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
+
+const buildMessages = (userMessage: string, systemPrompt?: string) => {
+  const messages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt !== undefined && systemPrompt !== "") {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  messages.push({ role: "user", content: userMessage });
+  return messages;
+};
 
 const getLlmProvider = (env: Record<string, unknown>): {
   provider: "workers-ai" | "openai";
@@ -45,10 +55,11 @@ export const handleChat = (
     const ctx = yield* buildChatContext(db);
     const prompt = renderContextPrompt(ctx, request.message);
     const { provider, model, openaiApiKey } = getLlmProvider(env);
+    const messages = buildMessages(prompt, request.systemPrompt);
 
     const responseText = provider === "openai"
-      ? yield* callOpenAi(prompt, model, openaiApiKey)
-      : yield* callWorkersAi(aiGateway, model, prompt);
+      ? yield* callOpenAi(messages, model, openaiApiKey)
+      : yield* callWorkersAi(aiGateway, model, messages);
 
     return {
       response: responseText,
@@ -60,16 +71,14 @@ export const handleChat = (
 const callWorkersAi = (
   aiGateway: QueryGatewayClient,
   model: string,
-  prompt: string,
+  messages: Array<{ role: string; content: string }>,
 ) =>
   Effect.gen(function* () {
     const response = yield* aiGateway.run({
       provider: "workers-ai",
       endpoint: model,
       headers: { "content-type": "application/json" },
-      query: {
-        messages: [{ role: "user", content: prompt }],
-      },
+      query: { messages },
     });
 
     const json = yield* Effect.tryPromise({
@@ -82,7 +91,7 @@ const callWorkersAi = (
   });
 
 const callOpenAi = (
-  prompt: string,
+  messages: Array<{ role: string; content: string }>,
   model: string,
   apiKey: Redacted.Redacted<string> | undefined,
 ) =>
@@ -95,10 +104,7 @@ const callOpenAi = (
     const request = HttpClientRequest.post("https://api.openai.com/v1/chat/completions").pipe(
       HttpClientRequest.setHeader("authorization", `Bearer ${Redacted.value(apiKey)}`),
       HttpClientRequest.setHeader("content-type", "application/json"),
-      HttpClientRequest.bodyJsonUnsafe({
-        model,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      HttpClientRequest.bodyJsonUnsafe({ model, messages }),
     );
 
     const response = yield* client.execute(request);

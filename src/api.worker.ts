@@ -5,9 +5,12 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { buildChatContext } from "./chat/context.ts";
 import { handleChat } from "./chat/handler.ts";
+import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
+  getDataSummary,
   insertHealthWorkouts,
   type QueryDatabaseClient,
+  updateSyncCursor,
   upsertBodyMetrics,
   upsertDailyActivity,
   upsertHevySessions,
@@ -71,6 +74,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname === "/api/recovery" && request.method === "GET") {
           return yield* handleRecovery(db);
+        }
+
+        if (url.pathname === "/api/summary" && request.method === "GET") {
+          return yield* handleSummary(db);
         }
 
         return HttpServerResponse.text("Not Found", { status: 404 });
@@ -137,6 +144,7 @@ const handleIngest = (
       yield* insertHealthWorkouts(db, parsed.workouts);
       yield* upsertSleepSessions(db, parsed.sleep);
       yield* upsertBodyMetrics(db, parsed.body);
+      yield* updateSyncCursor(db, "apple_health", timestamp);
     }
 
     if (hevyFile !== null) {
@@ -158,6 +166,7 @@ const handleIngest = (
 
       yield* upsertHevySessions(db, parsed.sessions);
       yield* upsertHevySets(db, parsed.sets);
+      yield* updateSyncCursor(db, "hevy", timestamp);
     }
 
     return yield* HttpServerResponse.json({
@@ -178,7 +187,10 @@ const handleChatRoute = (
 ) =>
   Effect.gen(function* () {
     const text = yield* request.text;
-    const body = JSON.parse(text || "{}") as { message?: string };
+    const body = JSON.parse(text || "{}") as {
+      message?: string;
+      coachMode?: boolean;
+    };
     const message = body.message?.trim();
 
     if (message === undefined || message === "") {
@@ -188,7 +200,10 @@ const handleChatRoute = (
       );
     }
 
-    const result = yield* handleChat(db, aiGateway, env, { message });
+    const result = yield* handleChat(db, aiGateway, env, {
+      message,
+      systemPrompt: body.coachMode ? fitnessCoachV1 : undefined,
+    });
     return yield* HttpServerResponse.json(result);
   }).pipe(
     Effect.catch((error) =>
@@ -210,6 +225,18 @@ const handleRecovery = (
       recentWorkoutCount: ctx.recentWorkoutCount,
       recentVolume: ctx.lastWorkout.recentVolume,
     });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json({ error: error.message }, { status: 500 }),
+    ),
+  );
+
+const handleSummary = (
+  db: QueryDatabaseClient,
+) =>
+  Effect.gen(function* () {
+    const summary = yield* getDataSummary(db);
+    return yield* HttpServerResponse.json(summary);
   }).pipe(
     Effect.catch((error) =>
       HttpServerResponse.json({ error: error.message }, { status: 500 }),
