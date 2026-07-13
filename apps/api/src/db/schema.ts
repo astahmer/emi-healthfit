@@ -62,3 +62,9 @@ export interface BodyMetricRow {
   lean_mass_kg: number | null;
   source: string | null;
 }
+
+export interface SuggestionsRow {
+  id: string;
+  suggestions: string;
+  created_at: string;
+}

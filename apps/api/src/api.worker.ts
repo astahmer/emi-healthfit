@@ -11,15 +11,19 @@ import { handleChat } from "./chat/handler.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
   createThread,
+  type DataSummary,
   deleteThread,
   getDataSummary,
+  getSuggestionsById,
   getThread,
   getThreadMessages,
   getThreads,
   getWorkouts,
+  hashSuggestionsKey,
   insertHealthWorkouts,
   type QueryDatabaseClient,
   renameThread,
+  saveSuggestions,
   saveThreadMessages,
   updateSyncCursor,
   upsertBodyMetrics,
@@ -30,7 +34,12 @@ import {
 } from "./db/operations.ts";
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
-import { createChatStream, generateSuggestions, generateThreadTitle, type ChatStreamRequest } from "./chat/ai-sdk.ts";
+import {
+  createChatStream,
+  generateSuggestions,
+  generateThreadTitle,
+  type ChatStreamRequest,
+} from "./chat/ai-sdk.ts";
 import { handleToolExecute, handleToolsList } from "./tools/api.ts";
 import { TtlCache } from "./cache.ts";
 
@@ -71,7 +80,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }
 
         if (request.method === "GET" && assetsFetcher !== undefined) {
-          const isAssetPath = url.pathname === "/" ||
+          const isAssetPath =
+            url.pathname === "/" ||
             url.pathname === "/index.html" ||
             url.pathname.startsWith("/assets/") ||
             url.pathname.startsWith("/_next/");
@@ -96,7 +106,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }
 
         if (url.pathname === "/api/suggestions" && request.method === "POST") {
-          return yield* withCors(handleSuggestions(env, request), request);
+          return yield* withCors(handleSuggestions(db, env, request), request);
         }
 
         if (url.pathname === "/api/tools" && request.method === "GET") {
@@ -233,9 +243,7 @@ const handleIngest = (
       hevy: hevySummary,
     });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleChatRoute = (
@@ -253,10 +261,7 @@ const handleChatRoute = (
     const message = body.message?.trim();
 
     if (message === undefined || message === "") {
-      return yield* HttpServerResponse.json(
-        { error: "message is required" },
-        { status: 400 },
-      );
+      return yield* HttpServerResponse.json({ error: "message is required" }, { status: 400 });
     }
 
     const result = yield* handleChat(db, aiGateway, env, {
@@ -265,9 +270,7 @@ const handleChatRoute = (
     });
     return yield* HttpServerResponse.json(result);
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 interface SuggestionsRequestBody {
@@ -277,6 +280,7 @@ interface SuggestionsRequestBody {
 }
 
 const handleSuggestions = (
+  db: QueryDatabaseClient,
   env: Record<string, unknown>,
   request: HttpServerRequest,
 ) =>
@@ -292,6 +296,14 @@ const handleSuggestions = (
       );
     }
 
+    const key = yield* hashSuggestionsKey(lastAssistantText, body.lastUserText);
+    const cached = yield* getSuggestionsById(db, key);
+    if (cached !== null) {
+      return yield* HttpServerResponse.json({
+        suggestions: JSON.parse(cached.suggestions) as string[],
+      });
+    }
+
     const apiKey = env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "";
     if (apiKey === "") {
       return yield* HttpServerResponse.json({ suggestions: [] });
@@ -303,19 +315,22 @@ const handleSuggestions = (
         baseUrl: env.OPENAI_BASE_URL !== undefined ? String(env.OPENAI_BASE_URL) : undefined,
         lastAssistantText,
         lastUserText: body.lastUserText,
-      })
+      }),
     );
+
+    yield* saveSuggestions(db, key, suggestions);
 
     return yield* HttpServerResponse.json({ suggestions });
   }).pipe(
     Effect.catch((error) =>
-      HttpServerResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 }),
+      HttpServerResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 500 },
+      ),
     ),
   );
 
-const handleRecovery = (
-  db: QueryDatabaseClient,
-) =>
+const handleRecovery = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const ctx = yield* buildChatContext(db);
     return yield* HttpServerResponse.json({
@@ -328,17 +343,13 @@ const handleRecovery = (
       recentVolume: ctx.lastWorkout.recentVolume,
     });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const summaryCache = new TtlCache<DataSummary>();
 const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
-const handleSummary = (
-  db: QueryDatabaseClient,
-) =>
+const handleSummary = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const cached = summaryCache.get("summary");
     if (cached !== undefined) {
@@ -349,36 +360,25 @@ const handleSummary = (
     summaryCache.set("summary", summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
-const handleWorkouts = (
-  db: QueryDatabaseClient,
-) =>
+const handleWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const workouts = yield* getWorkouts(db);
     return yield* HttpServerResponse.json({ workouts });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
-const handleThreadsList = (
-  db: QueryDatabaseClient,
-  request: HttpServerRequest,
-) =>
+const handleThreadsList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
     const url = new URL(request.url, "http://localhost");
     const search = url.searchParams.get("search") ?? undefined;
     const threads = yield* getThreads(db, search);
     return yield* HttpServerResponse.json({ threads });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleThreadsCreate = (db: QueryDatabaseClient) =>
@@ -386,9 +386,7 @@ const handleThreadsCreate = (db: QueryDatabaseClient) =>
     const id = yield* createThread(db);
     return yield* HttpServerResponse.json({ id }, { status: 201 });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const getThreadIdFromPath = (pathname: string): string | undefined => {
@@ -425,9 +423,7 @@ const handleThreadMessages = (db: QueryDatabaseClient, request: HttpServerReques
     }));
     return yield* HttpServerResponse.json({ thread, messages });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleThreadRename = (db: QueryDatabaseClient, request: HttpServerRequest) =>
@@ -447,9 +443,7 @@ const handleThreadRename = (db: QueryDatabaseClient, request: HttpServerRequest)
     yield* renameThread(db, threadId, body.title.trim());
     return yield* HttpServerResponse.json({ success: true });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleThreadDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
@@ -463,9 +457,7 @@ const handleThreadDelete = (db: QueryDatabaseClient, request: HttpServerRequest)
     yield* deleteThread(db, threadId);
     return yield* HttpServerResponse.json({ success: true });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json({ error: error.message }, { status: 500 }),
-    ),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
@@ -480,9 +472,7 @@ const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
 };
 
 const handleCorsPreflight = (request: HttpServerRequest) =>
-  Effect.succeed(
-    HttpServerResponse.text("", { headers: corsHeaders(request) }),
-  );
+  Effect.succeed(HttpServerResponse.text("", { headers: corsHeaders(request) }));
 
 const withCors = <E, R>(
   effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
@@ -556,6 +546,28 @@ const getFirstUserText = (
   return undefined;
 };
 
+const getLastUserText = (
+  messages: Array<{ role: string; parts: unknown[] }>,
+): string | undefined => {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message === undefined || message.role !== "user") continue;
+    for (const part of message.parts) {
+      if (
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        (part as Record<string, unknown>).type === "text" &&
+        "text" in part
+      ) {
+        const text = (part as Record<string, unknown>).text;
+        if (typeof text === "string" && text.trim() !== "") return text.trim();
+      }
+    }
+  }
+  return undefined;
+};
+
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
@@ -603,16 +615,16 @@ const handleAiSdkChat = (
     const parsed = Schema.decodeUnknownOption(ChatStreamRequestSchema)(raw);
 
     if (Option.isNone(parsed)) {
-      return yield* HttpServerResponse.json(
-        { error: "Invalid request" },
-        { status: 400 },
-      );
+      return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
     const chatRequest = parsed.value as ChatStreamRequest;
-    const apiKey = chatRequest.config.apiKey !== ""
-      ? chatRequest.config.apiKey
-      : (env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "");
+    const apiKey =
+      chatRequest.config.apiKey !== ""
+        ? chatRequest.config.apiKey
+        : env.OPENAI_API_KEY !== undefined
+          ? String(env.OPENAI_API_KEY)
+          : "";
 
     if (apiKey === "") {
       return yield* HttpServerResponse.json(
@@ -633,10 +645,7 @@ const handleAiSdkChat = (
 
     const thread = yield* getThread(db, sessionId);
     if (thread === null) {
-      return yield* HttpServerResponse.json(
-        { error: "Thread not found" },
-        { status: 404 },
-      );
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
     const existingRows = yield* getThreadMessages(db, sessionId);
@@ -652,10 +661,7 @@ const handleAiSdkChat = (
 
     const attachmentError = validateAttachments(incomingMessages);
     if (attachmentError !== undefined) {
-      return yield* HttpServerResponse.json(
-        { error: attachmentError },
-        { status: 400 },
-      );
+      return yield* HttpServerResponse.json({ error: attachmentError }, { status: 400 });
     }
 
     const requestWithHistory: ChatStreamRequest = {
@@ -685,25 +691,41 @@ const handleAiSdkChat = (
     const result = yield* Effect.promise(() =>
       createChatStream(requestWithHistory, async (event) => {
         await Effect.runPromiseWith(services)(
-          saveThreadMessages(db, sessionId, [
-            {
-              role: "assistant",
-              parts: [{ type: "text", text: event.text }],
-              usage: {
-                prompt_tokens: event.usage.promptTokens,
-                completion_tokens: event.usage.completionTokens,
-                total_tokens: event.usage.totalTokens,
+          Effect.gen(function* () {
+            yield* saveThreadMessages(db, sessionId, [
+              {
+                role: "assistant",
+                parts: [{ type: "text", text: event.text }],
+                usage: {
+                  prompt_tokens: event.usage.inputTokens,
+                  completion_tokens: event.usage.outputTokens,
+                  total_tokens: event.usage.totalTokens,
+                },
               },
-            },
-          ]),
+            ]);
+
+            const lastUserText = getLastUserText(requestWithHistory.messages);
+            const key = yield* hashSuggestionsKey(event.text, lastUserText);
+            const cached = yield* getSuggestionsById(db, key);
+            if (cached !== null) return;
+
+            const suggestions = yield* Effect.promise(() =>
+              generateSuggestions({
+                apiKey,
+                baseUrl: chatRequest.config.baseUrl,
+                lastAssistantText: event.text,
+                lastUserText,
+              }),
+            );
+            yield* saveSuggestions(db, key, suggestions);
+          }).pipe(Effect.catch(() => Effect.void)),
         );
       }),
     );
 
     const response = result.toUIMessageStreamResponse({
       sendReasoning: true,
-      onError: (error: unknown) =>
-        error instanceof Error ? error.message : String(error),
+      onError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
     });
 
     const headers = new Headers(response.headers);

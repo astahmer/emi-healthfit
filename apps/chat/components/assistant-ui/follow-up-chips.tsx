@@ -3,7 +3,7 @@
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { Button } from "@/components/ui/button";
 import { fetchSuggestions } from "@/app/suggestions";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface TextPart {
   type: "text";
@@ -16,6 +16,9 @@ interface MessageWithParts {
   parts: readonly unknown[];
   status?: { type: string } | undefined;
 }
+
+const suggestionCache = new Map<string, string[]>();
+const pendingFetches = new Map<string, Promise<string[]>>();
 
 const asMessagesWithParts = (messages: readonly unknown[]): MessageWithParts[] => {
   return messages as MessageWithParts[];
@@ -41,18 +44,34 @@ export const FollowUpChips = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef<Set<string>>(new Set());
 
   const isLastAssistant = (() => {
     const last = messages[messages.length - 1];
     return last !== undefined && last.role === "assistant" && last.id === message.id;
   })();
 
+  const status = message.status?.type;
+
   useEffect(() => {
-    const status = message.status?.type;
     if (!isLastAssistant || status !== "complete" || isRunning) return;
 
     const assistantText = getMessageText(message).trim();
     if (assistantText === "") return;
+
+    const cached = suggestionCache.get(message.id);
+    if (cached !== undefined) {
+      setSuggestions(cached);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    if (fetchedRef.current.has(message.id)) return;
+    fetchedRef.current.add(message.id);
+
+    setSuggestions([]);
+    setError(null);
 
     const lastUserMessage = [...messages]
       .reverse()
@@ -61,30 +80,45 @@ export const FollowUpChips = () => {
     const lastUserText =
       lastUserMessage !== undefined ? getMessageText(lastUserMessage) : undefined;
 
-    let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetchSuggestions({
-      lastAssistantText: assistantText,
-      lastUserText,
-    })
+    const existing = pendingFetches.get(message.id);
+    const fetchPromise =
+      existing ??
+      fetchSuggestions({
+        messageId: message.id,
+        lastAssistantText: assistantText,
+        lastUserText,
+      });
+
+    if (existing === undefined) {
+      pendingFetches.set(message.id, fetchPromise);
+    }
+
+    let cancelled = false;
+
+    fetchPromise
       .then((items) => {
-        if (!cancelled) setSuggestions(items);
+        if (cancelled) return;
+        suggestionCache.set(message.id, items);
+        pendingFetches.delete(message.id);
+        setSuggestions(items);
+        setLoading(false);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        pendingFetches.delete(message.id);
+        fetchedRef.current.delete(message.id);
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isLastAssistant, isRunning, message, messages]);
+  }, [isLastAssistant, isRunning, status, message, message.id, messages]);
 
-  const status = message.status?.type;
   if (!isLastAssistant || status !== "complete" || isRunning) return null;
 
   const handleClick = (text: string) => {

@@ -7,6 +7,7 @@ import type {
   HevySessionRow,
   HevySetRow,
   SleepSessionRow,
+  SuggestionsRow,
 } from "./schema.ts";
 
 export type QueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
@@ -31,15 +32,34 @@ const runBatches = (
     }
   });
 
-export const upsertDailyActivity = (
-  db: QueryDatabaseClient,
-  rows: DailyActivityRow[],
-) =>
+const textEncoder = new TextEncoder();
+
+const arrayBufferToHex = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+export const hashSuggestionsKey = (
+  lastAssistantText: string,
+  lastUserText?: string,
+): Effect.Effect<string> =>
+  Effect.gen(function* () {
+    const input = `${lastAssistantText}\0${lastUserText ?? ""}`;
+    const buffer = yield* Effect.promise(() =>
+      crypto.subtle.digest("SHA-256", textEncoder.encode(input)),
+    );
+    return arrayBufferToHex(buffer);
+  });
+
+export const upsertDailyActivity = (db: QueryDatabaseClient, rows: DailyActivityRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO daily_activity (date, active_kcal, steps, distance_km, exercise_min, flights_climbed)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(date) DO UPDATE SET
@@ -48,29 +68,28 @@ export const upsertDailyActivity = (
           distance_km = excluded.distance_km,
           exercise_min = excluded.exercise_min,
           flights_climbed = excluded.flights_climbed
-      `).bind(
-        row.date,
-        row.active_kcal,
-        row.steps,
-        row.distance_km,
-        row.exercise_min,
-        row.flights_climbed,
-      )
+      `)
+        .bind(
+          row.date,
+          row.active_kcal,
+          row.steps,
+          row.distance_km,
+          row.exercise_min,
+          row.flights_climbed,
+        ),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const insertHealthWorkouts = (
-  db: QueryDatabaseClient,
-  rows: HealthWorkoutRow[],
-) =>
+export const insertHealthWorkouts = (db: QueryDatabaseClient, rows: HealthWorkoutRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO health_workouts (date, type, start_raw, duration_sec, active_kcal, avg_hr, max_hr, min_hr, distance_km, source, raw_json)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(date, type, start_raw) DO UPDATE SET
@@ -82,34 +101,33 @@ export const insertHealthWorkouts = (
           distance_km = excluded.distance_km,
           source = excluded.source,
           raw_json = excluded.raw_json
-      `).bind(
-        row.date,
-        row.type,
-        row.start_raw,
-        row.duration_sec,
-        row.active_kcal,
-        row.avg_hr,
-        row.max_hr,
-        row.min_hr,
-        row.distance_km,
-        row.source,
-        row.raw_json,
-      )
+      `)
+        .bind(
+          row.date,
+          row.type,
+          row.start_raw,
+          row.duration_sec,
+          row.active_kcal,
+          row.avg_hr,
+          row.max_hr,
+          row.min_hr,
+          row.distance_km,
+          row.source,
+          row.raw_json,
+        ),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const upsertHevySessions = (
-  db: QueryDatabaseClient,
-  rows: HevySessionRow[],
-) =>
+export const upsertHevySessions = (db: QueryDatabaseClient, rows: HevySessionRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO hevy_sessions (session_id, title, start_time, end_time, duration_sec, total_volume_kg)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id) DO UPDATE SET
@@ -117,29 +135,28 @@ export const upsertHevySessions = (
           end_time = excluded.end_time,
           duration_sec = excluded.duration_sec,
           total_volume_kg = excluded.total_volume_kg
-      `).bind(
-        row.session_id,
-        row.title,
-        row.start_time,
-        row.end_time,
-        row.duration_sec,
-        row.total_volume_kg,
-      )
+      `)
+        .bind(
+          row.session_id,
+          row.title,
+          row.start_time,
+          row.end_time,
+          row.duration_sec,
+          row.total_volume_kg,
+        ),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const upsertHevySets = (
-  db: QueryDatabaseClient,
-  rows: HevySetRow[],
-) =>
+export const upsertHevySets = (db: QueryDatabaseClient, rows: HevySetRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO hevy_sets (session_id, exercise_title, set_index, set_type, weight_kg, reps, rpe, distance_km, duration_seconds, exercise_notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(session_id, exercise_title, set_index) DO UPDATE SET
@@ -150,33 +167,32 @@ export const upsertHevySets = (
           distance_km = excluded.distance_km,
           duration_seconds = excluded.duration_seconds,
           exercise_notes = excluded.exercise_notes
-      `).bind(
-        row.session_id,
-        row.exercise_title,
-        row.set_index,
-        row.set_type,
-        row.weight_kg,
-        row.reps,
-        row.rpe,
-        row.distance_km,
-        row.duration_seconds,
-        row.exercise_notes,
-      )
+      `)
+        .bind(
+          row.session_id,
+          row.exercise_title,
+          row.set_index,
+          row.set_type,
+          row.weight_kg,
+          row.reps,
+          row.rpe,
+          row.distance_km,
+          row.duration_seconds,
+          row.exercise_notes,
+        ),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const upsertSleepSessions = (
-  db: QueryDatabaseClient,
-  rows: SleepSessionRow[],
-) =>
+export const upsertSleepSessions = (db: QueryDatabaseClient, rows: SleepSessionRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO sleep_sessions (date, start, end, in_bed_min, asleep_min, awake_min, source)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(date, start) DO UPDATE SET
@@ -185,30 +201,29 @@ export const upsertSleepSessions = (
           asleep_min = excluded.asleep_min,
           awake_min = excluded.awake_min,
           source = excluded.source
-      `).bind(
-        row.date,
-        row.start,
-        row.end,
-        row.in_bed_min,
-        row.asleep_min,
-        row.awake_min,
-        row.source,
-      )
+      `)
+        .bind(
+          row.date,
+          row.start,
+          row.end,
+          row.in_bed_min,
+          row.asleep_min,
+          row.awake_min,
+          row.source,
+        ),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const upsertBodyMetrics = (
-  db: QueryDatabaseClient,
-  rows: BodyMetricRow[],
-) =>
+export const upsertBodyMetrics = (db: QueryDatabaseClient, rows: BodyMetricRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO body_metrics (date, weight_kg, body_fat_pct, lean_mass_kg, source)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(date) DO UPDATE SET
@@ -216,31 +231,25 @@ export const upsertBodyMetrics = (
           body_fat_pct = excluded.body_fat_pct,
           lean_mass_kg = excluded.lean_mass_kg,
           source = excluded.source
-      `).bind(
-        row.date,
-        row.weight_kg,
-        row.body_fat_pct,
-        row.lean_mass_kg,
-        row.source,
-      )
+      `)
+        .bind(row.date, row.weight_kg, row.body_fat_pct, row.lean_mass_kg, row.source),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const updateSyncCursor = (
-  db: QueryDatabaseClient,
-  source: string,
-  lastSync: string,
-) =>
+export const updateSyncCursor = (db: QueryDatabaseClient, source: string, lastSync: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`
+    yield* db
+      .prepare(`
       INSERT INTO sync_cursors (source, last_sync)
       VALUES (?, ?)
       ON CONFLICT(source) DO UPDATE SET
         last_sync = excluded.last_sync
-    `).bind(source, lastSync).run();
+    `)
+      .bind(source, lastSync)
+      .run();
   });
 
 export interface WorkoutHistoryItem {
@@ -254,7 +263,8 @@ export interface WorkoutHistoryItem {
 
 export const getWorkoutHistory = (db: QueryDatabaseClient, limit = 10) =>
   Effect.gen(function* () {
-    const result = yield* db.prepare(`
+    const result = yield* db
+      .prepare(`
       SELECT
         s.session_id,
         s.title,
@@ -267,7 +277,9 @@ export const getWorkoutHistory = (db: QueryDatabaseClient, limit = 10) =>
       GROUP BY s.session_id
       ORDER BY s.start_time DESC
       LIMIT ?
-    `).bind(limit).all<WorkoutHistoryItem>();
+    `)
+      .bind(limit)
+      .all<WorkoutHistoryItem>();
 
     return result.results;
   });
@@ -300,15 +312,12 @@ const isoDateDaysAgo = (days: number): string => {
   return date.toISOString().slice(0, 10);
 };
 
-export const getExerciseProgress = (
-  db: QueryDatabaseClient,
-  exerciseTitle: string,
-  weeks = 8,
-) =>
+export const getExerciseProgress = (db: QueryDatabaseClient, exerciseTitle: string, weeks = 8) =>
   Effect.gen(function* () {
     const since = isoDateDaysAgo(weeks * 7);
 
-    const workouts = yield* db.prepare(`
+    const workouts = yield* db
+      .prepare(`
       SELECT
         s.session_id,
         s.title,
@@ -323,23 +332,31 @@ export const getExerciseProgress = (
       WHERE st.exercise_title = ? AND s.start_time >= ?
       GROUP BY s.session_id
       ORDER BY s.start_time ASC
-    `).bind(exerciseTitle, since).all<ExerciseProgressSet>();
+    `)
+      .bind(exerciseTitle, since)
+      .all<ExerciseProgressSet>();
 
-    const prRow = yield* db.prepare(`
+    const prRow = yield* db
+      .prepare(`
       SELECT
         MAX(weight_kg) as pr_weight_kg,
         MAX(weight_kg * reps) as pr_volume_kg
       FROM hevy_sets
       WHERE exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
-    `).bind(exerciseTitle).first<{ pr_weight_kg: number | null; pr_volume_kg: number | null }>();
+    `)
+      .bind(exerciseTitle)
+      .first<{ pr_weight_kg: number | null; pr_volume_kg: number | null }>();
 
-    const prSet = yield* db.prepare(`
+    const prSet = yield* db
+      .prepare(`
       SELECT weight_kg, reps
       FROM hevy_sets
       WHERE exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
       ORDER BY weight_kg * reps DESC
       LIMIT 1
-    `).bind(exerciseTitle).first<{ weight_kg: number | null; reps: number | null }>();
+    `)
+      .bind(exerciseTitle)
+      .first<{ weight_kg: number | null; reps: number | null }>();
 
     return {
       exercise_title: exerciseTitle,
@@ -364,7 +381,8 @@ export interface SleepTrend {
 export const getSleepTrend = (db: QueryDatabaseClient, days = 7) =>
   Effect.gen(function* () {
     const since = isoDateDaysAgo(days);
-    const row = yield* db.prepare(`
+    const row = yield* db
+      .prepare(`
       SELECT
         COUNT(*) as days,
         AVG(in_bed_min) as avg_in_bed_min,
@@ -372,12 +390,14 @@ export const getSleepTrend = (db: QueryDatabaseClient, days = 7) =>
         AVG(awake_min) as avg_awake_min
       FROM sleep_sessions
       WHERE date >= ?
-    `).bind(since).first<{
-      days: number;
-      avg_in_bed_min: number | null;
-      avg_asleep_min: number | null;
-      avg_awake_min: number | null;
-    }>();
+    `)
+      .bind(since)
+      .first<{
+        days: number;
+        avg_in_bed_min: number | null;
+        avg_asleep_min: number | null;
+        avg_awake_min: number | null;
+      }>();
 
     const asleepMin = row?.avg_asleep_min ?? null;
 
@@ -396,7 +416,9 @@ export interface WorkoutStreak {
   last_workout_date: string | null;
 }
 
-const computeStreaks = (dates: string[]): { current: number; longest: number; last: string | null } => {
+const computeStreaks = (
+  dates: string[],
+): { current: number; longest: number; last: string | null } => {
   if (dates.length === 0) return { current: 0, longest: 0, last: null };
 
   const sorted = [...new Set(dates)].sort();
@@ -429,11 +451,13 @@ const computeStreaks = (dates: string[]): { current: number; longest: number; la
 
 export const getWorkoutStreak = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const result = yield* db.prepare(`
+    const result = yield* db
+      .prepare(`
       SELECT DISTINCT date(start_time) as workout_date
       FROM hevy_sessions
       ORDER BY workout_date ASC
-    `).all<{ workout_date: string }>();
+    `)
+      .all<{ workout_date: string }>();
 
     const streaks = computeStreaks(result.results.map((row) => row.workout_date));
 
@@ -464,7 +488,9 @@ export const getDataSummary = (db: QueryDatabaseClient) =>
       db.prepare("SELECT COUNT(*) as c FROM hevy_sets").first<{ c: number }>(),
       db.prepare("SELECT COUNT(*) as c FROM sleep_sessions").first<{ c: number }>(),
       db.prepare("SELECT COUNT(*) as c FROM body_metrics").first<{ c: number }>(),
-      db.prepare("SELECT source, last_sync FROM sync_cursors").all<{ source: string; last_sync: string }>(),
+      db
+        .prepare("SELECT source, last_sync FROM sync_cursors")
+        .all<{ source: string; last_sync: string }>(),
     ]);
 
     const cursorMap = new Map(cursors.results.map((row) => [row.source, row.last_sync]));
@@ -494,7 +520,8 @@ export interface WorkoutSession {
 
 export const getWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const sessions = yield* db.prepare(`
+    const sessions = yield* db
+      .prepare(`
       SELECT
         s.session_id,
         s.title,
@@ -508,7 +535,8 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
       LEFT JOIN hevy_sets st ON st.session_id = s.session_id
       GROUP BY s.session_id
       ORDER BY s.start_time DESC
-    `).all<WorkoutSession>();
+    `)
+      .all<WorkoutSession>();
 
     return sessions.results;
   });
@@ -544,10 +572,13 @@ export const createThread = (db: QueryDatabaseClient, title?: string) =>
   Effect.gen(function* () {
     const id = crypto.randomUUID();
     const createdAt = nowIso();
-    yield* db.prepare(`
+    yield* db
+      .prepare(`
       INSERT INTO threads (id, title, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
-    `).bind(id, title ?? null, "regular", createdAt, createdAt).run();
+    `)
+      .bind(id, title ?? null, "regular", createdAt, createdAt)
+      .run();
     return id;
   });
 
@@ -555,29 +586,37 @@ export const getThreads = (db: QueryDatabaseClient, search?: string) =>
   Effect.gen(function* () {
     if (search !== undefined && search.trim() !== "") {
       const term = `%${search.trim()}%`;
-      const result = yield* db.prepare(`
+      const result = yield* db
+        .prepare(`
         SELECT * FROM threads
         WHERE status = 'regular' AND title LIKE ?
         ORDER BY updated_at DESC
         LIMIT 100
-      `).bind(term).all<Thread>();
+      `)
+        .bind(term)
+        .all<Thread>();
       return result.results;
     }
 
-    const result = yield* db.prepare(`
+    const result = yield* db
+      .prepare(`
       SELECT * FROM threads
       WHERE status = 'regular'
       ORDER BY updated_at DESC
       LIMIT 100
-    `).all<Thread>();
+    `)
+      .all<Thread>();
     return result.results;
   });
 
 export const getThread = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
-    const result = yield* db.prepare(`
+    const result = yield* db
+      .prepare(`
       SELECT * FROM threads WHERE id = ?
-    `).bind(threadId).first<Thread>();
+    `)
+      .bind(threadId)
+      .first<Thread>();
     return result ?? null;
   });
 
@@ -588,26 +627,35 @@ export const deleteThread = (db: QueryDatabaseClient, threadId: string) =>
 
 export const renameThread = (db: QueryDatabaseClient, threadId: string, title: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`
+    yield* db
+      .prepare(`
       UPDATE threads SET title = ?, updated_at = ? WHERE id = ?
-    `).bind(title, nowIso(), threadId).run();
+    `)
+      .bind(title, nowIso(), threadId)
+      .run();
   });
 
 export const updateThreadTimestamp = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`
+    yield* db
+      .prepare(`
       UPDATE threads SET updated_at = ? WHERE id = ?
-    `).bind(nowIso(), threadId).run();
+    `)
+      .bind(nowIso(), threadId)
+      .run();
   });
 
 export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
-    const result = yield* db.prepare(`
+    const result = yield* db
+      .prepare(`
       SELECT id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, created_at
       FROM messages
       WHERE thread_id = ?
       ORDER BY created_at ASC
-    `).bind(threadId).all<ThreadMessage>();
+    `)
+      .bind(threadId)
+      .all<ThreadMessage>();
     return result.results;
   });
 
@@ -621,21 +669,48 @@ export const saveThreadMessages = (
 
     const createdAt = nowIso();
     const statements = messages.map((message) =>
-      db.prepare(`
+      db
+        .prepare(`
         INSERT INTO messages (id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        crypto.randomUUID(),
-        threadId,
-        message.role,
-        JSON.stringify(message.parts),
-        message.usage?.prompt_tokens ?? null,
-        message.usage?.completion_tokens ?? null,
-        message.usage?.total_tokens ?? null,
-        createdAt,
-      )
+      `)
+        .bind(
+          crypto.randomUUID(),
+          threadId,
+          message.role,
+          JSON.stringify(message.parts),
+          message.usage?.prompt_tokens ?? null,
+          message.usage?.completion_tokens ?? null,
+          message.usage?.total_tokens ?? null,
+          createdAt,
+        ),
     );
 
     yield* runBatches(db, statements);
     yield* updateThreadTimestamp(db, threadId);
+  });
+
+export const getSuggestionsById = (db: QueryDatabaseClient, id: string) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT id, suggestions, created_at
+      FROM suggestions
+      WHERE id = ?
+    `)
+      .bind(id)
+      .first<SuggestionsRow>();
+    return result ?? null;
+  });
+
+export const saveSuggestions = (db: QueryDatabaseClient, id: string, suggestions: string[]) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare(`
+      INSERT INTO suggestions (id, suggestions, created_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(id) DO NOTHING
+    `)
+      .bind(id, JSON.stringify(suggestions), nowIso())
+      .run();
   });

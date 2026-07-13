@@ -1,5 +1,6 @@
 export interface SuggestionsRequest {
   threadId?: string;
+  messageId?: string;
   lastAssistantText: string;
   lastUserText?: string;
 }

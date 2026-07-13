@@ -29,9 +29,9 @@ export const UsageProvider = ({ usages, children }: UsageProviderProps) => {
     }
 
     const totalUsage: MessageUsage = {
-      promptTokens: sumTokens(usages.map((item) => item.usage.promptTokens)),
-      completionTokens: sumTokens(usages.map((item) => item.usage.completionTokens)),
-      totalTokens: sumTokens(usages.map((item) => item.usage.totalTokens)),
+      promptTokens: sumTokens(usages.map((item) => item.usage.promptTokens ?? 0)),
+      completionTokens: sumTokens(usages.map((item) => item.usage.completionTokens ?? 0)),
+      totalTokens: sumTokens(usages.map((item) => item.usage.totalTokens ?? 0)),
     };
 
     return { usageByMessageId, totalUsage };
