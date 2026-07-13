@@ -44,7 +44,7 @@ const minutesToHours = (minutes: number | null): string => {
 
 export const buildChatContext = (
   db: QueryDatabaseClient,
-): Effect.Effect<ChatContext> =>
+) =>
   Effect.gen(function* () {
     const today = formatDate(now());
     const sevenDaysAgo = daysAgo(7);

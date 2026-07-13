@@ -40,7 +40,7 @@ export const handleChat = (
   aiGateway: QueryGatewayClient,
   env: Record<string, unknown>,
   request: ChatRequest,
-): Effect.Effect<ChatResponse> =>
+) =>
   Effect.gen(function* () {
     const ctx = yield* buildChatContext(db);
     const prompt = renderContextPrompt(ctx, request.message);
@@ -61,7 +61,7 @@ const callWorkersAi = (
   aiGateway: QueryGatewayClient,
   model: string,
   prompt: string,
-): Effect.Effect<string> =>
+) =>
   Effect.gen(function* () {
     const response = yield* aiGateway.run({
       provider: "workers-ai",
@@ -85,7 +85,7 @@ const callOpenAi = (
   prompt: string,
   model: string,
   apiKey: Redacted.Redacted<string> | undefined,
-): Effect.Effect<string> =>
+) =>
   Effect.gen(function* () {
     if (apiKey === undefined) {
       return yield* Effect.fail(new Error("OPENAI_API_KEY is required when LLM_PROVIDER=openai"));

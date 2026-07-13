@@ -159,6 +159,7 @@ export const parseHealthExport = (text: string, startYear: number): Effect.Effec
     const workouts: HealthWorkoutRow[] = parsed.activity.workouts.map((workout, index) => ({
       date: toIsoLocal(workoutDates[index]),
       type: workout.type,
+      start_raw: workout.start,
       duration_sec: Option.getOrNull(workout.durationSec),
       active_kcal: Option.getOrNull(workout.activeEnergyKcal),
       avg_hr: Option.getOrNull(workout.averageHeartRateBpm),

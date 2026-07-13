@@ -11,6 +11,7 @@ export interface HealthWorkoutRow {
   id?: number;
   date: string;
   type: string;
+  start_raw: string | null;
   duration_sec: number | null;
   active_kcal: number | null;
   avg_hr: number | null;

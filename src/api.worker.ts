@@ -73,7 +73,7 @@ const handleIngest = (
   db: QueryDatabaseClient,
   bucket: ReadWriteBucketClient,
   request: HttpServerRequest,
-): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
+) =>
   Effect.gen(function* () {
     const nativeRequest = request.source as Request;
     const formData = yield* Effect.tryPromise({
@@ -157,7 +157,7 @@ const handleChatRoute = (
   aiGateway: QueryGatewayClient,
   env: Record<string, unknown>,
   request: HttpServerRequest,
-): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
+) =>
   Effect.gen(function* () {
     const text = yield* request.text;
     const body = JSON.parse(text || "{}") as { message?: string };
@@ -180,7 +180,7 @@ const handleChatRoute = (
 
 const handleRecovery = (
   db: QueryDatabaseClient,
-): Effect.Effect<HttpServerResponse.HttpServerResponse> =>
+) =>
   Effect.gen(function* () {
     const ctx = yield* buildChatContext(db);
     return yield* HttpServerResponse.json({

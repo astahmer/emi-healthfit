@@ -15,13 +15,9 @@ export default Alchemy.Stack(
       migrationsDir: "./migrations",
     });
 
-    const exportsBucket = yield* Cloudflare.R2.Bucket("Exports", {
-      allowPublicAccess: false,
-    });
+    const exportsBucket = yield* Cloudflare.R2.Bucket("Exports");
 
-    const aiGateway = yield* Cloudflare.AI.Gateway("AiGateway", {
-      enabled: true,
-    });
+    const aiGateway = yield* Cloudflare.AI.Gateway("AiGateway");
 
     const api = yield* Api;
 

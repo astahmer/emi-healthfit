@@ -11,10 +11,30 @@ import type {
 
 export type QueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
 
+const BATCH_SIZE = 100;
+
+const chunk = <T>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
+
+const runBatches = (
+  db: QueryDatabaseClient,
+  statements: ReturnType<QueryDatabaseClient["prepare"]>[],
+) =>
+  Effect.gen(function* () {
+    for (const batch of chunk(statements, BATCH_SIZE)) {
+      yield* db.batch(batch);
+    }
+  });
+
 export const upsertDailyActivity = (
   db: QueryDatabaseClient,
   rows: DailyActivityRow[],
-): Effect.Effect<number> =>
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
@@ -38,24 +58,34 @@ export const upsertDailyActivity = (
       )
     );
 
-    yield* db.batch(statements);
+    yield* runBatches(db, statements);
     return rows.length;
   });
 
 export const insertHealthWorkouts = (
   db: QueryDatabaseClient,
   rows: HealthWorkoutRow[],
-): Effect.Effect<number> =>
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db.prepare(`
-        INSERT INTO health_workouts (date, type, duration_sec, active_kcal, avg_hr, max_hr, min_hr, distance_km, source, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO health_workouts (date, type, start_raw, duration_sec, active_kcal, avg_hr, max_hr, min_hr, distance_km, source, raw_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date, type, start_raw) DO UPDATE SET
+          duration_sec = excluded.duration_sec,
+          active_kcal = excluded.active_kcal,
+          avg_hr = excluded.avg_hr,
+          max_hr = excluded.max_hr,
+          min_hr = excluded.min_hr,
+          distance_km = excluded.distance_km,
+          source = excluded.source,
+          raw_json = excluded.raw_json
       `).bind(
         row.date,
         row.type,
+        row.start_raw,
         row.duration_sec,
         row.active_kcal,
         row.avg_hr,
@@ -67,14 +97,14 @@ export const insertHealthWorkouts = (
       )
     );
 
-    yield* db.batch(statements);
+    yield* runBatches(db, statements);
     return rows.length;
   });
 
 export const upsertHevySessions = (
   db: QueryDatabaseClient,
   rows: HevySessionRow[],
-): Effect.Effect<number> =>
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
@@ -97,14 +127,14 @@ export const upsertHevySessions = (
       )
     );
 
-    yield* db.batch(statements);
+    yield* runBatches(db, statements);
     return rows.length;
   });
 
 export const upsertHevySets = (
   db: QueryDatabaseClient,
   rows: HevySetRow[],
-): Effect.Effect<number> =>
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
@@ -134,14 +164,14 @@ export const upsertHevySets = (
       )
     );
 
-    yield* db.batch(statements);
+    yield* runBatches(db, statements);
     return rows.length;
   });
 
 export const upsertSleepSessions = (
   db: QueryDatabaseClient,
   rows: SleepSessionRow[],
-): Effect.Effect<number> =>
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
@@ -166,14 +196,14 @@ export const upsertSleepSessions = (
       )
     );
 
-    yield* db.batch(statements);
+    yield* runBatches(db, statements);
     return rows.length;
   });
 
 export const upsertBodyMetrics = (
   db: QueryDatabaseClient,
   rows: BodyMetricRow[],
-): Effect.Effect<number> =>
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS health_workouts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   date TEXT NOT NULL,
   type TEXT NOT NULL,
+  start_raw TEXT,
   duration_sec INTEGER,
   active_kcal REAL,
   avg_hr REAL,
@@ -18,7 +19,8 @@ CREATE TABLE IF NOT EXISTS health_workouts (
   min_hr REAL,
   distance_km REAL,
   source TEXT,
-  raw_json TEXT
+  raw_json TEXT,
+  UNIQUE(date, type, start_raw)
 );
 
 CREATE TABLE IF NOT EXISTS hevy_sessions (
@@ -52,7 +54,8 @@ CREATE TABLE IF NOT EXISTS sleep_sessions (
   in_bed_min INTEGER,
   asleep_min INTEGER,
   awake_min INTEGER,
-  source TEXT
+  source TEXT,
+  UNIQUE(date, start)
 );
 
 CREATE TABLE IF NOT EXISTS body_metrics (
