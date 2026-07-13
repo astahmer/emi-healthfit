@@ -1,3 +1,4 @@
 data
 .alchemy
 node_modules
+apps/api/assets/dev
