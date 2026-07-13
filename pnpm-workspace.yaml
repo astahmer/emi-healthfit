@@ -2,6 +2,7 @@ packages:
   - "apps/*"
 allowBuilds:
   msgpackr-extract: true
+  sharp: true
   workerd: true
 onlyBuiltDependencies:
   - msgpackr-extract
