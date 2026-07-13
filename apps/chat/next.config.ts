@@ -5,7 +5,7 @@ const apiBase = process.env.API_BASE_URL || "http://localhost:1337";
 
 const nextConfig: NextConfig = {
   output: "export",
-  distDir: "../api/assets",
+  distDir: "dist",
   trailingSlash: true,
   async rewrites() {
     return [

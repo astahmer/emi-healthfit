@@ -29,7 +29,9 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "../api/assets/types/**/*.ts",
-    "../api/assets/dev/types/**/*.ts"
+    "../api/assets/dev/types/**/*.ts",
+    "dist/types/**/*.ts",
+    "dist/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }
