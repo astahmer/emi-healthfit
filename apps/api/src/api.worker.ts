@@ -19,8 +19,8 @@ import {
 } from "./db/operations.ts";
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
-import { handleMcp } from "./mcp/handler.ts";
 import { streamChat } from "./chat/ai-sdk.ts";
+import { handleToolExecute, handleToolsList } from "./tools/api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -48,8 +48,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
       | { fetch: (req: Request) => Promise<Response> }
       | undefined;
     const assetsFetcher = assetsBinding?.fetch;
-
-    const runtime = yield* Effect.runtime<never>();
 
     return {
       fetch: Effect.gen(function* () {
@@ -85,8 +83,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
           return yield* handleAiSdkChat(request);
         }
 
-        if (url.pathname === "/api/mcp") {
-          return yield* handleMcp(db, request);
+        if (url.pathname === "/api/tools" && request.method === "GET") {
+          return yield* withCors(handleToolsList(), request);
+        }
+
+        if (url.pathname.startsWith("/api/tools/") && request.method === "POST") {
+          return yield* withCors(handleToolExecute(db, request), request);
         }
 
         if (url.pathname === "/api/recovery" && request.method === "GET") {
@@ -287,13 +289,20 @@ const withCors = <E, R>(
       headers.set(key, value);
     }
     return HttpServerResponse.fromWeb(
-      new Response(response.body, {
+      new Response(response.body as unknown as BodyInit, {
         status: response.status,
         statusText: response.statusText,
         headers,
       }),
     );
-  });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 500 },
+      ),
+    ),
+  );
 
 const handleAiSdkChat = (request: HttpServerRequest) =>
   Effect.gen(function* () {
@@ -307,7 +316,7 @@ const handleAiSdkChat = (request: HttpServerRequest) =>
     }
 
     return HttpServerResponse.fromWeb(
-      new Response(response.body, {
+      new Response(response.body as unknown as BodyInit, {
         status: response.status,
         statusText: response.statusText,
         headers,
