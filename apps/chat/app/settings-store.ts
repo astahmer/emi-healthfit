@@ -31,8 +31,7 @@ export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
       settings: defaultSettings,
-      update: (patch) =>
-        set((state) => ({ settings: { ...state.settings, ...patch } })),
+      update: (patch) => set((state) => ({ settings: { ...state.settings, ...patch } })),
     }),
     { name: "emi-chat-settings" },
   ),

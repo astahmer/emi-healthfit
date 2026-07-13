@@ -18,30 +18,19 @@ export default function Home() {
         <header className="flex items-center justify-between border-b px-4 py-3">
           <div>
             <h1 className="text-lg font-semibold">Emi HealthFit</h1>
-            <p className="text-muted-foreground text-xs">
-              Personal gym assistant
-            </p>
+            <p className="text-muted-foreground text-xs">Personal gym assistant</p>
           </div>
           <nav className="flex gap-1">
             <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>
               Chat
             </TabButton>
-            <TabButton
-              active={tab === "upload"}
-              onClick={() => setTab("upload")}
-            >
+            <TabButton active={tab === "upload"} onClick={() => setTab("upload")}>
               Upload
             </TabButton>
-            <TabButton
-              active={tab === "summary"}
-              onClick={() => setTab("summary")}
-            >
+            <TabButton active={tab === "summary"} onClick={() => setTab("summary")}>
               Summary
             </TabButton>
-            <TabButton
-              active={tab === "settings"}
-              onClick={() => setTab("settings")}
-            >
+            <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>
               Settings
             </TabButton>
           </nav>

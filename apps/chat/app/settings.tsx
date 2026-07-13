@@ -15,9 +15,7 @@ export function SettingsPanel() {
           <label className="text-sm font-medium">Provider</label>
           <select
             value={settings.provider}
-            onChange={(e) =>
-              update({ provider: e.target.value as "openai" })
-            }
+            onChange={(e) => update({ provider: e.target.value as "openai" })}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             <option value="openai">OpenAI</option>
@@ -28,17 +26,15 @@ export function SettingsPanel() {
           <label className="text-sm font-medium">Mode</label>
           <select
             value={settings.mode}
-            onChange={(e) =>
-              update({ mode: e.target.value as "proxy" | "direct" })
-            }
+            onChange={(e) => update({ mode: e.target.value as "proxy" | "direct" })}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             <option value="proxy">Proxy via CF Worker (tools enabled)</option>
             <option value="direct">Direct to provider</option>
           </select>
           <p className="text-muted-foreground mt-1 text-xs">
-            Proxy mode routes chat through the CF Worker, which can call tools.
-            Direct mode calls the provider API from the browser.
+            Proxy mode routes chat through the CF Worker, which can call tools. Direct mode calls
+            the provider API from the browser.
           </p>
         </div>
 
@@ -52,8 +48,8 @@ export function SettingsPanel() {
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Leave empty for default OpenAI URL. Use a GPT-compatible endpoint
-            (e.g. your CF worker) by entering its base URL.
+            Leave empty for default OpenAI URL. Use a GPT-compatible endpoint (e.g. your CF worker)
+            by entering its base URL.
           </p>
         </div>
 
@@ -67,8 +63,8 @@ export function SettingsPanel() {
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Stored in browser localStorage. In proxy mode it is sent to the CF
-            Worker, which uses it to call the provider.
+            Stored in browser localStorage. In proxy mode it is sent to the CF Worker, which uses it
+            to call the provider.
           </p>
         </div>
 

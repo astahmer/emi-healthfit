@@ -1,16 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  AssistantRuntimeProvider,
-  useAui,
-  useLocalRuntime,
-  type Tool,
-} from "@assistant-ui/react";
-import {
-  useChatRuntime,
-  AssistantChatTransport,
-} from "@assistant-ui/react-ai-sdk";
+import { AssistantRuntimeProvider, useAui, useLocalRuntime, type Tool } from "@assistant-ui/react";
+import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
@@ -26,14 +18,13 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchTools()
       .then(setDefinitions)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : String(err)),
-      );
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
   useEffect(() => {
-    const tools: Record<string, Tool<Record<string, unknown>, unknown>> =
-      buildFrontendTools(definitions);
+    const tools: Record<string, Tool<Record<string, unknown>, unknown>> = buildFrontendTools(
+      definitions,
+    );
     return aui.modelContext().register({
       getModelContext: () => ({
         system: settings.systemPrompt,
@@ -78,11 +69,7 @@ function ProxyRuntime({ children }: { children: ReactNode }) {
     }),
   });
 
-  return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-    </AssistantRuntimeProvider>
-  );
+  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 }
 
 function DirectRuntime({ children }: { children: ReactNode }) {
@@ -90,11 +77,7 @@ function DirectRuntime({ children }: { children: ReactNode }) {
   const adapter = createDirectAdapter(settings);
   const runtime = useLocalRuntime(adapter);
 
-  return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-    </AssistantRuntimeProvider>
-  );
+  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 }
 
 export function Providers({ children }: { children: ReactNode }) {

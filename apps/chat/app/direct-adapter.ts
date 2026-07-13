@@ -36,9 +36,7 @@ const buildToolSet = (
   );
 };
 
-export const createDirectAdapter = (
-  settings: ChatSettings,
-): ChatModelAdapter => ({
+export const createDirectAdapter = (settings: ChatSettings): ChatModelAdapter => ({
   async *run(options: ChatModelRunOptions) {
     const openai = createOpenAI({
       apiKey: settings.apiKey,
@@ -82,8 +80,7 @@ export const createDirectAdapter = (
         }
         case "tool-result": {
           const index = content.findIndex(
-            (c) =>
-              c.type === "tool-call" && c.toolCallId === part.toolCallId,
+            (c) => c.type === "tool-call" && c.toolCallId === part.toolCallId,
           );
           if (index !== -1) {
             const updated = [...content];

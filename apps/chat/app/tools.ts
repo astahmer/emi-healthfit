@@ -11,8 +11,7 @@ export interface ToolListResponse {
   tools: ToolDefinition[];
 }
 
-const apiBase = () =>
-  typeof window === "undefined" ? "" : window.location.origin;
+const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
 
 export const fetchTools = async (): Promise<ToolDefinition[]> => {
   const res = await fetch(`${apiBase()}/api/tools`);
@@ -21,10 +20,7 @@ export const fetchTools = async (): Promise<ToolDefinition[]> => {
   return data.tools;
 };
 
-const executeTool = async (
-  name: string,
-  args: Record<string, unknown>,
-): Promise<unknown> => {
+const executeTool = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
   const res = await fetch(`${apiBase()}/api/tools/${name}`, {
     method: "POST",
     headers: { "content-type": "application/json" },

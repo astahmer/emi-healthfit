@@ -59,38 +59,27 @@ export function SummaryPanel() {
       </div>
 
       {error !== "" && (
-        <div className="bg-muted mb-4 rounded-md p-3 text-sm text-red-500">
-          {error}
-        </div>
+        <div className="bg-muted mb-4 rounded-md p-3 text-sm text-red-500">{error}</div>
       )}
 
       {summary !== null && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {items.map((item) => (
-              <div
-                key={item.label}
-                className="bg-muted rounded-md p-4 text-center"
-              >
+              <div key={item.label} className="bg-muted rounded-md p-4 text-center">
                 <div className="text-2xl font-bold">{item.number}</div>
-                <div className="text-muted-foreground text-xs">
-                  {item.label}
-                </div>
+                <div className="text-muted-foreground text-xs">{item.label}</div>
               </div>
             ))}
           </div>
           <div className="text-muted-foreground mt-4 text-sm">
             <p>
               Last health sync:{" "}
-              {summary.lastHealthSync
-                ? new Date(summary.lastHealthSync).toLocaleString()
-                : "never"}
+              {summary.lastHealthSync ? new Date(summary.lastHealthSync).toLocaleString() : "never"}
             </p>
             <p>
               Last Hevy sync:{" "}
-              {summary.lastHevySync
-                ? new Date(summary.lastHevySync).toLocaleString()
-                : "never"}
+              {summary.lastHevySync ? new Date(summary.lastHevySync).toLocaleString() : "never"}
             </p>
           </div>
         </>
