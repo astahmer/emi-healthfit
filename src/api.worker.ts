@@ -28,7 +28,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   {
     main: import.meta.url,
-    assets: "./public",
+    assets: "./assets",
     observability: {
       enabled: true,
     },
@@ -39,10 +39,27 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const aiGateway = yield* Cloudflare.AI.QueryGateway(AiGateway);
     const env = (yield* yield* Cloudflare.CloudflareEnvironment) as Record<string, unknown>;
 
+    const assetsBinding = (env as Record<string, unknown>).ASSETS as
+      | { fetch: (req: Request) => Promise<Response> }
+      | undefined;
+    const assetsFetcher = assetsBinding?.fetch;
+
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const url = new URL(request.url, "http://localhost");
+
+        if (request.method === "GET" && assetsFetcher !== undefined) {
+          const isAssetPath = url.pathname === "/" ||
+            url.pathname === "/index.html" ||
+            url.pathname.startsWith("/assets/");
+          if (isAssetPath) {
+            const response = yield* Effect.promise(() => assetsFetcher(request.source as Request));
+            if (response.status !== 404) {
+              return HttpServerResponse.fromWeb(response);
+            }
+          }
+        }
 
         if (url.pathname === "/ingest" && request.method === "POST") {
           return yield* handleIngest(db, bucket, request);
