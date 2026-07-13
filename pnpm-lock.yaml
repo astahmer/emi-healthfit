@@ -87,6 +87,9 @@ importers:
       ai:
         specifier: ^6.0.209
         version: 6.0.224(zod@3.25.76)
+      assistant-stream:
+        specifier: latest
+        version: 0.3.25(ioredis@5.11.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

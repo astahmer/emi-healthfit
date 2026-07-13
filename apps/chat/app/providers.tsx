@@ -15,31 +15,45 @@ import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 
-export function Providers({ children }: { children: ReactNode }) {
+function ToolRegistrar({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
   const [definitions, setDefinitions] = useState<ToolDefinition[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const aui = useAui();
 
   useEffect(() => {
     fetchTools()
       .then(setDefinitions)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      );
   }, []);
 
-  const tools: Record<string, Tool<Record<string, unknown>, unknown>> =
-    buildFrontendTools(definitions);
+  useEffect(() => {
+    const tools: Record<string, Tool<Record<string, unknown>, unknown>> =
+      buildFrontendTools(definitions);
+    return aui.modelContext().register({
+      getModelContext: () => ({
+        system: settings.systemPrompt,
+        tools,
+      }),
+    });
+  }, [aui, definitions, settings.systemPrompt]);
 
-  const aui = useAui({
-    modelContext: {
-      system: settings.systemPrompt,
-      tools,
-      config: {
-        apiKey: settings.apiKey,
-        baseUrl: settings.baseUrl || undefined,
-        modelName: settings.model,
-      },
-    },
-  });
+  return (
+    <>
+      {error !== null && (
+        <div className="fixed right-4 top-4 z-50 rounded-md bg-red-100 px-4 py-2 text-sm text-red-800 dark:bg-red-900 dark:text-red-100">
+          {error}
+        </div>
+      )}
+      {children}
+    </>
+  );
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  const settings = useSettings((state) => state.settings);
 
   const runtime = useChatRuntime({
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
@@ -63,13 +77,8 @@ export function Providers({ children }: { children: ReactNode }) {
   });
 
   return (
-    <AssistantRuntimeProvider runtime={runtime} aui={aui}>
-      {error !== null && (
-        <div className="fixed right-4 top-4 z-50 rounded-md bg-red-100 px-4 py-2 text-sm text-red-800 dark:bg-red-900 dark:text-red-100">
-          {error}
-        </div>
-      )}
-      {children}
+    <AssistantRuntimeProvider runtime={runtime}>
+      <ToolRegistrar>{children}</ToolRegistrar>
     </AssistantRuntimeProvider>
   );
 }
