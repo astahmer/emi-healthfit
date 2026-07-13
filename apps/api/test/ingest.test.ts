@@ -8,7 +8,7 @@ import { parseHevyCsv, parseHevyDate } from "../src/ingest/hevy.ts";
 describe("HealthExportKit parser", () => {
   it("parses the real health export file", async () => {
     const text = await readFile(
-      "data/health-export-json-2022-01-01-0000_to_2026-07-13-1526.json",
+      "../../data/health-export-json-2022-01-01-0000_to_2026-07-13-1526.json",
       "utf8",
     );
     const result = await Effect.runPromise(parseHealthExport(text, 2022));
@@ -43,7 +43,7 @@ describe("HealthExportKit parser", () => {
 
 describe("Hevy CSV parser", () => {
   it("parses the real Hevy export file", async () => {
-    const text = await readFile("data/hevy/workout_data.csv", "utf8");
+    const text = await readFile("../../data/hevy/workout_data.csv", "utf8");
     const result = await Effect.runPromise(parseHevyCsv(text));
 
     assert.strictEqual(result.sessions.length, 110);
