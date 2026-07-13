@@ -1,17 +1,18 @@
 # Emi HealthFit — Personal Gym Assistant
 
-A personal gym assistant powered by **Apple Health** + **Hevy** data, running on **Cloudflare Workers** with **Effect 4** and **Alchemy** (Infrastructure-as-Effects).
+A personal gym assistant powered by **Apple Health** + **Hevy** data, running on **Cloudflare Workers** with **Effect 4**, **Alchemy**, and a new **assistant-ui** chat frontend.
 
-It answers questions like "what should I train today?", "am I recovered enough?", or "how's my squat progress?" by combining your recent workouts, sleep, activity, and a lightweight recovery score.
+It answers questions like "what should I train today?", "am I recovered enough?", or "how's my squat progress?" by combining your recent workouts, sleep, activity, and a lightweight recovery score. The chat UI supports OpenAI (BYOK), GPT-compatible endpoints, and remote tools exposed by the CF Worker.
 
 ## Stack
 
 - **Runtime:** Cloudflare Workers
 - **Language:** TypeScript 7
 - **Infra + runtime framework:** [Alchemy](https://alchemy.run) + [Effect](https://effect.website)
+- **Frontend:** [assistant-ui](https://github.com/assistant-ui/assistant-ui) (Next.js, static export)
 - **Database:** Cloudflare D1
 - **Raw export storage:** Cloudflare R2
-- **LLM:** Workers AI (`@cf/meta/llama-3.1-8b-instruct`) by default; OpenAI (`gpt-4o-mini`) optional
+- **LLM:** OpenAI (`gpt-4o-mini` by default) via BYOK or CF Worker proxy
 
 ## Prerequisites
 
@@ -28,20 +29,9 @@ pnpm install
 
 On first install pnpm may ask you to approve native builds for `workerd` and `msgpackr-extract`. Approve them — they are used by Alchemy for local dev.
 
-## Environment variables
-
-Set these via the Cloudflare dashboard or `wrangler secret` after deploying:
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `LLM_PROVIDER` | no | `workers-ai` | `workers-ai` or `openai` |
-| `WORKERS_AI_MODEL` | no | `@cf/meta/llama-3.1-8b-instruct` | Workers AI model endpoint |
-| `OPENAI_MODEL` | no | `gpt-4o-mini` | OpenAI chat model |
-| `OPENAI_API_KEY` | only if `LLM_PROVIDER=openai` | — | OpenAI API key |
-
 ## Local development
 
-Run the Worker locally with Alchemy’s dev server:
+Run the Worker locally with Alchemy's dev server:
 
 ```bash
 pnpm dev
@@ -49,7 +39,13 @@ pnpm dev
 
 This provisions a temporary local stack (D1, R2, AI Gateway bindings) and gives you a local URL.
 
-To type-check the project:
+To work on the chat UI with hot reload:
+
+```bash
+pnpm chat:dev
+```
+
+To type-check the whole monorepo:
 
 ```bash
 pnpm typecheck
@@ -69,7 +65,10 @@ pnpm verify
 
 ## Deployment
 
+Build the frontend and deploy the worker:
+
 ```bash
+pnpm build
 pnpm deploy
 ```
 
@@ -78,15 +77,25 @@ Alchemy will create/update:
 - `GymData` D1 database
 - `Exports` R2 bucket
 - `AiGateway` AI Gateway
-- `Api` Worker with bindings to the above
+- `Api` Worker with bindings to the above and the built frontend assets
 
-The command prints the deployed Worker URL. Open that URL in a browser to use the built-in upload + chat UI.
+The command prints the deployed Worker URL. Open that URL in a browser to use the chat UI.
 
 ## Using the assistant
 
-For a non-technical, step-by-step guide (iPhone exports, web UI, OpenWebUI, Shortcuts), see [`docs/USER_GUIDE.md`](./docs/USER_GUIDE.md).
+The web UI is served directly from the Worker at the root URL after deploying. It has four tabs:
 
-The web UI is served directly from the Worker at the root URL after deploying.
+- **Chat** — GPT-like chat with tool calling
+- **Upload** — import HealthExportKit JSON and/or Hevy CSV
+- **Summary** — imported data counts and last sync times
+- **Settings** — provider, model, base URL, API key, system prompt
+
+In **Settings** you can choose:
+
+- **Proxy via CF Worker** — chat requests go to `POST /api/chat`; the Worker calls OpenAI with your API key and can execute tools.
+- **Direct to provider** — the browser calls OpenAI directly with your key. Tools still run against the Worker.
+
+Add new tools remotely by updating the Worker; the frontend discovers them from `GET /api/tools`.
 
 ## API
 
@@ -109,47 +118,38 @@ Response:
 }
 ```
 
-### `POST /chat`
+### `POST /api/chat`
 
-Ask the assistant anything.
+Streaming chat endpoint used by the assistant-ui frontend.
 
 ```bash
-curl -X POST https://<worker-url>/chat \
+curl -X POST https://<worker-url>/api/chat \
   -H "content-type: application/json" \
-  -d '{"message":"what should I train today?"}'
+  -d '{
+    "messages": [{"role":"user","content":"what should I train today?"}],
+    "config": {"provider":"openai","apiKey":"sk-...","model":"gpt-4o-mini"}
+  }'
 ```
 
-Response:
+### `GET /api/tools`
 
-```json
-{
-  "response": "...",
-  "recoveryLabel": "Ready",
-  "model": "@cf/meta/llama-3.1-8b-instruct"
-}
-```
+List available remote tools.
+
+### `POST /api/tools/:name`
+
+Execute a remote tool.
 
 ### `GET /api/recovery`
 
-Get today’s recovery score and supporting stats.
+Get today's recovery score and supporting stats.
 
 ```bash
 curl https://<worker-url>/api/recovery
 ```
 
-Response:
+### `GET /api/summary`
 
-```json
-{
-  "today": "2026-07-13",
-  "label": "Ready",
-  "explanation": "Sleep avg 7h 45m last 7 days, strain 48h 1234 kg·reps.",
-  "lastWorkout": "Afternoon workout 💪 on 2026-07-12",
-  "sleepAverageHours": 7.75,
-  "recentWorkoutCount": 4,
-  "recentVolume": 12345
-}
-```
+Get imported data counts and last sync times.
 
 ## Ingestion flow from iPhone
 
@@ -170,24 +170,23 @@ No dedicated app needed.
 
 ```
 .
-├── alchemy.run.ts              # Alchemy stack: D1, R2, AI Gateway, Worker
-├── migrations/0001_init.sql    # D1 schema
-├── src/
-│   ├── api.worker.ts           # Worker routes and bindings
-│   ├── chat/
-│   │   ├── context.ts          # Recovery score + prompt context
-│   │   └── handler.ts          # LLM routing (Workers AI / OpenAI)
-│   ├── db/
-│   │   ├── operations.ts       # D1 batch inserts/upserts
-│   │   └── schema.ts           # Row type definitions
-│   └── ingest/
-│       ├── health.ts           # HealthExportKit JSON parser
-│       └── hevy.ts             # Hevy CSV parser
-├── test/
-│   └── ingest.test.ts          # Parser tests against real data
-├── scripts/
-│   └── verify-parsers.ts       # Standalone parser smoke test
-└── data/                       # Your export files (gitignored)
+├── apps/
+│   ├── api/                    # Cloudflare Worker (Effect + Alchemy)
+│   │   ├── alchemy.run.ts      # Alchemy stack: D1, R2, AI Gateway, Worker
+│   │   ├── src/
+│   │   │   ├── api.worker.ts   # Worker routes and bindings
+│   │   │   ├── chat/           # Chat handlers (legacy + AI SDK)
+│   │   │   ├── db/             # D1 operations and schema
+│   │   │   ├── ingest/         # Health/Hevy parsers
+│   │   │   └── tools/          # Remote tool definitions
+│   │   ├── migrations/         # D1 schema
+│   │   ├── test/               # Parser tests
+│   │   └── scripts/            # Standalone parser smoke test
+│   └── chat/                   # assistant-ui Next.js frontend
+│       ├── app/                # Pages, providers, settings, tool loader
+│       └── components/         # UI components
+├── data/                       # Your export files (gitignored)
+└── .references/                # Cloned reference repositories
 ```
 
 ## Recovery score
@@ -212,7 +211,7 @@ Tests run against the real export files in `data/` and assert parser correctness
 pnpm test
 ```
 
-To add a new test, create a `.test.ts` file under `test/` and run it with `node --test --experimental-strip-types`.
+To add a new test, create a `.test.ts` file under `apps/api/test/` and run it with `node --test --experimental-strip-types`.
 
 ## Contributing
 
@@ -228,7 +227,7 @@ To add a new test, create a `.test.ts` file under `test/` and run it with `node 
 
 Code style:
 
-- Use Effect generators (`Effect.gen`) for async/ effectful code
+- Use Effect generators (`Effect.gen`) for async/effectful code
 - Prefer Alchemy bindings over raw `fetch`
 - Keep parsers tolerant of missing/optional fields
 - Add tests for new parsers or endpoints
