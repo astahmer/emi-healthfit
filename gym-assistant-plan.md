@@ -2,7 +2,9 @@
 
 ## Overview
 
-A personal gym assistant powered by Apple Health + Hevy data, hosted on Cloudflare's free tier. The assistant knows your workout history, recovery status, and health trends to answer questions like "what should I train today?", "am I recovered enough?", "how's my squat progress?", or "what did I do last chest day?"
+A personal gym assistant powered by Apple Health + Hevy data, hosted on Cloudflare Workers ($5/mo plan). The assistant knows your workout history, recovery status, and health trends to answer questions like "what should I train today?", "am I recovered enough?", "how's my squat progress?", or "what did I do last chest day?"
+
+Stack: **TypeScript + Effect 4** on Workers, **OpenAI** for the LLM, **D1** for storage.
 
 ---
 
@@ -16,73 +18,76 @@ A personal gym assistant powered by Apple Health + Hevy data, hosted on Cloudfla
 | `health-export-json.json` (Kit app) | ~1 MB | Structured JSON: activity (daily + 572 workouts), sleep, body |
 | `health-export-md.md` (Kit app) | ~640 KB | Markdown tables: sleep/body/activity |
 
-HealthExportKit JSON is the best format to build on — structured, compact, parsed.
+HealthExportKit JSON is the best format — structured, compact, pre-parsed.
 
-**Limitation:** Apple Health only stores workout metadata for strength training (duration, calories, HR), not exercise-level data (sets/reps/weight). Hevy fills that gap.
+**Limitation:** Apple Health only stores strength training metadata (duration, calories, HR), not exercise-level data (sets/reps/weight). Hevy fills that gap.
 
-### 2. Hevy (workout programming)
+### 2. Hevy — CSV Export (free, no API needed)
 
-Hevy tracks the actual exercises, sets, reps, and weights. Use the [Hevy API](https://hevy.com/api) to pull:
-- Workout routines & exercise history
-- Set-level data (weight × reps)
-- Muscle group distribution
+Hevy has a **free built-in CSV export** — no API key or Pro subscription required.
+
+**How to export:**
+- In the app: Profile → Settings → Export & Import Data → Export Data → Export Workouts
+- Or on desktop: `https://hevy.com/settings?export`
+
+**CSV columns:**
+```
+title, start_time, end_time, description, exercise_title, superset_id,
+exercise_notes, set_index, set_type, weight_kg, reps, distance_km,
+duration_seconds, rpe
+```
+
+Every set, rep, and weight you've ever logged. This is the full exercise-level data.
+
+**Sync cadence:** Manual export once every week or two (whatever cadence you like). Upload alongside the HealthExportKit JSON in the same ingest call. Worker deduplicates by date + exercise + set_index.
 
 ### 3. Apple Shortcuts Automation (optional)
 
-Use "Find Health Samples" action to auto-push daily summaries to a webhook (Worker endpoint). This removes the manual export step for daily stats.
+Use "Find Health Samples" action to auto-push daily summaries (steps, HR, sleep) to a webhook. This fills gaps between manual exports.
 
 ---
 
 ## Ingestion Flow (iPhone → Cloudflare)
 
-Send data from iPhone to the backend. Options ranked by practicality:
+### Recommended: Share-to-Webhook via Shortcut
 
-### **Primary: Share-to-Webhook via Shortcut + Worker**
+1. Export from HealthExportKit (JSON) + Hevy (CSV) — takes ~30s
+2. Tap Share on either file → run a Shortcut that collects both files and POSTs them to `https://gym.emi.workers.dev/ingest`
+3. Worker validates, parses both, upserts into D1, stores raw blobs in R2
 
-1. On iPhone, use HealthExportKit to generate JSON (takes ~10s once a week)
-2. Tap Share → run a Shortcut that reads the file, POSTs it to `https://gym.emi.workers.dev/ingest`
-3. Worker validates, extracts new workouts/body/sleep, stores in D1 + R2 (raw file)
-4. Weekly, a Cron Worker pulls Hevy API for the latest workout data
+The Shortcut can be a simple "receive file → POST multipart to URL" — no app needed.
 
-**Why this wins:** Zero infrastructure to manage, no app store, works from the share sheet, Cloudflare handles everything.
+### Alternative: Minimal upload page
 
-### **Alternative: Dedicated minimal upload page**
+A single HTML page on Cloudflare Pages with two file inputs (+ a submit button). Open in Safari → pick files → upload. Zero setup.
 
-A single HTML page on Cloudflare Pages with a file input + submit button. Share the JSON from HealthExportKit → Safari → choose file → upload. Slightly more steps, no Shortcut setup needed.
+### Future: Discord bot
 
-### **Future: Discord bot (Worker + Discord interactions)**
-
-A Cloudflare Worker acts as a Discord bot. User DMs the export file to the bot, it parses and stores it. Also serves as the assistant chat interface.
-
-### **Never: WhatsApp/Twilio**
-
-Too expensive. The free tier won't last with media handling.
+A Worker acting as a Discord bot. DM the export files to the bot. It parses, stores, and also serves as the chat interface. Single entry point for everything.
 
 ---
 
-## Cloudflare Stack (All Free Tier)
+## Cloudflare Stack ($5/mo Workers Paid Plan)
 
-| Service | Use |
-|---------|-----|
-| **Workers** | API endpoints, ingestion handler, Cron tasks |
-| **D1** | Structured data — workouts, exercises, sets, sleep, body metrics |
-| **R2** | Raw JSON/XML export blob storage (backup + re-processing) |
-| **KV** | User config, sync cursors, session state |
-| **Queues** | Async ingestion pipeline (unpack → parse → store) |
-| **Pages** | Dashboard frontend (future) |
-| **Workers AI / AI Gateway** | LLM-powered assistant (see below) |
+| Service | Use | Monthly Cost |
+|---------|-----|-------------|
+| **Workers Paid** | API endpoints, ingest, cron, chat | $5 |
+| **D1** | Structured data — workouts, sets, sleep, body | Included in $5 |
+| **R2** | Raw export blob backup | Free tier (10 GB) |
+| **KV** | Config, sync cursors, session state | Free tier |
+| **Queues** | Async ingest pipeline | Free tier (1M/mo) |
+| **Pages** | Dashboard frontend (future) | Free tier |
+| **AI Gateway** | Cache/reliability layer for OpenAI calls | Free tier |
 
-### Monthly Free Limits Check
+### Why $5/mo Workers Paid?
 
-| Resource | Free Limit | Expected Usage |
-|----------|-----------|----------------|
-| Workers reqs | 100k/day | ~500/day (ingestion + chat) |
-| D1 rows | 5M rows | ~50k rows (years of data) |
-| D1 read units | 5B/mo | Negligible |
-| R2 storage | 10 GB | <50 MB |
-| R2 operations A | 10M/mo | Tiny |
-| Queues | 1M ops/mo | ~100/mo |
-| Workers AI | 10k neurons/day | Depends on chat volume |
+Workers Paid ($5) unlocks:
+- D1 (included)
+- Longer CPU time (30s vs 10s) — needed for parsing + LLM calls
+- More subrequests (1000/req vs 50)
+- Queue support
+
+Everything else fits in free tier limits.
 
 ---
 
@@ -96,39 +101,51 @@ CREATE TABLE daily_activity (
   steps INTEGER,
   distance_km REAL,
   exercise_min INTEGER,
-  flights_climbed INTEGER,
-  resting_hr REAL,
-  hrv REAL
+  flights_climbed INTEGER
 );
 
--- Apple Health workouts (metadata)
+-- Apple Health workouts (metadata + HR)
 CREATE TABLE health_workouts (
   id INTEGER PRIMARY KEY,
-  date TEXT,
-  type TEXT,
+  date TEXT NOT NULL,
+  type TEXT NOT NULL,
   duration_sec INTEGER,
   active_kcal REAL,
   avg_hr REAL,
   max_hr REAL,
+  min_hr REAL,
   distance_km REAL,
   source TEXT,
-  raw_json TEXT  -- keep original payload
+  raw_json TEXT
 );
 
--- Hevy exercises
-CREATE TABLE hevy_exercises (
+-- Hevy workout sessions
+CREATE TABLE hevy_sessions (
+  session_id TEXT PRIMARY KEY,  -- derived from start_time + title
+  title TEXT,
+  start_time TEXT NOT NULL,
+  end_time TEXT,
+  duration_sec INTEGER,
+  total_volume_kg REAL
+);
+
+-- Hevy individual sets (the core data)
+CREATE TABLE hevy_sets (
   id INTEGER PRIMARY KEY,
-  workout_id TEXT,             -- Hevy workout UUID
-  date TEXT,
-  exercise TEXT,               -- e.g. "Barbell Bench Press"
-  muscle_group TEXT,
-  sets INTEGER,
-  reps INTEGER,
+  session_id TEXT NOT NULL REFERENCES hevy_sessions(session_id),
+  exercise_title TEXT NOT NULL,
+  set_index INTEGER NOT NULL,
+  set_type TEXT,                -- normal, warmup, dropset, failure
   weight_kg REAL,
-  notes TEXT
+  reps INTEGER,
+  rpe REAL,
+  distance_km REAL,
+  duration_seconds REAL,
+  exercise_notes TEXT,
+  UNIQUE(session_id, exercise_title, set_index)
 );
 
--- Sleep sessions
+-- Sleep sessions from Apple Health
 CREATE TABLE sleep_sessions (
   date TEXT,
   start TEXT,
@@ -141,16 +158,16 @@ CREATE TABLE sleep_sessions (
 
 -- Body measurements
 CREATE TABLE body_metrics (
-  date TEXT,
+  date TEXT PRIMARY KEY,
   weight_kg REAL,
   body_fat_pct REAL,
   lean_mass_kg REAL,
   source TEXT
 );
 
--- Sync state
+-- Sync cursors for dedup
 CREATE TABLE sync_cursors (
-  source TEXT PRIMARY KEY,
+  source TEXT PRIMARY KEY,  -- 'apple_health', 'hevy'
   last_sync TEXT
 );
 ```
@@ -162,60 +179,54 @@ CREATE TABLE sync_cursors (
 ### Architecture
 
 ```
-User (Discord/Web UI/OpenWebUI)
+User (Discord / web UI / OpenWebUI)
   → Worker (chat endpoint)
-    → Build context: recent workouts, today's health data, recovery score
-    → Prompt template + RAG over workout history
-    → Workers AI (or OpenAI via AI Gateway)
-    → Response back to user
+    → Effect program:
+       1. Fetch today's health data (sleep, HRV, RHR)
+       2. Fetch recent Hevy workouts (last 14 days)
+       3. Calculate recovery score
+       4. Build prompt context
+       5. Call OpenAI via AI Gateway
+       6. Return response
 ```
 
-### Recovery Score (simple heuristic, done in Worker)
+### Recovery Score (computed in Worker)
 
 ```
-resting_hr_baseline = avg(resting_hr last 7 days)
-hrv_baseline = avg(hrv last 7 days)
-sleep_debt = (target_8h * 7) - sum(sleep last 7 days)
-strain_48h = sum(workout_strain last 48h)  // strain = duration * avg_hr_factor
+rhr_baseline = avg(rest_hr last 7d)
+hrv_baseline  = avg(hrv last 7d)
+sleep_debt    = (target_8h * 7) - sum(sleep last 7d)
+strain_48h    = sum(hevy_sets volume weight×reps last 48h)
 
-score = weighted_combination(hrv_deviation, hr_deviation, sleep_debt, strain)
-→ "Green (recovered)" / "Yellow (cautious)" / "Red (rest needed)"
+score = weighted(rhr_deviation, hrv_deviation, sleep_debt, strain_48h)
+→ "🟢 Ready" / "🟡 Caution" / "🔴 Rest needed"
 ```
 
 ### Prompt Template
 
 ```
-You are the user's personal gym assistant. You have access to their workout history, 
-health data, and recovery status.
+You are the user's personal gym assistant with access to their Apple Health 
+and Hevy workout data.
 
 Today: {date}
-Recovery: {recovery_score} — {explanation}
+Recovery: {recovery_label} — {explanation}
 Last workout: {last_workout_summary}
-Last 7 days sleep avg: {sleep_avg}h
+Last 7 days: {sleep_avg}h sleep avg, {workout_count} workouts
 
-Here is the workout history relevant to the user's question:
+Relevant workout history:
 {retrieved_context}
 ---
 
-Answer the user's question concisely and usefully.
+{user_message}
 ```
 
-### Where to run the LLM
+### RAG (no embeddings needed)
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Workers AI (Llama 3.x)** | Free tier, no API key, stays in CF | Smaller models, slower |
-| **OpenAI via AI Gateway** | GPT-4 quality, CF caches, rate-limited | Costs $, needs API key |
-| **OpenWebUI (self-hosted)** | Already have it, full control | Not accessible everywhere (home network) |
+Single-user dataset is small (<10k rows). Just SQL queries:
+- `"how's my bench press?"` → `SELECT * FROM hevy_sets WHERE exercise_title LIKE '%bench%' ORDER BY start_time DESC LIMIT 20`
+- `"what did I do last chest day?"` → `SELECT * FROM hevy_sets WHERE session_id IN (SELECT session_id FROM hevy_sets WHERE exercise_title LIKE '%chest%') ORDER BY start_time DESC`
 
-**Recommended:** Workers AI for daily use (free, good enough for fitness advice), fallback to OpenAI for complex queries.
-
-### RAG retrieval
-
-Since the dataset is small (single user), no need for vector embeddings. Just:
-- SQL queries filtered by muscle group, date range, or exercise name
-- Glue results into the prompt directly
-- Total context fits well within 4k-8k tokens
+Simple, deterministic, fits in context window.
 
 ---
 
@@ -223,68 +234,60 @@ Since the dataset is small (single user), no need for vector embeddings. Just:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/ingest` | POST | Upload health export JSON |
-| `/sync/hevy` | POST | Trigger Hevy API sync |
+| `/ingest` | POST | Upload HealthExportKit JSON + Hevy CSV |
 | `/chat` | POST | Ask the assistant |
-| `/chat` | GET | SSE stream for real-time responses |
-| `/api/workouts` | GET | Query workout history (for dashboard) |
-| `/api/recovery` | GET | Get today's recovery score |
-| `/api/stats` | GET | Aggregated stats (PRs, volume, trends) |
+| `/chat/stream` | POST | Streaming response (SSE) |
+| `/api/recovery` | GET | Today's recovery score |
+| `/api/workouts` | GET | Query workout history |
+| `/api/exercises/:name` | GET | Exercise progression data |
+| `/api/stats` | GET | Aggregated stats (volume, PRs) |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Core (Weekend project)
-- [ ] Set up Cloudflare Workers project with D1
-- [ ] Create database schema + migrations
-- [ ] Build `/ingest` endpoint that parses HealthExportKit JSON
-- [ ] Cron Worker to pull Hevy API weekly
-- [ ] Basic `/chat` endpoint with Workers AI + fixed prompt
-- [ ] Discord bot (Worker + Discord Interactions API) for chatting + uploads
+### Phase 1 — Core (weekend project)
+- [ ] Scaffold Workers project with Effect 4 + D1
+- [ ] D1 schema + migrations
+- [ ] `/ingest` — parse HealthExportKit JSON + Hevy CSV, upsert into D1, store raw in R2
+- [ ] `/chat` — basic OpenAI call with fixed prompt + last workout context
+- [ ] Discord bot worker (optional)
 
 ### Phase 2 — Polish
 - [ ] Recovery score calculation
-- [ ] RAG-like context assembly (fetch relevant workout history)
-- [ ] Multiple chat interfaces (Discord bot + web UI)
-- [ ] Stream responses via SSE for faster UX
+- [ ] Dynamic context assembly (SQL queries based on question intent)
+- [ ] `/chat/stream` SSE streaming
+- [ ] Web UI (tiny HTML page on Pages)
 
-### Phase 3 — Dashboard (Future)
-- [ ] Cloudflare Pages static site
+### Phase 3 — Dashboard (future)
+- [ ] Cloudflare Pages dashboard
 - [ ] Charts: volume over time, muscle group balance, PR progression
-- [ ] Export/backup data from D1 to R2
-- [ ] Optional: shareable workout summaries
+- [ ] Data export from D1
 
 ---
 
 ## Deployment
 
 ```bash
-# Initialize
 npm create cloudflare@latest gym-assistant -- --experimental
 cd gym-assistant
 npx wrangler d1 create gym-data
-
-# Set up database
 npx wrangler d1 migrations create gym-data init
-# ... write migration SQL
-
-# Deploy
+# write migration SQL
 npx wrangler deploy
 ```
 
-The Worker lives at `gym.emi.workers.dev` or a custom domain. Discord bot gets its own Worker route. The entire stack deploys with `wrangler deploy`.
+Worker at `gym.emi.workers.dev`. Discord bot on a separate route. All deploys with `wrangler deploy`.
 
 ---
 
 ## Edge Cases & Considerations
 
-- **Data privacy:** All data stays in Cloudflare D1/R2. No third-party storage. If using OpenAI, route through AI Gateway.
-- **Empty days:** Health data has gaps. Handle gracefully — no zero-filling, just report what's available.
-- **Hevy API rate limits:** Hevy allows 1 request/5min for free. Cache aggressively, pull once daily via Cron.
-- **Export format changes:** If HealthExportKit changes schema, version the JSON payload in R2 for reprocessing.
-- **Multi-user?** No — single-user by design. If extending, add user_id column and auth.
-- **Large exports:** The full JSON is ~1 MB. Worker can handle that inline (up to 10 MB free). Queue for bigger payloads.
+- **Hevy CSV dedup:** Hevy exports the full history every time. Dedup on `(start_time, exercise_title, set_index)` — insert only new rows.
+- **Privacy:** Data stays in D1/R2. OpenAI calls go through AI Gateway for caching + cost control.
+- **Export format changes:** Version everything. Store raw blobs in R2 for reprocessing if the parser changes.
+- **Single-user:** No auth needed. If exposing publicly, add a simple token check.
+- **Large CSV:** A multi-year Hevy export is maybe 5-10k rows. Tiny for D1.
 
 ---
 
