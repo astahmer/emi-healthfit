@@ -8,8 +8,17 @@ import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useUsage } from "@/app/usage-context";
+import type { ChatModel } from "@/app/models";
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
@@ -31,6 +40,8 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  GlobeIcon,
+  GraduationCapIcon,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -39,12 +50,23 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 
+export interface ComposerControls {
+  model: string;
+  onModelChange: (model: string) => void;
+  coachMode: boolean;
+  onCoachModeChange: (coachMode: boolean) => void;
+  webSearch: boolean;
+  onWebSearchChange: (webSearch: boolean) => void;
+  models: ChatModel[];
+  canWebSearch: boolean;
+}
+
 // Startup exposes a loading placeholder thread; treat it as a new chat so
 // the composer mounts centered. Loads after startup keep the docked layout.
 const isNewChatView = (s: AssistantState) =>
   s.thread.messages.length === 0 && (!s.thread.isLoading || s.threads.isLoading);
 
-export const Thread: FC = () => {
+export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerControls }) => {
   const isEmpty = useAuiState(isNewChatView);
 
   return (
@@ -84,7 +106,7 @@ export const Thread: FC = () => {
             )}
           >
             <ThreadScrollToBottom />
-            <Composer />
+            <Composer controls={composerControls} />
             <AuiIf condition={(s) => isNewChatView(s) && s.composer.isEmpty}>
               <ThreadSuggestions />
             </AuiIf>
@@ -152,7 +174,7 @@ const ThreadSuggestionItem: FC = () => {
   );
 };
 
-const Composer: FC = () => {
+const Composer: FC<{ controls?: ComposerControls }> = ({ controls }) => {
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <ComposerPrimitive.AttachmentDropzone asChild>
@@ -168,17 +190,59 @@ const Composer: FC = () => {
             autoFocus
             aria-label="Message input"
           />
-          <ComposerAction />
+          <ComposerAction controls={controls} />
         </div>
       </ComposerPrimitive.AttachmentDropzone>
     </ComposerPrimitive.Root>
   );
 };
 
-const ComposerAction: FC = () => {
+const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      <ComposerAddAttachment />
+      <div className="flex items-center gap-1">
+        <ComposerAddAttachment />
+        {controls && (
+          <>
+            <Separator orientation="vertical" className="mx-0.5 h-4" />
+            <Select value={controls.model} onValueChange={controls.onModelChange}>
+              <SelectTrigger className="h-7 w-auto gap-1 px-2 text-xs" aria-label="Select model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {controls.models.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <TooltipIconButton
+              tooltip="Coach mode"
+              side="bottom"
+              type="button"
+              variant={controls.coachMode ? "default" : "ghost"}
+              size="icon"
+              className="size-7 rounded-full"
+              onClick={() => controls.onCoachModeChange(!controls.coachMode)}
+            >
+              <GraduationCapIcon className="size-4" />
+            </TooltipIconButton>
+            <TooltipIconButton
+              tooltip={controls.canWebSearch ? "Web search" : "Model doesn't support web search"}
+              side="bottom"
+              type="button"
+              variant={controls.webSearch ? "default" : "ghost"}
+              size="icon"
+              className="size-7 rounded-full"
+              disabled={!controls.canWebSearch}
+              onClick={() => controls.onWebSearchChange(!controls.webSearch)}
+            >
+              <GlobeIcon className="size-4" />
+            </TooltipIconButton>
+          </>
+        )}
+      </div>
       <div className="flex items-center gap-1.5">
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>

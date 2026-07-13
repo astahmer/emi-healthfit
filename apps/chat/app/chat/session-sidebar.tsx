@@ -2,24 +2,42 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MenuIcon, XIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  CopyIcon,
+  DownloadIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PinIcon,
+  PlusIcon,
+  ShareIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { deleteThread, fetchThreads, renameThread, type Thread } from "../sessions";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarInput,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-interface SessionSidebarProps {
-  isOpen: boolean;
-  onToggle: () => void;
-}
-
-const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-
-export const SessionSidebar = ({ isOpen, onToggle }: SessionSidebarProps) => {
+export const SessionSidebar = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeId = searchParams.get("id");
+  const { setOpenMobile } = useSidebar();
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,12 +58,12 @@ export const SessionSidebar = ({ isOpen, onToggle }: SessionSidebarProps) => {
   }, [search]);
 
   const handleNew = () => {
-    onToggle();
+    setOpenMobile(false);
     router.push("/chat");
   };
 
   const handleSelect = (threadId: string) => {
-    onToggle();
+    setOpenMobile(false);
     router.push(`/chat?id=${threadId}`);
   };
 
@@ -69,125 +87,117 @@ export const SessionSidebar = ({ isOpen, onToggle }: SessionSidebarProps) => {
   };
 
   return (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={onToggle}
-          aria-hidden="true"
-        />
-      )}
-      <aside
-        className={`flex w-64 flex-col border-r bg-background transition-transform duration-200 ease-in-out ${
-          isOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden md:flex"
-        }`}
-      >
-        <div className="flex items-center gap-2 border-b p-3">
-          <button
-            onClick={handleNew}
-            className="flex-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-          >
-            New chat
-          </button>
-          <button
-            onClick={onToggle}
-            className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
-            aria-label="Close sessions"
-          >
-            <XIcon className="size-5" />
-          </button>
-        </div>
-
-        <div className="p-3">
-          <input
-            type="text"
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild onClick={handleNew} tooltip="New chat">
+              <a href="/chat">
+                <PlusIcon />
+                <span>New chat</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <div className="px-2 pt-2">
+          <SidebarInput
+            placeholder="Search sessions…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sessions…"
-            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
           />
         </div>
-
-        <div className="flex-1 overflow-y-auto p-3 pt-0">
-          {loading && <p className="text-muted-foreground text-sm">Loading…</p>}
-          {error !== null && <p className="text-destructive text-sm">{error}</p>}
-
-          {!loading && threads.length === 0 && (
-            <p className="text-muted-foreground text-sm">No sessions yet.</p>
-          )}
-
-          <div className="space-y-1">
-            {threads.map((thread) => (
-              <div
-                key={thread.id}
-                className={`group rounded-md ${activeId === thread.id ? "bg-muted" : "hover:bg-muted/70"}`}
-              >
-                {editingId === thread.id ? (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void submitRename(thread.id);
-                    }}
-                    className="flex items-center gap-1 p-2"
-                  >
-                    <input
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      autoFocus
-                      className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm"
-                    />
-                  </form>
-                ) : (
+        {loading && <p className="px-4 text-sm text-muted-foreground">Loading…</p>}
+        {error !== null && <p className="px-4 text-sm text-destructive">{error}</p>}
+        {!loading && threads.length === 0 && (
+          <p className="px-4 text-sm text-muted-foreground">No sessions yet.</p>
+        )}
+        <SidebarMenu>
+          {threads.map((thread) => (
+            <SidebarMenuItem key={thread.id}>
+              {editingId === thread.id ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void submitRename(thread.id);
+                  }}
+                  className="flex w-full items-center gap-1 px-2"
+                >
+                  <input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    autoFocus
+                    className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm"
+                  />
+                </form>
+              ) : (
+                <SidebarMenuButton
+                  asChild
+                  isActive={activeId === thread.id}
+                  tooltip={thread.title ?? "New chat"}
+                >
                   <a
                     href={`/chat?id=${thread.id}`}
                     onClick={(e) => {
                       e.preventDefault();
                       handleSelect(thread.id);
                     }}
-                    className="flex items-center justify-between p-2"
                   >
-                    <span className="line-clamp-1 flex-1 text-sm">
-                      {thread.title ?? "New chat"}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {formatDate(thread.updated_at)}
-                    </span>
+                    <span>{thread.title ?? "New chat"}</span>
                   </a>
-                )}
+                </SidebarMenuButton>
+              )}
 
-                {editingId !== thread.id && (
-                  <div className="flex gap-2 px-2 pb-2 opacity-0 group-hover:opacity-100">
-                    <button
-                      onClick={() => startRename(thread)}
-                      className="text-muted-foreground hover:text-foreground text-xs"
-                    >
-                      Rename
-                    </button>
-                    <button
+              {editingId !== thread.id && (
+                <DropdownMenu>
+                  <SidebarMenuAction showOnHover asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" aria-label="Session actions">
+                        <MoreHorizontalIcon />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </SidebarMenuAction>
+                  <DropdownMenuContent align="start" side="right">
+                    <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                      <ShareIcon />
+                      <span>Partager</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                      <DownloadIcon />
+                      <span>Télécharger</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => startRename(thread)}>
+                      <PencilIcon />
+                      <span>Renommer</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                      <PinIcon />
+                      <span>Épingler</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                      <CopyIcon />
+                      <span>Cloner</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                      <ArchiveIcon />
+                      <span>Archiver</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
                       onClick={() => void handleDelete(thread.id)}
-                      className="text-destructive hover:text-destructive/80 text-xs"
+                      className="text-destructive"
                     >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </aside>
-    </>
-  );
-};
-
-export const SessionSidebarToggle = ({ onToggle }: { onToggle: () => void }) => {
-  return (
-    <button
-      onClick={onToggle}
-      className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
-      aria-label="Open sessions"
-    >
-      <MenuIcon className="size-5" />
-    </button>
+                      <Trash2Icon />
+                      <span>Supprimer</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarContent>
+    </Sidebar>
   );
 };
