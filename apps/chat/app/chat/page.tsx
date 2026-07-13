@@ -57,9 +57,7 @@ function ChatPageInner() {
           Loading session…
         </div>
       ) : error !== null ? (
-        <div className="flex flex-1 items-center justify-center text-destructive">
-          {error}
-        </div>
+        <div className="flex flex-1 items-center justify-center text-destructive">{error}</div>
       ) : (
         <ChatProviders
           sessionConfig={{

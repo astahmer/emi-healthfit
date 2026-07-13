@@ -2,13 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  createThread,
-  deleteThread,
-  fetchThreads,
-  renameThread,
-  type Thread,
-} from "../sessions";
+import { createThread, deleteThread, fetchThreads, renameThread, type Thread } from "../sessions";
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -114,13 +108,8 @@ export const SessionSidebar = () => {
                   />
                 </form>
               ) : (
-                <a
-                  href={`/chat?id=${thread.id}`}
-                  className="flex items-center justify-between p-2"
-                >
-                  <span className="line-clamp-1 flex-1 text-sm">
-                    {thread.title ?? "New chat"}
-                  </span>
+                <a href={`/chat?id=${thread.id}`} className="flex items-center justify-between p-2">
+                  <span className="line-clamp-1 flex-1 text-sm">{thread.title ?? "New chat"}</span>
                   <span className="text-muted-foreground text-xs">
                     {formatDate(thread.updated_at)}
                   </span>
