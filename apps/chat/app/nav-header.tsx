@@ -13,7 +13,6 @@ import {
   SettingsIcon,
   UploadIcon,
 } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -32,7 +31,6 @@ const tabs = [
 
 export const NavHeader: FC = () => {
   const pathname = usePathname();
-  const isMobile = useIsMobile();
 
   return (
     <header className="relative z-50 flex h-14 items-center justify-between border-b bg-background px-4">
@@ -42,7 +40,19 @@ export const NavHeader: FC = () => {
       </div>
       <div className="flex items-center gap-2">
         <ThemeToggle />
-        {isMobile ? (
+        <nav className="hidden gap-1 md:flex">
+          {tabs.map((tab) => (
+            <TabButton
+              key={tab.href}
+              href={tab.href}
+              active={pathname.replace(/\/$/, "") === tab.href}
+              icon={tab.icon}
+            >
+              {tab.label}
+            </TabButton>
+          ))}
+        </nav>
+        <div className="md:hidden">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Open menu">
@@ -66,20 +76,7 @@ export const NavHeader: FC = () => {
               </nav>
             </SheetContent>
           </Sheet>
-        ) : (
-          <nav className="flex gap-1">
-            {tabs.map((tab) => (
-              <TabButton
-                key={tab.href}
-                href={tab.href}
-                active={pathname.replace(/\/$/, "") === tab.href}
-                icon={tab.icon}
-              >
-                {tab.label}
-              </TabButton>
-            ))}
-          </nav>
-        )}
+        </div>
       </div>
     </header>
   );
