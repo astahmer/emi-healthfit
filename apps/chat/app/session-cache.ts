@@ -44,6 +44,25 @@ const safeDb = async <T>(run: (database: SessionCacheDatabase) => Promise<T>): P
   }
 };
 
+const toCachedThread = (thread: Thread, syncedAt: number): CachedThread => ({
+  ...thread,
+  syncedAt,
+});
+
+const toCachedMessage = ({
+  message,
+  threadId,
+  syncedAt,
+}: {
+  message: UIMessage & { usage?: MessageUsage };
+  threadId: string;
+  syncedAt: number;
+}): CachedMessage => ({
+  ...message,
+  threadId,
+  syncedAt,
+});
+
 export const getCachedThreads = async (search?: string): Promise<Thread[]> =>
   safeDb(async (database) => {
     const all = await database.threads.orderBy("updated_at").reverse().toArray();
@@ -55,14 +74,16 @@ export const getCachedThreads = async (search?: string): Promise<Thread[]> =>
 export const setCachedThreads = async (threads: Thread[]): Promise<void> =>
   safeDb(async (database) => {
     const now = Date.now();
-    const cached = threads.map(
-      (thread): CachedThread => ({
-        ...thread,
-        syncedAt: now,
-      }),
-    );
-    await database.threads.clear();
-    await database.threads.bulkPut(cached);
+    await database.transaction("rw", database.threads, async () => {
+      await database.threads.clear();
+      await database.threads.bulkPut(threads.map((thread) => toCachedThread(thread, now)));
+    });
+  });
+
+export const mergeCachedThreads = async (threads: Thread[]): Promise<void> =>
+  safeDb(async (database) => {
+    const now = Date.now();
+    await database.threads.bulkPut(threads.map((thread) => toCachedThread(thread, now)));
   });
 
 export const updateCachedThread = async (thread: Thread): Promise<void> =>
@@ -87,13 +108,28 @@ export const setCachedMessages = async (
 ): Promise<void> =>
   safeDb(async (database) => {
     const now = Date.now();
-    const cached = messages.map(
-      (message): CachedMessage => ({
-        ...message,
-        threadId,
-        syncedAt: now,
-      }),
-    );
-    await database.messages.where("threadId").equals(threadId).delete();
-    await database.messages.bulkPut(cached);
+    await database.transaction("rw", database.messages, async () => {
+      await database.messages.where("threadId").equals(threadId).delete();
+      await database.messages.bulkPut(
+        messages.map((message) => toCachedMessage({ message, threadId, syncedAt: now })),
+      );
+    });
+  });
+
+export const setCachedConversation = async ({
+  thread,
+  messages,
+}: {
+  thread: Thread;
+  messages: Array<UIMessage & { usage?: MessageUsage }>;
+}): Promise<void> =>
+  safeDb(async (database) => {
+    const now = Date.now();
+    await database.transaction("rw", database.threads, database.messages, async () => {
+      await database.threads.put(toCachedThread(thread, now));
+      await database.messages.where("threadId").equals(thread.id).delete();
+      await database.messages.bulkPut(
+        messages.map((message) => toCachedMessage({ message, threadId: thread.id, syncedAt: now })),
+      );
+    });
   });

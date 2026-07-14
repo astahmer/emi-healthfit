@@ -3,7 +3,8 @@ import {
   deleteCachedThread,
   getCachedMessages,
   getCachedThreads,
-  setCachedMessages,
+  mergeCachedThreads,
+  setCachedConversation,
   setCachedThreads,
   updateCachedThread,
 } from "./session-cache";
@@ -48,9 +49,15 @@ export const fetchConversations = async (search?: string): Promise<Thread[]> => 
 };
 
 export const syncConversations = async (search?: string): Promise<Thread[]> => {
-  const threads = await fetchConversations(search);
-  await setCachedThreads(threads);
-  return threads;
+  try {
+    const threads = await fetchConversations(search);
+    await (search === undefined ? setCachedThreads(threads) : mergeCachedThreads(threads));
+    return threads;
+  } catch (error) {
+    const cached = await getCachedThreads(search);
+    if (cached.length > 0) return cached;
+    throw error;
+  }
 };
 
 export const createConversation = async (): Promise<string> => {
@@ -81,21 +88,13 @@ export const fetchConversationMessages = async (
       messages: MessageWithUsage[];
       threads: unknown[];
     };
-    ignoreCacheError(updateCachedThread(data.conversation));
-    ignoreCacheError(
-      setCachedMessages(
-        conversationId,
-        data.messages.map((message) => ({ ...message, threadId: conversationId })),
-      ),
-    );
+    ignoreCacheError(setCachedConversation({ thread: data.conversation, messages: data.messages }));
     return { thread: data.conversation, messages: data.messages };
   } catch (error) {
     const cached = await getCachedMessages(conversationId);
-    if (cached.length > 0) {
-      const thread = (await getCachedThreads()).find((t) => t.id === conversationId);
-      if (thread !== undefined) {
-        return { thread, messages: cached };
-      }
+    const thread = (await getCachedThreads()).find((item) => item.id === conversationId);
+    if (thread !== undefined) {
+      return { thread, messages: cached };
     }
     throw error;
   }
