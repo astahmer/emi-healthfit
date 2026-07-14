@@ -6,14 +6,12 @@ import {
   AuiProvider,
   Suggestions,
   useAui,
-  useAuiState,
   useLocalRuntime,
   type Tool,
 } from "@assistant-ui/react";
 import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSettings } from "./settings-store";
 import { buildTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
@@ -70,28 +68,6 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
       {children}
     </>
   );
-}
-
-function UrlSync({
-  createdThreadIdRef,
-  temporary,
-}: {
-  createdThreadIdRef: React.MutableRefObject<string | null>;
-  temporary?: boolean;
-}) {
-  const router = useRouter();
-  const isRunning = useAuiState((s) => s.thread.isRunning);
-  const syncedRef = useRef(false);
-
-  useEffect(() => {
-    if (syncedRef.current || temporary) return;
-    const id = createdThreadIdRef.current;
-    if (id === null || isRunning) return;
-    syncedRef.current = true;
-    router.replace(`/chat?id=${id}`, { scroll: false });
-  }, [isRunning, router, createdThreadIdRef, temporary]);
-
-  return null;
 }
 
 function WelcomeSuggestions({ children }: { children: ReactNode }) {
@@ -184,10 +160,7 @@ function ProxyRuntime({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <WelcomeSuggestions>
-        {children}
-        <UrlSync createdThreadIdRef={createdThreadIdRef} temporary={sessionConfig.temporary} />
-      </WelcomeSuggestions>
+      <WelcomeSuggestions>{children}</WelcomeSuggestions>
     </AssistantRuntimeProvider>
   );
 }

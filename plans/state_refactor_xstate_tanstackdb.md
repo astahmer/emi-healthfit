@@ -86,11 +86,13 @@ Make the chat UI robust and maintainable by:
 - Add unit tests for `sidebarItemMachine`.
 - Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
-#### Phase 3 — Chat session shell
+#### Phase 3 — Chat session shell ✅
 
 - Introduce `chatSessionMachine` in `app/chat/page.tsx`.
-- Move rename flow, export, sidebar width persistence, created-session tracking, and config change handling into the machine.
-- Keep assistant-ui runtime provider untouched.
+- Move rename flow, export, sidebar width persistence, created-session tracking, and URL sync into the machine.
+- Remove `UrlSync` component from `app/providers.tsx`; page now owns URL sync via `useAuiState`.
+- Add unit tests for `chatSessionMachine`.
+- Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
 #### Phase 4 — Composer config
 

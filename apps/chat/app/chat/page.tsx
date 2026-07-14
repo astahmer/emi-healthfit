@@ -1,8 +1,10 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMachine } from "@xstate/react";
+import { useAuiState } from "@assistant-ui/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Button } from "@/components/ui/button";
@@ -11,21 +13,20 @@ import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
-import { fetchThreadMessages, renameThread } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
-import { useThreadData } from "./use-thread-data";
 import { UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
+import { chatSessionMachine } from "./chat-session-machine";
 
-const SIDEBAR_WIDTH_KEY = "emi-sidebar-width";
 const HEADER_HEIGHT = 56;
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const sessionId = searchParams.get("id") ?? undefined;
 
   const [model, setModel] = useSessionParam("model", settings.model);
@@ -33,59 +34,32 @@ function ChatPageInner() {
   const [webSearch, setWebSearch] = useSessionFlag("web", false);
   const [temporary, setTemporary] = useState(false);
 
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameDraft, setRenameDraft] = useState("");
-  const [resetKey, setResetKey] = useState(0);
-  const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
-
   const savedModelRef = useRef<string | null>(null);
+  const urlSyncedRef = useRef(false);
 
-  const [sidebarWidth, setSidebarWidth] = useState<number>(16);
+  const [state, send] = useMachine(chatSessionMachine, {
+    input: { sessionId },
+  });
+
+  const isRunning = useAuiState((s) => s.thread.isRunning);
 
   useEffect(() => {
-    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (stored !== null) setSidebarWidth(Number.parseFloat(stored));
-  }, []);
+    send({ type: "sessionId.changed", sessionId });
+  }, [sessionId, send]);
 
   useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  const isNewlyCreated = sessionId !== undefined && sessionId === createdSessionId;
-  const {
-    data: sessionData,
-    isLoading,
-    error,
-    refetch,
-  } = useThreadData(isNewlyCreated ? undefined : sessionId);
-
-  const thread = sessionData?.thread ?? null;
-  const initialMessages = sessionData?.messages;
+    if (isRunning) {
+      urlSyncedRef.current = false;
+      return;
+    }
+    const createdId = state.context.createdSessionId;
+    if (createdId === undefined || urlSyncedRef.current) return;
+    urlSyncedRef.current = true;
+    router.replace(`/chat?id=${createdId}`, { scroll: false });
+  }, [isRunning, state.context.createdSessionId, router]);
 
   const selectedModel = chatModels.find((m) => m.id === model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
-
-  const runtimeSessionId = sessionId;
-
-  const handleWebSearchChange = useCallback(
-    (next: boolean) => {
-      if (next && !canWebSearch) {
-        const currentIdx = chatModels.findIndex((m) => m.id === model);
-        const supported =
-          chatModels.find((m, i) => m.supportsWebSearch && i >= currentIdx) ??
-          chatModels.find((m) => m.supportsWebSearch);
-        if (supported) {
-          savedModelRef.current = model;
-          setModel(supported.id);
-        }
-      } else if (!next && savedModelRef.current) {
-        setModel(savedModelRef.current);
-        savedModelRef.current = null;
-      }
-      setWebSearch(next);
-    },
-    [model, canWebSearch, setModel, setWebSearch],
-  );
 
   useEffect(() => {
     if (webSearch && canWebSearch) {
@@ -93,38 +67,34 @@ function ChatPageInner() {
     }
   }, [model, webSearch, canWebSearch]);
 
-  const renameMutation = useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) => renameThread(id, title),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
-      void queryClient.invalidateQueries({ queryKey: ["threads"] });
-    },
-  });
-
-  const startRename = () => {
-    setRenameDraft(thread?.title ?? "");
-    setIsRenaming(true);
-  };
-
-  const cancelRename = () => {
-    setIsRenaming(false);
-    setRenameDraft("");
-  };
-
-  const submitRename = async () => {
-    if (sessionId === undefined || renameDraft.trim() === "") {
-      cancelRename();
-      return;
+  const handleWebSearchChange = (next: boolean) => {
+    if (next && !canWebSearch) {
+      const currentIdx = chatModels.findIndex((m) => m.id === model);
+      const supported =
+        chatModels.find((m, i) => m.supportsWebSearch && i >= currentIdx) ??
+        chatModels.find((m) => m.supportsWebSearch);
+      if (supported) {
+        savedModelRef.current = model;
+        setModel(supported.id);
+      }
+    } else if (!next && savedModelRef.current) {
+      setModel(savedModelRef.current);
+      savedModelRef.current = null;
     }
-    await renameMutation.mutateAsync({ id: sessionId, title: renameDraft.trim() });
-    setIsRenaming(false);
+    setWebSearch(next);
   };
+
+  const thread = state.context.thread;
+  const initialMessages = state.context.messages;
+  const isLoading = state.matches("loading");
+  const loadError = state.matches("error") ? state.context.error : null;
+  const isRenaming = state.matches("renaming") || state.matches("submittingRename");
 
   return (
     <SidebarProvider
       className="flex h-full"
-      defaultWidth={sidebarWidth}
-      onWidthChange={setSidebarWidth}
+      defaultWidth={state.context.sidebarWidth}
+      onWidthChange={(width) => send({ type: "sidebar.widthChanged", width })}
       style={{ "--sidebar-top": `${HEADER_HEIGHT}px` } as React.CSSProperties}
     >
       <SessionSidebar />
@@ -133,12 +103,12 @@ function ChatPageInner() {
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           Loading session…
         </div>
-      ) : error !== null && sessionId !== undefined ? (
+      ) : loadError !== null && sessionId !== undefined ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-destructive">{error.message}</p>
+          <p className="text-destructive">{loadError.message}</p>
           <button
             type="button"
-            onClick={() => void refetch()}
+            onClick={() => send({ type: "retry" })}
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
             Retry
@@ -146,9 +116,9 @@ function ChatPageInner() {
         </div>
       ) : (
         <ErrorBoundary
-          key={`${isNewlyCreated ? "created" : (sessionId ?? "new")}-${resetKey}`}
+          key={`${state.context.createdSessionId === sessionId ? "created" : (sessionId ?? "new")}-${state.context.resetKey}`}
           onReset={() => {
-            setResetKey((k) => k + 1);
+            send({ type: "reset" });
             void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
           }}
         >
@@ -159,10 +129,10 @@ function ChatPageInner() {
                 coachMode,
                 webSearch,
                 temporary,
-                sessionId: runtimeSessionId,
+                sessionId,
                 initialMessages: initialMessages as UIMessage[] | undefined,
               }}
-              onSessionCreated={setCreatedSessionId}
+              onSessionCreated={(id) => send({ type: "session.created", sessionId: id })}
             >
               <div className="flex h-full flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
@@ -174,14 +144,14 @@ function ChatPageInner() {
                           className="flex flex-1 items-center gap-2 px-2"
                           onSubmit={(e) => {
                             e.preventDefault();
-                            void submitRename();
+                            send({ type: "rename.submit" });
                           }}
                         >
                           <input
-                            value={renameDraft}
-                            onChange={(e) => setRenameDraft(e.target.value)}
+                            value={state.context.renameDraft}
+                            onChange={(e) => send({ type: "rename.change", value: e.target.value })}
                             onKeyDown={(e) => {
-                              if (e.key === "Escape") cancelRename();
+                              if (e.key === "Escape") send({ type: "rename.cancel" });
                             }}
                             autoFocus
                             aria-label="Session title"
@@ -196,7 +166,7 @@ function ChatPageInner() {
                           </button>
                           <button
                             type="button"
-                            onClick={cancelRename}
+                            onClick={() => send({ type: "rename.cancel" })}
                             className="rounded-md p-1 hover:bg-muted"
                             aria-label="Cancel rename"
                           >
@@ -210,7 +180,7 @@ function ChatPageInner() {
                           </span>
                           <button
                             type="button"
-                            onClick={startRename}
+                            onClick={() => send({ type: "rename.start" })}
                             className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                             aria-label="Rename session"
                           >
@@ -222,7 +192,17 @@ function ChatPageInner() {
                   )}
                   <div className="ms-auto flex items-center gap-1">
                     <NewChatButton />
-                    {sessionId && <ExportThreadButton sessionId={sessionId} />}
+                    {sessionId && (
+                      <TooltipIconButton
+                        tooltip="Export as Markdown"
+                        side="bottom"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => send({ type: "export" })}
+                      >
+                        <DownloadIcon className="size-4" />
+                      </TooltipIconButton>
+                    )}
                   </div>
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -264,53 +244,6 @@ const NewChatButton = () => {
       <PlusIcon className="size-4" />
       <span className="hidden md:inline">New chat</span>
     </Button>
-  );
-};
-
-const ExportThreadButton = ({
-  sessionId,
-  className,
-}: {
-  sessionId: string;
-  className?: string;
-}) => {
-  const handleClick = useCallback(async () => {
-    try {
-      const { messages } = await fetchThreadMessages(sessionId);
-      const md = messages
-        .map((msg) => {
-          const role = msg.role === "user" ? "User" : "Assistant";
-          const text =
-            msg.parts
-              ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
-              .map((p) => p.text)
-              .join("\n") ?? "";
-          return `## ${role}\n\n${text}`;
-        })
-        .join("\n\n---\n\n");
-      const blob = new Blob([md], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `chat-${sessionId.slice(0, 8)}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // silently fail
-    }
-  }, [sessionId]);
-
-  return (
-    <TooltipIconButton
-      tooltip="Export as Markdown"
-      side="bottom"
-      type="button"
-      variant="ghost"
-      className={className}
-      onClick={handleClick}
-    >
-      <DownloadIcon className="size-4" />
-    </TooltipIconButton>
   );
 };
 
