@@ -2,6 +2,8 @@ import assert from "node:assert";
 import { createServer } from "node:http";
 import { afterAll, beforeAll, describe, it } from "vitest";
 import { createActor } from "xstate";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import compression from "next/dist/compiled/compression";
 import { DefaultChatTransport, readUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 import { createChatStreamResponse } from "../../../api/src/chat/ui-message-stream-response";
@@ -43,22 +45,20 @@ describe("browser chat stream timing", () => {
       });
       const webResponse = createChatStreamResponse({ stream, headers: {} });
       response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
-      const reader = webResponse.body?.getReader();
-      if (reader === undefined) {
+      const responseBody = webResponse.body;
+      if (responseBody === null) {
         response.end();
         return;
       }
-      const pump = async () => {
-        while (true) {
-          const item = await reader.read();
-          if (item.done) {
-            response.end();
-            return;
-          }
-          response.write(item.value);
-        }
-      };
-      void pump();
+      void Effect.runPromise(
+        Stream.fromReadableStream({
+          evaluate: () => responseBody,
+          onError: (error) => (error instanceof Error ? error : new Error(String(error))),
+        }).pipe(
+          Stream.runForEach((chunk) => Effect.sync(() => response.write(chunk))),
+          Effect.ensuring(Effect.sync(() => response.end())),
+        ),
+      );
     });
   });
   let api = "";
@@ -98,14 +98,22 @@ describe("browser chat stream timing", () => {
     const arrivals: number[] = [];
     let previousText = "";
 
-    for await (const message of readUIMessageStream({ stream, terminateOnError: true })) {
-      actor.send({ type: "stream.updated", message });
-      const currentText = textFromMessage(message);
-      if (currentText !== previousText && currentText !== "") {
-        arrivals.push(performance.now() - startedAt);
-        previousText = currentText;
-      }
-    }
+    await Effect.runPromise(
+      Stream.fromAsyncIterable(readUIMessageStream({ stream, terminateOnError: true }), (error) =>
+        error instanceof Error ? error : new Error(String(error)),
+      ).pipe(
+        Stream.runForEach((message) =>
+          Effect.sync(() => {
+            actor.send({ type: "stream.updated", message });
+            const currentText = textFromMessage(message);
+            if (currentText !== previousText && currentText !== "") {
+              arrivals.push(performance.now() - startedAt);
+              previousText = currentText;
+            }
+          }),
+        ),
+      ),
+    );
     actor.send({ type: "stream.completed" });
 
     assert.strictEqual(arrivals.length, 3);
