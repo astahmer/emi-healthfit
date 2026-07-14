@@ -93,6 +93,9 @@ importers:
       dexie:
         specifier: ^4.4.4
         version: 4.4.4
+      effect:
+        specifier: 4.0.0-beta.88
+        version: 4.0.0-beta.88
       lucide-react:
         specifier: ^1.21.0
         version: 1.24.0(react@19.2.7)

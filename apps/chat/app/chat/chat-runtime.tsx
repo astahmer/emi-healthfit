@@ -1,6 +1,8 @@
 "use client";
 
 import { useMachine } from "@xstate/react";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import {
   DefaultChatTransport,
   convertFileListToFileUIParts,
@@ -31,6 +33,7 @@ export interface ChatRuntimeConfig {
   temporary: boolean;
   historyReady: boolean;
   sessionId?: string;
+  threadId?: string;
   initialMessages: UIMessage[];
 }
 
@@ -60,15 +63,16 @@ const consumeAssistantStream = async ({
   onMessage: (message: UIMessage) => void;
   cancelRef: { current: (() => void) | null };
 }): Promise<void> => {
-  const iterator = readUIMessageStream({ stream, terminateOnError: true })[Symbol.asyncIterator]();
-  const cancel = () => {
-    void iterator.return?.();
-  };
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
   cancelRef.current = cancel;
   try {
-    for await (const message of { [Symbol.asyncIterator]: () => iterator }) {
-      onMessage(message);
-    }
+    await Effect.runPromise(
+      Stream.fromAsyncIterable(readUIMessageStream({ stream, terminateOnError: true }), (error) =>
+        error instanceof Error ? error : new Error(String(error)),
+      ).pipe(Stream.runForEach((message) => Effect.sync(() => onMessage(message)))),
+      { signal: controller.signal },
+    );
   } finally {
     if (cancelRef.current === cancel) cancelRef.current = null;
   }
@@ -98,7 +102,7 @@ export const ChatRuntimeProvider = ({
   stateRef.current = state;
 
   const transport = useMemo(() => new DefaultChatTransport<UIMessage>({ api: "/api/chat" }), []);
-  const historySignature = `${config.sessionId ?? "new"}:${config.initialMessages
+  const historySignature = `${config.sessionId ?? "new"}:${config.threadId ?? "root"}:${config.initialMessages
     .map((message) => message.id)
     .join(",")}`;
 
@@ -218,6 +222,7 @@ export const ChatRuntimeProvider = ({
             webSearch: config.webSearch,
             temporary: config.temporary,
             sessionId,
+            threadId: config.threadId,
           },
         });
         await consumeAssistantStream({
@@ -252,6 +257,7 @@ export const ChatRuntimeProvider = ({
       config.model,
       config.sessionId,
       config.temporary,
+      config.threadId,
       config.webSearch,
       notes,
       onSessionCreated,
