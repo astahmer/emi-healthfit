@@ -17,6 +17,11 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   deleteThread,
   fetchThreadMessages,
   fetchThreads,
@@ -52,6 +57,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+const formatFullDate = (value: string) =>
+  new Date(value).toLocaleString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+const formatRelativeTime = (value: string) => {
+  const date = new Date(value);
+  const now = new Date();
+  const seconds = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"} ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.floor(months / 12);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+};
 
 export const SessionSidebar = () => {
   const router = useRouter();
@@ -190,7 +222,22 @@ export const SessionSidebar = () => {
                       }}
                     >
                       <MessageSquareIcon />
-                      <span>{thread.title ?? "New chat"}</span>
+                      <div className="flex min-w-0 flex-col items-start">
+                        <span className="truncate">{thread.title ?? "New chat"}</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <time
+                              dateTime={thread.updated_at}
+                              className="text-xs text-muted-foreground"
+                            >
+                              {formatRelativeTime(thread.updated_at)}
+                            </time>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            <p>{formatFullDate(thread.updated_at)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     </a>
                   </SidebarMenuButton>
                 )}
