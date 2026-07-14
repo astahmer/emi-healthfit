@@ -36,6 +36,7 @@ function ChatPageInner() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [resetKey, setResetKey] = useState(0);
+  const [createdSessionId, setCreatedSessionId] = useState<string | undefined>();
 
   const savedModelRef = useRef<string | null>(null);
 
@@ -50,7 +51,13 @@ function ChatPageInner() {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
 
-  const { data: sessionData, isLoading, error, refetch } = useThreadData(sessionId);
+  const isNewlyCreated = sessionId !== undefined && sessionId === createdSessionId;
+  const {
+    data: sessionData,
+    isLoading,
+    error,
+    refetch,
+  } = useThreadData(isNewlyCreated ? undefined : sessionId);
 
   const thread = sessionData?.thread ?? null;
   const initialMessages = sessionData?.messages;
@@ -139,7 +146,7 @@ function ChatPageInner() {
         </div>
       ) : (
         <ErrorBoundary
-          key={`${sessionId ?? "new"}-${resetKey}`}
+          key={`${isNewlyCreated ? "created" : (sessionId ?? "new")}-${resetKey}`}
           onReset={() => {
             setResetKey((k) => k + 1);
             void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
@@ -155,6 +162,7 @@ function ChatPageInner() {
                 sessionId: runtimeSessionId,
                 initialMessages: initialMessages as UIMessage[] | undefined,
               }}
+              onSessionCreated={setCreatedSessionId}
             >
               <div className="flex h-full flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">

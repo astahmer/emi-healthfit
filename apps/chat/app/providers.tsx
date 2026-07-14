@@ -130,9 +130,11 @@ function WelcomeSuggestions({ children }: { children: ReactNode }) {
 
 function ProxyRuntime({
   sessionConfig,
+  onSessionCreated,
   children,
 }: {
   sessionConfig: ChatSessionConfig;
+  onSessionCreated?: (id: string) => void;
   children: ReactNode;
 }) {
   const settings = useSettings((state) => state.settings);
@@ -151,6 +153,7 @@ function ProxyRuntime({
             sessionId = await createThread();
           }
           createdThreadIdRef.current = sessionId;
+          onSessionCreated?.(sessionId);
         }
 
         const baseBody = (options.body ?? {}) as Record<string, unknown>;
@@ -207,26 +210,34 @@ function DirectRuntime({ children }: { children: ReactNode }) {
 
 function ChatRuntime({
   sessionConfig,
+  onSessionCreated,
   children,
 }: {
   sessionConfig: ChatSessionConfig;
+  onSessionCreated?: (id: string) => void;
   children: ReactNode;
 }) {
   const mode = useSettings((state) => state.settings.mode);
   if (mode === "direct") return <DirectRuntime>{children}</DirectRuntime>;
-  return <ProxyRuntime sessionConfig={sessionConfig}>{children}</ProxyRuntime>;
+  return (
+    <ProxyRuntime sessionConfig={sessionConfig} onSessionCreated={onSessionCreated}>
+      {children}
+    </ProxyRuntime>
+  );
 }
 
 export function ChatProviders({
   sessionConfig,
+  onSessionCreated,
   children,
 }: {
   sessionConfig: ChatSessionConfig;
+  onSessionCreated?: (id: string) => void;
   children: ReactNode;
 }) {
   return (
     <NotesProvider>
-      <ChatRuntime sessionConfig={sessionConfig}>
+      <ChatRuntime sessionConfig={sessionConfig} onSessionCreated={onSessionCreated}>
         <ToolRegistrar>
           <ComposerDraftSync sessionId={sessionConfig.sessionId} />
           {children}
