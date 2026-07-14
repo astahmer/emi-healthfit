@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,10 @@ import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
-import {
-  fetchThreadMessages,
-  renameThread,
-  type MessageWithUsage,
-  type Thread as ChatThread,
-} from "../sessions";
+import { fetchThreadMessages, renameThread } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
+import { useThreadData } from "./use-thread-data";
 import { UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
@@ -53,21 +49,7 @@ function ChatPageInner() {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
 
-  const {
-    data: sessionData,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["thread", sessionId],
-    queryFn: async () => {
-      if (sessionId === undefined) {
-        return { thread: null as ChatThread | null, messages: [] as MessageWithUsage[] };
-      }
-      return fetchThreadMessages(sessionId);
-    },
-    enabled: sessionId !== undefined,
-  });
+  const { data: sessionData, isLoading, error, refetch } = useThreadData(sessionId);
 
   const thread = sessionData?.thread ?? null;
   const initialMessages = sessionData?.messages;

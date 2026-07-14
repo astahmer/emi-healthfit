@@ -8,7 +8,7 @@
     "destroy": "pnpm --filter api destroy",
     "dev": "pnpm --filter api dev",
     "dry": "pnpm --filter api dry",
-    "test": "pnpm --filter api test",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "verify": "pnpm --filter api verify",
     "build": "pnpm -r build",
