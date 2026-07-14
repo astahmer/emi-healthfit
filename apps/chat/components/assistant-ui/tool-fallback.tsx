@@ -496,12 +496,7 @@ function ToolFallbackApproval({
   );
 }
 
-const ToolFallbackImpl: ToolCallMessagePartComponent = ({
-  toolName,
-  argsText,
-  result,
-  status,
-}) => {
+const ToolFallbackImpl: ToolCallMessagePartComponent = ({ toolName, argsText, result, status }) => {
   const messageStatus = useAuiState((s) => s.message.status);
 
   const effectiveStatus = useMemo(() => {
