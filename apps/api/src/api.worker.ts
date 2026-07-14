@@ -121,7 +121,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
     ) => withCors(effect, request);
 
     yield* Effect.gen(function* () {
-      yield* router.add("OPTIONS", "/*", handleCorsPreflight);
       yield* router.add("POST", "/ingest", (request) =>
         cors(request, handleIngest(db, bucket, request)),
       );
@@ -202,8 +201,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("DELETE", "/api/notes/:noteId", (request) =>
         cors(request, handleNoteDelete(db, request)),
       );
-      yield* router.add("GET", "/*", (request) => handleAssetRequest({ assetsFetcher, request }));
-      yield* router.add("*", "/*", HttpServerResponse.text("Not Found", { status: 404 }));
+      yield* router.add("*", "/*", (request) => {
+        if (request.method === "OPTIONS") return handleCorsPreflight(request);
+        if (request.method === "GET") return handleAssetRequest({ assetsFetcher, request });
+        return Effect.succeed(HttpServerResponse.text("Not Found", { status: 404 }));
+      });
     }) as Effect.Effect<void>;
 
     return {
