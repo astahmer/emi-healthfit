@@ -10,8 +10,11 @@ import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
 import {
+  fetchThread,
   fetchThreadMessages,
+  isClientCreatedThread,
   renameThread,
+  unmarkClientCreatedThread,
   type MessageWithUsage,
   type Thread as ChatThread,
 } from "../sessions";
@@ -39,6 +42,7 @@ function ChatPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
+  const [resetKey, setResetKey] = useState(0);
 
   const savedModelRef = useRef<string | null>(null);
 
@@ -61,6 +65,23 @@ function ChatPageInner() {
       return;
     }
 
+    const wasCreatedHere = isClientCreatedThread(sessionId);
+
+    if (wasCreatedHere) {
+      setLoading(true);
+      fetchThread(sessionId)
+        .then((thread) => {
+          setThread(thread);
+          setInitialMessages(undefined);
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+        .finally(() => setLoading(false));
+
+      return () => {
+        unmarkClientCreatedThread(sessionId);
+      };
+    }
+
     setLoading(true);
     fetchThreadMessages(sessionId)
       .then((data) => {
@@ -73,6 +94,9 @@ function ChatPageInner() {
 
   const selectedModel = chatModels.find((m) => m.id === model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
+
+  const runtimeSessionId =
+    sessionId !== undefined && !isClientCreatedThread(sessionId) ? sessionId : undefined;
 
   const handleWebSearchChange = useCallback(
     (next: boolean) => {
@@ -160,24 +184,21 @@ function ChatPageInner() {
           </button>
         </div>
       ) : (
-        <ErrorBoundary key={sessionId ?? "new"}>
-          <UsageProvider
-            usages={(initialMessages ?? [])
-              .filter(
-                (
-                  message,
-                ): message is MessageWithUsage & {
-                  usage: NonNullable<MessageWithUsage["usage"]>;
-                } => message.usage !== undefined,
-              )
-              .map((message) => ({ messageId: message.id, usage: message.usage }))}
-          >
+        <ErrorBoundary
+          key={`${sessionId ?? "new"}-${resetKey}`}
+          onReset={() => {
+            setResetKey((k) => k + 1);
+            setInitialMessages(undefined);
+            setThread(null);
+          }}
+        >
+          <UsageProvider messages={initialMessages ?? []}>
             <ChatProviders
               sessionConfig={{
                 model,
                 coachMode,
                 webSearch,
-                sessionId,
+                sessionId: runtimeSessionId,
                 initialMessages: initialMessages as UIMessage[] | undefined,
               }}
             >

@@ -1,6 +1,6 @@
 "use client";
 
-import { defineRegistry, Renderer } from "@json-render/react";
+import { type Spec, defineRegistry, JSONUIProvider, Renderer } from "@json-render/react";
 import { catalog } from "@/app/gen-ui/catalog";
 import {
   ExerciseProgressView,
@@ -53,6 +53,36 @@ const { registry } = defineRegistry(catalog, {
   },
 });
 
-export const GenUIRenderer = ({ spec }: { spec: unknown }) => (
-  <Renderer spec={spec as never} registry={registry} />
-);
+const normalizeSpec = (raw: unknown): Spec | null => {
+  if (raw === null || typeof raw !== "object") return null;
+  const spec = raw as Record<string, unknown>;
+
+  if ("elements" in spec && typeof spec.elements === "object" && spec.elements !== null) {
+    return spec as unknown as Spec;
+  }
+
+  if ("root" in spec && typeof spec.root === "object" && spec.root !== null) {
+    const rootElement = spec.root as Record<string, unknown>;
+    return {
+      root: "root",
+      elements: { root: rootElement },
+    } as unknown as Spec;
+  }
+
+  if ("root" in spec && typeof spec.root === "string") {
+    return spec as unknown as Spec;
+  }
+
+  return null;
+};
+
+export const GenUIRenderer = ({ spec }: { spec: unknown }) => {
+  const normalized = normalizeSpec(spec);
+  if (normalized === null) return null;
+
+  return (
+    <JSONUIProvider registry={registry}>
+      <Renderer spec={normalized} registry={registry} />
+    </JSONUIProvider>
+  );
+};

@@ -170,7 +170,7 @@ export const handleToolExecute = (
     ),
   );
 
-const executeTool = (
+export const executeTool = (
   db: QueryDatabaseClient,
   name: string,
   args: Record<string, unknown>,
@@ -251,9 +251,12 @@ const executeTool = (
       const props = typeof args.props === "object" && args.props !== null ? args.props : {};
       return Effect.succeed({
         spec: {
-          root: {
-            type: component,
-            props,
+          root: "root",
+          elements: {
+            root: {
+              type: component,
+              props,
+            },
           },
         },
       });

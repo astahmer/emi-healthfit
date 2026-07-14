@@ -50,7 +50,7 @@ import {
   generateThreadTitle,
   type ChatStreamRequest,
 } from "./chat/ai-sdk.ts";
-import { handleToolExecute, handleToolsList } from "./tools/api.ts";
+import { executeTool, handleToolExecute, handleToolsList } from "./tools/api.ts";
 import { TtlCache } from "./cache.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -478,6 +478,8 @@ const handleThreadMessages = (db: QueryDatabaseClient, request: HttpServerReques
       id: row.id,
       role: row.role,
       parts: JSON.parse(row.parts) as unknown[],
+      createdAt: row.created_at,
+      model: row.model ?? undefined,
       usage:
         row.prompt_tokens !== null || row.completion_tokens !== null || row.total_tokens !== null
           ? {
@@ -899,81 +901,101 @@ const handleAiSdkChat = (
       yield* renameThread(db, sessionId, title);
     }
 
-    const result = yield* Effect.promise(() =>
-      createChatStream(requestWithHistory, async (event) => {
-        await Effect.runPromiseWith(services)(
-          Effect.gen(function* () {
-            yield* saveThreadMessages(db, sessionId, [
-              {
-                role: "assistant",
-                parts: [{ type: "text", text: event.text }],
-                usage: {
-                  prompt_tokens: event.usage.inputTokens,
-                  completion_tokens: event.usage.outputTokens,
-                  total_tokens: event.usage.totalTokens,
-                },
-              },
-            ]);
+    const executeToolWithServices = (name: string, args: Record<string, unknown>) =>
+      Effect.runPromiseWith(services)(
+        executeTool(db, name, args) as Effect.Effect<unknown, Error, RuntimeContext>,
+      );
 
-            const toolCalls = new Map<string, { toolName: string; args: unknown }>();
-            const toolResults = new Map<string, unknown>();
-            for (const message of event.response?.messages ?? []) {
-              if (
-                typeof message !== "object" ||
-                message === null ||
-                (message as { role?: string }).role !== "assistant"
-              ) {
-                continue;
-              }
-              const content = (message as { content?: unknown }).content;
-              if (!Array.isArray(content)) continue;
-              for (const part of content) {
-                if (typeof part !== "object" || part === null) continue;
-                const type = (part as { type?: string }).type;
-                const toolCallId = (part as { toolCallId?: string }).toolCallId;
-                if (type === "tool-call" && toolCallId !== undefined) {
-                  toolCalls.set(toolCallId, {
-                    toolName: (part as { toolName?: string }).toolName ?? "",
-                    args: (part as { args?: unknown }).args,
-                  });
-                } else if (type === "tool-result" && toolCallId !== undefined) {
-                  toolResults.set(toolCallId, (part as { result?: unknown }).result);
+    const result = yield* Effect.promise(() =>
+      createChatStream(
+        requestWithHistory,
+        executeToolWithServices,
+        async (event) => {
+          await Effect.runPromiseWith(services)(
+            Effect.gen(function* () {
+              const assistantParts: unknown[] = [];
+              const toolCalls = new Map<
+                string,
+                { toolName: string; args: unknown; result?: unknown }
+              >();
+
+              for (const message of event.response?.messages ?? []) {
+                if (
+                  typeof message !== "object" ||
+                  message === null ||
+                  (message as { role?: string }).role !== "assistant"
+                ) {
+                  continue;
+                }
+                const content = (message as { content?: unknown }).content;
+                if (!Array.isArray(content)) continue;
+                for (const part of content) {
+                  if (typeof part !== "object" || part === null) continue;
+                  const type = (part as { type?: string }).type;
+                  const toolCallId = (part as { toolCallId?: string }).toolCallId;
+
+                  if (type === "text") {
+                    const text = (part as { text?: unknown }).text;
+                    if (typeof text === "string" && text !== "") {
+                      assistantParts.push({ type: "text", text });
+                    }
+                  } else if (type === "tool-call" && toolCallId !== undefined) {
+                    toolCalls.set(toolCallId, {
+                      toolName: (part as { toolName?: string }).toolName ?? "",
+                      args: (part as { args?: unknown }).args,
+                    });
+                  } else if (type === "tool-result" && toolCallId !== undefined) {
+                    const call = toolCalls.get(toolCallId);
+                    if (call !== undefined) {
+                      call.result = (part as { result?: unknown }).result;
+                    }
+                  }
                 }
               }
-            }
-            const toolParts: unknown[] = [];
-            for (const [toolCallId, call] of toolCalls) {
-              toolParts.push({
-                type: "tool-call",
-                toolName: call.toolName,
-                argsText: JSON.stringify(call.args),
-                result: toolResults.get(toolCallId),
-                status: { type: "complete" },
-              });
-            }
-            if (toolParts.length > 0) {
-              yield* saveThreadMessages(db, sessionId, [
-                { role: "assistant", parts: toolParts },
-              ]);
-            }
 
-            const lastUserText = getLastUserText(requestWithHistory.messages);
-            const key = yield* hashSuggestionsKey(event.text, lastUserText);
-            const cached = yield* getSuggestionsById(db, key);
-            if (cached !== null) return;
+              for (const [, call] of toolCalls) {
+                assistantParts.push({
+                  type: "tool-call",
+                  toolName: call.toolName,
+                  argsText: JSON.stringify(call.args),
+                  result: call.result,
+                  status: { type: "complete" },
+                });
+              }
 
-            const suggestions = yield* Effect.promise(() =>
-              generateSuggestions({
-                apiKey,
-                baseUrl: chatRequest.config.baseUrl,
-                lastAssistantText: event.text,
-                lastUserText,
-              }),
-            );
-            yield* saveSuggestions(db, key, suggestions);
-          }).pipe(Effect.catch(() => Effect.void)),
-        );
-      }),
+              if (assistantParts.length > 0) {
+                yield* saveThreadMessages(db, sessionId, [
+                  {
+                    role: "assistant",
+                    parts: assistantParts,
+                    usage: {
+                      prompt_tokens: event.usage.inputTokens,
+                      completion_tokens: event.usage.outputTokens,
+                      total_tokens: event.usage.totalTokens,
+                    },
+                    model: chatRequest.config.model,
+                  },
+                ]);
+              }
+
+              const lastUserText = getLastUserText(requestWithHistory.messages);
+              const key = yield* hashSuggestionsKey(event.text, lastUserText);
+              const cached = yield* getSuggestionsById(db, key);
+              if (cached !== null) return;
+
+              const suggestions = yield* Effect.promise(() =>
+                generateSuggestions({
+                  apiKey,
+                  baseUrl: chatRequest.config.baseUrl,
+                  lastAssistantText: event.text,
+                  lastUserText,
+                }),
+              );
+              yield* saveSuggestions(db, key, suggestions);
+            }).pipe(Effect.catch(() => Effect.void)),
+          );
+        },
+      ),
     );
 
     const response = result.toUIMessageStreamResponse({

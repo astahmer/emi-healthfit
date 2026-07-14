@@ -33,6 +33,7 @@ const buildToolSet = (
   tools: ChatStreamRequest["tools"] | undefined,
   webSearch: boolean,
   openai: ReturnType<typeof createOpenAI>,
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>,
 ): ToolSet | undefined => {
   const customTools =
     tools === undefined || Object.keys(tools).length === 0
@@ -43,6 +44,7 @@ const buildToolSet = (
             {
               description: definition.description,
               inputSchema: jsonSchema(definition.parameters),
+              execute: async (args: Record<string, unknown>) => executeTool(name, args),
             },
           ]),
         );
@@ -57,6 +59,7 @@ const buildToolSet = (
 
 export const createChatStream = async (
   request: ChatStreamRequest,
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>,
   onFinish?: (
     event: { text: string; usage: LanguageModelUsage; response?: { messages: unknown[] } },
   ) => void | Promise<void>,
@@ -78,7 +81,7 @@ export const createChatStream = async (
     model,
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
-    tools: buildToolSet(request.tools, request.webSearch ?? false, openai),
+    tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
     onFinish: (event) => {
       void onFinish?.({
         text: event.text,

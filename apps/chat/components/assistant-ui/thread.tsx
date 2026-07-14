@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useUsage } from "@/app/usage-context";
 import type { ChatModel } from "@/app/models";
+import { chatModels } from "@/app/models";
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
@@ -104,7 +105,9 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
             data-slot="aui_message-group"
             className="mb-24 flex flex-col gap-y-6 empty:hidden md:mb-14"
           >
-            <ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
+            <ThreadPrimitive.Messages>
+              {() => <ThreadMessage assistantModel={composerControls?.model} />}
+            </ThreadPrimitive.Messages>
           </div>
 
           <ThreadPrimitive.ViewportFooter
@@ -125,13 +128,13 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
   );
 };
 
-const ThreadMessage: FC = () => {
+const ThreadMessage: FC<{ assistantModel?: string }> = ({ assistantModel }) => {
   const role = useAuiState((s) => s.message.role);
   const isEditing = useAuiState((s) => s.message.composer.isEditing);
 
   if (isEditing) return <EditComposer />;
   if (role === "user") return <UserMessage />;
-  return <AssistantMessage />;
+  return <AssistantMessage modelOverride={assistantModel} />;
 };
 
 const ThreadScrollToBottom: FC = () => {
@@ -336,6 +339,29 @@ const MessageError: FC = () => {
   );
 };
 
+const MessageMeta: FC<{ modelOverride?: string }> = ({ modelOverride }) => {
+  const { metaByMessageId } = useUsage();
+  const messageId = useAuiState((s) => s.message.id);
+  const meta = metaByMessageId.get(messageId);
+  const createdAt = meta?.createdAt;
+  const modelId = meta?.model ?? modelOverride;
+  const model = modelId !== undefined ? chatModels.find((m) => m.id === modelId) : undefined;
+
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      {model !== undefined && <span className="font-medium">{model.label}</span>}
+      {createdAt !== undefined && (
+        <time dateTime={createdAt} title={new Date(createdAt).toLocaleString()}>
+          {new Date(createdAt).toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </time>
+      )}
+    </div>
+  );
+};
+
 const MessageTokenBadge: FC = () => {
   const { usageByMessageId } = useUsage();
   const messageId = useAuiState((s) => s.message.id);
@@ -353,10 +379,7 @@ const MessageTokenBadge: FC = () => {
   );
 };
 
-const AssistantMessage: FC = () => {
-  const ACTION_BAR_PT = "pt-1.5";
-  const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
-
+const AssistantMessage: FC<{ modelOverride?: string }> = ({ modelOverride }) => {
   return (
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
@@ -390,11 +413,12 @@ const AssistantMessage: FC = () => {
 
       <div
         data-slot="aui_assistant-message-footer"
-        className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
+        className="ms-2 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1"
       >
-        <BranchPicker />
+        <MessageMeta modelOverride={modelOverride} />
         <MessageTokenBadge />
         <AssistantActionBar />
+        <BranchPicker />
       </div>
     </MessagePrimitive.Root>
   );
@@ -489,7 +513,7 @@ const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root
       data-slot="aui_user-message-root"
-      className="fade-in slide-in-from-bottom-1 animate-in grid auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto] [&:where(>*)]:col-start-2"
+      className="fade-in slide-in-from-bottom-1 animate-in grid auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-1 px-2 duration-150 [contain-intrinsic-size:auto_60px] [content-visibility:auto] [&:where(>*)]:col-start-2"
       data-role="user"
     >
       <UserMessageAttachments />
@@ -503,9 +527,13 @@ const UserMessage: FC = () => {
         </div>
       </div>
 
+      <div className="col-start-2 flex items-center gap-x-3 px-1">
+        <MessageMeta />
+      </div>
+
       <BranchPicker
         data-slot="aui_user-branch-picker"
-        className="col-span-full col-start-1 row-start-3 -me-1 justify-end"
+        className="col-span-full col-start-1 row-start-4 -me-1 justify-end"
       />
     </MessagePrimitive.Root>
   );

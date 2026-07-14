@@ -8,35 +8,38 @@ const samples = [
   {
     label: "Workout table",
     spec: {
-      root: {
-        type: "WorkoutTable",
-        props: {
-          workouts: [
-            {
-              session_id: "1",
-              title: "Upper A",
-              start_time: "2024-12-30T08:00:00.000Z",
-              total_volume_kg: 3200,
-              exercise_count: 4,
-              set_count: 14,
-            },
-            {
-              session_id: "2",
-              title: "Lower A",
-              start_time: "2024-12-28T08:00:00.000Z",
-              total_volume_kg: 4100,
-              exercise_count: 5,
-              set_count: 16,
-            },
-            {
-              session_id: "3",
-              title: "Upper B",
-              start_time: "2024-12-26T08:00:00.000Z",
-              total_volume_kg: 2950,
-              exercise_count: 4,
-              set_count: 12,
-            },
-          ],
+      root: "root",
+      elements: {
+        root: {
+          type: "WorkoutTable",
+          props: {
+            workouts: [
+              {
+                session_id: "1",
+                title: "Upper A",
+                start_time: "2024-12-30T08:00:00.000Z",
+                total_volume_kg: 3200,
+                exercise_count: 4,
+                set_count: 14,
+              },
+              {
+                session_id: "2",
+                title: "Lower A",
+                start_time: "2024-12-28T08:00:00.000Z",
+                total_volume_kg: 4100,
+                exercise_count: 5,
+                set_count: 16,
+              },
+              {
+                session_id: "3",
+                title: "Upper B",
+                start_time: "2024-12-26T08:00:00.000Z",
+                total_volume_kg: 2950,
+                exercise_count: 4,
+                set_count: 12,
+              },
+            ],
+          },
         },
       },
     },
@@ -44,44 +47,47 @@ const samples = [
   {
     label: "Exercise progress",
     spec: {
-      root: {
-        type: "ExerciseProgress",
-        props: {
-          exercise_title: "Bench Press (Barbell)",
-          weeks: 6,
-          workouts: [
-            {
-              session_id: "a",
-              title: "Upper A",
-              start_time: "2024-12-30T08:00:00.000Z",
-              max_weight_kg: 82.5,
-              max_volume_kg: 2475,
-              total_volume_kg: 2475,
-              total_reps: 30,
-              sets: 5,
-            },
-            {
-              session_id: "b",
-              title: "Upper B",
-              start_time: "2024-12-23T08:00:00.000Z",
-              max_weight_kg: 80,
-              max_volume_kg: 2400,
-              total_volume_kg: 2400,
-              total_reps: 30,
-              sets: 5,
-            },
-            {
-              session_id: "c",
-              title: "Upper A",
-              start_time: "2024-12-16T08:00:00.000Z",
-              max_weight_kg: 77.5,
-              max_volume_kg: 2325,
-              total_volume_kg: 2325,
-              total_reps: 30,
-              sets: 5,
-            },
-          ],
-          personalRecord: { weight_kg: 82.5, reps: 6, volume_kg: 2475 },
+      root: "root",
+      elements: {
+        root: {
+          type: "ExerciseProgress",
+          props: {
+            exercise_title: "Bench Press (Barbell)",
+            weeks: 6,
+            workouts: [
+              {
+                session_id: "a",
+                title: "Upper A",
+                start_time: "2024-12-30T08:00:00.000Z",
+                max_weight_kg: 82.5,
+                max_volume_kg: 2475,
+                total_volume_kg: 2475,
+                total_reps: 30,
+                sets: 5,
+              },
+              {
+                session_id: "b",
+                title: "Upper B",
+                start_time: "2024-12-23T08:00:00.000Z",
+                max_weight_kg: 80,
+                max_volume_kg: 2400,
+                total_volume_kg: 2400,
+                total_reps: 30,
+                sets: 5,
+              },
+              {
+                session_id: "c",
+                title: "Upper A",
+                start_time: "2024-12-16T08:00:00.000Z",
+                max_weight_kg: 77.5,
+                max_volume_kg: 2325,
+                total_volume_kg: 2325,
+                total_reps: 30,
+                sets: 5,
+              },
+            ],
+            personalRecord: { weight_kg: 82.5, reps: 6, volume_kg: 2475 },
+          },
         },
       },
     },
@@ -89,17 +95,20 @@ const samples = [
   {
     label: "Recovery card",
     spec: {
-      root: {
-        type: "RecoveryCard",
-        props: {
-          today: "2025-01-02",
-          label: "Good",
-          explanation:
-            "Sleep average is solid and your last workout was two days ago. You're ready to push.",
-          lastWorkout: "Lower A — 2 days ago",
-          sleepAverageHours: 7.4,
-          recentWorkoutCount: 4,
-          recentVolume: 12400,
+      root: "root",
+      elements: {
+        root: {
+          type: "RecoveryCard",
+          props: {
+            today: "2025-01-02",
+            label: "Good",
+            explanation:
+              "Sleep average is solid and your last workout was two days ago. You're ready to push.",
+            lastWorkout: "Lower A — 2 days ago",
+            sleepAverageHours: 7.4,
+            recentWorkoutCount: 4,
+            recentVolume: 12400,
+          },
         },
       },
     },
@@ -107,36 +116,48 @@ const samples = [
   {
     label: "Metric cards",
     spec: {
-      root: {
-        type: "MetricCard",
-        props: { label: "7-day volume", value: 12400, unit: "kg", trend: "up" },
+      root: "root",
+      elements: {
+        root: {
+          type: "MetricCard",
+          props: { label: "7-day volume", value: 12400, unit: "kg", trend: "up" },
+        },
       },
     },
   },
   {
     label: "Set list",
     spec: {
-      root: {
-        type: "SetList",
-        props: {
-          sets: [
-            {
-              exercise: "Bench Press (Barbell)",
-              weightKg: 80,
-              reps: 8,
-              rpe: 8,
-              setType: "Warm-up",
-            },
-            { exercise: "Bench Press (Barbell)", weightKg: 82.5, reps: 6, rpe: 9, setType: "Top" },
-            {
-              exercise: "Bench Press (Barbell)",
-              weightKg: 75,
-              reps: 10,
-              rpe: 8,
-              setType: "Back-off",
-            },
-            { exercise: "Lat Pulldown", weightKg: 60, reps: 12, rpe: 8, setType: null },
-          ],
+      root: "root",
+      elements: {
+        root: {
+          type: "SetList",
+          props: {
+            sets: [
+              {
+                exercise: "Bench Press (Barbell)",
+                weightKg: 80,
+                reps: 8,
+                rpe: 8,
+                setType: "Warm-up",
+              },
+              {
+                exercise: "Bench Press (Barbell)",
+                weightKg: 82.5,
+                reps: 6,
+                rpe: 9,
+                setType: "Top",
+              },
+              {
+                exercise: "Bench Press (Barbell)",
+                weightKg: 75,
+                reps: 10,
+                rpe: 8,
+                setType: "Back-off",
+              },
+              { exercise: "Lat Pulldown", weightKg: 60, reps: 12, rpe: 8, setType: null },
+            ],
+          },
         },
       },
     },

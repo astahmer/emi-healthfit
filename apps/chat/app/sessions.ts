@@ -24,12 +24,27 @@ export interface MessageUsage {
 
 export interface MessageWithUsage extends UIMessage {
   usage?: MessageUsage;
+  model?: string;
+  createdAt?: string;
 }
 
 export interface ThreadWithMessages {
   thread: Thread;
   messages: MessageWithUsage[];
 }
+
+const clientCreatedThreadIds = new Set<string>();
+
+export const markThreadAsClientCreated = (threadId: string): void => {
+  clientCreatedThreadIds.add(threadId);
+};
+
+export const isClientCreatedThread = (threadId: string): boolean =>
+  clientCreatedThreadIds.has(threadId);
+
+export const unmarkClientCreatedThread = (threadId: string): void => {
+  clientCreatedThreadIds.delete(threadId);
+};
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
 
@@ -70,6 +85,14 @@ export const createThread = async (): Promise<string> => {
     }),
   );
   return data.id;
+};
+
+export const fetchThread = async (threadId: string): Promise<Thread> => {
+  const res = await fetch(`${apiBase()}/api/threads/${threadId}`);
+  if (!res.ok) throw new Error(`Failed to load thread: ${res.status}`);
+  const data = (await res.json()) as ThreadWithMessages;
+  ignoreCacheError(updateCachedThread(data.thread));
+  return data.thread;
 };
 
 export const fetchThreadMessages = async (threadId: string): Promise<ThreadWithMessages> => {

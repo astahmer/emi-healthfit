@@ -3,20 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FC, ReactNode } from "react";
-import { MenuIcon } from "lucide-react";
+import {
+  BrainIcon,
+  DumbbellIcon,
+  FlaskConicalIcon,
+  MenuIcon,
+  MessageSquareIcon,
+  NotebookPenIcon,
+  SettingsIcon,
+  UploadIcon,
+} from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const tabs = [
-  { href: "/chat", label: "Chat" },
-  { href: "/upload", label: "Upload" },
-  { href: "/workouts", label: "Workouts" },
-  { href: "/notes", label: "Notes" },
-  { href: "/memory", label: "Memory" },
-  { href: "/gen-ui", label: "Sandbox" },
-  { href: "/settings", label: "Settings" },
+  { href: "/chat", label: "Chat", icon: MessageSquareIcon, description: "Ask your coach" },
+  { href: "/upload", label: "Upload", icon: UploadIcon, description: "Import health data" },
+  { href: "/workouts", label: "Workouts", icon: DumbbellIcon, description: "Browse sessions" },
+  { href: "/notes", label: "Notes", icon: NotebookPenIcon, description: "Gym journal" },
+  { href: "/memory", label: "Memory", icon: BrainIcon, description: "Saved snippets" },
+  ...(process.env.NODE_ENV === "development"
+    ? [{ href: "/gen-ui", label: "Sandbox", icon: FlaskConicalIcon, description: "UI playground" }]
+    : []),
+  { href: "/settings", label: "Settings", icon: SettingsIcon, description: "Preferences" },
 ];
 
 export const NavHeader: FC = () => {
@@ -46,6 +57,8 @@ export const NavHeader: FC = () => {
                     key={tab.href}
                     href={tab.href}
                     active={pathname.replace(/\/$/, "") === tab.href}
+                    icon={tab.icon}
+                    description={tab.description}
                   >
                     {tab.label}
                   </MobileTabButton>
@@ -60,6 +73,7 @@ export const NavHeader: FC = () => {
                 key={tab.href}
                 href={tab.href}
                 active={pathname.replace(/\/$/, "") === tab.href}
+                icon={tab.icon}
               >
                 {tab.label}
               </TabButton>
@@ -74,20 +88,23 @@ export const NavHeader: FC = () => {
 const TabButton = ({
   href,
   active,
+  icon: Icon,
   children,
 }: {
   href: string;
   active: boolean;
+  icon: React.ElementType;
   children: ReactNode;
 }) => (
   <Link
     href={href}
-    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
       active
         ? "bg-primary text-primary-foreground"
         : "text-muted-foreground hover:bg-muted hover:text-foreground"
     }`}
   >
+    <Icon className="size-4" />
     {children}
   </Link>
 );
@@ -95,20 +112,28 @@ const TabButton = ({
 const MobileTabButton = ({
   href,
   active,
+  icon: Icon,
+  description,
   children,
 }: {
   href: string;
   active: boolean;
+  icon: React.ElementType;
+  description: string;
   children: ReactNode;
 }) => (
   <Link
     href={href}
-    className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
       active
         ? "bg-primary text-primary-foreground"
         : "text-muted-foreground hover:bg-muted hover:text-foreground"
     }`}
   >
-    {children}
+    <Icon className="size-5 shrink-0" />
+    <div className="flex flex-col items-start">
+      <span>{children}</span>
+      <span className="text-xs font-normal opacity-70">{description}</span>
+    </div>
   </Link>
 );

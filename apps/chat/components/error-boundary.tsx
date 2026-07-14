@@ -49,13 +49,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p className="text-lg font-medium">Something went wrong</p>
           <p className="text-muted-foreground mt-1 max-w-md text-sm">{this.state.error.message}</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={this.handleReset} variant="outline" className="gap-2">
-            <RefreshCwIcon className="size-4" />
-            Try again
-          </Button>
-          <Button onClick={() => window.location.reload()}>Reload page</Button>
-        </div>
+        <Button onClick={this.handleReset} variant="outline" className="gap-2">
+          <RefreshCwIcon className="size-4" />
+          Try again
+        </Button>
       </div>
     );
   }

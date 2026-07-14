@@ -1,16 +1,23 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AssistantRuntimeProvider, useAui, useLocalRuntime, type Tool } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  useAui,
+  useAuiState,
+  useLocalRuntime,
+  type Tool,
+} from "@assistant-ui/react";
 import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
 import { buildNotesContext } from "./notes";
 import { NotesProvider, useNotes } from "./notes-context";
-import { createThread } from "./sessions";
+import { createThread, markThreadAsClientCreated } from "./sessions";
 
 export interface ChatSessionConfig {
   model: string;
@@ -60,6 +67,26 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
   );
 }
 
+function UrlSync({
+  createdThreadIdRef,
+}: {
+  createdThreadIdRef: React.MutableRefObject<string | null>;
+}) {
+  const router = useRouter();
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+  const syncedRef = useRef(false);
+
+  useEffect(() => {
+    if (syncedRef.current) return;
+    const id = createdThreadIdRef.current;
+    if (id === null || isRunning) return;
+    syncedRef.current = true;
+    router.replace(`/chat?id=${id}`, { scroll: false });
+  }, [isRunning, router, createdThreadIdRef]);
+
+  return null;
+}
+
 function ProxyRuntime({
   sessionConfig,
   children,
@@ -80,7 +107,7 @@ function ProxyRuntime({
         if (sessionId === null) {
           sessionId = await createThread();
           createdThreadIdRef.current = sessionId;
-          window.history.replaceState({}, "", `/chat?id=${sessionId}`);
+          markThreadAsClientCreated(sessionId);
         }
 
         const baseBody = (options.body ?? {}) as Record<string, unknown>;
@@ -108,7 +135,12 @@ function ProxyRuntime({
     }),
   });
 
-  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      {children}
+      <UrlSync createdThreadIdRef={createdThreadIdRef} />
+    </AssistantRuntimeProvider>
+  );
 }
 
 function DirectRuntime({ children }: { children: ReactNode }) {

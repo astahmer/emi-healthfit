@@ -641,6 +641,7 @@ export interface ThreadMessage {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   total_tokens: number | null;
+  model: string | null;
   created_at: string;
 }
 
@@ -729,7 +730,7 @@ export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
-      SELECT id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, created_at
+      SELECT id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at
       FROM messages
       WHERE thread_id = ?
       ORDER BY created_at ASC
@@ -742,7 +743,7 @@ export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
 export const saveThreadMessages = (
   db: QueryDatabaseClient,
   threadId: string,
-  messages: Array<{ role: string; parts: unknown[]; usage?: MessageUsage }>,
+  messages: Array<{ role: string; parts: unknown[]; usage?: MessageUsage; model?: string }>,
 ) =>
   Effect.gen(function* () {
     if (messages.length === 0) return;
@@ -751,8 +752,8 @@ export const saveThreadMessages = (
     const statements = messages.map((message) =>
       db
         .prepare(`
-        INSERT INTO messages (id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
         .bind(
           crypto.randomUUID(),
@@ -762,6 +763,7 @@ export const saveThreadMessages = (
           message.usage?.prompt_tokens ?? null,
           message.usage?.completion_tokens ?? null,
           message.usage?.total_tokens ?? null,
+          message.model ?? null,
           createdAt,
         ),
     );

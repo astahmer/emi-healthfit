@@ -113,7 +113,7 @@ const callOpenAi = (
     return text ?? JSON.stringify(json);
   });
 
-const extractTextFromLlmResponse = (json: unknown): string | null => {
+export const extractTextFromLlmResponse = (json: unknown): string | null => {
   if (typeof json === "object" && json !== null) {
     const obj = json as Record<string, unknown>;
 
