@@ -28,6 +28,19 @@ export const forkThread = async (
   return (await res.json()) as ThreadView;
 };
 
+export const renameConversation = async (
+  conversationId: string,
+  title: string,
+): Promise<{ conversationId: string; title: string }> => {
+  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/title`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(`Failed to rename conversation: ${res.status}`);
+  return { conversationId, title };
+};
+
 export const renameThread = async (
   threadId: string,
   title: string,

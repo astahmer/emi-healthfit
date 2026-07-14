@@ -1,5 +1,10 @@
 import { assign, fromPromise, setup } from "xstate";
-import { deleteThread, fetchThreadMessages, renameThread, type Thread } from "../sessions";
+import {
+  deleteConversation,
+  fetchConversationMessages,
+  renameConversation,
+  type Thread,
+} from "../sessions";
 
 export interface SidebarItemContext {
   thread: Thread;
@@ -21,7 +26,7 @@ export type SidebarItemEvent =
   | { type: "copy.markdown" };
 
 const copyMarkdown = async (threadId: string): Promise<void> => {
-  const { messages } = await fetchThreadMessages(threadId);
+  const { messages } = await fetchConversationMessages(threadId);
   const md = messages
     .map((msg) => {
       const role = msg.role === "user" ? "User" : "Assistant";
@@ -50,10 +55,10 @@ export const sidebarItemMachine = setup({
   },
   actors: {
     rename: fromPromise(({ input }: { input: { threadId: string; title: string } }) =>
-      renameThread(input.threadId, input.title),
+      renameConversation(input.threadId, input.title),
     ),
     remove: fromPromise(({ input }: { input: { threadId: string } }) =>
-      deleteThread(input.threadId),
+      deleteConversation(input.threadId),
     ),
     copyMarkdown: fromPromise(({ input }: { input: { threadId: string } }) =>
       copyMarkdown(input.threadId),

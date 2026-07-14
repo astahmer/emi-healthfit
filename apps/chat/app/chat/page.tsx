@@ -1,10 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-
 import { useAuiState } from "@assistant-ui/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -14,17 +13,20 @@ import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
+import type { MessageWithUsage } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
-import { chatSessionMachine } from "./chat-session-machine";
+import { useConversationMachine } from "./use-conversation-machine";
 import { composerConfigMachine } from "./composer-config-machine";
+import type { MessageNode } from "./conversation-machine";
 
 const HEADER_HEIGHT = 56;
+const RUNTIME_ROLES = new Set(["user", "assistant", "system"]);
 
-function UrlSync({ createdSessionId }: { createdSessionId: string | undefined }) {
+function UrlSync({ createdConversationId }: { createdConversationId: string | undefined }) {
   const router = useRouter();
   const urlSyncedRef = useRef(false);
   const isRunning = useAuiState((s) => s.thread.isRunning);
@@ -34,27 +36,61 @@ function UrlSync({ createdSessionId }: { createdSessionId: string | undefined })
       urlSyncedRef.current = false;
       return;
     }
-    if (createdSessionId === undefined || urlSyncedRef.current) return;
+    if (createdConversationId === undefined || urlSyncedRef.current) return;
     urlSyncedRef.current = true;
-    router.replace(`/chat?id=${createdSessionId}`, { scroll: false });
-  }, [isRunning, createdSessionId, router]);
+    router.replace(`/chat?id=${createdConversationId}`, { scroll: false });
+  }, [isRunning, createdConversationId, router]);
 
   return null;
 }
+
+const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
+  messages
+    .filter((message) => RUNTIME_ROLES.has(message.role))
+    .map(
+      (message) =>
+        ({
+          id: message.id,
+          role: message.role,
+          parts: message.parts,
+          createdAt: message.createdAt,
+        }) as UIMessage,
+    );
+
+const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
+  messages
+    .filter((message) => RUNTIME_ROLES.has(message.role))
+    .map(
+      (message) =>
+        ({
+          id: message.id,
+          role: message.role,
+          parts: message.parts,
+          usage: message.usage,
+          model: message.model,
+          createdAt: message.createdAt,
+        }) as MessageWithUsage,
+    );
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const sessionId = searchParams.get("id") ?? undefined;
+  const [createdConversationId, setCreatedConversationId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setCreatedConversationId(undefined);
+  }, [sessionId]);
+
+  const activeConversationId = sessionId ?? createdConversationId;
 
   const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
   const [urlCoachMode, setUrlCoachMode] = useSessionFlag("coach", settings.coachMode);
   const [urlWebSearch, setUrlWebSearch] = useSessionFlag("web", false);
 
-  const [sessionState, sendSession] = useMachine(chatSessionMachine, {
-    input: { sessionId },
-  });
+  const { state: conversationState, send: sendConversation } =
+    useConversationMachine(activeConversationId);
 
   const [configState, sendConfig] = useMachine(composerConfigMachine, {
     input: {
@@ -64,10 +100,6 @@ function ChatPageInner() {
       webSearch: urlWebSearch,
     },
   });
-
-  useEffect(() => {
-    sendSession({ type: "sessionId.changed", sessionId });
-  }, [sessionId, sendSession]);
 
   useEffect(() => {
     if (configState.context.model !== urlModel) {
@@ -94,17 +126,20 @@ function ChatPageInner() {
   const selectedModel = chatModels.find((m) => m.id === configState.context.model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
 
-  const thread = sessionState.context.thread;
-  const initialMessages = sessionState.context.messages;
-  const isLoading = sessionState.matches("loading");
-  const loadError = sessionState.matches("error") ? sessionState.context.error : null;
-  const isRenaming = sessionState.matches("renaming") || sessionState.matches("submittingRename");
+  const conversation = conversationState.context.conversation;
+  const initialMessages = conversationState.context.messages;
+  const isLoading = conversationState.matches("loading");
+  const loadError = conversationState.matches("error") ? conversationState.context.error : null;
+  const isRenaming = conversationState.matches({ ready: "renamingConversation" });
+
+  const runtimeMessages = toRuntimeMessages(initialMessages);
+  const usageMessages = toUsageMessages(initialMessages);
 
   return (
     <SidebarProvider
       className="flex h-full"
-      defaultWidth={sessionState.context.sidebarWidth}
-      onWidthChange={(width) => sendSession({ type: "sidebar.widthChanged", width })}
+      defaultWidth={conversationState.context.sidebarWidth}
+      onWidthChange={(width) => sendConversation({ type: "sidebar.widthChanged", width })}
       style={{ "--sidebar-top": `${HEADER_HEIGHT}px` } as React.CSSProperties}
     >
       <SessionSidebar />
@@ -113,12 +148,12 @@ function ChatPageInner() {
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           Loading session…
         </div>
-      ) : loadError !== null && sessionId !== undefined ? (
+      ) : loadError !== null && activeConversationId !== undefined ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-destructive">{loadError.message}</p>
           <button
             type="button"
-            onClick={() => sendSession({ type: "retry" })}
+            onClick={() => sendConversation({ type: "retry" })}
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
             Retry
@@ -126,45 +161,49 @@ function ChatPageInner() {
         </div>
       ) : (
         <ErrorBoundary
-          key={`${sessionState.context.createdSessionId === sessionId ? "created" : (sessionId ?? "new")}-${sessionState.context.resetKey}`}
+          key={`${activeConversationId ?? "new"}-${conversationState.context.resetKey}`}
           onReset={() => {
-            sendSession({ type: "reset" });
-            void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
+            sendConversation({ type: "reset" });
+            void queryClient.invalidateQueries({ queryKey: ["thread", activeConversationId] });
           }}
         >
-          <UsageProvider messages={initialMessages ?? []}>
+          <UsageProvider messages={usageMessages}>
             <ChatProviders
               sessionConfig={{
                 model: configState.context.model,
                 coachMode: configState.context.coachMode,
                 webSearch: configState.context.webSearch,
                 temporary: configState.context.temporary,
-                sessionId,
-                initialMessages: initialMessages as UIMessage[] | undefined,
+                sessionId: activeConversationId,
+                initialMessages: runtimeMessages,
               }}
-              onSessionCreated={(id) => sendSession({ type: "session.created", sessionId: id })}
+              onSessionCreated={(id) => setCreatedConversationId(id)}
             >
-              <UrlSync createdSessionId={sessionState.context.createdSessionId} />
+              <UrlSync createdConversationId={createdConversationId} />
               <div className="flex h-full flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                   <SidebarTrigger />
-                  {sessionId && thread !== null && (
+                  {activeConversationId && conversation !== null && (
                     <>
                       {isRenaming ? (
                         <form
                           className="flex flex-1 items-center gap-2 px-2"
                           onSubmit={(e) => {
                             e.preventDefault();
-                            sendSession({ type: "rename.submit" });
+                            sendConversation({ type: "conversation.rename.submit" });
                           }}
                         >
                           <input
-                            value={sessionState.context.renameDraft}
+                            value={conversationState.context.renameDraft}
                             onChange={(e) =>
-                              sendSession({ type: "rename.change", value: e.target.value })
+                              sendConversation({
+                                type: "conversation.rename.change",
+                                value: e.target.value,
+                              })
                             }
                             onKeyDown={(e) => {
-                              if (e.key === "Escape") sendSession({ type: "rename.cancel" });
+                              if (e.key === "Escape")
+                                sendConversation({ type: "conversation.rename.cancel" });
                             }}
                             autoFocus
                             aria-label="Session title"
@@ -179,7 +218,7 @@ function ChatPageInner() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => sendSession({ type: "rename.cancel" })}
+                            onClick={() => sendConversation({ type: "conversation.rename.cancel" })}
                             className="rounded-md p-1 hover:bg-muted"
                             aria-label="Cancel rename"
                           >
@@ -189,11 +228,11 @@ function ChatPageInner() {
                       ) : (
                         <>
                           <span className="flex-1 truncate px-2 text-sm font-medium">
-                            {thread.title ?? "New chat"}
+                            {conversation.title ?? "New chat"}
                           </span>
                           <button
                             type="button"
-                            onClick={() => sendSession({ type: "rename.start" })}
+                            onClick={() => sendConversation({ type: "conversation.rename.start" })}
                             className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                             aria-label="Rename session"
                           >
@@ -205,13 +244,13 @@ function ChatPageInner() {
                   )}
                   <div className="ms-auto flex items-center gap-1">
                     <NewChatButton />
-                    {sessionId && (
+                    {activeConversationId && (
                       <TooltipIconButton
                         tooltip="Export as Markdown"
                         side="bottom"
                         type="button"
                         variant="ghost"
-                        onClick={() => sendSession({ type: "export" })}
+                        onClick={() => sendConversation({ type: "export" })}
                       >
                         <DownloadIcon className="size-4" />
                       </TooltipIconButton>

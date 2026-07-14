@@ -1,5 +1,10 @@
 import { assign, fromPromise, setup } from "xstate";
-import { fetchThreadMessages, renameThread, type MessageWithUsage, type Thread } from "../sessions";
+import {
+  fetchConversationMessages,
+  renameConversation,
+  type MessageWithUsage,
+  type Thread,
+} from "../sessions";
 
 const SIDEBAR_WIDTH_KEY = "emi-sidebar-width";
 
@@ -31,7 +36,7 @@ export type ChatSessionEvent =
 const loadThread = async (
   sessionId: string,
 ): Promise<{ thread: Thread; messages: MessageWithUsage[] }> => {
-  const { thread, messages } = await fetchThreadMessages(sessionId);
+  const { thread, messages } = await fetchConversationMessages(sessionId);
   return { thread, messages: messages as MessageWithUsage[] };
 };
 
@@ -85,7 +90,7 @@ export const chatSessionMachine = setup({
       loadThread(input.sessionId),
     ),
     rename: fromPromise(({ input }: { input: { sessionId: string; title: string } }) =>
-      renameThread(input.sessionId, input.title),
+      renameConversation(input.sessionId, input.title),
     ),
   },
   actions: {

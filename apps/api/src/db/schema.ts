@@ -69,6 +69,44 @@ export interface SuggestionsRow {
   created_at: string;
 }
 
+export interface ConversationRow {
+  id: string;
+  title: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageRow {
+  id: string;
+  conversation_id: string;
+  parent_id: string | null;
+  role: string;
+  parts: string;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  model: string | null;
+  created_at: string;
+}
+
+export interface ThreadRow {
+  id: string;
+  conversation_id: string;
+  anchor_message_id: string;
+  title: string | null;
+  status: string;
+  pinned: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreadMessageRow {
+  thread_id: string;
+  message_id: string;
+  included_at: string;
+}
+
 export interface MemoryRow {
   id: string;
   content: string;

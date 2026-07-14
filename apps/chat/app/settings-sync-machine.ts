@@ -1,5 +1,5 @@
 import { assign, fromPromise, setup } from "xstate";
-import { syncThreads } from "./sessions";
+import { syncConversations } from "./sessions";
 
 export interface SettingsSyncContext {
   status: string | null;
@@ -14,7 +14,7 @@ export const settingsSyncMachine = setup({
   },
   actors: {
     sync: fromPromise(async (): Promise<void> => {
-      await syncThreads();
+      await syncConversations();
     }),
   },
 }).createMachine({

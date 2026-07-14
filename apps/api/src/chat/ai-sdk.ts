@@ -148,6 +148,20 @@ export const generateThreadTitle = async (
   return result.text.trim().replace(/^["']|["']$/g, "");
 };
 
+export const generateThreadSummary = async (
+  apiKey: string,
+  baseUrl: string | undefined,
+  messages: Array<{ role: string; text: string }>,
+): Promise<string> => {
+  const openai = createOpenAI({ apiKey, baseURL: baseUrl });
+  const transcript = messages.map((message) => `${message.role}: ${message.text}`).join("\n");
+  const result = await generateText({
+    model: openai.chat("gpt-4o-mini"),
+    prompt: `Summarize the following conversation thread in 1-2 sentences. Be concise.\n\n${transcript}`,
+  });
+  return result.text.trim();
+};
+
 export const extractMemories = async (
   apiKey: string,
   baseUrl: string | undefined,

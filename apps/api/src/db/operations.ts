@@ -619,7 +619,7 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
     });
   });
 
-export interface Thread {
+export interface Conversation {
   id: string;
   title: string | null;
   status: "regular" | "archived";
@@ -633,9 +633,10 @@ export interface MessageUsage {
   total_tokens?: number | undefined;
 }
 
-export interface ThreadMessage {
+export interface Message {
   id: string;
-  thread_id: string;
+  conversation_id: string;
+  parent_id: string | null;
   role: string;
   parts: string;
   prompt_tokens: number | null;
@@ -645,15 +646,26 @@ export interface ThreadMessage {
   created_at: string;
 }
 
+export interface Thread {
+  id: string;
+  conversation_id: string;
+  anchor_message_id: string;
+  title: string | null;
+  status: "regular" | "discarded" | "merged";
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 const nowIso = (): string => new Date().toISOString();
 
-export const createThread = (db: QueryDatabaseClient, title?: string) =>
+export const createConversation = (db: QueryDatabaseClient, title?: string) =>
   Effect.gen(function* () {
     const id = crypto.randomUUID();
     const createdAt = nowIso();
     yield* db
       .prepare(`
-      INSERT INTO threads (id, title, status, created_at, updated_at)
+      INSERT INTO conversations (id, title, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
     `)
       .bind(id, title ?? null, "regular", createdAt, createdAt)
@@ -661,33 +673,180 @@ export const createThread = (db: QueryDatabaseClient, title?: string) =>
     return id;
   });
 
-export const getThreads = (db: QueryDatabaseClient, search?: string) =>
+export const getConversations = (db: QueryDatabaseClient, search?: string) =>
   Effect.gen(function* () {
     if (search !== undefined && search.trim() !== "") {
       const term = `%${search.trim()}%`;
       const result = yield* db
         .prepare(`
-        SELECT DISTINCT t.*
-        FROM threads t
-        LEFT JOIN messages m ON m.thread_id = t.id
-        WHERE t.status = 'regular' AND (t.title LIKE ? OR m.parts LIKE ?)
-        ORDER BY t.updated_at DESC
+        SELECT DISTINCT c.*
+        FROM conversations c
+        LEFT JOIN messages m ON m.conversation_id = c.id
+        WHERE c.status = 'regular' AND (c.title LIKE ? OR m.parts LIKE ?)
+        ORDER BY c.updated_at DESC
         LIMIT 100
       `)
         .bind(term, term)
-        .all<Thread>();
+        .all<Conversation>();
       return result.results;
     }
 
     const result = yield* db
       .prepare(`
-      SELECT * FROM threads
+      SELECT * FROM conversations
       WHERE status = 'regular'
       ORDER BY updated_at DESC
       LIMIT 100
     `)
-      .all<Thread>();
+      .all<Conversation>();
     return result.results;
+  });
+
+export const getConversation = (db: QueryDatabaseClient, conversationId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT * FROM conversations WHERE id = ?
+    `)
+      .bind(conversationId)
+      .first<Conversation>();
+    return result ?? null;
+  });
+
+export const deleteConversation = (db: QueryDatabaseClient, conversationId: string) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`DELETE FROM conversations WHERE id = ?`).bind(conversationId).run();
+  });
+
+export const renameConversation = (
+  db: QueryDatabaseClient,
+  conversationId: string,
+  title: string,
+) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare(`
+      UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?
+    `)
+      .bind(title, nowIso(), conversationId)
+      .run();
+  });
+
+export const updateConversationTimestamp = (db: QueryDatabaseClient, conversationId: string) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare(`
+      UPDATE conversations SET updated_at = ? WHERE id = ?
+    `)
+      .bind(nowIso(), conversationId)
+      .run();
+  });
+
+export const getConversationMessages = (db: QueryDatabaseClient, conversationId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at
+      FROM messages
+      WHERE conversation_id = ?
+      ORDER BY created_at ASC
+    `)
+      .bind(conversationId)
+      .all<Message>();
+    return result.results;
+  });
+
+export const saveConversationMessages = (
+  db: QueryDatabaseClient,
+  conversationId: string,
+  parentId: string | null,
+  messages: Array<{ role: string; parts: unknown[]; usage?: MessageUsage; model?: string }>,
+) =>
+  Effect.gen(function* () {
+    if (messages.length === 0) return [];
+
+    const createdAt = nowIso();
+    const ids: string[] = [];
+    const statements = messages.map((message) => {
+      const id = crypto.randomUUID();
+      ids.push(id);
+      return db
+        .prepare(`
+        INSERT INTO messages (id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+        .bind(
+          id,
+          conversationId,
+          parentId,
+          message.role,
+          JSON.stringify(message.parts),
+          message.usage?.prompt_tokens ?? null,
+          message.usage?.completion_tokens ?? null,
+          message.usage?.total_tokens ?? null,
+          message.model ?? null,
+          createdAt,
+        );
+    });
+
+    yield* runBatches(db, statements);
+    yield* updateConversationTimestamp(db, conversationId);
+    return ids;
+  });
+
+export const createThread = (
+  db: QueryDatabaseClient,
+  conversationId: string,
+  anchorMessageId: string,
+  title?: string,
+) =>
+  Effect.gen(function* () {
+    const id = crypto.randomUUID();
+    const createdAt = nowIso();
+    yield* db
+      .prepare(`
+      INSERT INTO threads (id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+      .bind(id, conversationId, anchorMessageId, title ?? null, "regular", 0, createdAt, createdAt)
+      .run();
+    yield* addThreadMessage(db, id, anchorMessageId);
+    return id;
+  });
+
+interface ThreadRow {
+  id: string;
+  conversation_id: string;
+  anchor_message_id: string;
+  title: string | null;
+  status: string;
+  pinned: number;
+  created_at: string;
+  updated_at: string;
+}
+
+const mapThreadRow = (row: ThreadRow): Thread => ({
+  id: row.id,
+  conversation_id: row.conversation_id,
+  anchor_message_id: row.anchor_message_id,
+  title: row.title,
+  status: row.status as Thread["status"],
+  pinned: row.pinned === 1,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+});
+
+export const getThreads = (db: QueryDatabaseClient, conversationId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT * FROM threads
+      WHERE conversation_id = ? AND status != 'discarded'
+      ORDER BY pinned DESC, updated_at DESC
+    `)
+      .bind(conversationId)
+      .all<ThreadRow>();
+    return result.results.map(mapThreadRow);
   });
 
 export const getThread = (db: QueryDatabaseClient, threadId: string) =>
@@ -697,13 +856,8 @@ export const getThread = (db: QueryDatabaseClient, threadId: string) =>
       SELECT * FROM threads WHERE id = ?
     `)
       .bind(threadId)
-      .first<Thread>();
-    return result ?? null;
-  });
-
-export const deleteThread = (db: QueryDatabaseClient, threadId: string) =>
-  Effect.gen(function* () {
-    yield* db.prepare(`DELETE FROM threads WHERE id = ?`).bind(threadId).run();
+      .first<ThreadRow>();
+    return result === null ? null : mapThreadRow(result);
   });
 
 export const renameThread = (db: QueryDatabaseClient, threadId: string, title: string) =>
@@ -716,13 +870,39 @@ export const renameThread = (db: QueryDatabaseClient, threadId: string, title: s
       .run();
   });
 
-export const updateThreadTimestamp = (db: QueryDatabaseClient, threadId: string) =>
+export const pinThread = (db: QueryDatabaseClient, threadId: string, pinned: boolean) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      UPDATE threads SET updated_at = ? WHERE id = ?
+      UPDATE threads SET pinned = ?, updated_at = ? WHERE id = ?
+    `)
+      .bind(pinned ? 1 : 0, nowIso(), threadId)
+      .run();
+  });
+
+export const discardThread = (db: QueryDatabaseClient, threadId: string) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare(`
+      UPDATE threads SET status = 'discarded', updated_at = ? WHERE id = ?
     `)
       .bind(nowIso(), threadId)
+      .run();
+  });
+
+export const addThreadMessage = (
+  db: QueryDatabaseClient,
+  threadId: string,
+  messageId: string,
+) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare(`
+      INSERT INTO thread_messages (thread_id, message_id, included_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(thread_id, message_id) DO NOTHING
+    `)
+      .bind(threadId, messageId, nowIso())
       .run();
   });
 
@@ -730,46 +910,61 @@ export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
-      SELECT id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at
-      FROM messages
-      WHERE thread_id = ?
-      ORDER BY created_at ASC
+      SELECT m.id, m.conversation_id, m.parent_id, m.role, m.parts, m.prompt_tokens, m.completion_tokens, m.total_tokens, m.model, m.created_at
+      FROM messages m
+      JOIN thread_messages tm ON tm.message_id = m.id
+      WHERE tm.thread_id = ?
+      ORDER BY m.created_at ASC
     `)
       .bind(threadId)
-      .all<ThreadMessage>();
+      .all<Message>();
     return result.results;
   });
 
-export const saveThreadMessages = (
+export const getMessage = (db: QueryDatabaseClient, messageId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at
+      FROM messages WHERE id = ?
+    `)
+      .bind(messageId)
+      .first<Message>();
+    return result ?? null;
+  });
+
+export const summarizeThread = (
   db: QueryDatabaseClient,
   threadId: string,
-  messages: Array<{ role: string; parts: unknown[]; usage?: MessageUsage; model?: string }>,
+  summaryText: string,
 ) =>
   Effect.gen(function* () {
-    if (messages.length === 0) return;
+    const thread = yield* getThread(db, threadId);
+    if (thread === null) return null;
 
+    const id = crypto.randomUUID();
     const createdAt = nowIso();
-    const statements = messages.map((message) =>
-      db
-        .prepare(`
-        INSERT INTO messages (id, thread_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-        .bind(
-          crypto.randomUUID(),
-          threadId,
-          message.role,
-          JSON.stringify(message.parts),
-          message.usage?.prompt_tokens ?? null,
-          message.usage?.completion_tokens ?? null,
-          message.usage?.total_tokens ?? null,
-          message.model ?? null,
-          createdAt,
-        ),
-    );
-
-    yield* runBatches(db, statements);
-    yield* updateThreadTimestamp(db, threadId);
+    yield* db
+      .prepare(`
+      INSERT INTO messages (id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+      .bind(
+        id,
+        thread.conversation_id,
+        thread.anchor_message_id,
+        "summary",
+        JSON.stringify([{ type: "text", text: summaryText }]),
+        null,
+        null,
+        null,
+        null,
+        createdAt,
+      )
+      .run();
+    yield* addThreadMessage(db, threadId, id);
+    yield* updateConversationTimestamp(db, thread.conversation_id);
+    return id;
   });
 
 export const getSuggestionsById = (db: QueryDatabaseClient, id: string) =>

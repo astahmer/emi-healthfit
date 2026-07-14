@@ -10,7 +10,7 @@ import {
 const makeConversation = (overrides?: Partial<Conversation>): Conversation => ({
   id: "conv-1",
   title: "Test conversation",
-  status: "active",
+  status: "regular",
   createdAt: "2026-07-14T10:00:00.000Z",
   updatedAt: "2026-07-14T10:00:00.000Z",
   ...overrides,
@@ -367,7 +367,7 @@ describe("conversationMachine", () => {
     expect(snapshot.context.focusedThreadId).toBeNull();
   });
 
-  it("resets to empty state", async () => {
+  it("resets to remount state without losing data", async () => {
     const machine = conversationMachine.provide({
       actors: {
         loadConversation: fromPromise(async () => ({
@@ -384,8 +384,8 @@ describe("conversationMachine", () => {
 
     actor.send({ type: "reset" });
 
-    expect(actor.getSnapshot().context.conversation).toBeNull();
-    expect(actor.getSnapshot().context.messages).toEqual([]);
-    expect(actor.getSnapshot().context.threads).toEqual([]);
+    expect(actor.getSnapshot().context.resetKey).toBe(1);
+    expect(actor.getSnapshot().context.conversation).not.toBeNull();
+    expect(actor.getSnapshot().context.messages.length).toBe(1);
   });
 });

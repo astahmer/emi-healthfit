@@ -21,7 +21,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { fetchThreadMessages, syncThreads, type Thread } from "../sessions";
+import { fetchConversationMessages, syncConversations, type Thread } from "../sessions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -177,7 +177,7 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
               onMouseEnter={() =>
                 queryClient.prefetchQuery({
                   queryKey: ["thread", thread.id],
-                  queryFn: () => fetchThreadMessages(thread.id),
+                  queryFn: () => fetchConversationMessages(thread.id),
                 })
               }
             >
@@ -301,7 +301,7 @@ export const SessionSidebar = () => {
     dataUpdatedAt,
   } = useQuery({
     queryKey: ["threads", search],
-    queryFn: () => syncThreads(search || undefined),
+    queryFn: () => syncConversations(search || undefined),
   });
 
   const handleNew = () => {

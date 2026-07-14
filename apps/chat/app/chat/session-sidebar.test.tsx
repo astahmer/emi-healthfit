@@ -48,17 +48,17 @@ describe("SessionSidebar", () => {
     };
 
     global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url === `${window.location.origin}/api/threads`) {
+      if (url === `${window.location.origin}/api/conversations`) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ threads: [thread] }),
+          json: async () => ({ conversations: [thread] }),
         });
       }
 
-      if (url === `${window.location.origin}/api/threads/thread-1`) {
+      if (url === `${window.location.origin}/api/conversations/thread-1/messages`) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ thread, messages: [] }),
+          json: async () => ({ conversation: thread, messages: [], threads: [] }),
         });
       }
 
@@ -75,7 +75,9 @@ describe("SessionSidebar", () => {
     fireEvent.mouseEnter(link);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(`${window.location.origin}/api/threads/thread-1`);
+      expect(global.fetch).toHaveBeenCalledWith(
+        `${window.location.origin}/api/conversations/thread-1/messages`,
+      );
     });
   });
 });

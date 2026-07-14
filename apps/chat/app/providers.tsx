@@ -17,7 +17,7 @@ import { buildTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
 import { buildNotesContext } from "./notes";
 import { NotesProvider, useNotes } from "./notes-context";
-import { createThread } from "./sessions";
+import { createConversation } from "./sessions";
 import { ComposerDraftSync } from "./chat/composer-draft-sync";
 
 export interface ChatSessionConfig {
@@ -126,7 +126,7 @@ function ProxyRuntime({
           if (sessionConfig.temporary) {
             sessionId = `temp_${crypto.randomUUID()}`;
           } else {
-            sessionId = await createThread();
+            sessionId = await createConversation();
           }
           createdThreadIdRef.current = sessionId;
           onSessionCreated?.(sessionId);

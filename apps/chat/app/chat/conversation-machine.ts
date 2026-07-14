@@ -5,6 +5,7 @@ import {
   fetchConversationMessages,
   forkThread as forkThreadApi,
   pinThread as pinThreadApi,
+  renameConversation as renameConversationApi,
   renameThread as renameThreadApi,
   summarizeThread as summarizeThreadApi,
 } from "../conversations";
@@ -15,7 +16,7 @@ export type ViewMode = "inline" | "sidebar" | "columns";
 export interface Conversation {
   id: string;
   title: string | null;
-  status: "active" | "archived";
+  status: "regular" | "archived";
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +54,9 @@ export interface ConversationContext {
   searchResults: MessageNode[];
   viewMode: ViewMode;
   isTemporary: boolean;
+  renameDraft: string;
+  sidebarWidth: number;
+  resetKey: number;
   error: Error | null;
 }
 
@@ -85,7 +89,57 @@ export type ConversationEvent =
   | { type: "search.query"; query: string }
   | { type: "view.select"; viewMode: ViewMode }
   | { type: "temporary.changed"; isTemporary: boolean }
+  | { type: "conversation.rename.start" }
+  | { type: "conversation.rename.change"; value: string }
+  | { type: "conversation.rename.submit" }
+  | { type: "conversation.rename.cancel" }
+  | { type: "export" }
+  | { type: "sidebar.widthChanged"; width: number }
+  | { type: "session.created"; conversationId: string }
   | { type: "reset" };
+
+const SIDEBAR_WIDTH_KEY = "emi-conversation-sidebar-width";
+
+const persistSidebarWidth = (width: number): void => {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const readSidebarWidth = (): number => {
+  try {
+    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (stored !== null) return Number.parseFloat(stored);
+  } catch {
+    // ignore storage errors
+  }
+  return 16;
+};
+
+const exportMarkdown = (conversationId: string, messages: MessageNode[]): void => {
+  const md = messages
+    .map((msg) => {
+      const role = msg.role === "user" ? "User" : "Assistant";
+      const text = msg.parts
+        .filter(
+          (p): p is { type: "text"; text: string } =>
+            p.type === "text" && typeof p.text === "string",
+        )
+        .map((p) => p.text)
+        .join("\n");
+      return `## ${role}\n\n${text}`;
+    })
+    .join("\n\n---\n\n");
+  const blob = new Blob([md], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `chat-${conversationId.slice(0, 8)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 export const conversationMachine = setup({
   types: {
@@ -115,6 +169,14 @@ export const conversationMachine = setup({
         input: { conversationId: string; anchorMessageId: string; title?: string };
       }): Promise<ThreadView> =>
         forkThreadApi(input.conversationId, input.anchorMessageId, input.title),
+    ),
+    renameConversation: fromPromise(
+      async ({
+        input,
+      }: {
+        input: { conversationId: string; title: string };
+      }): Promise<{ conversationId: string; title: string }> =>
+        renameConversationApi(input.conversationId, input.title),
     ),
     renameThread: fromPromise(
       async ({
@@ -149,14 +211,23 @@ export const conversationMachine = setup({
       focusedThreadId: () => null,
       searchQuery: () => "",
       searchResults: () => [],
+      renameDraft: () => "",
       error: () => null,
     }),
+    persistSidebarWidth: ({ context }) => persistSidebarWidth(context.sidebarWidth),
+    exportMarkdown: ({ context }) => {
+      if (context.conversationId !== undefined) {
+        exportMarkdown(context.conversationId, context.messages);
+      }
+    },
   },
   guards: {
     hasConversationId: ({ context }) => context.conversationId !== undefined,
     eventHasConversationId: ({ event }) =>
       event.type === "conversationId.changed" && event.conversationId !== undefined,
     isTemporary: ({ context }) => context.isTemporary,
+    canRenameConversation: ({ context }) =>
+      context.conversationId !== undefined && context.renameDraft.trim() !== "",
   },
 }).createMachine({
   id: "conversation",
@@ -171,10 +242,14 @@ export const conversationMachine = setup({
     searchResults: [],
     viewMode: "inline",
     isTemporary: input.isTemporary ?? false,
+    renameDraft: "",
+    sidebarWidth: 16,
+    resetKey: 0,
     error: null,
   }),
   states: {
     initializing: {
+      entry: assign({ sidebarWidth: () => readSidebarWidth() }),
       always: [
         { target: "ready", guard: "isTemporary" },
         { target: "loading", guard: "hasConversationId" },
@@ -214,7 +289,7 @@ export const conversationMachine = setup({
               actions: assign({ focusedThreadId: ({ event }) => event.threadId }),
             },
             "thread.fork": { target: "forking" },
-            "thread.rename": { target: "renaming" },
+            "thread.rename": { target: "renamingThread" },
             "thread.pin": { target: "pinning" },
             "thread.discard": { target: "discarding" },
             "thread.summarize": { target: "summarizing" },
@@ -227,6 +302,29 @@ export const conversationMachine = setup({
             },
             "view.select": {
               actions: assign({ viewMode: ({ event }) => event.viewMode }),
+            },
+            "conversation.rename.start": {
+              target: "renamingConversation",
+              actions: assign({
+                renameDraft: ({ context }) => context.conversation?.title ?? "",
+              }),
+            },
+            "conversation.rename.change": {
+              actions: assign({ renameDraft: ({ event }) => event.value }),
+            },
+            "conversation.rename.submit": {
+              target: "renamingConversation",
+              guard: "canRenameConversation",
+            },
+            "conversation.rename.cancel": {
+              actions: assign({ renameDraft: () => "" }),
+            },
+            export: { target: "exporting" },
+            "sidebar.widthChanged": {
+              actions: [
+                assign({ sidebarWidth: ({ event }) => event.width }),
+                "persistSidebarWidth",
+              ],
             },
           },
         },
@@ -259,7 +357,7 @@ export const conversationMachine = setup({
             },
           },
         },
-        renaming: {
+        renamingThread: {
           invoke: {
             src: "renameThread",
             input: ({ event }) => {
@@ -362,6 +460,40 @@ export const conversationMachine = setup({
             },
           },
         },
+        renamingConversation: {
+          invoke: {
+            src: "renameConversation",
+            input: ({ context }) => {
+              if (context.conversationId === undefined)
+                throw new Error("conversationId is required");
+              return {
+                conversationId: context.conversationId,
+                title: context.renameDraft.trim(),
+              };
+            },
+            onDone: {
+              target: "idle",
+              actions: assign({
+                conversation: ({ context, event }) =>
+                  context.conversation === null
+                    ? null
+                    : { ...context.conversation, title: event.output.title },
+                renameDraft: () => "",
+              }),
+            },
+            onError: {
+              target: "idle",
+              actions: assign({
+                error: ({ event }) =>
+                  event.error instanceof Error ? event.error : new Error(String(event.error)),
+              }),
+            },
+          },
+        },
+        exporting: {
+          entry: "exportMarkdown",
+          always: { target: "idle" },
+        },
       },
       on: {
         "conversationId.changed": [
@@ -392,7 +524,11 @@ export const conversationMachine = setup({
         },
         reset: {
           target: "ready",
-          actions: "clearConversation",
+          actions: assign({
+            resetKey: ({ context }) => context.resetKey + 1,
+            error: () => null,
+            renameDraft: () => "",
+          }),
         },
       },
     },
