@@ -13,8 +13,8 @@ const conversationSchema = z.object({
 
 const messageSchema = z.object({
   id: z.string(),
-  conversationId: z.string(),
-  parentId: z.string().nullable(),
+  conversationId: z.string().optional(),
+  parentId: z.string().nullable().optional(),
   role: z.enum(["user", "assistant", "system", "summary"]),
   parts: z.array(z.object({ type: z.string() }).catchall(z.unknown())),
   usage: z
@@ -60,6 +60,18 @@ const toThread = (raw: z.infer<typeof threadSchema>): ThreadView => ({
   updatedAt: raw.updated_at,
 });
 
+const toMessage = ({
+  raw,
+  conversationId,
+}: {
+  raw: z.infer<typeof messageSchema>;
+  conversationId: string;
+}): MessageNode => ({
+  ...raw,
+  conversationId: raw.conversationId ?? conversationId,
+  parentId: raw.parentId ?? null,
+});
+
 export const fetchConversationMessages = async (
   conversationId: string,
 ): Promise<{ conversation: Conversation; messages: MessageNode[]; threads: ThreadView[] }> => {
@@ -74,7 +86,7 @@ export const fetchConversationMessages = async (
     .parse(await res.json());
   return {
     conversation: toConversation(raw.conversation),
-    messages: raw.messages,
+    messages: raw.messages.map((message) => toMessage({ raw: message, conversationId })),
     threads: raw.threads.map(toThread),
   };
 };
