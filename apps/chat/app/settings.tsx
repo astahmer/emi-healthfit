@@ -1,29 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMachine } from "@xstate/react";
 import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { chatModels, defaultModel } from "./models";
 import { useSettings } from "./settings-store";
-import { syncThreads } from "./sessions";
+import { settingsSyncMachine } from "./settings-sync-machine";
 
 export function SettingsPanel() {
   const { settings, update } = useSettings();
-  const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncState, sendSync] = useMachine(settingsSyncMachine);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncStatus(null);
-    try {
-      await syncThreads();
-      setSyncStatus("Sessions synced");
-    } catch (err) {
-      setSyncStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncing(false);
-    }
-  };
+  const syncing = syncState.matches("syncing");
+  const syncStatus = syncState.context.status;
 
   return (
     <div className="mx-auto max-w-xl p-6">
@@ -150,7 +139,7 @@ export function SettingsPanel() {
         </div>
 
         <Button
-          onClick={() => void handleSync()}
+          onClick={() => sendSync({ type: "sync" })}
           disabled={syncing}
           variant="outline"
           className="w-full gap-2"

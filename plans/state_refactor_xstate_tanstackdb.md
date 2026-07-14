@@ -94,21 +94,43 @@ Make the chat UI robust and maintainable by:
 - Add unit tests for `chatSessionMachine`.
 - Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
-#### Phase 4 — Composer config
+#### Phase 4 — Composer config ✅
 
 - Extract model/coach/web/temporary config into `composerConfigMachine`.
-- Encapsulate the web-search → model-swap fallback logic in guards/actions.
+- Encapsulate the web-search → model-swap fallback logic in machine actions.
+- `page.tsx` syncs machine context back to URL params via a single focused `useEffect`.
+- Add unit tests for `composerConfigMachine`.
+- Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
-#### Phase 5 — Settings sync + theme
+#### Phase 5 — Settings sync ✅
 
 - Add `settingsSyncMachine` for the manual sync button.
-- Optionally model `theme-provider.tsx` if it proves flaky.
+- Refactor `SettingsPanel` sync button to use `useMachine`.
+- Add unit tests for `settingsSyncMachine`.
+- Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
-#### Phase 6 — Cleanup
+#### Phase 6 — Cleanup ✅
 
-- Remove dead `useState`/`useEffect`.
-- Add machine tests for each boundary.
-- Audit remaining hooks; only keep trivial local state.
+- Remove dead `use-thread-data.ts` + test (replaced by `chatSessionMachine`).
+- Remove `ExportThreadButton` component (export is now inline in `ChatPage`).
+- Audit remaining hooks; keep only trivial local state or necessary bridges.
+- Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
+
+## What was intentionally left as local state
+
+| File | State left | Reason |
+|---|---|---|
+| `app/chat/session-sidebar.tsx` | `search` | Pure input value, no async lifecycle. |
+| `app/chat/page.tsx` | URL param hooks + 3 `useEffect` bridges | URL params must stay the React source of truth; effects sync params ↔ machines. |
+| `app/providers.tsx` | `ToolRegistrar` tool loading | Async lifecycle is simple; registration effect is a bridge to assistant-ui. |
+| `app/theme-provider.tsx` | theme + localStorage | Standard pattern, low value to machine. |
+| `app/notes-panel.tsx` | form inputs | Local form state, no complex async flow. |
+| `app/memory-panel.tsx` | form inputs | Local form state, no complex async flow. |
+| `app/workouts/page.tsx` | search + expandedId | Local list UI state. |
+| `app/gen-ui/page.tsx` | carousel index | Local carousel state. |
+| `app/upload.tsx` | 1 `useEffect` for file input reset | DOM sync bridge after machine success. |
+| `app/query-provider.tsx` | `QueryClient` init | One-shot stable instance. |
+| `app/service-worker-reload.tsx` | service worker listener | External event bridge. |
 
 ## Architecture
 

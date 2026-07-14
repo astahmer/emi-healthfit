@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -19,6 +19,7 @@ import { UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
 import { chatSessionMachine } from "./chat-session-machine";
+import { composerConfigMachine } from "./composer-config-machine";
 
 const HEADER_HEIGHT = 56;
 
@@ -29,72 +30,77 @@ function ChatPageInner() {
   const router = useRouter();
   const sessionId = searchParams.get("id") ?? undefined;
 
-  const [model, setModel] = useSessionParam("model", settings.model);
-  const [coachMode, setCoachMode] = useSessionFlag("coach", settings.coachMode);
-  const [webSearch, setWebSearch] = useSessionFlag("web", false);
-  const [temporary, setTemporary] = useState(false);
+  const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
+  const [urlCoachMode, setUrlCoachMode] = useSessionFlag("coach", settings.coachMode);
+  const [urlWebSearch, setUrlWebSearch] = useSessionFlag("web", false);
 
-  const savedModelRef = useRef<string | null>(null);
-  const urlSyncedRef = useRef(false);
-
-  const [state, send] = useMachine(chatSessionMachine, {
+  const [sessionState, sendSession] = useMachine(chatSessionMachine, {
     input: { sessionId },
   });
 
+  const [configState, sendConfig] = useMachine(composerConfigMachine, {
+    input: {
+      models: chatModels,
+      model: urlModel,
+      coachMode: urlCoachMode,
+      webSearch: urlWebSearch,
+    },
+  });
+
+  const urlSyncedRef = useRef(false);
   const isRunning = useAuiState((s) => s.thread.isRunning);
 
   useEffect(() => {
-    send({ type: "sessionId.changed", sessionId });
-  }, [sessionId, send]);
+    sendSession({ type: "sessionId.changed", sessionId });
+  }, [sessionId, sendSession]);
 
   useEffect(() => {
     if (isRunning) {
       urlSyncedRef.current = false;
       return;
     }
-    const createdId = state.context.createdSessionId;
+    const createdId = sessionState.context.createdSessionId;
     if (createdId === undefined || urlSyncedRef.current) return;
     urlSyncedRef.current = true;
     router.replace(`/chat?id=${createdId}`, { scroll: false });
-  }, [isRunning, state.context.createdSessionId, router]);
-
-  const selectedModel = chatModels.find((m) => m.id === model);
-  const canWebSearch = selectedModel?.supportsWebSearch ?? false;
+  }, [isRunning, sessionState.context.createdSessionId, router]);
 
   useEffect(() => {
-    if (webSearch && canWebSearch) {
-      savedModelRef.current = null;
+    if (configState.context.model !== urlModel) {
+      setUrlModel(configState.context.model);
     }
-  }, [model, webSearch, canWebSearch]);
-
-  const handleWebSearchChange = (next: boolean) => {
-    if (next && !canWebSearch) {
-      const currentIdx = chatModels.findIndex((m) => m.id === model);
-      const supported =
-        chatModels.find((m, i) => m.supportsWebSearch && i >= currentIdx) ??
-        chatModels.find((m) => m.supportsWebSearch);
-      if (supported) {
-        savedModelRef.current = model;
-        setModel(supported.id);
-      }
-    } else if (!next && savedModelRef.current) {
-      setModel(savedModelRef.current);
-      savedModelRef.current = null;
+    if (configState.context.coachMode !== urlCoachMode) {
+      setUrlCoachMode(configState.context.coachMode);
     }
-    setWebSearch(next);
-  };
+    if (configState.context.webSearch !== urlWebSearch) {
+      setUrlWebSearch(configState.context.webSearch);
+    }
+  }, [
+    configState.context.model,
+    configState.context.coachMode,
+    configState.context.webSearch,
+    urlModel,
+    urlCoachMode,
+    urlWebSearch,
+    setUrlModel,
+    setUrlCoachMode,
+    setUrlWebSearch,
+  ]);
 
-  const thread = state.context.thread;
-  const initialMessages = state.context.messages;
-  const isLoading = state.matches("loading");
-  const loadError = state.matches("error") ? state.context.error : null;
-  const isRenaming = state.matches("renaming") || state.matches("submittingRename");
+  const selectedModel = chatModels.find((m) => m.id === configState.context.model);
+  const canWebSearch = selectedModel?.supportsWebSearch ?? false;
+
+  const thread = sessionState.context.thread;
+  const initialMessages = sessionState.context.messages;
+  const isLoading = sessionState.matches("loading");
+  const loadError = sessionState.matches("error") ? sessionState.context.error : null;
+  const isRenaming = sessionState.matches("renaming") || sessionState.matches("submittingRename");
 
   return (
     <SidebarProvider
       className="flex h-full"
-      defaultWidth={state.context.sidebarWidth}
-      onWidthChange={(width) => send({ type: "sidebar.widthChanged", width })}
+      defaultWidth={sessionState.context.sidebarWidth}
+      onWidthChange={(width) => sendSession({ type: "sidebar.widthChanged", width })}
       style={{ "--sidebar-top": `${HEADER_HEIGHT}px` } as React.CSSProperties}
     >
       <SessionSidebar />
@@ -108,7 +114,7 @@ function ChatPageInner() {
           <p className="text-destructive">{loadError.message}</p>
           <button
             type="button"
-            onClick={() => send({ type: "retry" })}
+            onClick={() => sendSession({ type: "retry" })}
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
             Retry
@@ -116,23 +122,23 @@ function ChatPageInner() {
         </div>
       ) : (
         <ErrorBoundary
-          key={`${state.context.createdSessionId === sessionId ? "created" : (sessionId ?? "new")}-${state.context.resetKey}`}
+          key={`${sessionState.context.createdSessionId === sessionId ? "created" : (sessionId ?? "new")}-${sessionState.context.resetKey}`}
           onReset={() => {
-            send({ type: "reset" });
+            sendSession({ type: "reset" });
             void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
           }}
         >
           <UsageProvider messages={initialMessages ?? []}>
             <ChatProviders
               sessionConfig={{
-                model,
-                coachMode,
-                webSearch,
-                temporary,
+                model: configState.context.model,
+                coachMode: configState.context.coachMode,
+                webSearch: configState.context.webSearch,
+                temporary: configState.context.temporary,
                 sessionId,
                 initialMessages: initialMessages as UIMessage[] | undefined,
               }}
-              onSessionCreated={(id) => send({ type: "session.created", sessionId: id })}
+              onSessionCreated={(id) => sendSession({ type: "session.created", sessionId: id })}
             >
               <div className="flex h-full flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
@@ -144,14 +150,16 @@ function ChatPageInner() {
                           className="flex flex-1 items-center gap-2 px-2"
                           onSubmit={(e) => {
                             e.preventDefault();
-                            send({ type: "rename.submit" });
+                            sendSession({ type: "rename.submit" });
                           }}
                         >
                           <input
-                            value={state.context.renameDraft}
-                            onChange={(e) => send({ type: "rename.change", value: e.target.value })}
+                            value={sessionState.context.renameDraft}
+                            onChange={(e) =>
+                              sendSession({ type: "rename.change", value: e.target.value })
+                            }
                             onKeyDown={(e) => {
-                              if (e.key === "Escape") send({ type: "rename.cancel" });
+                              if (e.key === "Escape") sendSession({ type: "rename.cancel" });
                             }}
                             autoFocus
                             aria-label="Session title"
@@ -166,7 +174,7 @@ function ChatPageInner() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => send({ type: "rename.cancel" })}
+                            onClick={() => sendSession({ type: "rename.cancel" })}
                             className="rounded-md p-1 hover:bg-muted"
                             aria-label="Cancel rename"
                           >
@@ -180,7 +188,7 @@ function ChatPageInner() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => send({ type: "rename.start" })}
+                            onClick={() => sendSession({ type: "rename.start" })}
                             className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                             aria-label="Rename session"
                           >
@@ -198,7 +206,7 @@ function ChatPageInner() {
                         side="bottom"
                         type="button"
                         variant="ghost"
-                        onClick={() => send({ type: "export" })}
+                        onClick={() => sendSession({ type: "export" })}
                       >
                         <DownloadIcon className="size-4" />
                       </TooltipIconButton>
@@ -208,14 +216,14 @@ function ChatPageInner() {
                 <div className="flex-1 overflow-hidden">
                   <Thread
                     composerControls={{
-                      model,
-                      onModelChange: setModel,
-                      coachMode,
-                      onCoachModeChange: setCoachMode,
-                      webSearch,
-                      onWebSearchChange: handleWebSearchChange,
-                      temporary,
-                      onTemporaryChange: setTemporary,
+                      model: configState.context.model,
+                      onModelChange: (model) => sendConfig({ type: "model.select", model }),
+                      coachMode: configState.context.coachMode,
+                      onCoachModeChange: () => sendConfig({ type: "coach.toggle" }),
+                      webSearch: configState.context.webSearch,
+                      onWebSearchChange: (value) => sendConfig({ type: "web.toggle", value }),
+                      temporary: configState.context.temporary,
+                      onTemporaryChange: (value) => sendConfig({ type: "temporary.toggle", value }),
                       models: chatModels,
                       canWebSearch,
                     }}
