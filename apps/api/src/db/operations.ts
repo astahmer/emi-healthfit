@@ -520,6 +520,26 @@ export interface WorkoutSession {
   exercises: number;
 }
 
+export interface WorkoutSet {
+  set_index: number;
+  set_type: string | null;
+  weight_kg: number | null;
+  reps: number | null;
+  rpe: number | null;
+  distance_km: number | null;
+  duration_seconds: number | null;
+  exercise_notes: string | null;
+}
+
+export interface WorkoutExercise {
+  exercise_title: string;
+  sets: WorkoutSet[];
+}
+
+export interface WorkoutSessionDetail extends WorkoutSession {
+  exerciseDetails: WorkoutExercise[];
+}
+
 export const getWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const sessions = yield* db
@@ -540,7 +560,63 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
     `)
       .all<WorkoutSession>();
 
-    return sessions.results;
+    const sets = yield* db
+      .prepare(`
+      SELECT
+        session_id,
+        exercise_title,
+        set_index,
+        set_type,
+        weight_kg,
+        reps,
+        rpe,
+        distance_km,
+        duration_seconds,
+        exercise_notes
+      FROM hevy_sets
+      ORDER BY session_id, exercise_title, set_index
+    `)
+      .all<HevySetRow>();
+
+    const setsBySession = new Map<string, HevySetRow[]>();
+    for (const set of sets.results) {
+      const list = setsBySession.get(set.session_id);
+      if (list === undefined) {
+        setsBySession.set(set.session_id, [set]);
+      } else {
+        list.push(set);
+      }
+    }
+
+    return sessions.results.map((session) => {
+      const sessionSets = setsBySession.get(session.session_id) ?? [];
+      const exercisesByTitle = new Map<string, WorkoutSet[]>();
+      for (const set of sessionSets) {
+        const list = exercisesByTitle.get(set.exercise_title);
+        const mapped: WorkoutSet = {
+          set_index: set.set_index,
+          set_type: set.set_type,
+          weight_kg: set.weight_kg,
+          reps: set.reps,
+          rpe: set.rpe,
+          distance_km: set.distance_km,
+          duration_seconds: set.duration_seconds,
+          exercise_notes: set.exercise_notes,
+        };
+        if (list === undefined) {
+          exercisesByTitle.set(set.exercise_title, [mapped]);
+        } else {
+          list.push(mapped);
+        }
+      }
+
+      const exercises: WorkoutExercise[] = [];
+      for (const [exercise_title, exerciseSets] of exercisesByTitle) {
+        exercises.push({ exercise_title, sets: exerciseSets });
+      }
+
+      return { ...session, exerciseDetails: exercises } satisfies WorkoutSessionDetail;
+    });
   });
 
 export interface Thread {
