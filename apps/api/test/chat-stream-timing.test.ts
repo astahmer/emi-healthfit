@@ -138,4 +138,24 @@ describe("chat stream timing", () => {
     assertProgressive(arrivals);
     recordTiming({ boundary: "ui-message-stream-tee-client", arrivals });
   });
+
+  it("continues the persistence branch after the client branch disconnects", async () => {
+    const result = await makeResult();
+    const streams = result.toUIMessageStream().tee();
+    const persistedText: string[] = [];
+    const consumePersistence = async () => {
+      for await (const part of streams[1]) {
+        if (part.type === "text-delta") persistedText.push(part.delta);
+      }
+    };
+    const persistence = consumePersistence();
+
+    for await (const part of streams[0]) {
+      if (part.type === "text-delta") break;
+    }
+
+    await persistence;
+
+    assert.deepStrictEqual(persistedText, ["one", " two", " three"]);
+  });
 });

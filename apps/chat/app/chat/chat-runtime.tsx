@@ -144,6 +144,7 @@ export const ChatRuntimeProvider = ({
       const stream = await transport.reconnectToStream({ chatId: sessionId });
       if (stream === null) {
         if (operationRef.current === operation) send({ type: "stream.completed" });
+        await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
         return;
       }
       await consumeAssistantStream({
@@ -167,14 +168,6 @@ export const ChatRuntimeProvider = ({
       });
     });
   }, [config.historyReady, config.sessionId, config.temporary, queryClient, send, transport]);
-
-  useEffect(
-    () => () => {
-      abortControllerRef.current?.abort();
-      cancelStreamRef.current?.();
-    },
-    [],
-  );
 
   const submit = useCallback(
     async (text?: string) => {
