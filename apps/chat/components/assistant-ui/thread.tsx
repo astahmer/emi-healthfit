@@ -42,6 +42,7 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  GhostIcon,
   GlobeIcon,
   GraduationCapIcon,
   Loader2Icon,
@@ -63,6 +64,8 @@ export interface ComposerControls {
   onCoachModeChange: (coachMode: boolean) => void;
   webSearch: boolean;
   onWebSearchChange: (webSearch: boolean) => void;
+  temporary: boolean;
+  onTemporaryChange: (temporary: boolean) => void;
   models: ChatModel[];
   canWebSearch: boolean;
 }
@@ -259,6 +262,20 @@ const ComposerAction: FC<{ controls?: ComposerControls }> = ({ controls }) => {
               onClick={() => controls.onWebSearchChange(!controls.webSearch)}
             >
               <GlobeIcon className="size-4" />
+            </TooltipIconButton>
+            <TooltipIconButton
+              tooltip="Temporary session"
+              side="bottom"
+              type="button"
+              variant={controls.temporary ? "default" : "ghost"}
+              size="icon"
+              className={cn(
+                "size-8 rounded-full",
+                controls.temporary && "bg-primary/10 text-primary hover:bg-primary/20",
+              )}
+              onClick={() => controls.onTemporaryChange(!controls.temporary)}
+            >
+              <GhostIcon className="size-4" />
             </TooltipIconButton>
           </>
         )}

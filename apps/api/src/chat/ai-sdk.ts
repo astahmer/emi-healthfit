@@ -26,6 +26,7 @@ export interface ChatStreamRequest {
   config: ChatConfig;
   coachMode?: boolean | undefined;
   webSearch?: boolean | undefined;
+  temporary?: boolean | undefined;
   sessionId?: string | undefined;
 }
 

@@ -735,6 +735,7 @@ const ChatStreamRequestSchema = Schema.Struct({
   }),
   coachMode: Schema.optional(Schema.Boolean),
   webSearch: Schema.optional(Schema.Boolean),
+  temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
 });
 
@@ -851,17 +852,23 @@ const handleAiSdkChat = (
       config: { ...chatRequest.config, apiKey },
     };
 
+    const isTemporary = chatRequest.temporary === true;
+
     const sessionId =
       chatRequest.sessionId !== undefined && chatRequest.sessionId !== ""
         ? chatRequest.sessionId
-        : yield* createThread(db);
+        : isTemporary
+          ? `temp_${crypto.randomUUID()}`
+          : yield* createThread(db);
 
-    const thread = yield* getThread(db, sessionId);
-    if (thread === null) {
-      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    if (!isTemporary) {
+      const thread = yield* getThread(db, sessionId);
+      if (thread === null) {
+        return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+      }
     }
 
-    const existingRows = yield* getThreadMessages(db, sessionId);
+    const existingRows = isTemporary ? [] : yield* getThreadMessages(db, sessionId);
     const existingMessages = existingRows.map((row) => ({
       role: row.role as "system" | "user" | "assistant",
       parts: JSON.parse(row.parts) as unknown[],
@@ -883,23 +890,27 @@ const handleAiSdkChat = (
       sessionId,
     };
 
-    yield* saveThreadMessages(
-      db,
-      sessionId,
-      incomingMessages as Array<{ role: string; parts: unknown[] }>,
-    );
+    if (!isTemporary) {
+      yield* saveThreadMessages(
+        db,
+        sessionId,
+        incomingMessages as Array<{ role: string; parts: unknown[] }>,
+      );
 
-    const firstUserText = getFirstUserText(incomingMessages);
-    const needsTitle = thread.title === null || thread.title === "";
-    const services = yield* Effect.context<RuntimeContext>();
+      const firstUserText = getFirstUserText(incomingMessages);
+      const thread = yield* getThread(db, sessionId);
+      const needsTitle = thread !== null && (thread.title === null || thread.title === "");
 
-    if (needsTitle && firstUserText !== undefined) {
-      const title = yield* Effect.tryPromise({
-        try: () => generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
-        catch: (error) => new Error(`Failed to generate title: ${error}`),
-      });
-      yield* renameThread(db, sessionId, title);
+      if (needsTitle && firstUserText !== undefined) {
+        const title = yield* Effect.tryPromise({
+          try: () => generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
+          catch: (error) => new Error(`Failed to generate title: ${error}`),
+        });
+        yield* renameThread(db, sessionId, title);
+      }
     }
+
+    const services = yield* Effect.context<RuntimeContext>();
 
     const executeToolWithServices = (name: string, args: Record<string, unknown>) =>
       Effect.runPromiseWith(services)(
@@ -963,7 +974,7 @@ const handleAiSdkChat = (
                 });
               }
 
-              if (assistantParts.length > 0) {
+              if (!isTemporary && assistantParts.length > 0) {
                 yield* saveThreadMessages(db, sessionId, [
                   {
                     role: "assistant",
@@ -978,20 +989,22 @@ const handleAiSdkChat = (
                 ]);
               }
 
-              const lastUserText = getLastUserText(requestWithHistory.messages);
-              const key = yield* hashSuggestionsKey(event.text, lastUserText);
-              const cached = yield* getSuggestionsById(db, key);
-              if (cached !== null) return;
+              if (!isTemporary) {
+                const lastUserText = getLastUserText(requestWithHistory.messages);
+                const key = yield* hashSuggestionsKey(event.text, lastUserText);
+                const cached = yield* getSuggestionsById(db, key);
+                if (cached !== null) return;
 
-              const suggestions = yield* Effect.promise(() =>
-                generateSuggestions({
-                  apiKey,
-                  baseUrl: chatRequest.config.baseUrl,
-                  lastAssistantText: event.text,
-                  lastUserText,
-                }),
-              );
-              yield* saveSuggestions(db, key, suggestions);
+                const suggestions = yield* Effect.promise(() =>
+                  generateSuggestions({
+                    apiKey,
+                    baseUrl: chatRequest.config.baseUrl,
+                    lastAssistantText: event.text,
+                    lastUserText,
+                  }),
+                );
+                yield* saveSuggestions(db, key, suggestions);
+              }
             }).pipe(Effect.catch(() => Effect.void)),
           );
         },

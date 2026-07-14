@@ -25,6 +25,7 @@ export interface ChatSessionConfig {
   model: string;
   coachMode: boolean;
   webSearch: boolean;
+  temporary?: boolean;
   sessionId?: string;
   initialMessages?: UIMessage[];
 }
@@ -71,20 +72,22 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
 
 function UrlSync({
   createdThreadIdRef,
+  temporary,
 }: {
   createdThreadIdRef: React.MutableRefObject<string | null>;
+  temporary?: boolean;
 }) {
   const router = useRouter();
   const isRunning = useAuiState((s) => s.thread.isRunning);
   const syncedRef = useRef(false);
 
   useEffect(() => {
-    if (syncedRef.current) return;
+    if (syncedRef.current || temporary) return;
     const id = createdThreadIdRef.current;
     if (id === null || isRunning) return;
     syncedRef.current = true;
     router.replace(`/chat?id=${id}`, { scroll: false });
-  }, [isRunning, router, createdThreadIdRef]);
+  }, [isRunning, router, createdThreadIdRef, temporary]);
 
   return null;
 }
@@ -141,9 +144,13 @@ function ProxyRuntime({
       prepareSendMessagesRequest: async (options) => {
         let sessionId = sessionConfig.sessionId ?? createdThreadIdRef.current;
         if (sessionId === null) {
-          sessionId = await createThread();
+          if (sessionConfig.temporary) {
+            sessionId = `temp_${crypto.randomUUID()}`;
+          } else {
+            sessionId = await createThread();
+            markThreadAsClientCreated(sessionId);
+          }
           createdThreadIdRef.current = sessionId;
-          markThreadAsClientCreated(sessionId);
         }
 
         const baseBody = (options.body ?? {}) as Record<string, unknown>;
@@ -164,6 +171,7 @@ function ProxyRuntime({
             },
             coachMode: sessionConfig.coachMode,
             webSearch: sessionConfig.webSearch,
+            temporary: sessionConfig.temporary,
             sessionId,
           },
         };
@@ -175,7 +183,7 @@ function ProxyRuntime({
     <AssistantRuntimeProvider runtime={runtime}>
       <WelcomeSuggestions>
         {children}
-        <UrlSync createdThreadIdRef={createdThreadIdRef} />
+        <UrlSync createdThreadIdRef={createdThreadIdRef} temporary={sessionConfig.temporary} />
       </WelcomeSuggestions>
     </AssistantRuntimeProvider>
   );

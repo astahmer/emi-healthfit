@@ -35,6 +35,7 @@ function ChatPageInner() {
   const [model, setModel] = useSessionParam("model", settings.model);
   const [coachMode, setCoachMode] = useSessionFlag("coach", settings.coachMode);
   const [webSearch, setWebSearch] = useSessionFlag("web", false);
+  const [temporary, setTemporary] = useState(false);
 
   const [initialMessages, setInitialMessages] = useState<MessageWithUsage[] | undefined>(undefined);
   const [thread, setThread] = useState<ChatThread | null>(null);
@@ -198,6 +199,7 @@ function ChatPageInner() {
                 model,
                 coachMode,
                 webSearch,
+                temporary,
                 sessionId: runtimeSessionId,
                 initialMessages: initialMessages as UIMessage[] | undefined,
               }}
@@ -268,6 +270,8 @@ function ChatPageInner() {
                       onCoachModeChange: setCoachMode,
                       webSearch,
                       onWebSearchChange: handleWebSearchChange,
+                      temporary,
+                      onTemporaryChange: setTemporary,
                       models: chatModels,
                       canWebSearch,
                     }}
