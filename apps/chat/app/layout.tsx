@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavHeader } from "./nav-header";
 import { ThemeProvider } from "./theme-provider";
 import { QueryProvider } from "./query-provider";
+import { ServiceWorkerReload } from "./service-worker-reload";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -45,6 +46,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ServiceWorkerReload />
         <QueryProvider>
           <ThemeProvider>
             <TooltipProvider>

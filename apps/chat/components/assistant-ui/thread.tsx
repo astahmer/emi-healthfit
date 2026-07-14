@@ -45,7 +45,6 @@ import {
   GhostIcon,
   GlobeIcon,
   GraduationCapIcon,
-  Loader2Icon,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -106,7 +105,7 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
 
           <div
             data-slot="aui_message-group"
-            className="mb-24 flex flex-col gap-y-6 empty:hidden md:mb-14"
+            className="mb-24 flex flex-col gap-y-3 empty:hidden md:mb-14"
           >
             <ThreadPrimitive.Messages>
               {() => <ThreadMessage assistantModel={composerControls?.model} />}
@@ -128,6 +127,21 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
         </div>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
+  );
+};
+
+const TypingIndicator: FC = () => {
+  return (
+    <span
+      data-slot="aui_assistant-message-indicator"
+      className="typing-dots text-muted-foreground"
+      role="status"
+      aria-label="Assistant is working"
+    >
+      <span />
+      <span />
+      <span />
+    </span>
   );
 };
 
@@ -427,11 +441,7 @@ const AssistantMessage: FC<{ modelOverride?: string }> = ({ modelOverride }) => 
         <AuiIf
           condition={(s) => s.message.status?.type === "running" && s.message.parts.length === 0}
         >
-          <Loader2Icon
-            data-slot="aui_assistant-message-indicator"
-            className="size-4 animate-spin text-muted-foreground"
-            aria-label="Assistant is working"
-          />
+          <TypingIndicator />
         </AuiIf>
         <div className="mt-1 flex items-center gap-2">
           <MessageTimestamp />

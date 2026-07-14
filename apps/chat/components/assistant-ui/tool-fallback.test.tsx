@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ToolFallback } from "./tool-fallback";
 
 vi.mock("@assistant-ui/react", () => ({
+  useAuiState: (selector: (state: { message: { status: { type: string } } }) => unknown) =>
+    selector({ message: { status: { type: "complete" } } }),
   useScrollLock: () => () => {},
   useToolCallElapsed: () => undefined,
 }));

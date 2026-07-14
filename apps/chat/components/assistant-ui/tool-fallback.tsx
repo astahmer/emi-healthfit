@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { AlertCircleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, XCircleIcon } from "lucide-react";
 import {
+  useAuiState,
   useScrollLock,
   useToolCallElapsed,
   type ToolApprovalOption,
@@ -310,6 +311,8 @@ const approvalOptionLabel = (option: ToolApprovalOption) =>
 
 function ToolFallbackApproval({
   className,
+  toolName,
+  argsText,
   addResult,
   resume,
   interrupt,
@@ -318,6 +321,8 @@ function ToolFallbackApproval({
   ...props
 }: React.ComponentProps<"div"> &
   Partial<Pick<ToolCallMessagePartProps, "addResult" | "resume" | "respondToApproval">> & {
+    toolName: string;
+    argsText?: string;
     interrupt?: ToolCallMessagePart["interrupt"];
     approval?: ToolCallMessagePart["approval"];
   }) {
@@ -326,6 +331,9 @@ function ToolFallbackApproval({
 
   if (approval != null && (approval.approved !== undefined || approval.resolution !== undefined))
     return null;
+
+  const canRespond = Boolean(respondToApproval || interrupt || addResult);
+  if (!canRespond) return null;
 
   // Custom (`_`-prefixed) kinds cannot be resolved to a boolean by the kit;
   // hosts using custom kinds render their own bar. A declared option list is
@@ -422,35 +430,39 @@ function ToolFallbackApproval({
     return (
       <div
         data-slot="tool-fallback-approval"
-        className={cn(
-          "aui-tool-fallback-approval flex flex-wrap items-center gap-2 pt-1",
-          className,
-        )}
+        className={cn("aui-tool-fallback-approval flex flex-col gap-1", className)}
         {...props}
       >
-        {[...allowOptions, ...rejectOptions].map((option) => (
-          <Button
-            key={option.id}
-            size="sm"
-            variant={option === allowOptions[0] ? "default" : "outline"}
-            className={pressable}
-            onClick={() => handleOption(option)}
-            disabled={submitted}
-          >
-            {approvalOptionLabel(option)}
-          </Button>
-        ))}
-        {rejectOptions.length === 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            className={pressable}
-            onClick={() => respond(false)}
-            disabled={submitted}
-          >
-            Deny
-          </Button>
-        )}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Tool</span>
+          <code className="bg-muted rounded px-1.5 py-0.5 text-xs font-semibold">{toolName}</code>
+        </div>
+        <ToolFallbackArgs argsText={argsText} />
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {[...allowOptions, ...rejectOptions].map((option) => (
+            <Button
+              key={option.id}
+              size="sm"
+              variant={option === allowOptions[0] ? "default" : "outline"}
+              className={pressable}
+              onClick={() => handleOption(option)}
+              disabled={submitted}
+            >
+              {approvalOptionLabel(option)}
+            </Button>
+          ))}
+          {rejectOptions.length === 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className={pressable}
+              onClick={() => respond(false)}
+              disabled={submitted}
+            >
+              Deny
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -458,21 +470,28 @@ function ToolFallbackApproval({
   return (
     <div
       data-slot="tool-fallback-approval"
-      className={cn("aui-tool-fallback-approval flex items-center gap-2 pt-1", className)}
+      className={cn("aui-tool-fallback-approval flex flex-col gap-1", className)}
       {...props}
     >
-      <Button size="sm" className={pressable} onClick={() => respond(true)} disabled={submitted}>
-        Allow
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className={pressable}
-        onClick={() => respond(false)}
-        disabled={submitted}
-      >
-        Deny
-      </Button>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Tool</span>
+        <code className="bg-muted rounded px-1.5 py-0.5 text-xs font-semibold">{toolName}</code>
+      </div>
+      <ToolFallbackArgs argsText={argsText} />
+      <div className="flex items-center gap-2 pt-1">
+        <Button size="sm" className={pressable} onClick={() => respond(true)} disabled={submitted}>
+          Allow
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className={pressable}
+          onClick={() => respond(false)}
+          disabled={submitted}
+        >
+          Deny
+        </Button>
+      </div>
     </div>
   );
 }
@@ -488,8 +507,18 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   approval,
   respondToApproval,
 }) => {
-  const isCancelled = status?.type === "incomplete" && status.reason === "cancelled";
-  const isRequiresAction = status?.type === "requires-action";
+  const messageStatus = useAuiState((s) => s.message.status);
+
+  const effectiveStatus = useMemo(() => {
+    if (status?.type !== "requires-action") return status;
+    if (approval != null || interrupt != null) return status;
+    const messageState = messageStatus?.type ?? "complete";
+    return { type: messageState } as ToolCallMessagePartStatus;
+  }, [status, approval, interrupt, messageStatus]);
+
+  const isCancelled =
+    effectiveStatus?.type === "incomplete" && effectiveStatus.reason === "cancelled";
+  const isRequiresAction = effectiveStatus?.type === "requires-action";
 
   const [open, setOpen] = useState(isRequiresAction);
   const [prevRequiresAction, setPrevRequiresAction] = useState(isRequiresAction);
@@ -500,12 +529,14 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
 
   return (
     <ToolFallbackRoot open={open} onOpenChange={setOpen}>
-      <ToolFallbackTrigger toolName={toolName} status={status} />
+      <ToolFallbackTrigger toolName={toolName} status={effectiveStatus} />
       <ToolFallbackContent>
-        <ToolFallbackError status={status} />
+        <ToolFallbackError status={effectiveStatus} />
         <ToolFallbackArgs argsText={argsText} className={cn(isCancelled && "opacity-60")} />
         {isRequiresAction && (
           <ToolFallbackApproval
+            toolName={toolName}
+            argsText={argsText}
             addResult={addResult}
             resume={resume}
             interrupt={interrupt}

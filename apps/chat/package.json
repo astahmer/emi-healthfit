@@ -2,9 +2,10 @@
   "name": "@emi/chat",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build && node scripts/copy-assets.mjs",
+    "build": "next build && serwist build && node scripts/copy-assets.mjs",
     "typecheck": "tsc --noEmit",
     "start": "next start",
     "test": "vitest run",
@@ -50,6 +51,8 @@
   },
   "devDependencies": {
     "@assistant-ui/next": "latest",
+    "@serwist/cli": "^9.5.11",
+    "@serwist/next": "^9.5.11",
     "@tailwindcss/postcss": "^4.3.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -59,9 +62,11 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",
+    "serwist": "^9.5.11",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

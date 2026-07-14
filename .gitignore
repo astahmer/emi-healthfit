@@ -3,3 +3,7 @@ data
 node_modules
 apps/api/assets
 dist
+
+# Serwist
+apps/chat/public/sw*.js
+apps/chat/public/swe-worker*.js
