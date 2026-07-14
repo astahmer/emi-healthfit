@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createMemory, deleteMemory, fetchMemories, type Memory } from "./memories";
@@ -12,17 +12,17 @@ export function MemoryPanel() {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     fetchMemories(search || undefined)
       .then(setMemories)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  };
+  }, [search]);
 
   useEffect(() => {
     load();
-  }, [search]);
+  }, [load]);
 
   const handleAdd = async () => {
     if (draft.trim() === "") return;

@@ -97,9 +97,3 @@ export const setCachedMessages = async (
     await database.messages.where("threadId").equals(threadId).delete();
     await database.messages.bulkPut(cached);
   });
-
-export const getLastSyncTimestamp = async (): Promise<number | null> =>
-  safeDb(async (database) => {
-    const newest = await database.threads.orderBy("syncedAt").last();
-    return newest?.syncedAt ?? null;
-  });

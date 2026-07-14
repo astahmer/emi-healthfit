@@ -165,7 +165,7 @@ function ProxyRuntime({
             metadata: options.requestMetadata,
             config: {
               provider: settings.provider,
-              apiKey: settings.apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "",
+              apiKey: settings.apiKey || "",
               baseUrl: settings.baseUrl || undefined,
               model: sessionConfig.model,
             },

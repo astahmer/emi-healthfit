@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { fetchNotes, type Note } from "./notes";
 
 interface NotesContextValue {
@@ -29,11 +37,12 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     load();
   }, [load]);
 
-  return (
-    <NotesContext.Provider value={{ notes, loading, error, reload: load }}>
-      {children}
-    </NotesContext.Provider>
+  const value = useMemo(
+    () => ({ notes, loading, error, reload: load }),
+    [notes, loading, error, load],
   );
+
+  return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
 };
 
 export const useNotes = (): NotesContextValue => {

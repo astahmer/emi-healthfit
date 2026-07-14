@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -182,11 +183,6 @@ export const SessionSidebar = () => {
     router.push("/chat");
   };
 
-  const handleSelect = (threadId: string) => {
-    setOpenMobile(false);
-    router.push(`/chat?id=${threadId}`);
-  };
-
   const handleDelete = async (id: string) => {
     await deleteMutation.mutateAsync(id);
     if (activeId === id) router.push("/chat");
@@ -235,10 +231,10 @@ export const SessionSidebar = () => {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild onClick={handleNew} tooltip="New chat">
-                <a href="/chat">
+                <Link href="/chat">
                   <PlusIcon />
                   <span>New chat</span>
-                </a>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -249,6 +245,7 @@ export const SessionSidebar = () => {
               placeholder="Search by title or message…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search sessions"
             />
           </div>
           {isLoading && threads.length === 0 && (
@@ -288,13 +285,7 @@ export const SessionSidebar = () => {
                           isActive={activeId === thread.id}
                           tooltip={thread.title ?? "New chat"}
                         >
-                          <a
-                            href={`/chat?id=${thread.id}`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleSelect(thread.id);
-                            }}
-                          >
+                          <Link href={`/chat?id=${thread.id}`} onClick={() => setOpenMobile(false)}>
                             <MessageSquareIcon />
                             <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
                               <span className="flex-1 truncate">{thread.title ?? "New chat"}</span>
@@ -312,7 +303,7 @@ export const SessionSidebar = () => {
                                 </TooltipContent>
                               </Tooltip>
                             </div>
-                          </a>
+                          </Link>
                         </SidebarMenuButton>
                       )}
 
@@ -377,6 +368,7 @@ export const SessionSidebar = () => {
             type="button"
             onClick={() => void refetch()}
             disabled={isFetching}
+            aria-label="Sync sessions"
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             <RefreshCwIcon className={isFetching ? "h-3 w-3 animate-spin" : "h-3 w-3"} />

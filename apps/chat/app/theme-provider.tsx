@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type Theme = "light" | "dark";
 
@@ -38,7 +38,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     setTheme(initial);
     applyTheme(initial);
     setMounted(true);
+  }, []);
 
+  useEffect(() => {
     const listener = (event: MediaQueryListEvent) => {
       if (localStorage.getItem(STORAGE_KEY) === null) {
         const next = event.matches ? "dark" : "light";
@@ -47,9 +49,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", listener);
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    mediaQuery.addEventListener("change", listener);
     return () => {
-      window.matchMedia("(prefers-color-scheme: dark)").removeEventListener("change", listener);
+      mediaQuery.removeEventListener("change", listener);
     };
   }, []);
 
@@ -63,7 +66,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
 
-  return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
+  const value = useMemo(() => ({ theme, toggleTheme }), [theme]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
 
 export const useTheme = (): ThemeContextValue => useContext(ThemeContext);

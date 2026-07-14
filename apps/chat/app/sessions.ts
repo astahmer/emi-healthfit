@@ -60,10 +60,6 @@ export const fetchThreads = async (search?: string): Promise<Thread[]> => {
   return data.threads;
 };
 
-export const loadCachedThreads = async (search?: string): Promise<Thread[]> => {
-  return getCachedThreads(search);
-};
-
 export const syncThreads = async (search?: string): Promise<Thread[]> => {
   const threads = await fetchThreads(search);
   await setCachedThreads(threads);

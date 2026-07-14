@@ -127,7 +127,10 @@ const Table: FC<{ headers: string[]; rows: React.ReactNode[][] }> = ({ headers, 
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={index} className="border-b border-border/50 last:border-0">
+            <tr
+              key={`row-${index}-${String(row[0])}`}
+              className="border-b border-border/50 last:border-0"
+            >
               {row.map((cell, cellIndex) => (
                 <td key={cellIndex} className="py-1.5 pr-3">
                   {cell}
@@ -250,7 +253,10 @@ const WebSearchCitations: FC<{ citations: Citation[] }> = ({ citations }) => {
   return (
     <div className="flex flex-col gap-2">
       {citations.map((citation, index) => (
-        <div key={index} className="rounded-lg border p-3">
+        <div
+          key={`citation-${index}-${citation.url ?? citation.title ?? ""}`}
+          className="rounded-lg border p-3"
+        >
           {citation.title !== undefined && (
             <p className="font-medium text-sm">
               {citation.url !== undefined ? (

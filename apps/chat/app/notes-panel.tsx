@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createNote, deleteNote, fetchNotes, updateNote, type Note } from "./notes";
@@ -14,17 +14,17 @@ export function NotesPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     fetchNotes(query || undefined)
       .then(setNotes)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  };
+  }, [query]);
 
   useEffect(() => {
     load();
-  }, [query]);
+  }, [load]);
 
   const handleAdd = async () => {
     if (draft.trim() === "") return;

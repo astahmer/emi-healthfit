@@ -31,8 +31,11 @@ export function SettingsPanel() {
 
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium">Provider</label>
+          <label htmlFor="provider" className="text-sm font-medium">
+            Provider
+          </label>
           <select
+            id="provider"
             value={settings.provider}
             onChange={(e) => update({ provider: e.target.value as "openai" })}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -42,8 +45,11 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Mode</label>
+          <label htmlFor="mode" className="text-sm font-medium">
+            Mode
+          </label>
           <select
+            id="mode"
             value={settings.mode}
             onChange={(e) => update({ mode: e.target.value as "proxy" | "direct" })}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -58,8 +64,11 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Base URL</label>
+          <label htmlFor="base-url" className="text-sm font-medium">
+            Base URL
+          </label>
           <input
+            id="base-url"
             type="text"
             value={settings.baseUrl}
             onChange={(e) => update({ baseUrl: e.target.value })}
@@ -73,8 +82,11 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">API Key</label>
+          <label htmlFor="api-key" className="text-sm font-medium">
+            API Key
+          </label>
           <input
+            id="api-key"
             type="password"
             value={settings.apiKey}
             onChange={(e) => update({ apiKey: e.target.value })}
@@ -88,8 +100,11 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Model</label>
+          <label htmlFor="model" className="text-sm font-medium">
+            Model
+          </label>
           <select
+            id="model"
             value={settings.model}
             onChange={(e) => update({ model: e.target.value })}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -103,8 +118,11 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">System prompt</label>
+          <label htmlFor="system-prompt" className="text-sm font-medium">
+            System prompt
+          </label>
           <textarea
+            id="system-prompt"
             value={settings.systemPrompt}
             onChange={(e) => update({ systemPrompt: e.target.value })}
             rows={4}

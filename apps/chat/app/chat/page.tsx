@@ -46,16 +46,15 @@ function ChatPageInner() {
 
   const savedModelRef = useRef<string | null>(null);
 
-  const [sidebarWidth, setSidebarWidthState] = useState<number>(() => {
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     if (typeof window === "undefined") return 16;
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return stored ? Number.parseFloat(stored) : 16;
   });
 
-  const setSidebarWidth = useCallback((width: number) => {
-    setSidebarWidthState(width);
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
-  }, []);
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
 
   const {
     data: sessionData,
@@ -163,6 +162,7 @@ function ChatPageInner() {
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-destructive">{error.message}</p>
           <button
+            type="button"
             onClick={() => void refetch()}
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
@@ -208,6 +208,7 @@ function ChatPageInner() {
                               if (e.key === "Escape") cancelRename();
                             }}
                             autoFocus
+                            aria-label="Session title"
                             className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm outline-none"
                           />
                           <button
