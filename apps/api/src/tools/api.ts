@@ -122,9 +122,13 @@ const SearchMemories = Tool.make("search_memories", {
   failure: Schema.Unknown,
 });
 
-const GetThreads = Tool.make("get_threads", {
+const GetThreads = Tool.dynamic("get_threads", {
   description: "List the side threads in the current conversation.",
-  parameters: Schema.Struct({}),
+  parameters: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
   success: Schema.Unknown,
   failure: Schema.Unknown,
 });
@@ -383,11 +387,17 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   });
 });
 
-export const tools: ToolDefinition[] = Object.values(FitnessToolkit.tools).map((tool) => ({
-  name: tool.name,
-  description: Tool.getDescription(tool) ?? "",
-  parameters: Tool.getJsonSchema(tool) as JSONSchema7,
-}));
+export const tools: ToolDefinition[] = Object.values(FitnessToolkit.tools).map((tool) => {
+  const parameters: JSONSchema7 = Tool.getJsonSchema(tool);
+  if (parameters.type !== "object") {
+    throw new Error(`Tool '${tool.name}' parameters must use a root object JSON Schema.`);
+  }
+  return {
+    name: tool.name,
+    description: Tool.getDescription(tool) ?? "",
+    parameters,
+  };
+});
 
 export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   db,

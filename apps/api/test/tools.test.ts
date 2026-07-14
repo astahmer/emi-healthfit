@@ -55,4 +55,11 @@ describe("conversation thread tools", () => {
       [],
     );
   });
+
+  it("exposes provider-compatible object schemas for every tool", () => {
+    for (const tool of tools) {
+      assert.strictEqual(tool.parameters.type, "object", tool.name);
+      assert.ok(!("anyOf" in tool.parameters), tool.name);
+    }
+  });
 });
