@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, type CSSProperties } from "react";
+import { Suspense, useEffect, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -12,7 +12,7 @@ import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
-import type { MessageWithUsage } from "../sessions";
+import type { MessageWithUsage, Thread as SessionThread } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { UsageProvider } from "../usage-context";
@@ -22,6 +22,7 @@ import { useConversationMachine } from "./use-conversation-machine";
 import { composerConfigMachine } from "./composer-config-machine";
 import type { MessageNode } from "./conversation-machine";
 import { getConversationViewMessages } from "./conversation-tree";
+import { ThreadNavigation } from "./thread-navigation";
 
 const HEADER_HEIGHT = 56;
 type RuntimeMessage = MessageNode & { role: UIMessage["role"] };
@@ -85,12 +86,6 @@ function ChatPageInner() {
   const focusedThread = conversationState.context.threads.find(
     (thread) => thread.id === conversationState.context.focusedThreadId,
   );
-  const visibleThreads = conversationState.context.threads.filter(
-    (thread) => thread.status !== "discarded",
-  );
-  const discardedThreads = conversationState.context.threads.filter(
-    (thread) => thread.status === "discarded",
-  );
   const initialMessages = historyMatchesSelection
     ? getConversationViewMessages({
         messages: conversationState.context.messages,
@@ -103,6 +98,15 @@ function ChatPageInner() {
 
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);
+
+  useEffect(() => {
+    if (conversation === null) return;
+    queryClient.setQueriesData<SessionThread[]>({ queryKey: ["threads"] }, (threads) =>
+      threads?.map((thread) =>
+        thread.id === conversation.id ? { ...thread, title: conversation.title } : thread,
+      ),
+    );
+  }, [conversation, queryClient]);
 
   return (
     <SidebarProvider
@@ -186,47 +190,6 @@ function ChatPageInner() {
                         <span className="flex-1 truncate px-2 text-sm font-medium">
                           {conversation.title ?? "New chat"}
                         </span>
-                        {visibleThreads.length > 0 && (
-                          <select
-                            aria-label="Focused thread"
-                            value={conversationState.context.focusedThreadId ?? ""}
-                            onChange={(event) =>
-                              sendConversation({
-                                type: "thread.focus",
-                                threadId: event.target.value === "" ? null : event.target.value,
-                              })
-                            }
-                            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-                          >
-                            <option value="">Main thread</option>
-                            {visibleThreads.map((thread, index) => (
-                              <option key={thread.id} value={thread.id}>
-                                {thread.title ?? `Thread ${index + 1}`}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {discardedThreads.length > 0 && (
-                          <select
-                            aria-label="Restore discarded thread"
-                            value=""
-                            onChange={(event) => {
-                              if (event.target.value === "") return;
-                              sendConversation({
-                                type: "thread.restore",
-                                threadId: event.target.value,
-                              });
-                            }}
-                            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
-                          >
-                            <option value="">Restore thread…</option>
-                            {discardedThreads.map((thread, index) => (
-                              <option key={thread.id} value={thread.id}>
-                                {thread.title ?? `Thread ${index + 1}`}
-                              </option>
-                            ))}
-                          </select>
-                        )}
                         <button
                           type="button"
                           onClick={() => sendConversation({ type: "conversation.rename.start" })}
@@ -254,11 +217,50 @@ function ChatPageInner() {
                   )}
                 </div>
               </div>
+              {activeConversationId !== undefined && !configState.context.temporary && (
+                <ThreadNavigation
+                  threads={conversationState.context.threads}
+                  messages={conversationState.context.messages}
+                  focusedThreadId={conversationState.context.focusedThreadId}
+                  searchQuery={conversationState.context.searchQuery}
+                  searchResults={conversationState.context.searchResults}
+                  onFocus={(threadId) => sendConversation({ type: "thread.focus", threadId })}
+                  onSearch={(query) => sendConversation({ type: "search.query", query })}
+                  onRename={(threadId, title) =>
+                    sendConversation({ type: "thread.rename", threadId, title })
+                  }
+                  onPin={(threadId, pinned) =>
+                    sendConversation({ type: "thread.pin", threadId, pinned })
+                  }
+                  onDiscard={(threadId) => sendConversation({ type: "thread.discard", threadId })}
+                  onRestore={(threadId) => sendConversation({ type: "thread.restore", threadId })}
+                  onSummarize={(threadId) =>
+                    sendConversation({ type: "thread.summarize", threadId })
+                  }
+                />
+              )}
               <div className="flex-1 overflow-hidden">
                 <Thread
                   onForkMessage={(messageId) =>
                     sendConversation({ type: "thread.fork", anchorMessageId: messageId })
                   }
+                  onReferenceMessage={(messageId) => {
+                    const referencedThread = conversationState.context.threads.find((thread) =>
+                      thread.messageIds.includes(messageId),
+                    );
+                    sendConversation({
+                      type: "thread.focus",
+                      threadId: referencedThread?.id ?? null,
+                    });
+                    requestAnimationFrame(() =>
+                      requestAnimationFrame(() =>
+                        document.getElementById(`message-${messageId}`)?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        }),
+                      ),
+                    );
+                  }}
                   composerControls={{
                     model: configState.context.model,
                     onModelChange: (model) => {

@@ -54,7 +54,7 @@ export const getConversationViewMessages = ({
   );
 };
 
-const getMessageText = (message: MessageNode): string =>
+export const getMessageText = (message: MessageNode): string =>
   message.parts
     .filter(
       (part): part is { type: "text"; text: string } =>
