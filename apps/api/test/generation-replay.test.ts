@@ -63,4 +63,24 @@ describe("createGenerationReplayStream", () => {
 
     assert.deepStrictEqual(output, [{ type: "error", errorText: "provider unavailable" }]);
   });
+
+  it("reports a generation abandoned by a terminated Worker", async () => {
+    let reads = 0;
+    const output = await readAll(
+      createGenerationReplayStream({
+        generationId: "generation",
+        getChunks: () => Effect.succeed([]),
+        getGeneration: () => {
+          reads += 1;
+          return Effect.succeed(
+            reads === 1 ? generation("running") : generation("failed", "Generation timed out"),
+          );
+        },
+        poll: Effect.void,
+      }),
+    );
+
+    assert.deepStrictEqual(output, [{ type: "error", errorText: "Generation timed out" }]);
+    assert.strictEqual(reads, 2);
+  });
 });

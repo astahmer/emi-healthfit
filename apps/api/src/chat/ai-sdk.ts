@@ -94,6 +94,13 @@ export const createChatStream = async ({
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
     stopWhen: isLoopFinished(),
     onChunk,
+    onError: ({ error }) =>
+      console.log(
+        JSON.stringify({
+          event: "chat.provider.failure",
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      ),
     onStepFinish: (event) => {
       console.log(
         JSON.stringify({

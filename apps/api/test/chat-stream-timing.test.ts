@@ -48,6 +48,11 @@ describe("chat stream timing", () => {
   const server = createServer((request, response) => {
     request.resume();
     request.on("end", () => {
+      if (request.url?.includes("/failure/") === true) {
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: { message: "provider unavailable" } }));
+        return;
+      }
       response.writeHead(200, {
         "cache-control": "no-cache, no-transform",
         "content-type": "text/event-stream",
@@ -89,7 +94,7 @@ describe("chat stream timing", () => {
     );
   });
 
-  const makeResult = () =>
+  const makeResult = (providerBaseUrl = baseUrl) =>
     createChatStream({
       request: {
         messages: [{ role: "user", parts: [{ type: "text", text: "probe" }] }],
@@ -97,7 +102,7 @@ describe("chat stream timing", () => {
         config: {
           provider: "openai",
           apiKey: "test-key",
-          baseUrl,
+          baseUrl: providerBaseUrl,
           model: "test-model",
         },
       },
@@ -157,5 +162,18 @@ describe("chat stream timing", () => {
     await persistence;
 
     assert.deepStrictEqual(persistedText, ["one", " two", " three"]);
+  });
+
+  it("surfaces provider failures as terminal stream errors", async () => {
+    const result = await makeResult(baseUrl.replace("/v1", "/failure/v1"));
+    const errors: string[] = [];
+
+    for await (const chunk of result.fullStream) {
+      if (chunk.type === "error") {
+        errors.push(chunk.error instanceof Error ? chunk.error.message : String(chunk.error));
+      }
+    }
+
+    assert.ok(errors.some((error) => error.includes("provider unavailable")));
   });
 });

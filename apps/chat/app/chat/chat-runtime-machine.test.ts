@@ -83,4 +83,49 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().matches("idle")).toBe(true);
     expect(actor.getSnapshot().matches("streaming")).toBe(false);
   });
+
+  it("rejects a concurrent submission while one generation is streaming", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("second", "user", "Second"),
+    });
+
+    expect(actor.getSnapshot().context.messages).toEqual([message("first", "user", "First")]);
+  });
+
+  it("keeps simultaneous browser tabs isolated", () => {
+    const firstTab = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    const secondTab = createActor(chatRuntimeMachine, { input: { sessionId: "two" } });
+    firstTab.start();
+    secondTab.start();
+    firstTab.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first-user", "user", "First"),
+    });
+    secondTab.send({
+      type: "submit.started",
+      sessionId: "two",
+      message: message("second-user", "user", "Second"),
+    });
+    firstTab.send({
+      type: "stream.updated",
+      message: message("first-assistant", "assistant", "One"),
+    });
+    secondTab.send({
+      type: "stream.updated",
+      message: message("second-assistant", "assistant", "Two"),
+    });
+
+    expect(firstTab.getSnapshot().context.messages.at(-1)?.id).toBe("first-assistant");
+    expect(secondTab.getSnapshot().context.messages.at(-1)?.id).toBe("second-assistant");
+  });
 });
