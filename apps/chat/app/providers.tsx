@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
-import { buildMemoryContext, useMemoryStore } from "./memory-store";
+import { buildNotesContext, useNotesStore } from "./notes-store";
 
 export interface ChatSessionConfig {
   model: string;
@@ -20,7 +20,7 @@ export interface ChatSessionConfig {
 
 function ToolRegistrar({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
-  const notes = useMemoryStore((state) => state.notes);
+  const notes = useNotesStore((state) => state.notes);
   const [definitions, setDefinitions] = useState<ToolDefinition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const aui = useAui();
@@ -35,9 +35,9 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
     const tools: Record<string, Tool<Record<string, unknown>, unknown>> = buildFrontendTools(
       definitions,
     );
-    const memoryContext = buildMemoryContext(notes);
+    const notesContext = buildNotesContext(notes);
     const system =
-      memoryContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${memoryContext}`;
+      notesContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${notesContext}`;
     return aui.modelContext().register({
       getModelContext: () => ({
         system,
@@ -103,10 +103,10 @@ function ProxyRuntime({
 
 function DirectRuntime({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
-  const notes = useMemoryStore((state) => state.notes);
-  const memoryContext = buildMemoryContext(notes);
+  const notes = useNotesStore((state) => state.notes);
+  const notesContext = buildNotesContext(notes);
   const system =
-    memoryContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${memoryContext}`;
+    notesContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${notesContext}`;
   const adapter = createDirectAdapter(settings, system);
   const runtime = useLocalRuntime(adapter);
 

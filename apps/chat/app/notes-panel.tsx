@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useMemoryStore } from "./memory-store";
+import { useNotesStore } from "./notes-store";
 
-export function MemoryPanel() {
-  const { notes, add, update, remove } = useMemoryStore();
+export function NotesPanel() {
+  const { notes, add, update, remove } = useNotesStore();
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export function MemoryPanel() {
 
   return (
     <div className="mx-auto max-w-xl p-6">
-      <h2 className="mb-4 text-xl font-semibold">Memory</h2>
+      <h2 className="mb-4 text-xl font-semibold">Notes</h2>
       <p className="text-muted-foreground mb-4 text-sm">
         Notes you save here are automatically added to the assistant&apos;s system prompt in every
         new chat.
@@ -56,7 +56,7 @@ export function MemoryPanel() {
       </div>
 
       <Input
-        placeholder="Search memory…"
+        placeholder="Search notes…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="mb-4"
@@ -120,7 +120,7 @@ export function MemoryPanel() {
       </ul>
 
       {filtered.length === 0 && (
-        <p className="text-muted-foreground text-sm">No memory notes yet.</p>
+        <p className="text-muted-foreground text-sm">No notes yet.</p>
       )}
     </div>
   );

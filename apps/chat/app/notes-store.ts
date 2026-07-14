@@ -1,31 +1,31 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export interface MemoryNote {
+export interface Note {
   id: string;
   content: string;
   createdAt: string;
   updatedAt: string;
 }
 
-interface MemoryState {
-  notes: MemoryNote[];
+interface NotesState {
+  notes: Note[];
   add: (content: string) => void;
   update: (id: string, content: string) => void;
   remove: (id: string) => void;
-  search: (query: string) => MemoryNote[];
+  search: (query: string) => Note[];
 }
 
 const nowIso = () => new Date().toISOString();
 
-export const useMemoryStore = create<MemoryState>()(
+export const useNotesStore = create<NotesState>()(
   persist(
     (set, get) => ({
       notes: [],
       add: (content) => {
         const trimmed = content.trim();
         if (trimmed === "") return;
-        const note: MemoryNote = {
+        const note: Note = {
           id: crypto.randomUUID(),
           content: trimmed,
           createdAt: nowIso(),
@@ -52,11 +52,11 @@ export const useMemoryStore = create<MemoryState>()(
         return notes.filter((note) => note.content.toLowerCase().includes(term));
       },
     }),
-    { name: "emi-chat-memory" },
+    { name: "emi-chat-notes" },
   ),
 );
 
-export const buildMemoryContext = (notes: MemoryNote[]): string => {
+export const buildNotesContext = (notes: Note[]): string => {
   if (notes.length === 0) return "";
   const lines = notes.map((note) => `- ${note.content}`).join("\n");
   return `The following notes are remembered from previous conversations:\n${lines}`;
