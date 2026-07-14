@@ -1,9 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
@@ -22,7 +23,7 @@ import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { DownloadIcon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
+import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
 
 const SIDEBAR_WIDTH_KEY = "emi-sidebar-width";
 const HEADER_HEIGHT = 56;
@@ -277,6 +278,7 @@ function ChatPageInner() {
                     }}
                   />
                 </div>
+                <MobileNewChatButton />
               </div>
             </ChatProviders>
           </UsageProvider>
@@ -285,6 +287,20 @@ function ChatPageInner() {
     </SidebarProvider>
   );
 }
+
+const MobileNewChatButton = () => {
+  const router = useRouter();
+  return (
+    <Button
+      size="icon"
+      className="fixed bottom-24 right-4 z-40 size-12 rounded-full shadow-lg md:hidden"
+      aria-label="New chat"
+      onClick={() => router.push("/chat")}
+    >
+      <PlusIcon className="size-5" />
+    </Button>
+  );
+};
 
 const ExportThreadButton = ({
   sessionId,
