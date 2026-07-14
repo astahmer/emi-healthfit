@@ -4,8 +4,10 @@ import { useEffect, useRef, type FormEvent } from "react";
 import type { UIMessage } from "ai";
 import {
   ArrowUpIcon,
+  BookmarkIcon,
   BrainIcon,
   CopyIcon,
+  DownloadIcon,
   GitBranchIcon,
   GlobeIcon,
   GhostIcon,
@@ -34,6 +36,9 @@ import { useChatRuntime } from "@/app/chat/chat-runtime";
 import type { ChatModel } from "@/app/models";
 import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
+import { useUsage } from "@/app/usage-context";
+import { chatModels } from "@/app/models";
+import { extractMemories } from "@/app/memories";
 
 export interface ComposerControls {
   model: string;
@@ -55,29 +60,29 @@ const suggestions = [
   "Show my progress on bench press over the last 8 weeks.",
 ];
 
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
 type MessagePartValue = UIMessage["parts"][number];
 
 const ToolPart = ({ part }: { part: MessagePartValue }) => {
-  const record = asRecord(part);
-  if (record === null || typeof record.type !== "string") return null;
-  const isTool =
-    record.type === "dynamic-tool" ||
-    record.type === "tool-call" ||
-    record.type.startsWith("tool-");
+  if (!isRecord(part)) return null;
+  const type = Reflect.get(part, "type");
+  if (typeof type !== "string") return null;
+  const isTool = type === "dynamic-tool" || type === "tool-call" || type.startsWith("tool-");
   if (!isTool) return null;
 
+  const configuredToolName = Reflect.get(part, "toolName");
   const toolName =
-    typeof record.toolName === "string"
-      ? record.toolName
-      : record.type.startsWith("tool-")
-        ? record.type.slice(5)
+    typeof configuredToolName === "string"
+      ? configuredToolName
+      : type.startsWith("tool-")
+        ? type.slice(5)
         : "tool";
-  const input = record.input ?? record.args ?? record.argsText;
-  const output = record.output ?? record.result;
-  const hasOutput = output !== undefined || record.state === "output-available";
+  const input =
+    Reflect.get(part, "input") ?? Reflect.get(part, "args") ?? Reflect.get(part, "argsText");
+  const output = Reflect.get(part, "output") ?? Reflect.get(part, "result");
+  const hasOutput = output !== undefined || Reflect.get(part, "state") === "output-available";
 
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
@@ -235,12 +240,28 @@ const ChatMessage = ({
   message,
   isStreaming,
   onFork,
+  onRemember,
 }: {
   message: UIMessage;
   isStreaming: boolean;
   onFork?: (messageId: string) => void;
+  onRemember: (message: UIMessage) => Promise<void>;
 }) => {
   const isUser = message.role === "user";
+  const usage = useUsage();
+  const metadata = usage.metaByMessageId.get(message.id);
+  const tokens = usage.usageByMessageId.get(message.id)?.totalTokens;
+  const model = chatModels.find((candidate) => candidate.id === metadata?.model);
+  const createdAt = metadata?.createdAt;
+  const exportMessage = () => {
+    const blob = new Blob([getText(message)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `message-${message.id}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
   return (
     <Message align={isUser ? "end" : "start"} aria-live={isStreaming ? "polite" : undefined}>
       <MessageContent>
@@ -250,12 +271,32 @@ const ChatMessage = ({
               <MessagePart key={`${message.id}-${index}`} part={part} />
             ))}
             {isStreaming && message.parts.length === 0 && (
-              <LoaderIcon className="size-4 animate-spin text-muted-foreground" />
+              <span
+                className="typing-dots text-muted-foreground"
+                role="status"
+                aria-label="Assistant is working"
+              >
+                <span />
+                <span />
+                <span />
+              </span>
             )}
           </BubbleContent>
         </Bubble>
         <MessageFooter className="gap-1">
           <span className="me-1">{isUser ? "You" : "Coach"}</span>
+          {model !== undefined && <span>{model.label}</span>}
+          {typeof tokens === "number" && tokens > 0 && (
+            <span>{tokens.toLocaleString()} tokens</span>
+          )}
+          {createdAt !== undefined && (
+            <time dateTime={createdAt} title={new Date(createdAt).toLocaleString()}>
+              {new Date(createdAt).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </time>
+          )}
           <button
             type="button"
             className="rounded p-1 hover:bg-muted hover:text-foreground"
@@ -273,6 +314,26 @@ const ChatMessage = ({
             >
               <GitBranchIcon className="size-3.5" />
             </button>
+          )}
+          {!isUser && !isStreaming && getText(message).trim() !== "" && (
+            <>
+              <button
+                type="button"
+                className="rounded p-1 hover:bg-muted hover:text-foreground"
+                aria-label="Remember message"
+                onClick={() => void onRemember(message)}
+              >
+                <BookmarkIcon className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                className="rounded p-1 hover:bg-muted hover:text-foreground"
+                aria-label="Export message as Markdown"
+                onClick={exportMessage}
+              >
+                <DownloadIcon className="size-3.5" />
+              </button>
+            </>
           )}
         </MessageFooter>
       </MessageContent>
@@ -301,9 +362,19 @@ export const Thread = ({
     event.preventDefault();
     void runtime.submit();
   };
+  const rememberMessage = async (message: UIMessage) => {
+    const text = getText(message).trim();
+    if (text === "") return;
+    await extractMemories(text, runtime.sessionId);
+  };
 
   return (
     <div className="flex h-full flex-col bg-background">
+      {runtime.isStreaming && (
+        <div className="sr-only" role="status" aria-live="polite">
+          Assistant is responding
+        </div>
+      )}
       <div
         ref={viewportRef}
         className="flex-1 overflow-y-auto"
@@ -343,6 +414,7 @@ export const Thread = ({
                   message.role === "assistant"
                 }
                 onFork={onForkMessage}
+                onRemember={rememberMessage}
               />
             ))
           )}
@@ -360,8 +432,11 @@ export const Thread = ({
               {runtime.files.map((file) => (
                 <div
                   key={file.url}
-                  className="flex max-w-48 items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs"
+                  className="flex max-w-56 items-center gap-2 rounded-md border bg-background p-1 text-xs"
                 >
+                  {file.mediaType.startsWith("image/") && (
+                    <img src={file.url} alt="" className="size-10 rounded object-cover" />
+                  )}
                   <span className="truncate">{file.filename ?? "Attachment"}</span>
                   <button
                     type="button"
