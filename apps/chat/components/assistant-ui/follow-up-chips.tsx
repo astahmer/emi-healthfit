@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
 import { useEffect, useRef, useState } from "react";
+import { RefreshCwIcon } from "lucide-react";
 
 interface TextPart {
   type: "text";
@@ -46,6 +47,7 @@ export const FollowUpChips = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [regenerateKey, setRegenerateKey] = useState(0);
   const fetchedRef = useRef<Set<string>>(new Set());
 
   const isLastAssistant = (() => {
@@ -61,33 +63,32 @@ export const FollowUpChips = () => {
     const assistantText = getMessageText(message).trim();
     if (assistantText === "") return;
 
-    const cached = suggestionCache.get(message.id);
-    if (cached !== undefined) {
-      setSuggestions(cached);
-      setLoading(false);
-      setError(null);
-      return;
+    const skipCache = regenerateKey > 0;
+    if (!skipCache) {
+      const cached = suggestionCache.get(message.id);
+      if (cached !== undefined) {
+        setSuggestions(cached);
+        setLoading(false);
+        setError(null);
+        return;
+      }
     }
 
-    if (fetchedRef.current.has(message.id)) return;
+    if (fetchedRef.current.has(message.id) && !skipCache) return;
     fetchedRef.current.add(message.id);
 
     setSuggestions([]);
+    setLoading(true);
     setError(null);
 
     const lastUserMessage = [...messages]
       .reverse()
       .find((threadMessage) => threadMessage.role === "user");
-
     const lastUserText =
       lastUserMessage !== undefined ? getMessageText(lastUserMessage) : undefined;
 
-    setLoading(true);
-    setError(null);
-
-    const existing = pendingFetches.get(message.id);
     const fetchPromise =
-      existing ??
+      pendingFetches.get(message.id) ??
       fetchSuggestions({
         messageId: message.id,
         lastAssistantText: assistantText,
@@ -100,32 +101,24 @@ export const FollowUpChips = () => {
         },
       });
 
-    if (existing === undefined) {
+    if (!pendingFetches.has(message.id)) {
       pendingFetches.set(message.id, fetchPromise);
     }
 
-    let cancelled = false;
-
     fetchPromise
       .then((items) => {
-        if (cancelled) return;
         suggestionCache.set(message.id, items);
         pendingFetches.delete(message.id);
         setSuggestions(items);
         setLoading(false);
       })
       .catch((err) => {
-        if (cancelled) return;
         pendingFetches.delete(message.id);
         fetchedRef.current.delete(message.id);
         setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isLastAssistant, isRunning, status, message, message.id, messages]);
+  }, [isLastAssistant, isRunning, status, message, messages, settings, regenerateKey]);
 
   if (!isLastAssistant || status !== "complete" || isRunning) return null;
 
@@ -136,21 +129,45 @@ export const FollowUpChips = () => {
     });
   };
 
-  if (loading || error !== null || suggestions.length === 0) return null;
+  const handleRegenerate = () => {
+    suggestionCache.delete(message.id);
+    fetchedRef.current.delete(message.id);
+    setRegenerateKey((key) => key + 1);
+  };
 
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
+    <div className="mt-2 flex flex-wrap items-center gap-2">
       {suggestions.map((text, index) => (
         <Button
-          key={`${text}-${index}`}
+          key={`${message.id}-${index}`}
           variant="outline"
           size="sm"
-          className="h-auto rounded-full px-3 py-1.5 text-xs font-normal"
+          className="h-auto max-w-[16rem] rounded-full px-3 py-1.5 text-xs font-normal"
           onClick={() => handleClick(text)}
         >
           {text}
         </Button>
       ))}
+      {loading && (
+        <>
+          <span className="bg-muted h-7 w-24 animate-pulse rounded-full" />
+          <span className="bg-muted h-7 w-32 animate-pulse rounded-full" />
+        </>
+      )}
+      {!loading && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Regenerate suggestions"
+          onClick={handleRegenerate}
+        >
+          <RefreshCwIcon />
+        </Button>
+      )}
+      {error !== null && (
+        <span className="text-destructive text-xs">{error}</span>
+      )}
     </div>
   );
 };
