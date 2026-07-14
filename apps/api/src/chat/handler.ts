@@ -28,19 +28,20 @@ const buildMessages = (userMessage: string, systemPrompt?: string) => {
   return messages;
 };
 
-const getLlmProvider = (env: Record<string, unknown>): {
+const getLlmProvider = (
+  env: Record<string, unknown>,
+): {
   provider: "workers-ai" | "openai";
   model: string;
   openaiApiKey?: Redacted.Redacted<string>;
 } => {
   const provider = env.LLM_PROVIDER === "openai" ? "openai" : "workers-ai";
-  const model = provider === "openai"
-    ? (env.OPENAI_MODEL as string | undefined) ?? "gpt-4o-mini"
-    : (env.WORKERS_AI_MODEL as string | undefined) ?? "@cf/meta/llama-3.1-8b-instruct";
+  const model =
+    provider === "openai"
+      ? ((env.OPENAI_MODEL as string | undefined) ?? "gpt-4o-mini")
+      : ((env.WORKERS_AI_MODEL as string | undefined) ?? "@cf/meta/llama-3.1-8b-instruct");
 
-  const openaiApiKey = env.OPENAI_API_KEY
-    ? Redacted.make(String(env.OPENAI_API_KEY))
-    : undefined;
+  const openaiApiKey = env.OPENAI_API_KEY ? Redacted.make(String(env.OPENAI_API_KEY)) : undefined;
 
   return { provider, model, openaiApiKey };
 };
@@ -57,9 +58,10 @@ export const handleChat = (
     const { provider, model, openaiApiKey } = getLlmProvider(env);
     const messages = buildMessages(prompt, request.systemPrompt);
 
-    const responseText = provider === "openai"
-      ? yield* callOpenAi(messages, model, openaiApiKey)
-      : yield* callWorkersAi(aiGateway, model, messages);
+    const responseText =
+      provider === "openai"
+        ? yield* callOpenAi(messages, model, openaiApiKey)
+        : yield* callWorkersAi(aiGateway, model, messages);
 
     return {
       response: responseText,
@@ -115,18 +117,22 @@ const callOpenAi = (
 
 export const extractTextFromLlmResponse = (json: unknown): string | null => {
   if (typeof json === "object" && json !== null) {
-    const obj = json as Record<string, unknown>;
-
-    if (Array.isArray(obj.choices) && obj.choices.length > 0) {
-      const first = obj.choices[0] as Record<string, unknown>;
-      if (typeof first.message === "object" && first.message !== null) {
-        const message = first.message as Record<string, unknown>;
-        if (typeof message.content === "string") return message.content;
+    const choices = Reflect.get(json, "choices");
+    if (Array.isArray(choices) && choices.length > 0) {
+      const first = choices[0];
+      if (typeof first === "object" && first !== null) {
+        const message = Reflect.get(first, "message");
+        if (typeof message === "object" && message !== null) {
+          const content = Reflect.get(message, "content");
+          if (typeof content === "string") return content;
+        }
+        const text = Reflect.get(first, "text");
+        if (typeof text === "string") return text;
       }
-      if (typeof first.text === "string") return first.text;
     }
 
-    if (typeof obj.response === "string") return obj.response;
+    const response = Reflect.get(json, "response");
+    if (typeof response === "string") return response;
   }
 
   return null;

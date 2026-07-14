@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { z } from "zod";
 
 interface DataSummary {
   dailyActivity: number;
@@ -14,9 +15,21 @@ interface DataSummary {
   lastHevySync: string | null;
 }
 
+const dataSummarySchema: z.ZodType<DataSummary & { error?: string }> = z.object({
+  dailyActivity: z.number(),
+  healthWorkouts: z.number(),
+  hevySessions: z.number(),
+  hevySets: z.number(),
+  sleepSessions: z.number(),
+  bodyMetrics: z.number(),
+  lastHealthSync: z.string().nullable(),
+  lastHevySync: z.string().nullable(),
+  error: z.string().optional(),
+});
+
 const fetchSummary = async (): Promise<DataSummary> => {
   const res = await fetch(`${window.location.origin}/api/summary`);
-  const data = (await res.json()) as DataSummary & { error?: string };
+  const data = dataSummarySchema.parse(await res.json());
   if (!res.ok) throw new Error(data.error || "Failed to load summary.");
   return data;
 };

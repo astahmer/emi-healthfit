@@ -1,10 +1,24 @@
 import { assign, fromPromise, setup } from "xstate";
+import { z } from "zod";
 
 export interface UploadResult {
   error?: string;
   health?: { daily: number; workouts: number; sleep: number; body: number };
   hevy?: { sessions: number; sets: number };
 }
+
+const uploadResultSchema: z.ZodType<UploadResult> = z.object({
+  error: z.string().optional(),
+  health: z
+    .object({
+      daily: z.number(),
+      workouts: z.number(),
+      sleep: z.number(),
+      body: z.number(),
+    })
+    .optional(),
+  hevy: z.object({ sessions: z.number(), sets: z.number() }).optional(),
+});
 
 export interface UploadContext {
   healthFile: File | null;
@@ -31,7 +45,7 @@ const uploadFiles = async (
     method: "POST",
     body: form,
   });
-  const json = (await res.json().catch(() => ({}))) as UploadResult;
+  const json = uploadResultSchema.parse(await res.json().catch(() => ({})));
 
   if (!res.ok) throw new Error(json.error || "Upload failed.");
   return json;

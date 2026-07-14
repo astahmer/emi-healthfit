@@ -89,7 +89,8 @@ const isExerciseProgress = (value: unknown): value is ExerciseProgress =>
   typeof value === "object" &&
   value !== null &&
   "exercise_title" in value &&
-  Array.isArray((value as ExerciseProgress).workouts);
+  "workouts" in value &&
+  Array.isArray(value.workouts);
 
 const isRecoveryResult = (value: unknown): value is RecoveryResult =>
   typeof value === "object" && value !== null && ("label" in value || "explanation" in value);
@@ -97,15 +98,17 @@ const isRecoveryResult = (value: unknown): value is RecoveryResult =>
 const getCitations = (value: unknown): Citation[] | undefined => {
   if (typeof value !== "object" || value === null) return undefined;
 
-  const obj = value as Record<string, unknown>;
-
   for (const key of ["results", "sources", "citations"]) {
-    const candidate = obj[key];
+    const candidate = Reflect.get(value, key);
     if (
       Array.isArray(candidate) &&
       candidate.every((item) => typeof item === "object" && item !== null)
     ) {
-      return candidate as Citation[];
+      return candidate.map((item) => ({
+        title: "title" in item && typeof item.title === "string" ? item.title : undefined,
+        url: "url" in item && typeof item.url === "string" ? item.url : undefined,
+        content: "content" in item && typeof item.content === "string" ? item.content : undefined,
+      }));
     }
   }
 
@@ -314,7 +317,7 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, c
     parsed !== null &&
     "spec" in parsed
   ) {
-    const spec = (parsed as Record<string, unknown>).spec;
+    const spec = parsed.spec;
     return (
       <ErrorBoundary
         fallback={
@@ -328,7 +331,7 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, c
           </pre>
         }
       >
-        <GenUIRenderer spec={spec as never} />
+        <GenUIRenderer spec={spec} />
       </ErrorBoundary>
     );
   }

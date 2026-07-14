@@ -8,7 +8,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { safeValidateUIMessages, type UIMessage, type UIMessageChunk } from "ai";
-import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
+import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { buildAssistantParts } from "./chat/assistant-parts.ts";
@@ -107,12 +107,17 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const db = yield* Cloudflare.D1.QueryDatabase(DB);
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
     const aiGateway = yield* Cloudflare.AI.QueryGateway(AiGateway);
-    const env = (yield* yield* Cloudflare.CloudflareEnvironment) as Record<string, unknown>;
-
-    const assetsBinding = (env as Record<string, unknown>).ASSETS as
-      | { fetch: (req: Request) => Promise<Response> }
-      | undefined;
-    const assetsFetcher = assetsBinding?.fetch;
+    const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
+    const assetsBinding = env.ASSETS;
+    const assetsFetch =
+      typeof assetsBinding === "object" && assetsBinding !== null
+        ? Reflect.get(assetsBinding, "fetch")
+        : undefined;
+    const assetsFetcher =
+      typeof assetsFetch === "function"
+        ? (request: Request): Promise<Response> =>
+            Promise.resolve(Reflect.apply(assetsFetch, assetsBinding, [request]))
+        : undefined;
 
     const router = yield* HttpRouter.make;
     const cors = <E, R>(
@@ -254,9 +259,10 @@ const handleAssetRequest = ({
       return HttpServerResponse.text("Not Found", { status: 404 });
     }
 
+    const nativeRequest = yield* requestToWeb(request);
     const assetRequest = pathname.match(/^\/chat\/[^/]+\/?$/)
-      ? new Request(new URL("/chat/", url), request.source as Request)
-      : (request.source as Request);
+      ? new Request(new URL("/chat/", url), nativeRequest)
+      : nativeRequest;
     const response = yield* Effect.promise(() => assetsFetcher(assetRequest));
     return HttpServerResponse.fromWeb(response);
   });
@@ -267,14 +273,16 @@ const handleIngest = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const nativeRequest = request.source as Request;
+    const nativeRequest = yield* requestToWeb(request);
     const formData = yield* Effect.tryPromise({
       try: () => nativeRequest.formData(),
       catch: (error) => new Error(`Failed to read form data: ${error}`),
     });
 
-    const healthFile = formData.get("health_export") as File | null;
-    const hevyFile = formData.get("hevy_export") as File | null;
+    const healthEntry = formData.get("health_export");
+    const hevyEntry = formData.get("hevy_export");
+    const healthFile = healthEntry instanceof File ? healthEntry : null;
+    const hevyFile = hevyEntry instanceof File ? hevyEntry : null;
 
     if (healthFile === null && hevyFile === null) {
       return yield* HttpServerResponse.json(
@@ -341,7 +349,7 @@ const handleIngest = (
       hevy: hevySummary,
     });
   }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+    Effect.catch((error) => HttpServerResponse.json({ error: String(error) }, { status: 500 })),
   );
 
 const handleChatRoute = (
@@ -1036,10 +1044,10 @@ const getFirstUserText = (
         typeof part === "object" &&
         part !== null &&
         "type" in part &&
-        (part as Record<string, unknown>).type === "text" &&
+        part.type === "text" &&
         "text" in part
       ) {
-        const text = (part as Record<string, unknown>).text;
+        const text = part.text;
         if (typeof text === "string" && text.trim() !== "") return text.trim();
       }
     }
@@ -1058,10 +1066,10 @@ const getLastUserText = (
         typeof part === "object" &&
         part !== null &&
         "type" in part &&
-        (part as Record<string, unknown>).type === "text" &&
+        part.type === "text" &&
         "text" in part
       ) {
-        const text = (part as Record<string, unknown>).text;
+        const text = part.text;
         if (typeof text === "string" && text.trim() !== "") return text.trim();
       }
     }

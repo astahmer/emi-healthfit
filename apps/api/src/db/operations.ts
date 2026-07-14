@@ -866,7 +866,7 @@ interface ThreadRow {
   conversation_id: string;
   anchor_message_id: string;
   title: string | null;
-  status: string;
+  status: Thread["status"];
   pinned: number;
   created_at: string;
   updated_at: string;
@@ -877,7 +877,7 @@ const mapThreadRow = (row: ThreadRow): Thread => ({
   conversation_id: row.conversation_id,
   anchor_message_id: row.anchor_message_id,
   title: row.title,
-  status: row.status as Thread["status"],
+  status: row.status,
   pinned: row.pinned === 1,
   created_at: row.created_at,
   updated_at: row.updated_at,
