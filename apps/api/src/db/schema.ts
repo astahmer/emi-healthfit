@@ -218,6 +218,7 @@ export const chatGenerations = sqliteTable(
       table.status,
       table.created_at,
     ),
+    index("idx_chat_generations_retention").on(table.status, table.updated_at),
     uniqueIndex("idx_chat_generations_one_running")
       .on(table.conversation_id)
       .where(sql`status = 'running'`),

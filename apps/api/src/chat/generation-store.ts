@@ -81,12 +81,30 @@ export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(fu
 }: {
   db: QueryDatabaseClient;
 }) {
-  yield* db
+  const result = yield* db
     .prepare(
       "UPDATE chat_generations SET status = 'failed', error = 'Generation timed out', updated_at = ? WHERE status = 'running' AND datetime(updated_at) < datetime('now', '-10 minutes')",
     )
     .bind(nowIso())
     .run();
+  return result.meta.changes;
+});
+
+export const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(function* ({
+  db,
+  retentionDays = 7,
+}: {
+  db: QueryDatabaseClient;
+  retentionDays?: number;
+}) {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1_000).toISOString();
+  const result = yield* db
+    .prepare(
+      "DELETE FROM chat_generations WHERE status IN ('completed', 'failed') AND updated_at < ?",
+    )
+    .bind(cutoff)
+    .run();
+  return result.meta.changes;
 });
 
 export const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* ({

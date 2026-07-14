@@ -65,12 +65,43 @@ const consumeAssistantStream = async ({
 }): Promise<void> => {
   const controller = new AbortController();
   const cancel = () => controller.abort();
+  const streamStartedAt = performance.now();
+  let previousChunkAt = streamStartedAt;
+  let chunkCount = 0;
   cancelRef.current = cancel;
   try {
     await Effect.runPromise(
       Stream.fromAsyncIterable(readUIMessageStream({ stream, terminateOnError: true }), (error) =>
         error instanceof Error ? error : new Error(String(error)),
-      ).pipe(Stream.runForEach((message) => Effect.sync(() => onMessage(message)))),
+      ).pipe(
+        Stream.runForEach((message) =>
+          Effect.sync(() => {
+            const timestamp = performance.now();
+            console.info(
+              JSON.stringify({
+                event: "chat.browser.chunk",
+                boundary: "default-transport",
+                chunkIndex: chunkCount,
+                timeToFirstChunkMilliseconds:
+                  chunkCount === 0 ? Math.round(timestamp - streamStartedAt) : undefined,
+                interChunkLatencyMilliseconds:
+                  chunkCount === 0 ? undefined : Math.round(timestamp - previousChunkAt),
+              }),
+            );
+            onMessage(message);
+            console.info(
+              JSON.stringify({
+                event: "chat.browser.chunk",
+                boundary: "xstate-stream-updated",
+                chunkIndex: chunkCount,
+                dispatchLatencyMilliseconds: Math.round(performance.now() - timestamp),
+              }),
+            );
+            chunkCount += 1;
+            previousChunkAt = timestamp;
+          }),
+        ),
+      ),
       { signal: controller.signal },
     );
   } finally {
@@ -164,6 +195,13 @@ export const ChatRuntimeProvider = ({
     };
     void resume().catch((error) => {
       if (stateRef.current.context.sessionId !== sessionId) return;
+      console.info(
+        JSON.stringify({
+          event: "chat.browser.reconnect.failure",
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
       send({
         type: "stream.failed",
         error: error instanceof Error ? error : new Error(String(error)),
@@ -183,13 +221,11 @@ export const ChatRuntimeProvider = ({
         onSessionCreated?.(sessionId);
       }
 
+      const textParts: UIMessage["parts"] = content === "" ? [] : [{ type: "text", text: content }];
       const userMessage: UIMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        parts: [
-          ...(content === "" ? [] : [{ type: "text" as const, text: content }]),
-          ...stateRef.current.context.files,
-        ],
+        parts: [...textParts, ...stateRef.current.context.files],
       };
       send({ type: "submit.started", sessionId, message: userMessage });
       const operation = operationRef.current + 1;

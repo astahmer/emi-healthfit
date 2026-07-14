@@ -5,6 +5,7 @@ import {
   isLoopFinished,
   jsonSchema,
   type LanguageModelUsage,
+  type StreamTextOnChunkCallback,
   type ToolSet,
   type UIMessage,
 } from "ai";
@@ -64,6 +65,7 @@ export const createChatStream = async ({
   request,
   executeTool,
   onFinish,
+  onChunk,
 }: {
   request: ChatStreamRequest;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -72,6 +74,7 @@ export const createChatStream = async ({
     usage: LanguageModelUsage;
     response?: { messages: unknown[] };
   }) => void | Promise<void>;
+  onChunk?: StreamTextOnChunkCallback<ToolSet>;
 }) => {
   const openai = createOpenAI({
     apiKey: request.config.apiKey,
@@ -90,6 +93,7 @@ export const createChatStream = async ({
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
     stopWhen: isLoopFinished(),
+    onChunk,
     onStepFinish: (event) => {
       console.log(
         JSON.stringify({

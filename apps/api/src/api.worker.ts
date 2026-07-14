@@ -74,6 +74,7 @@ import { executeTool, tools as staticToolDefinitions } from "./tools/api.ts";
 import { TtlCache } from "./cache.ts";
 import {
   appendGenerationChunk,
+  cleanupGenerationHistory,
   createGeneration,
   expireStaleGenerations,
   finishGeneration,
@@ -425,12 +426,11 @@ const handleSuggestions = (
 
     return yield* HttpServerResponse.json({ suggestions });
   }).pipe(
-    Effect.catch((error) =>
-      HttpServerResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status: 500 },
-      ),
-    ),
+    Effect.catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(JSON.stringify({ event: "chat.request.failure", error: message }));
+      return HttpServerResponse.json({ error: message }, { status: 500 });
+    }),
   );
 
 const handleRecovery = (db: QueryDatabaseClient) =>
@@ -1052,6 +1052,7 @@ const handleAiSdkChat = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const requestStartedAt = performance.now();
     const text = yield* request.text;
     const raw = JSON.parse(text || "{}") as unknown;
     const parsed = Schema.decodeUnknownOption(ChatStreamRequestSchema)(raw);
@@ -1103,7 +1104,17 @@ const handleAiSdkChat = (
           : yield* createConversation(db);
 
     if (!isTemporary) {
-      yield* expireStaleGenerations({ db });
+      const abandonedGenerations = yield* expireStaleGenerations({ db });
+      const deletedGenerations = yield* cleanupGenerationHistory({ db });
+      if (abandonedGenerations > 0 || deletedGenerations > 0) {
+        console.log(
+          JSON.stringify({
+            event: "chat.generation.maintenance",
+            abandonedGenerations,
+            deletedGenerations,
+          }),
+        );
+      }
       const conversation = yield* getConversation(db, sessionId);
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
@@ -1198,8 +1209,9 @@ const handleAiSdkChat = (
 
     const services = yield* Effect.context<RuntimeContext>();
 
-    const executeToolWithServices = (name: string, args: Record<string, unknown>) =>
-      Effect.runPromiseWith(services)(
+    const executeToolWithServices = (name: string, args: Record<string, unknown>) => {
+      const toolStartedAt = performance.now();
+      return Effect.runPromiseWith(services)(
         executeTool({
           db,
           name,
@@ -1209,13 +1221,64 @@ const handleAiSdkChat = (
             Effect.promise(() =>
               generateThreadSummary(apiKey, chatRequest.config.baseUrl, messages),
             ),
-        }) as Effect.Effect<unknown, Error, RuntimeContext>,
+        }).pipe(
+          Effect.tap(() =>
+            Effect.sync(() =>
+              console.log(
+                JSON.stringify({
+                  event: "chat.tool.duration",
+                  sessionId,
+                  tool: name,
+                  durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                  status: "completed",
+                }),
+              ),
+            ),
+          ),
+          Effect.tapError((error) =>
+            Effect.sync(() =>
+              console.log(
+                JSON.stringify({
+                  event: "chat.tool.duration",
+                  sessionId,
+                  tool: name,
+                  durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                  status: "failed",
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              ),
+            ),
+          ),
+        ),
       );
+    };
+
+    let previousProviderChunkAt = requestStartedAt;
+    let providerChunkCount = 0;
 
     const result = yield* Effect.promise(() =>
       createChatStream({
         request: requestWithHistory,
         executeTool: executeToolWithServices,
+        onChunk: ({ chunk }) => {
+          const timestamp = performance.now();
+          console.log(
+            JSON.stringify({
+              event: "chat.provider.chunk",
+              sessionId,
+              chunkType: chunk.type,
+              chunkIndex: providerChunkCount,
+              timeToFirstChunkMilliseconds:
+                providerChunkCount === 0 ? Math.round(timestamp - requestStartedAt) : undefined,
+              interChunkLatencyMilliseconds:
+                providerChunkCount === 0
+                  ? undefined
+                  : Math.round(timestamp - previousProviderChunkAt),
+            }),
+          );
+          providerChunkCount += 1;
+          previousProviderChunkAt = timestamp;
+        },
         onFinish: async (event) => {
           await Effect.runPromiseWith(services)(
             Effect.gen(function* () {
@@ -1361,6 +1424,8 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
   stream: ReadableStream<UIMessageChunk>;
 }) {
   const streamError = yield* Ref.make<string | undefined>(undefined);
+  const persistenceStartedAt = performance.now();
+  const previousChunkAt = yield* Ref.make(persistenceStartedAt);
   const persist = Stream.fromReadableStream({
     evaluate: () => stream,
     onError: (error) => error,
@@ -1368,7 +1433,21 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
     Stream.zipWithIndex,
     Stream.runForEach(([chunk, sequence]) =>
       Effect.gen(function* () {
+        const timestamp = performance.now();
+        const previous = yield* Ref.get(previousChunkAt);
         yield* appendGenerationChunk({ db, generationId, sequence, chunk });
+        console.log(
+          JSON.stringify({
+            event: "chat.persistence.chunk",
+            generationId,
+            sequence,
+            timeToFirstChunkMilliseconds:
+              sequence === 0 ? Math.round(timestamp - persistenceStartedAt) : undefined,
+            interChunkLatencyMilliseconds:
+              sequence === 0 ? undefined : Math.round(timestamp - previous),
+          }),
+        );
+        yield* Ref.set(previousChunkAt, timestamp);
         if (chunk.type === "error") yield* Ref.set(streamError, chunk.errorText);
       }),
     ),
@@ -1377,11 +1456,17 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
   yield* persist.pipe(
     Effect.matchEffect({
       onFailure: (error) =>
-        finishGeneration({
-          db,
-          generationId,
-          status: "failed",
-          error: error instanceof Error ? error.message : String(error),
+        Effect.gen(function* () {
+          const message = error instanceof Error ? error.message : String(error);
+          console.log(
+            JSON.stringify({ event: "chat.generation.failure", generationId, error: message }),
+          );
+          yield* finishGeneration({
+            db,
+            generationId,
+            status: "failed",
+            error: message,
+          });
         }),
       onSuccess: () =>
         Ref.get(streamError).pipe(
@@ -1404,7 +1489,17 @@ const handleChatResume = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    yield* expireStaleGenerations({ db });
+    const abandonedGenerations = yield* expireStaleGenerations({ db });
+    const deletedGenerations = yield* cleanupGenerationHistory({ db });
+    console.log(
+      JSON.stringify({
+        event: "chat.generation.reconnect",
+        conversationId,
+        reconnectCount: 1,
+        abandonedGenerations,
+        deletedGenerations,
+      }),
+    );
     const generation = yield* getResumableGeneration({ db, conversationId });
     if (generation === null) {
       return HttpServerResponse.empty({ status: 204, headers: corsHeaders(request) });
