@@ -6,8 +6,10 @@ import type { UIMessageChunk } from "ai";
 import { buildAssistantParts } from "../src/chat/assistant-parts.ts";
 import { createChatStream } from "../src/chat/ai-sdk.ts";
 
-const toSse = (items: unknown[]): string =>
-  `${items.map((item) => `data: ${JSON.stringify(item)}\n\n`).join("")}data: [DONE]\n\n`;
+const toSseData = (items: unknown[]): string =>
+  items.map((item) => `data: ${JSON.stringify(item)}\n\n`).join("");
+
+const toSse = (items: unknown[]): string => `${toSseData(items)}data: [DONE]\n\n`;
 
 const chunk = (choices: unknown[], usage?: Record<string, number>) => ({
   id: crypto.randomUUID(),
@@ -32,8 +34,8 @@ describe("multi-step chat tool loop", () => {
       response.writeHead(200, { "content-type": "text/event-stream" });
 
       if (requestCount === 1) {
-        response.end(
-          toSse([
+        response.write(
+          toSseData([
             chunk([
               {
                 index: 0,
@@ -52,27 +54,38 @@ describe("multi-step chat tool loop", () => {
                 finish_reason: null,
               },
             ]),
-            chunk([{ index: 0, delta: {}, finish_reason: "tool_calls" }]),
-            chunk([], { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 }),
           ]),
+        );
+        setTimeout(
+          () =>
+            response.end(
+              toSse([
+                chunk([{ index: 0, delta: {}, finish_reason: "tool_calls" }]),
+                chunk([], { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 }),
+              ]),
+            ),
+          600,
         );
         return;
       }
 
-      response.write(
-        toSse([
-          chunk([
-            {
-              index: 0,
-              delta: { role: "assistant", content: "Your recovery looks good." },
-              finish_reason: null,
-            },
-          ]),
-          chunk([{ index: 0, delta: {}, finish_reason: "stop" }]),
-          chunk([], { prompt_tokens: 18, completion_tokens: 6, total_tokens: 24 }),
-        ]),
+      setTimeout(
+        () =>
+          response.end(
+            toSse([
+              chunk([
+                {
+                  index: 0,
+                  delta: { role: "assistant", content: "Your recovery looks good." },
+                  finish_reason: null,
+                },
+              ]),
+              chunk([{ index: 0, delta: {}, finish_reason: "stop" }]),
+              chunk([], { prompt_tokens: 18, completion_tokens: 6, total_tokens: 24 }),
+            ]),
+          ),
+        600,
       );
-      response.end();
     });
   });
   let baseUrl = "";
@@ -119,11 +132,35 @@ describe("multi-step chat tool loop", () => {
     });
 
     const chunks: UIMessageChunk[] = [];
-    for await (const item of result.toUIMessageStream()) chunks.push(item);
+    const startedAt = performance.now();
+    let firstToolArrival: number | undefined;
+    let finalTextArrival: number | undefined;
+    for await (const item of result.toUIMessageStream()) {
+      chunks.push(item);
+      if (item.type === "tool-input-start" && firstToolArrival === undefined) {
+        firstToolArrival = performance.now() - startedAt;
+      }
+      if (item.type === "text-delta" && finalTextArrival === undefined) {
+        finalTextArrival = performance.now() - startedAt;
+      }
+    }
 
     assert.strictEqual(requestCount, 2);
     assert.strictEqual(toolExecutions, 1);
     assert.ok(chunks.some((item) => item.type === "tool-output-available"));
+    assert.ok(firstToolArrival !== undefined && firstToolArrival < 500);
+    assert.ok(
+      finalTextArrival !== undefined &&
+        firstToolArrival !== undefined &&
+        finalTextArrival - firstToolArrival > 900,
+    );
+    console.log(
+      JSON.stringify({
+        event: "chat.stream.timing",
+        boundary: "tool-loop-ui-message-stream",
+        arrivalsMilliseconds: [firstToolArrival, finalTextArrival].map(Math.round),
+      }),
+    );
     assert.ok(
       chunks.some(
         (item) => item.type === "text-delta" && item.delta.includes("recovery looks good"),

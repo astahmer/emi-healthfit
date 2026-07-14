@@ -5,12 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import {
-  createUIMessageStreamResponse,
-  safeValidateUIMessages,
-  type UIMessage,
-  type UIMessageChunk,
-} from "ai";
+import { safeValidateUIMessages, type UIMessage, type UIMessageChunk } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { buildAssistantParts } from "./chat/assistant-parts.ts";
@@ -87,6 +82,7 @@ import {
   getRunningGeneration,
 } from "./chat/generation-store.ts";
 import { createGenerationReplayStream } from "./chat/generation-replay.ts";
+import { createChatStreamResponse } from "./chat/ui-message-stream-response.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -1304,9 +1300,12 @@ const handleAiSdkChat = (
       );
     }
 
-    const response = createUIMessageStreamResponse({
+    const response = createChatStreamResponse({
       stream: responseStream,
-      headers: { "x-thread-id": sessionId, "x-generation-id": generationId },
+      headers: {
+        "x-thread-id": sessionId,
+        "x-generation-id": generationId,
+      },
     });
 
     const headers = new Headers(response.headers);
@@ -1391,7 +1390,7 @@ const handleChatResume = (
     const services = yield* Effect.context<RuntimeContext>();
     const runEffect = <A>(effect: Effect.Effect<A, unknown, RuntimeContext>) =>
       Effect.runPromiseWith(services)(effect);
-    const response = createUIMessageStreamResponse({
+    const response = createChatStreamResponse({
       stream: createGenerationReplayStream({
         generationId: generation.id,
         getChunks: ({ generationId, afterSequence }) =>
