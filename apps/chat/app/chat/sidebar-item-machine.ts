@@ -16,6 +16,7 @@ export interface SidebarItemContext {
 }
 
 export type SidebarItemEvent =
+  | { type: "thread.changed"; thread: Thread }
   | { type: "rename.start" }
   | { type: "rename.change"; value: string }
   | { type: "rename.submit" }
@@ -79,6 +80,14 @@ export const sidebarItemMachine = setup({
     onRenamed: input.onRenamed,
     onDeleted: input.onDeleted,
   }),
+  on: {
+    "thread.changed": {
+      actions: assign({
+        thread: ({ event }) => event.thread,
+        draft: ({ event }) => event.thread.title ?? "",
+      }),
+    },
+  },
   states: {
     idle: {
       on: {

@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import {
@@ -148,6 +148,10 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
   const title = state.context.thread.title ?? "New chat";
   const isRenaming = state.matches("renaming") || state.matches("submittingRename");
   const isDeleting = state.matches("confirmingDelete") || state.matches("deleting");
+
+  useEffect(() => {
+    send({ type: "thread.changed", thread });
+  }, [send, thread]);
 
   return (
     <>
@@ -356,7 +360,7 @@ export const SessionSidebar = () => {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent className="overscroll-contain pb-2">
           <div className="px-2 pt-2">
             <SidebarInput
               placeholder="Search by title or message…"
@@ -392,7 +396,7 @@ export const SessionSidebar = () => {
             </SidebarGroup>
           ))}
         </SidebarContent>
-        <SidebarFooter className="px-3 py-2">
+        <SidebarFooter className="shrink-0 border-t px-3 py-2">
           <button
             type="button"
             onClick={() => void refetch()}

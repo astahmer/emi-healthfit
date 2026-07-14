@@ -23,6 +23,17 @@ describe("sidebarItemMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("Squat Session");
   });
 
+  it("synchronizes a title changed outside the sidebar item", () => {
+    const thread = makeThread();
+    const actor = createActor(sidebarItemMachine, { input: { thread } });
+    actor.start();
+
+    actor.send({ type: "thread.changed", thread: { ...thread, title: "Updated in header" } });
+
+    expect(actor.getSnapshot().context.thread.title).toBe("Updated in header");
+    expect(actor.getSnapshot().context.draft).toBe("Updated in header");
+  });
+
   it("enters renaming and updates draft", () => {
     const thread = makeThread();
     const actor = createActor(sidebarItemMachine, { input: { thread } });
