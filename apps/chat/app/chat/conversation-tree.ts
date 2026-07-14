@@ -36,6 +36,24 @@ export const getThreadMessages = (messages: MessageNode[], thread: ThreadView): 
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 };
 
+export const getConversationViewMessages = ({
+  messages,
+  thread,
+}: {
+  messages: MessageNode[];
+  thread: ThreadView | undefined;
+}): MessageNode[] => {
+  if (thread === undefined) return getRootMessages(messages);
+
+  const anchor = messages.find((message) => message.id === thread.anchorMessageId);
+  const included = new Set(thread.messageIds);
+  return messages.filter(
+    (message) =>
+      included.has(message.id) ||
+      (message.parentId === null && anchor !== undefined && message.createdAt <= anchor.createdAt),
+  );
+};
+
 const getMessageText = (message: MessageNode): string =>
   message.parts
     .filter(

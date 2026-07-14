@@ -21,6 +21,7 @@ import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-rea
 import { useConversationMachine } from "./use-conversation-machine";
 import { composerConfigMachine } from "./composer-config-machine";
 import type { MessageNode } from "./conversation-machine";
+import { getConversationViewMessages } from "./conversation-tree";
 
 const HEADER_HEIGHT = 56;
 const RUNTIME_ROLES = new Set(["user", "assistant", "system"]);
@@ -85,7 +86,15 @@ function ChatPageInner() {
 
   const historyMatchesSelection = conversationState.context.conversationId === activeConversationId;
   const conversation = historyMatchesSelection ? conversationState.context.conversation : null;
-  const initialMessages = historyMatchesSelection ? conversationState.context.messages : [];
+  const focusedThread = conversationState.context.threads.find(
+    (thread) => thread.id === conversationState.context.focusedThreadId,
+  );
+  const initialMessages = historyMatchesSelection
+    ? getConversationViewMessages({
+        messages: conversationState.context.messages,
+        thread: focusedThread,
+      })
+    : [];
   const isLoading = conversationState.matches("loading");
   const loadError = conversationState.matches("error") ? conversationState.context.error : null;
   const isRenaming = conversationState.matches({ ready: "renamingConversation" });
@@ -175,6 +184,26 @@ function ChatPageInner() {
                         <span className="flex-1 truncate px-2 text-sm font-medium">
                           {conversation.title ?? "New chat"}
                         </span>
+                        {conversationState.context.threads.length > 0 && (
+                          <select
+                            aria-label="Focused thread"
+                            value={conversationState.context.focusedThreadId ?? ""}
+                            onChange={(event) =>
+                              sendConversation({
+                                type: "thread.focus",
+                                threadId: event.target.value === "" ? null : event.target.value,
+                              })
+                            }
+                            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
+                          >
+                            <option value="">Main thread</option>
+                            {conversationState.context.threads.map((thread, index) => (
+                              <option key={thread.id} value={thread.id}>
+                                {thread.title ?? `Thread ${index + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <button
                           type="button"
                           onClick={() => sendConversation({ type: "conversation.rename.start" })}

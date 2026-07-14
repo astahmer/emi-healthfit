@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MessageNode, ThreadView } from "./conversation-machine";
 import {
   getChildMessages,
+  getConversationViewMessages,
   getMessageAncestors,
   getMessagePath,
   getRootMessages,
@@ -81,6 +82,28 @@ describe("conversation-tree", () => {
     const b = makeMessage({ id: "b" });
     const thread = makeThread({ messageIds: ["b", "a"] });
     expect(getThreadMessages([a, b], thread)).toEqual([a, b]);
+  });
+
+  it("shows root context through the anchor and only the focused branch afterward", () => {
+    const rootBefore = makeMessage({ id: "root-before", createdAt: "2026-07-14T09:00:00.000Z" });
+    const anchor = makeMessage({ id: "anchor", createdAt: "2026-07-14T10:00:00.000Z" });
+    const unrelatedRoot = makeMessage({
+      id: "unrelated-root",
+      createdAt: "2026-07-14T11:00:00.000Z",
+    });
+    const branch = makeMessage({
+      id: "branch",
+      parentId: "anchor",
+      createdAt: "2026-07-14T12:00:00.000Z",
+    });
+    const thread = makeThread({ anchorMessageId: "anchor", messageIds: ["anchor", "branch"] });
+
+    expect(
+      getConversationViewMessages({
+        messages: [rootBefore, anchor, unrelatedRoot, branch],
+        thread,
+      }),
+    ).toEqual([rootBefore, anchor, branch]);
   });
 
   it("searches message text", () => {
