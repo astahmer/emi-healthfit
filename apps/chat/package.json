@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "start": "next start",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
@@ -47,6 +48,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@serwist/cli": "^9.5.11",
     "@serwist/next": "^9.5.11",
     "@tailwindcss/postcss": "^4.3.1",
