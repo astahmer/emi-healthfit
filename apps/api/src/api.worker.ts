@@ -13,9 +13,11 @@ import {
   createThread,
   type DataSummary,
   deleteMemory,
+  deleteNote,
   deleteThread,
   getDataSummary,
   getMemories,
+  getNotes,
   getSuggestionsById,
   getThread,
   getThreadMessages,
@@ -24,11 +26,14 @@ import {
   hashSuggestionsKey,
   insertHealthWorkouts,
   insertMemory,
+  insertNote,
   type QueryDatabaseClient,
   renameThread,
   saveSuggestions,
   saveThreadMessages,
   searchMemories,
+  searchNotes,
+  updateNote,
   updateSyncCursor,
   upsertBodyMetrics,
   upsertDailyActivity,
@@ -168,6 +173,22 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname.startsWith("/api/memories/") && request.method === "DELETE") {
           return yield* withCors(handleMemoryDelete(db, request), request);
+        }
+
+        if (url.pathname === "/api/notes" && request.method === "GET") {
+          return yield* withCors(handleNotesList(db, request), request);
+        }
+
+        if (url.pathname === "/api/notes" && request.method === "POST") {
+          return yield* withCors(handleNoteCreate(db, request), request);
+        }
+
+        if (url.pathname.startsWith("/api/notes/") && request.method === "PATCH") {
+          return yield* withCors(handleNoteUpdate(db, request), request);
+        }
+
+        if (url.pathname.startsWith("/api/notes/") && request.method === "DELETE") {
+          return yield* withCors(handleNoteDelete(db, request), request);
         }
 
         return HttpServerResponse.text("Not Found", { status: 404 });
@@ -510,6 +531,11 @@ const getMemoryIdFromPath = (pathname: string): string | undefined => {
   return match?.[1];
 };
 
+const getNoteIdFromPath = (pathname: string): string | undefined => {
+  const match = pathname.match(/^\/api\/notes\/([^/]+)$/);
+  return match?.[1];
+};
+
 const handleMemoriesList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
     const url = new URL(request.url, "http://localhost");
@@ -549,6 +575,62 @@ const handleMemoryDelete = (db: QueryDatabaseClient, request: HttpServerRequest)
       return yield* HttpServerResponse.json({ error: "Invalid memory id" }, { status: 400 });
     }
     yield* deleteMemory(db, id);
+    return yield* HttpServerResponse.json({ success: true });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleNotesList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const search = url.searchParams.get("search") ?? undefined;
+    const limit = Number(url.searchParams.get("limit") ?? "100");
+    const notes =
+      search !== undefined ? yield* searchNotes(db, search, limit) : yield* getNotes(db, limit);
+    return yield* HttpServerResponse.json({ notes });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleNoteCreate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const requestText = yield* request.text;
+    const body = JSON.parse(requestText || "{}") as { content?: string };
+    if (body.content === undefined || body.content.trim() === "") {
+      return yield* HttpServerResponse.json({ error: "content is required" }, { status: 400 });
+    }
+    const id = yield* insertNote(db, body.content);
+    return yield* HttpServerResponse.json({ id }, { status: id === null ? 400 : 201 });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleNoteUpdate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const id = getNoteIdFromPath(url.pathname);
+    if (id === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid note id" }, { status: 400 });
+    }
+    const requestText = yield* request.text;
+    const body = JSON.parse(requestText || "{}") as { content?: string };
+    if (body.content === undefined || body.content.trim() === "") {
+      return yield* HttpServerResponse.json({ error: "content is required" }, { status: 400 });
+    }
+    yield* updateNote(db, id, body.content);
+    return yield* HttpServerResponse.json({ success: true });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleNoteDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const id = getNoteIdFromPath(url.pathname);
+    if (id === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid note id" }, { status: 400 });
+    }
+    yield* deleteNote(db, id);
     return yield* HttpServerResponse.json({ success: true });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),

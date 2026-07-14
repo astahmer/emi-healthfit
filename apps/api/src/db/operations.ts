@@ -7,6 +7,7 @@ import type {
   HevySessionRow,
   HevySetRow,
   MemoryRow,
+  NoteRow,
   SleepSessionRow,
   SuggestionsRow,
 } from "./schema.ts";
@@ -809,4 +810,73 @@ export const getMemories = (db: QueryDatabaseClient, limit = 100) =>
 export const deleteMemory = (db: QueryDatabaseClient, id: string) =>
   Effect.gen(function* () {
     yield* db.prepare(`DELETE FROM memories WHERE id = ?`).bind(id).run();
+  });
+
+export const insertNote = (db: QueryDatabaseClient, content: string) =>
+  Effect.gen(function* () {
+    const trimmed = content.trim();
+    if (trimmed === "") return null;
+
+    const id = crypto.randomUUID();
+    const createdAt = nowIso();
+    yield* db
+      .prepare(`
+      INSERT INTO notes (id, content, created_at, updated_at)
+      VALUES (?, ?, ?, ?)
+    `)
+      .bind(id, trimmed, createdAt, createdAt)
+      .run();
+
+    return id;
+  });
+
+export const updateNote = (db: QueryDatabaseClient, id: string, content: string) =>
+  Effect.gen(function* () {
+    const trimmed = content.trim();
+    if (trimmed === "") return;
+
+    yield* db
+      .prepare(`
+      UPDATE notes SET content = ?, updated_at = ? WHERE id = ?
+    `)
+      .bind(trimmed, nowIso(), id)
+      .run();
+  });
+
+export const deleteNote = (db: QueryDatabaseClient, id: string) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`DELETE FROM notes WHERE id = ?`).bind(id).run();
+  });
+
+export const getNotes = (db: QueryDatabaseClient, limit = 100) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT id, content, created_at, updated_at
+      FROM notes
+      ORDER BY updated_at DESC
+      LIMIT ?
+    `)
+      .bind(limit)
+      .all<NoteRow>();
+    return result.results;
+  });
+
+export const searchNotes = (db: QueryDatabaseClient, query: string, limit = 10) =>
+  Effect.gen(function* () {
+    const term = query.trim();
+    if (term === "") return yield* getNotes(db, limit);
+
+    const pattern = `%${term.toLowerCase()}%`;
+    const result = yield* db
+      .prepare(`
+      SELECT id, content, created_at, updated_at
+      FROM notes
+      WHERE LOWER(content) LIKE ?
+      ORDER BY updated_at DESC
+      LIMIT ?
+    `)
+      .bind(pattern, limit)
+      .all<NoteRow>();
+    return result.results;
   });

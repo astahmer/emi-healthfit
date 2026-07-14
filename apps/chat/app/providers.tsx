@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
-import { buildNotesContext, useNotesStore } from "./notes-store";
+import { buildNotesContext } from "./notes";
+import { NotesProvider, useNotes } from "./notes-context";
 
 export interface ChatSessionConfig {
   model: string;
@@ -20,7 +21,7 @@ export interface ChatSessionConfig {
 
 function ToolRegistrar({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
-  const notes = useNotesStore((state) => state.notes);
+  const { notes } = useNotes();
   const [definitions, setDefinitions] = useState<ToolDefinition[]>([]);
   const [error, setError] = useState<string | null>(null);
   const aui = useAui();
@@ -103,7 +104,7 @@ function ProxyRuntime({
 
 function DirectRuntime({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
-  const notes = useNotesStore((state) => state.notes);
+  const { notes } = useNotes();
   const notesContext = buildNotesContext(notes);
   const system =
     notesContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${notesContext}`;
@@ -133,8 +134,10 @@ export function ChatProviders({
   children: ReactNode;
 }) {
   return (
-    <ChatRuntime sessionConfig={sessionConfig}>
-      <ToolRegistrar>{children}</ToolRegistrar>
-    </ChatRuntime>
+    <NotesProvider>
+      <ChatRuntime sessionConfig={sessionConfig}>
+        <ToolRegistrar>{children}</ToolRegistrar>
+      </ChatRuntime>
+    </NotesProvider>
   );
 }

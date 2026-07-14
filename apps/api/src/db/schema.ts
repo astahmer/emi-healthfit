@@ -76,3 +76,10 @@ export interface MemoryRow {
   thread_id: string | null;
   created_at: string;
 }
+
+export interface NoteRow {
+  id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}

@@ -9,12 +9,17 @@ import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
-import { fetchThreadMessages, type MessageWithUsage, type Thread as ChatThread } from "../sessions";
+import {
+  fetchThreadMessages,
+  renameThread,
+  type MessageWithUsage,
+  type Thread as ChatThread,
+} from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 
 const SIDEBAR_WIDTH_KEY = "emi-sidebar-width";
 const HEADER_HEIGHT = 65;
@@ -32,6 +37,8 @@ function ChatPageInner() {
   const [thread, setThread] = useState<ChatThread | null>(null);
   const [loading, setLoading] = useState(sessionId !== undefined);
   const [error, setError] = useState<string | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
 
   const savedModelRef = useRef<string | null>(null);
 
@@ -94,6 +101,31 @@ function ChatPageInner() {
     }
   }, [model, webSearch, canWebSearch]);
 
+  const startRename = () => {
+    setRenameDraft(thread?.title ?? "");
+    setIsRenaming(true);
+  };
+
+  const cancelRename = () => {
+    setIsRenaming(false);
+    setRenameDraft("");
+  };
+
+  const submitRename = async () => {
+    if (sessionId === undefined || renameDraft.trim() === "") {
+      cancelRename();
+      return;
+    }
+    const title = renameDraft.trim();
+    try {
+      await renameThread(sessionId, title);
+      setThread((prev) => (prev === null ? prev : { ...prev, title }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setIsRenaming(false);
+  };
+
   return (
     <SidebarProvider
       defaultWidth={sidebarWidth}
@@ -152,9 +184,56 @@ function ChatPageInner() {
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                   <SidebarTrigger />
                   {sessionId && thread !== null && (
-                    <span className="flex-1 truncate px-2 text-sm font-medium">
-                      {thread.title ?? "New chat"}
-                    </span>
+                    <>
+                      {isRenaming ? (
+                        <form
+                          className="flex flex-1 items-center gap-2 px-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void submitRename();
+                          }}
+                        >
+                          <input
+                            value={renameDraft}
+                            onChange={(e) => setRenameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") cancelRename();
+                            }}
+                            autoFocus
+                            className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm outline-none"
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-md p-1 hover:bg-muted"
+                            aria-label="Save title"
+                          >
+                            <CheckIcon className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelRename}
+                            className="rounded-md p-1 hover:bg-muted"
+                            aria-label="Cancel rename"
+                          >
+                            <XIcon className="size-4" />
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <span className="flex-1 truncate px-2 text-sm font-medium">
+                            {thread.title ?? "New chat"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={startRename}
+                            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            aria-label="Rename session"
+                          >
+                            <PencilIcon className="size-4" />
+                          </button>
+                        </>
+                      )}
+                    </>
                   )}
                   {sessionId && <ExportThreadButton sessionId={sessionId} className="ms-auto" />}
                 </div>

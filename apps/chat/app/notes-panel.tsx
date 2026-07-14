@@ -1,38 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useNotesStore } from "./notes-store";
+import { createNote, deleteNote, fetchNotes, updateNote, type Note } from "./notes";
 
 export function NotesPanel() {
-  const { notes, add, update, remove } = useNotesStore();
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
 
-  const filtered =
-    query.trim() === ""
-      ? notes
-      : notes.filter((note) => note.content.toLowerCase().includes(query.trim().toLowerCase()));
+  const load = () => {
+    setLoading(true);
+    fetchNotes(query || undefined)
+      .then(setNotes)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  };
 
-  const handleAdd = () => {
+  useEffect(() => {
+    load();
+  }, [query]);
+
+  const handleAdd = async () => {
     if (draft.trim() === "") return;
-    add(draft);
-    setDraft("");
+    try {
+      await createNote(draft.trim());
+      setDraft("");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
-  const startEdit = (id: string, content: string) => {
-    setEditingId(id);
-    setEditDraft(content);
+  const startEdit = (note: Note) => {
+    setEditingId(note.id);
+    setEditDraft(note.content);
   };
 
-  const submitEdit = () => {
-    if (editingId === null) return;
-    update(editingId, editDraft);
-    setEditingId(null);
-    setEditDraft("");
+  const submitEdit = async () => {
+    if (editingId === null || editDraft.trim() === "") return;
+    try {
+      await updateNote(editingId, editDraft.trim());
+      setEditingId(null);
+      setEditDraft("");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteNote(id);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -62,8 +90,11 @@ export function NotesPanel() {
         className="mb-4"
       />
 
+      {loading && <p className="text-muted-foreground text-sm">Loading…</p>}
+      {error !== null && <p className="text-destructive text-sm">{error}</p>}
+
       <ul className="space-y-2">
-        {filtered.map((note) => (
+        {notes.map((note) => (
           <li key={note.id} className="flex items-start gap-2 rounded-lg border p-3 text-sm">
             {editingId === note.id ? (
               <div className="flex flex-1 gap-2">
@@ -97,18 +128,14 @@ export function NotesPanel() {
               <>
                 <span className="flex-1 whitespace-pre-wrap">{note.content}</span>
                 <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => startEdit(note.id, note.content)}
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => startEdit(note)}>
                     Edit
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="text-destructive"
-                    onClick={() => remove(note.id)}
+                    onClick={() => handleDelete(note.id)}
                   >
                     Delete
                   </Button>
@@ -119,7 +146,9 @@ export function NotesPanel() {
         ))}
       </ul>
 
-      {filtered.length === 0 && <p className="text-muted-foreground text-sm">No notes yet.</p>}
+      {!loading && notes.length === 0 && (
+        <p className="text-muted-foreground text-sm">No notes yet.</p>
+      )}
     </div>
   );
 }
