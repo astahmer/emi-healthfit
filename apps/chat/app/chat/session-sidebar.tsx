@@ -41,6 +41,9 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
@@ -83,6 +86,46 @@ const formatRelativeTime = (value: string) => {
   if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
   const years = Math.floor(months / 12);
   return `${years} year${years === 1 ? "" : "s"} ago`;
+};
+
+type HistoryGroup = { key: string; label: string; threads: Thread[] };
+
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const getDaysAgo = (value: string) => {
+  const date = startOfDay(new Date(value));
+  const today = startOfDay(new Date());
+  const diff = today.getTime() - date.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+};
+
+const groupThreads = (threads: Thread[]): HistoryGroup[] => {
+  const groups = new Map<string, HistoryGroup>();
+  const orderedKeys: string[] = [];
+  const ensureGroup = (key: string, label: string) => {
+    if (!groups.has(key)) {
+      groups.set(key, { key, label, threads: [] });
+      orderedKeys.push(key);
+    }
+    return groups.get(key) as HistoryGroup;
+  };
+
+  for (const thread of threads) {
+    const daysAgo = getDaysAgo(thread.updated_at);
+    if (daysAgo <= 0) {
+      ensureGroup("today", "Today").threads.push(thread);
+    } else if (daysAgo === 1) {
+      ensureGroup("yesterday", "Yesterday").threads.push(thread);
+    } else if (daysAgo < 7) {
+      ensureGroup("last7", "Last 7 days").threads.push(thread);
+    } else if (daysAgo < 30) {
+      ensureGroup("last30", "Last 30 days").threads.push(thread);
+    } else {
+      ensureGroup("older", "Older").threads.push(thread);
+    }
+  }
+
+  return orderedKeys.map((key) => groups.get(key) as HistoryGroup);
 };
 
 export const SessionSidebar = () => {
@@ -242,110 +285,117 @@ export const SessionSidebar = () => {
           {threads.length === 0 && !loading && (
             <p className="px-4 text-sm text-muted-foreground">No sessions yet.</p>
           )}
-          <SidebarMenu>
-            {threads.map((thread) => (
-              <SidebarMenuItem key={thread.id}>
-                {editingId === thread.id ? (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void submitRename(thread.id);
-                    }}
-                    className="flex w-full items-center gap-1 px-2"
-                  >
-                    <input
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      autoFocus
-                      className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm"
-                    />
-                  </form>
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={activeId === thread.id}
-                    tooltip={thread.title ?? "New chat"}
-                  >
-                    <a
-                      href={`/chat?id=${thread.id}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleSelect(thread.id);
-                      }}
-                    >
-                      <MessageSquareIcon />
-                      <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
-                        <span className="flex-1 truncate">{thread.title ?? "New chat"}</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <time
-                              dateTime={thread.updated_at}
-                              className="text-xs whitespace-nowrap text-muted-foreground"
-                            >
-                              {formatRelativeTime(thread.updated_at)}
-                            </time>
-                          </TooltipTrigger>
-                          <TooltipContent side="right">
-                            <p>{formatFullDate(thread.updated_at)}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </a>
-                  </SidebarMenuButton>
-                )}
+          {groupThreads(threads).map((group) => (
+            <SidebarGroup key={group.key}>
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.threads.map((thread) => (
+                    <SidebarMenuItem key={thread.id}>
+                      {editingId === thread.id ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void submitRename(thread.id);
+                          }}
+                          className="flex w-full items-center gap-1 px-2"
+                        >
+                          <input
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            autoFocus
+                            className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm"
+                          />
+                        </form>
+                      ) : (
+                        <SidebarMenuButton
+                          asChild
+                          isActive={activeId === thread.id}
+                          tooltip={thread.title ?? "New chat"}
+                        >
+                          <a
+                            href={`/chat?id=${thread.id}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleSelect(thread.id);
+                            }}
+                          >
+                            <MessageSquareIcon />
+                            <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
+                              <span className="flex-1 truncate">{thread.title ?? "New chat"}</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <time
+                                    dateTime={thread.updated_at}
+                                    className="text-xs whitespace-nowrap text-muted-foreground"
+                                  >
+                                    {formatRelativeTime(thread.updated_at)}
+                                  </time>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                  <p>{formatFullDate(thread.updated_at)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </a>
+                        </SidebarMenuButton>
+                      )}
 
-                {editingId !== thread.id && (
-                  <DropdownMenu>
-                    <SidebarMenuAction showOnHover asChild>
-                      <DropdownMenuTrigger asChild>
-                        <button type="button" aria-label="Session actions">
-                          <MoreHorizontalIcon />
-                        </button>
-                      </DropdownMenuTrigger>
-                    </SidebarMenuAction>
-                    <DropdownMenuContent align="start" side="right">
-                      <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                        <ShareIcon />
-                        <span>Partager</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                        <DownloadIcon />
-                        <span>Télécharger</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => void handleCopyMarkdown(thread.id)}>
-                        {copiedId === thread.id ? <CheckIcon /> : <FileTextIcon />}
-                        <span>{copiedId === thread.id ? "Copié !" : "Copier en .md"}</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => startRename(thread)}>
-                        <PencilIcon />
-                        <span>Renommer</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                        <PinIcon />
-                        <span>Épingler</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                        <CopyIcon />
-                        <span>Cloner</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                        <ArchiveIcon />
-                        <span>Archiver</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => setDeletingId(thread.id)}
-                        className="text-destructive"
-                      >
-                        <Trash2Icon />
-                        <span>Supprimer</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
+                      {editingId !== thread.id && (
+                        <DropdownMenu>
+                          <SidebarMenuAction showOnHover asChild>
+                            <DropdownMenuTrigger asChild>
+                              <button type="button" aria-label="Session actions">
+                                <MoreHorizontalIcon />
+                              </button>
+                            </DropdownMenuTrigger>
+                          </SidebarMenuAction>
+                          <DropdownMenuContent align="start" side="right">
+                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                              <ShareIcon />
+                              <span>Partager</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                              <DownloadIcon />
+                              <span>Télécharger</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => void handleCopyMarkdown(thread.id)}>
+                              {copiedId === thread.id ? <CheckIcon /> : <FileTextIcon />}
+                              <span>{copiedId === thread.id ? "Copié !" : "Copier en .md"}</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startRename(thread)}>
+                              <PencilIcon />
+                              <span>Renommer</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                              <PinIcon />
+                              <span>Épingler</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                              <CopyIcon />
+                              <span>Cloner</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                              <ArchiveIcon />
+                              <span>Archiver</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeletingId(thread.id)}
+                              className="text-destructive"
+                            >
+                              <Trash2Icon />
+                              <span>Supprimer</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
         </SidebarContent>
         <SidebarFooter className="px-3 py-2">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

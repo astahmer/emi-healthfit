@@ -339,27 +339,36 @@ const MessageError: FC = () => {
   );
 };
 
+const MessageTimestamp: FC = () => {
+  const { metaByMessageId } = useUsage();
+  const messageId = useAuiState((s) => s.message.id);
+  const createdAt = metaByMessageId.get(messageId)?.createdAt;
+
+  if (createdAt === undefined) return null;
+
+  return (
+    <time
+      dateTime={createdAt}
+      title={new Date(createdAt).toLocaleString()}
+      className="text-muted-foreground text-[10px] tabular-nums"
+    >
+      {new Date(createdAt).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      })}
+    </time>
+  );
+};
+
 const MessageMeta: FC<{ modelOverride?: string }> = ({ modelOverride }) => {
   const { metaByMessageId } = useUsage();
   const messageId = useAuiState((s) => s.message.id);
-  const meta = metaByMessageId.get(messageId);
-  const createdAt = meta?.createdAt;
-  const modelId = meta?.model ?? modelOverride;
+  const modelId = metaByMessageId.get(messageId)?.model ?? modelOverride;
   const model = modelId !== undefined ? chatModels.find((m) => m.id === modelId) : undefined;
 
-  return (
-    <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-      {model !== undefined && <span className="font-medium">{model.label}</span>}
-      {createdAt !== undefined && (
-        <time dateTime={createdAt} title={new Date(createdAt).toLocaleString()}>
-          {new Date(createdAt).toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-          })}
-        </time>
-      )}
-    </div>
-  );
+  if (model === undefined) return null;
+
+  return <span className="text-muted-foreground text-xs font-medium">{model.label}</span>;
 };
 
 const MessageTokenBadge: FC = () => {
@@ -407,6 +416,9 @@ const AssistantMessage: FC<{ modelOverride?: string }> = ({ modelOverride }) => 
             aria-label="Assistant is working"
           />
         </AuiIf>
+        <div className="mt-1 flex items-center gap-2">
+          <MessageTimestamp />
+        </div>
         <MessageError />
         <FollowUpChips />
       </div>
@@ -521,14 +533,13 @@ const UserMessage: FC = () => {
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
         <div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts />
+          <div className="mt-1 flex justify-end">
+            <MessageTimestamp />
+          </div>
         </div>
         <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
           <UserActionBar />
         </div>
-      </div>
-
-      <div className="col-start-2 flex items-center gap-x-3 px-1">
-        <MessageMeta />
       </div>
 
       <BranchPicker
