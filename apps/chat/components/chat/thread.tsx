@@ -13,11 +13,15 @@ import {
   GhostIcon,
   LoaderIcon,
   PaperclipIcon,
+  PencilIcon,
+  RefreshCwIcon,
   SquareIcon,
   WrenchIcon,
   XIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useMachine } from "@xstate/react";
+import { assign, setup } from "xstate";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
@@ -59,6 +63,38 @@ const suggestions = [
   "What's my current workout streak?",
   "Show my progress on bench press over the last 8 weeks.",
 ];
+
+const messageEditorMachine = setup({
+  types: {
+    context: {} as { messageId: string | null; draft: string },
+    events: {} as
+      | { type: "edit.start"; messageId: string; draft: string }
+      | { type: "edit.change"; draft: string }
+      | { type: "edit.cancel" },
+  },
+}).createMachine({
+  initial: "idle",
+  context: { messageId: null, draft: "" },
+  states: {
+    idle: {
+      on: {
+        "edit.start": {
+          target: "editing",
+          actions: assign(({ event }) => ({ messageId: event.messageId, draft: event.draft })),
+        },
+      },
+    },
+    editing: {
+      on: {
+        "edit.change": { actions: assign(({ event }) => ({ draft: event.draft })) },
+        "edit.cancel": {
+          target: "idle",
+          actions: assign({ messageId: () => null, draft: () => "" }),
+        },
+      },
+    },
+  },
+});
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -241,11 +277,23 @@ const ChatMessage = ({
   isStreaming,
   onFork,
   onRemember,
+  editingDraft,
+  onEditStart,
+  onEditChange,
+  onEditCancel,
+  onEditSubmit,
+  onRegenerate,
 }: {
   message: UIMessage;
   isStreaming: boolean;
   onFork?: (messageId: string) => void;
   onRemember: (message: UIMessage) => Promise<void>;
+  editingDraft?: string;
+  onEditStart: (message: UIMessage) => void;
+  onEditChange: (value: string) => void;
+  onEditCancel: () => void;
+  onEditSubmit: () => void;
+  onRegenerate: (messageId: string) => void;
 }) => {
   const isUser = message.role === "user";
   const usage = useUsage();
@@ -265,24 +313,50 @@ const ChatMessage = ({
   return (
     <Message align={isUser ? "end" : "start"} aria-live={isStreaming ? "polite" : undefined}>
       <MessageContent>
-        <Bubble align={isUser ? "end" : "start"} variant={isUser ? "muted" : "ghost"}>
-          <BubbleContent className={cn(!isUser && "w-full")}>
-            {message.parts.map((part, index) => (
-              <MessagePart key={`${message.id}-${index}`} part={part} />
-            ))}
-            {isStreaming && message.parts.length === 0 && (
-              <span
-                className="typing-dots text-muted-foreground"
-                role="status"
-                aria-label="Assistant is working"
-              >
-                <span />
-                <span />
-                <span />
-              </span>
-            )}
-          </BubbleContent>
-        </Bubble>
+        {editingDraft === undefined ? (
+          <Bubble align={isUser ? "end" : "start"} variant={isUser ? "muted" : "ghost"}>
+            <BubbleContent className={cn(!isUser && "w-full")}>
+              {message.parts.map((part, index) => (
+                <MessagePart key={`${message.id}-${index}`} part={part} />
+              ))}
+              {isStreaming && message.parts.length === 0 && (
+                <span
+                  className="typing-dots text-muted-foreground"
+                  role="status"
+                  aria-label="Assistant is working"
+                >
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              )}
+            </BubbleContent>
+          </Bubble>
+        ) : (
+          <form
+            className="ms-auto flex w-full max-w-[85%] flex-col gap-2 rounded-xl border bg-muted/30 p-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onEditSubmit();
+            }}
+          >
+            <textarea
+              value={editingDraft}
+              onChange={(event) => onEditChange(event.target.value)}
+              aria-label="Edit message"
+              className="min-h-20 resize-y bg-transparent p-2 outline-none"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="ghost" onClick={onEditCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={editingDraft.trim() === ""}>
+                Update
+              </Button>
+            </div>
+          </form>
+        )}
         <MessageFooter className="gap-1">
           <span className="me-1">{isUser ? "You" : "Coach"}</span>
           {model !== undefined && <span>{model.label}</span>}
@@ -305,6 +379,26 @@ const ChatMessage = ({
           >
             <CopyIcon className="size-3.5" />
           </button>
+          {isUser && !isStreaming && editingDraft === undefined && (
+            <button
+              type="button"
+              className="rounded p-1 hover:bg-muted hover:text-foreground"
+              aria-label="Edit message"
+              onClick={() => onEditStart(message)}
+            >
+              <PencilIcon className="size-3.5" />
+            </button>
+          )}
+          {!isUser && !isStreaming && (
+            <button
+              type="button"
+              className="rounded p-1 hover:bg-muted hover:text-foreground"
+              aria-label="Regenerate response"
+              onClick={() => onRegenerate(message.id)}
+            >
+              <RefreshCwIcon className="size-3.5" />
+            </button>
+          )}
           {onFork !== undefined && !isStreaming && (
             <button
               type="button"
@@ -349,6 +443,7 @@ export const Thread = ({
   onForkMessage?: (messageId: string) => void;
 }) => {
   const runtime = useChatRuntime();
+  const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -415,6 +510,25 @@ export const Thread = ({
                 }
                 onFork={onForkMessage}
                 onRemember={rememberMessage}
+                editingDraft={
+                  editorState.context.messageId === message.id
+                    ? editorState.context.draft
+                    : undefined
+                }
+                onEditStart={(selectedMessage) =>
+                  sendEditor({
+                    type: "edit.start",
+                    messageId: selectedMessage.id,
+                    draft: getText(selectedMessage),
+                  })
+                }
+                onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
+                onEditCancel={() => sendEditor({ type: "edit.cancel" })}
+                onEditSubmit={() => {
+                  void runtime.revise({ messageId: message.id, text: editorState.context.draft });
+                  sendEditor({ type: "edit.cancel" });
+                }}
+                onRegenerate={(messageId) => void runtime.revise({ messageId })}
               />
             ))
           )}

@@ -1,5 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
+import { getRevisionDeletionIds } from "../chat/conversation-revision.ts";
 import type {
   BodyMetricRow,
   DailyActivityRow,
@@ -755,6 +756,52 @@ export const getConversationMessages = (db: QueryDatabaseClient, conversationId:
       .all<Message>();
     return result.results;
   });
+
+export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(function* ({
+  db,
+  conversationId,
+  messageId,
+  parts,
+  threadId,
+}: {
+  db: QueryDatabaseClient;
+  conversationId: string;
+  messageId: string;
+  parts: unknown[];
+  threadId?: string;
+}) {
+  const conversationRows = yield* getConversationMessages(db, conversationId);
+  const message = conversationRows.find((row) => row.id === messageId);
+  if (message === undefined || message.role !== "user") return false;
+
+  const scopedRows =
+    threadId === undefined
+      ? conversationRows.filter((row) => row.parent_id === null)
+      : yield* getThreadMessages(db, threadId);
+  const messageIndex = scopedRows.findIndex((row) => row.id === messageId);
+  if (messageIndex < 0) return false;
+
+  const deletedMessageIds = getRevisionDeletionIds({
+    conversationRows,
+    scopedRows,
+    messageId,
+    includeDescendants: threadId === undefined,
+  });
+
+  const statements = [
+    db
+      .prepare(
+        "UPDATE messages SET parts = ?, prompt_tokens = NULL, completion_tokens = NULL, total_tokens = NULL, model = NULL WHERE id = ? AND conversation_id = ?",
+      )
+      .bind(JSON.stringify(parts), messageId, conversationId),
+    ...deletedMessageIds.map((deletedMessageId) =>
+      db.prepare("DELETE FROM messages WHERE id = ?").bind(deletedMessageId),
+    ),
+  ];
+  yield* runBatches(db, statements);
+  yield* updateConversationTimestamp(db, conversationId);
+  return true;
+});
 
 export const saveConversationMessages = (
   db: QueryDatabaseClient,

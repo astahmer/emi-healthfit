@@ -45,6 +45,7 @@ import {
   type QueryDatabaseClient,
   renameConversation,
   renameThread,
+  reviseConversationMessage,
   restoreThread,
   saveConversationMessages,
   saveSuggestions,
@@ -171,6 +172,23 @@ export default class Api extends Cloudflare.Worker<Api>()(
       );
       yield* router.add("GET", "/api/messages/:messageId", (request) =>
         cors(request, handleMessageRead(db, request)),
+      );
+      yield* router.add(
+        "PATCH",
+        "/api/conversations/:conversationId/messages/:messageId",
+        (request) =>
+          Effect.gen(function* () {
+            const params = yield* HttpRouter.params;
+            return yield* cors(
+              request,
+              handleMessageRevision({
+                db,
+                request,
+                conversationId: params.conversationId ?? "",
+                messageId: params.messageId ?? "",
+              }),
+            );
+          }),
       );
       yield* router.add("GET", "/api/memories", (request) =>
         cors(request, handleMemoriesList(db, request)),
@@ -964,6 +982,50 @@ const ChatStreamRequestSchema = Schema.Struct({
   threadId: Schema.optional(Schema.String),
 });
 
+const MessageRevisionSchema = Schema.Struct({
+  parts: Schema.mutable(Schema.Array(Schema.Unknown)),
+  threadId: Schema.optional(Schema.String),
+  replaceMessageId: Schema.optional(Schema.String),
+});
+
+const handleMessageRevision = ({
+  db,
+  request,
+  conversationId,
+  messageId,
+}: {
+  db: QueryDatabaseClient;
+  request: HttpServerRequest;
+  conversationId: string;
+  messageId: string;
+}) =>
+  Effect.gen(function* () {
+    const body = yield* request.json;
+    const decoded = Schema.decodeUnknownOption(MessageRevisionSchema)(body);
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+    const validated = yield* Effect.promise(() =>
+      safeValidateUIMessages({
+        messages: [{ id: messageId, role: "user", parts: decoded.value.parts }],
+      }),
+    );
+    if (!validated.success) {
+      return yield* HttpServerResponse.json({ error: validated.error.message }, { status: 400 });
+    }
+    const revised = yield* reviseConversationMessage({
+      db,
+      conversationId,
+      messageId,
+      parts: validated.data[0]?.parts ?? [],
+      threadId: decoded.value.threadId,
+    });
+    if (!revised) {
+      return yield* HttpServerResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json({ ok: true });
+  });
+
 const getFirstUserText = (
   messages: Array<{ role: string; parts: unknown[] }>,
 ): string | undefined => {
@@ -1161,15 +1223,29 @@ const handleAiSdkChat = (
       parts: JSON.parse(row.parts) as unknown[],
     }));
 
-    const incomingMessages = chatRequest.messages.map((message) => ({
+    const requestedMessages = chatRequest.messages.map((message) => ({
       role: message.role,
       parts: message.parts,
     }));
 
-    const attachmentError = validateAttachments(incomingMessages);
+    const attachmentError = validateAttachments(requestedMessages);
     if (attachmentError !== undefined) {
       return yield* HttpServerResponse.json({ error: attachmentError }, { status: 400 });
     }
+    const replacementMessage =
+      chatRequest.replaceMessageId === undefined
+        ? undefined
+        : existingRows.find((row) => row.id === chatRequest.replaceMessageId);
+    if (
+      chatRequest.replaceMessageId !== undefined &&
+      (isTemporary || replacementMessage === undefined || replacementMessage.role !== "user")
+    ) {
+      return yield* HttpServerResponse.json(
+        { error: "Replacement message not found" },
+        { status: 400 },
+      );
+    }
+    const incomingMessages = chatRequest.replaceMessageId === undefined ? requestedMessages : [];
 
     const toolRecord = Object.fromEntries(
       staticToolDefinitions.map((definition) => [
@@ -1185,17 +1261,22 @@ const handleAiSdkChat = (
       tools: toolRecord,
     };
 
-    let lastIncomingMessageId: string | null = null;
+    let lastIncomingMessageId: string | null = chatRequest.replaceMessageId ?? null;
     if (!isTemporary) {
       const branchParentId =
         thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);
-      const incomingIds = yield* saveConversationMessages(
-        db,
-        sessionId,
-        branchParentId,
-        incomingMessages as Array<{ role: string; parts: unknown[] }>,
-      );
-      lastIncomingMessageId = incomingIds.at(-1) ?? null;
+      const incomingIds =
+        chatRequest.replaceMessageId === undefined
+          ? yield* saveConversationMessages(
+              db,
+              sessionId,
+              branchParentId,
+              incomingMessages as Array<{ role: string; parts: unknown[] }>,
+            )
+          : [];
+      if (chatRequest.replaceMessageId === undefined) {
+        lastIncomingMessageId = incomingIds.at(-1) ?? null;
+      }
       if (thread !== null) {
         yield* Effect.forEach(
           incomingIds,

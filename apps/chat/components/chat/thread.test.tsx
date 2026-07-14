@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsageProvider } from "@/app/usage-context";
 import type { MessageWithUsage } from "@/app/sessions";
@@ -45,6 +46,7 @@ describe("Thread", () => {
       addFiles: vi.fn(),
       removeFile: vi.fn(),
       submit: vi.fn(),
+      revise: vi.fn(),
       stop: vi.fn(),
       clearError: vi.fn(),
     });
@@ -102,5 +104,40 @@ describe("Thread", () => {
 
     expect(screen.getByText("chart.png")).toBeInTheDocument();
     expect(view.container.querySelector('img[src="data:image/png;base64,AA=="]')).not.toBeNull();
+  });
+
+  it("edits a user turn through the XState-owned editor", async () => {
+    const user = userEvent.setup();
+    const message: MessageWithUsage = {
+      id: "user-1",
+      role: "user",
+      parts: [{ type: "text", text: "Original" }],
+    };
+    const runtime = vi.mocked(useChatRuntime)();
+    vi.mocked(useChatRuntime).mockReturnValue({ ...runtime, messages: [message] });
+    renderThread([message]);
+
+    await user.click(screen.getByLabelText("Edit message"));
+    const editor = screen.getByLabelText("Edit message");
+    await user.clear(editor);
+    await user.type(editor, "Edited");
+    await user.click(screen.getByRole("button", { name: "Update" }));
+
+    expect(runtime.revise).toHaveBeenCalledWith({ messageId: "user-1", text: "Edited" });
+  });
+
+  it("regenerates an assistant turn", async () => {
+    const user = userEvent.setup();
+    const messages: MessageWithUsage[] = [
+      { id: "user-1", role: "user", parts: [{ type: "text", text: "Question" }] },
+      { id: "assistant-1", role: "assistant", parts: [{ type: "text", text: "Answer" }] },
+    ];
+    const runtime = vi.mocked(useChatRuntime)();
+    vi.mocked(useChatRuntime).mockReturnValue({ ...runtime, messages });
+    renderThread(messages);
+
+    await user.click(screen.getByLabelText("Regenerate response"));
+
+    expect(runtime.revise).toHaveBeenCalledWith({ messageId: "assistant-1" });
   });
 });

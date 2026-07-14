@@ -15,6 +15,12 @@ export type ChatRuntimeEvent =
   | { type: "draft.changed"; value: string }
   | { type: "files.changed"; files: FileUIPart[] }
   | { type: "submit.started"; sessionId: string; message: UIMessage }
+  | {
+      type: "revision.started";
+      sessionId: string;
+      message: UIMessage;
+      replaceMessageId: string;
+    }
   | { type: "resume.started" }
   | { type: "stream.updated"; message: UIMessage }
   | { type: "stream.completed" }
@@ -81,6 +87,20 @@ export const chatRuntimeMachine = setup({
         error: null,
       };
     }),
+    startRevision: assign(({ context, event }) => {
+      if (event.type !== "revision.started") return {};
+      const replacedIndex = context.messages.findIndex(
+        (message) => message.id === event.replaceMessageId,
+      );
+      return {
+        sessionId: event.sessionId,
+        messages:
+          replacedIndex < 0
+            ? [...context.messages, event.message]
+            : [...context.messages.slice(0, replacedIndex), event.message],
+        error: null,
+      };
+    }),
     updateStream: assign(({ context, event }) => {
       if (event.type !== "stream.updated") return {};
       const lastMessage = context.messages.at(-1);
@@ -112,7 +132,9 @@ export const chatRuntimeMachine = setup({
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
         "submit.started": { target: "streaming", actions: "startSubmission" },
+        "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
+        "stream.failed": { target: "error", actions: "failStream" },
         "error.cleared": { actions: "clearError" },
       },
     },
@@ -132,6 +154,7 @@ export const chatRuntimeMachine = setup({
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
         "submit.started": { target: "streaming", actions: "startSubmission" },
+        "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
       },
     },

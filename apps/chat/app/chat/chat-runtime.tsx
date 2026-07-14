@@ -48,6 +48,7 @@ interface ChatRuntimeValue {
   addFiles: (files: FileList) => Promise<void>;
   removeFile: (url: string) => void;
   submit: (text?: string) => Promise<void>;
+  revise: (options: { messageId: string; text?: string }) => Promise<void>;
   stop: () => void;
   clearError: () => void;
 }
@@ -209,11 +210,20 @@ export const ChatRuntimeProvider = ({
     });
   }, [config.historyReady, config.sessionId, config.temporary, queryClient, send, transport]);
 
-  const submit = useCallback(
-    async (text?: string) => {
+  const submitMessage = useCallback(
+    async ({
+      text,
+      parts,
+      replaceMessageId,
+    }: {
+      text?: string;
+      parts?: UIMessage["parts"];
+      replaceMessageId?: string;
+    }) => {
       if (stateRef.current.matches("streaming")) return;
       const content = (text ?? stateRef.current.context.draft).trim();
-      if (content === "" && stateRef.current.context.files.length === 0) return;
+      if (parts === undefined && content === "" && stateRef.current.context.files.length === 0)
+        return;
 
       let sessionId = config.sessionId ?? stateRef.current.context.sessionId;
       if (sessionId === undefined) {
@@ -223,11 +233,15 @@ export const ChatRuntimeProvider = ({
 
       const textParts: UIMessage["parts"] = content === "" ? [] : [{ type: "text", text: content }];
       const userMessage: UIMessage = {
-        id: crypto.randomUUID(),
+        id: replaceMessageId ?? crypto.randomUUID(),
         role: "user",
-        parts: [...textParts, ...stateRef.current.context.files],
+        parts: parts ?? [...textParts, ...stateRef.current.context.files],
       };
-      send({ type: "submit.started", sessionId, message: userMessage });
+      send(
+        replaceMessageId === undefined
+          ? { type: "submit.started", sessionId, message: userMessage }
+          : { type: "revision.started", sessionId, message: userMessage, replaceMessageId },
+      );
       const operation = operationRef.current + 1;
       operationRef.current = operation;
       const controller = new AbortController();
@@ -259,6 +273,7 @@ export const ChatRuntimeProvider = ({
             temporary: config.temporary,
             sessionId,
             threadId: config.threadId,
+            replaceMessageId,
           },
         });
         await consumeAssistantStream({
@@ -307,6 +322,46 @@ export const ChatRuntimeProvider = ({
     ],
   );
 
+  const submit = useCallback((text?: string) => submitMessage({ text }), [submitMessage]);
+
+  const revise = useCallback(
+    async ({ messageId, text }: { messageId: string; text?: string }) => {
+      const messages = stateRef.current.context.messages;
+      const selectedIndex = messages.findIndex((message) => message.id === messageId);
+      const userMessage = messages
+        .slice(0, selectedIndex + 1)
+        .findLast((message) => message.role === "user");
+      const sessionId = config.sessionId ?? stateRef.current.context.sessionId;
+      if (userMessage === undefined || sessionId === undefined || config.temporary) return;
+
+      const parts: UIMessage["parts"] =
+        text === undefined
+          ? userMessage.parts
+          : [
+              { type: "text", text: text.trim() },
+              ...userMessage.parts.filter((part) => part.type === "file"),
+            ];
+      try {
+        const response = await fetch(
+          `/api/conversations/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(userMessage.id)}`,
+          {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ parts, threadId: config.threadId }),
+          },
+        );
+        if (!response.ok) throw new Error(`Failed to revise message: ${response.status}`);
+        await submitMessage({ parts, replaceMessageId: userMessage.id });
+      } catch (error) {
+        send({
+          type: "stream.failed",
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    },
+    [config.sessionId, config.temporary, config.threadId, send, submitMessage],
+  );
+
   const value = useMemo<ChatRuntimeValue>(
     () => ({
       messages: state.context.messages,
@@ -329,13 +384,14 @@ export const ChatRuntimeProvider = ({
           files: stateRef.current.context.files.filter((file) => file.url !== url),
         }),
       submit,
+      revise,
       stop: () => {
         abortControllerRef.current?.abort();
         cancelStreamRef.current?.();
       },
       clearError: () => send({ type: "error.cleared" }),
     }),
-    [send, state, submit],
+    [revise, send, state, submit],
   );
 
   return <ChatRuntimeContext.Provider value={value}>{children}</ChatRuntimeContext.Provider>;

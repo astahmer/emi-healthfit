@@ -128,4 +128,26 @@ describe("chatRuntimeMachine", () => {
     expect(firstTab.getSnapshot().context.messages.at(-1)?.id).toBe("first-assistant");
     expect(secondTab.getSnapshot().context.messages.at(-1)?.id).toBe("second-assistant");
   });
+
+  it("replaces an edited turn and removes its stale response", () => {
+    const actor = createActor(chatRuntimeMachine, {
+      input: {
+        sessionId: "one",
+        messages: [
+          message("first-user", "user", "Original"),
+          message("first-assistant", "assistant", "Old answer"),
+        ],
+      },
+    });
+    actor.start();
+    actor.send({
+      type: "revision.started",
+      sessionId: "one",
+      replaceMessageId: "first-user",
+      message: message("first-user", "user", "Edited"),
+    });
+
+    expect(actor.getSnapshot().context.messages).toEqual([message("first-user", "user", "Edited")]);
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+  });
 });
