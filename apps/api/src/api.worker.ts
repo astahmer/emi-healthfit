@@ -402,12 +402,8 @@ const resolveSuggestionsApiKey = (
   return "";
 };
 
-const handleSuggestions = (
-  db: QueryDatabaseClient,
-  env: Record<string, unknown>,
-  request: HttpServerRequest,
-) =>
-  Effect.gen(function* () {
+const handleSuggestions = Effect.fn("handleSuggestions")(
+  function* (db: QueryDatabaseClient, env: Record<string, unknown>, request: HttpServerRequest) {
     const text = yield* request.text;
     const body = JSON.parse(text || "{}") as SuggestionsRequestBody;
 
@@ -451,13 +447,17 @@ const handleSuggestions = (
     yield* saveSuggestions(db, key, suggestions);
 
     return yield* HttpServerResponse.json({ suggestions });
-  }).pipe(
-    Effect.catch((error) => {
+  },
+  Effect.catch(
+    Effect.fn("handleSuggestions.catch")(function* (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.log(JSON.stringify({ event: "chat.request.failure", error: message }));
-      return HttpServerResponse.json({ error: message }, { status: 500 });
+      yield* Effect.logError("chat.request.failure").pipe(
+        Effect.annotateLogs({ error: message }),
+      );
+      return yield* HttpServerResponse.json({ error: message }, { status: 500 });
     }),
-  );
+  ),
+);
 
 const handleRecovery = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
@@ -1177,12 +1177,8 @@ const handleAiSdkChat = (
       const abandonedGenerations = yield* expireStaleGenerations({ db });
       const deletedGenerations = yield* cleanupGenerationHistory({ db });
       if (abandonedGenerations > 0 || deletedGenerations > 0) {
-        console.log(
-          JSON.stringify({
-            event: "chat.generation.maintenance",
-            abandonedGenerations,
-            deletedGenerations,
-          }),
+        yield* Effect.logInfo("chat.generation.maintenance").pipe(
+          Effect.annotateLogs({ abandonedGenerations, deletedGenerations }),
         );
       }
       const conversation = yield* getConversation(db, sessionId);
@@ -1312,30 +1308,24 @@ const handleAiSdkChat = (
             ),
         }).pipe(
           Effect.tap(() =>
-            Effect.sync(() =>
-              console.log(
-                JSON.stringify({
-                  event: "chat.tool.duration",
-                  sessionId,
-                  tool: name,
-                  durationMilliseconds: Math.round(performance.now() - toolStartedAt),
-                  status: "completed",
-                }),
-              ),
+            Effect.logInfo("chat.tool.duration").pipe(
+              Effect.annotateLogs({
+                sessionId,
+                tool: name,
+                durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                status: "completed",
+              }),
             ),
           ),
           Effect.tapError((error) =>
-            Effect.sync(() =>
-              console.log(
-                JSON.stringify({
-                  event: "chat.tool.duration",
-                  sessionId,
-                  tool: name,
-                  durationMilliseconds: Math.round(performance.now() - toolStartedAt),
-                  status: "failed",
-                  error: error instanceof Error ? error.message : String(error),
-                }),
-              ),
+            Effect.logError("chat.tool.duration").pipe(
+              Effect.annotateLogs({
+                sessionId,
+                tool: name,
+                durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                status: "failed",
+                error: error instanceof Error ? error.message : String(error),
+              }),
             ),
           ),
         ),
@@ -1373,9 +1363,8 @@ const handleAiSdkChat = (
             Effect.gen(function* () {
               const assistantParts = buildAssistantParts(event.response?.messages ?? []);
 
-              console.log(
-                JSON.stringify({
-                  event: "chat.generation.finished",
+              yield* Effect.logInfo("chat.generation.finished").pipe(
+                Effect.annotateLogs({
                   sessionId,
                   assistantParts: assistantParts.length,
                   textLength: event.text.length,
