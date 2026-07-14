@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
   generateText,
+  isLoopFinished,
   jsonSchema,
   type LanguageModelUsage,
   type ToolSet,
@@ -83,6 +84,7 @@ export const createChatStream = async (
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
+    stopWhen: isLoopFinished(),
     onFinish: (event) => {
       void onFinish?.({
         text: event.text,
