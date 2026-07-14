@@ -4,7 +4,7 @@ import { conversationMachine } from "./conversation-machine";
 
 export const useConversationMachine = (conversationId: string | undefined, isTemporary = false) => {
   const [state, send] = useActor(conversationMachine, {
-    input: { conversationId, isTemporary },
+    input: { isTemporary },
   });
 
   useEffect(() => {

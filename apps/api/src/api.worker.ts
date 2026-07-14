@@ -6,6 +6,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import { buildAssistantParts } from "./chat/assistant-parts.ts";
 import { buildChatContext } from "./chat/context.ts";
 import { handleChat } from "./chat/handler.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
@@ -1162,55 +1163,7 @@ const handleAiSdkChat = (
         async (event) => {
           await Effect.runPromiseWith(services)(
             Effect.gen(function* () {
-              const assistantParts: unknown[] = [];
-              const toolCalls = new Map<
-                string,
-                { toolName: string; args: unknown; result?: unknown }
-              >();
-
-              for (const message of event.response?.messages ?? []) {
-                if (
-                  typeof message !== "object" ||
-                  message === null ||
-                  (message as { role?: string }).role !== "assistant"
-                ) {
-                  continue;
-                }
-                const content = (message as { content?: unknown }).content;
-                if (!Array.isArray(content)) continue;
-                for (const part of content) {
-                  if (typeof part !== "object" || part === null) continue;
-                  const type = (part as { type?: string }).type;
-                  const toolCallId = (part as { toolCallId?: string }).toolCallId;
-
-                  if (type === "text") {
-                    const text = (part as { text?: unknown }).text;
-                    if (typeof text === "string" && text !== "") {
-                      assistantParts.push({ type: "text", text });
-                    }
-                  } else if (type === "tool-call" && toolCallId !== undefined) {
-                    toolCalls.set(toolCallId, {
-                      toolName: (part as { toolName?: string }).toolName ?? "",
-                      args: (part as { args?: unknown }).args,
-                    });
-                  } else if (type === "tool-result" && toolCallId !== undefined) {
-                    const call = toolCalls.get(toolCallId);
-                    if (call !== undefined) {
-                      call.result = (part as { result?: unknown }).result;
-                    }
-                  }
-                }
-              }
-
-              for (const [, call] of toolCalls) {
-                assistantParts.push({
-                  type: "tool-call",
-                  toolName: call.toolName,
-                  argsText: JSON.stringify(call.args),
-                  result: call.result,
-                  status: { type: "complete" },
-                });
-              }
+              const assistantParts = buildAssistantParts(event.response?.messages ?? []);
 
               if (!isTemporary && assistantParts.length > 0) {
                 yield* saveConversationMessages(db, sessionId, null, [

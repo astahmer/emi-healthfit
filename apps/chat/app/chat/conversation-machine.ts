@@ -46,6 +46,7 @@ export interface ThreadView {
 
 export interface ConversationContext {
   conversationId: string | undefined;
+  createdConversationId: string | undefined;
   conversation: Conversation | null;
   messages: MessageNode[];
   threads: ThreadView[];
@@ -145,7 +146,7 @@ export const conversationMachine = setup({
   types: {
     context: {} as ConversationContext,
     events: {} as ConversationEvent,
-    input: {} as { conversationId?: string; isTemporary?: boolean },
+    input: {} as { conversationId?: string; createdConversationId?: string; isTemporary?: boolean },
   },
   actors: {
     loadConversation: fromPromise(
@@ -206,12 +207,14 @@ export const conversationMachine = setup({
   actions: {
     clearConversation: assign({
       conversation: () => null,
+      createdConversationId: () => undefined,
       messages: () => [],
       threads: () => [],
       focusedThreadId: () => null,
       searchQuery: () => "",
       searchResults: () => [],
       renameDraft: () => "",
+      resetKey: ({ context }) => context.resetKey + 1,
       error: () => null,
     }),
     persistSidebarWidth: ({ context }) => persistSidebarWidth(context.sidebarWidth),
@@ -225,6 +228,10 @@ export const conversationMachine = setup({
     hasConversationId: ({ context }) => context.conversationId !== undefined,
     eventHasConversationId: ({ event }) =>
       event.type === "conversationId.changed" && event.conversationId !== undefined,
+    isNewlyCreated: ({ context, event }) =>
+      event.type === "conversationId.changed" &&
+      event.conversationId !== undefined &&
+      event.conversationId === context.createdConversationId,
     isTemporary: ({ context }) => context.isTemporary,
     canRenameConversation: ({ context }) =>
       context.conversationId !== undefined && context.renameDraft.trim() !== "",
@@ -234,6 +241,7 @@ export const conversationMachine = setup({
   initial: "initializing",
   context: ({ input }) => ({
     conversationId: input.conversationId,
+    createdConversationId: input.createdConversationId,
     conversation: null,
     messages: [],
     threads: [],
@@ -498,6 +506,13 @@ export const conversationMachine = setup({
       on: {
         "conversationId.changed": [
           {
+            target: "ready",
+            guard: "isNewlyCreated",
+            actions: assign({
+              conversationId: ({ event }) => event.conversationId,
+            }),
+          },
+          {
             target: "loading",
             guard: "eventHasConversationId",
             actions: assign({
@@ -509,6 +524,11 @@ export const conversationMachine = setup({
             actions: "clearConversation",
           },
         ],
+        "session.created": {
+          actions: assign({
+            createdConversationId: ({ event }) => event.conversationId,
+          }),
+        },
         "temporary.changed": {
           actions: assign({
             isTemporary: ({ event }) => event.isTemporary,
@@ -536,6 +556,11 @@ export const conversationMachine = setup({
       on: {
         retry: { target: "loading" },
         "conversationId.changed": [
+          {
+            target: "ready",
+            guard: "isNewlyCreated",
+            actions: assign({ conversationId: ({ event }) => event.conversationId }),
+          },
           {
             target: "loading",
             guard: "eventHasConversationId",

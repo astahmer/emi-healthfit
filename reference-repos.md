@@ -10,3 +10,5 @@
 | discord-cloudflare-sample-app | `.references/discord-cloudflare-sample-app` | https://github.com/discord/cloudflare-sample-app | Discord bot on Cloudflare Workers reference |
 | effect-discord-bot | `.references/effect-discord-bot` | https://github.com/Effect-TS/discord-bot | Effect-based Discord bot patterns |
 | json-render | `.references/json-render` | https://github.com/vercel-labs/json-render | Generative UI framework (JSON spec + shadcn) |
+| shadcn-ui | `.references/shadcn-ui` | https://github.com/shadcn-ui/ui | shadcn/ui source, including new chat primitives (Message, Bubble, MessageScroller) |
+| ai-sdk | `.references/ai-sdk` | https://github.com/vercel/ai | Vercel AI SDK source, including ai-sdk/elements chat components |

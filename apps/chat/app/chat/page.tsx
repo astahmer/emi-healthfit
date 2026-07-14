@@ -78,9 +78,21 @@ function ChatPageInner() {
   const queryClient = useQueryClient();
   const sessionId = searchParams.get("id") ?? undefined;
   const [createdConversationId, setCreatedConversationId] = useState<string | undefined>(undefined);
+  const createdIdRef = useRef<string | undefined>(undefined);
+  const [chatKey, setChatKey] = useState(sessionId ?? "new");
 
   useEffect(() => {
     setCreatedConversationId(undefined);
+  }, [sessionId]);
+
+  useEffect(() => {
+    setChatKey((previous) => {
+      const next = sessionId ?? "new";
+      if (previous === next) return previous;
+      if (previous === "new" && sessionId === createdIdRef.current) return previous;
+      createdIdRef.current = undefined;
+      return next;
+    });
   }, [sessionId]);
 
   const activeConversationId = sessionId ?? createdConversationId;
@@ -161,7 +173,7 @@ function ChatPageInner() {
         </div>
       ) : (
         <ErrorBoundary
-          key={`${activeConversationId ?? "new"}-${conversationState.context.resetKey}`}
+          key={`${chatKey}-${conversationState.context.resetKey}`}
           onReset={() => {
             sendConversation({ type: "reset" });
             void queryClient.invalidateQueries({ queryKey: ["thread", activeConversationId] });
@@ -177,7 +189,11 @@ function ChatPageInner() {
                 sessionId: activeConversationId,
                 initialMessages: runtimeMessages,
               }}
-              onSessionCreated={(id) => setCreatedConversationId(id)}
+              onSessionCreated={(id) => {
+                createdIdRef.current = id;
+                setCreatedConversationId(id);
+                sendConversation({ type: "session.created", conversationId: id });
+              }}
             >
               <UrlSync createdConversationId={createdConversationId} />
               <div className="flex h-full flex-1 flex-col">

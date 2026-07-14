@@ -96,7 +96,7 @@ export const FollowUpChips = () => {
           key={`${message.id}-${index}`}
           variant="outline"
           size="sm"
-          className="h-auto max-w-[16rem] rounded-full px-3 py-1.5 text-xs font-normal"
+          className="h-auto w-auto max-w-full rounded-full px-3 py-1.5 text-start text-xs font-normal whitespace-normal break-words"
           onClick={() => handleClick(text)}
         >
           {text}

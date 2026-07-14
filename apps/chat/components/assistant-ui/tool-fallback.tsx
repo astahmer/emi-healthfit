@@ -516,7 +516,7 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({ toolName, argsText, re
       <ToolFallbackContent>
         <ToolFallbackError status={effectiveStatus} />
         <ToolFallbackArgs argsText={argsText} className={cn(isCancelled && "opacity-60")} />
-        {!isCancelled && (
+        {!isCancelled && result !== undefined && (
           <div className="pt-1">
             <p className="text-muted-foreground text-xs font-medium">Result:</p>
             <ToolResultContent toolName={toolName} result={result} />

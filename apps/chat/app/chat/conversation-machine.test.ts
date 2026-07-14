@@ -335,11 +335,59 @@ describe("conversationMachine", () => {
 
     await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
 
+    const previousResetKey = actor.getSnapshot().context.resetKey;
     actor.send({ type: "conversationId.changed", conversationId: undefined });
 
     expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true);
     expect(actor.getSnapshot().context.conversation).toBeNull();
     expect(actor.getSnapshot().context.messages).toEqual([]);
+    expect(actor.getSnapshot().context.createdConversationId).toBeUndefined();
+    expect(actor.getSnapshot().context.resetKey).toBe(previousResetKey + 1);
+  });
+
+  it("does not reload when the conversation id matches the created conversation id", async () => {
+    const loadConversation = vi.fn().mockRejectedValue(new Error("should not load"));
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(async () => loadConversation()),
+      },
+    });
+    const actor = createActor(machine, { input: {} });
+    actor.start();
+
+    expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true);
+
+    actor.send({ type: "session.created", conversationId: "created-1" });
+    actor.send({ type: "conversationId.changed", conversationId: "created-1" });
+
+    expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true);
+    expect(actor.getSnapshot().context.conversationId).toBe("created-1");
+    expect(loadConversation).not.toHaveBeenCalled();
+  });
+
+  it("reloads normally when navigating to a conversation that was not created in this session", async () => {
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(async () => ({
+          conversation: makeConversation(),
+          messages: [makeMessage()],
+          threads: [makeThread()],
+        })),
+      },
+    });
+    const actor = createActor(machine, { input: {} });
+    actor.start();
+
+    actor.send({ type: "session.created", conversationId: "created-1" });
+    actor.send({ type: "conversationId.changed", conversationId: "created-1" });
+
+    expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true);
+
+    actor.send({ type: "conversationId.changed", conversationId: "conv-1" });
+
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+    expect(actor.getSnapshot().context.conversationId).toBe("conv-1");
+    expect(actor.getSnapshot().context.conversation).not.toBeNull();
   });
 
   it("clears persisted data when temporary mode is enabled", async () => {
