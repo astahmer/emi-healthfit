@@ -7,6 +7,8 @@
     "deploy": "alchemy deploy",
     "destroy": "alchemy destroy",
     "dev": "alchemy dev",
+    "db:check": "drizzle-kit check",
+    "db:generate": "drizzle-kit generate",
     "dry": "alchemy deploy --dry-run",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
     "typecheck": "tsc --noEmit",
@@ -16,6 +18,7 @@
     "@ai-sdk/openai": "^3.0.74",
     "ai": "^6.0.209",
     "alchemy": "2.0.0-beta.59",
+    "drizzle-orm": "0.45.2",
     "effect": "4.0.0-beta.88",
     "zod": "^3.25.56"
   },
@@ -23,6 +26,7 @@
     "@cloudflare/workers-types": "4.20250805.0",
     "@effect/platform-node": "4.0.0-beta.88",
     "@types/json-schema": "^7.0.15",
+    "drizzle-kit": "0.31.10",
     "typescript": "7.0.1-rc"
   }
 }
