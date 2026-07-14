@@ -39,11 +39,12 @@ function ChatPageInner() {
 
   const savedModelRef = useRef<string | null>(null);
 
-  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return 16;
+  const [sidebarWidth, setSidebarWidth] = useState<number>(16);
+
+  useEffect(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return stored ? Number.parseFloat(stored) : 16;
-  });
+    if (stored !== null) setSidebarWidth(Number.parseFloat(stored));
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
