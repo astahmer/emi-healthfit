@@ -117,6 +117,7 @@ function ChatPageInner() {
               temporary: configState.context.temporary,
               historyReady: !isLoading && historyMatchesSelection,
               sessionId: activeConversationId,
+              threadId: conversationState.context.focusedThreadId ?? undefined,
               initialMessages: runtimeMessages,
             }}
             onSessionCreated={(id) => {

@@ -16,6 +16,7 @@ import { buildChatContext } from "./chat/context.ts";
 import { handleChat } from "./chat/handler.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
+  addThreadMessage,
   createConversation,
   createThread,
   type DataSummary,
@@ -519,6 +520,8 @@ const getMessageIdFromPath = (urlOrPath: string): string | undefined => {
 
 const rowToMessage = (row: {
   id: string;
+  conversation_id: string;
+  parent_id: string | null;
   role: string;
   parts: string;
   created_at: string;
@@ -528,6 +531,8 @@ const rowToMessage = (row: {
   total_tokens: number | null;
 }) => ({
   id: row.id,
+  conversationId: row.conversation_id,
+  parentId: row.parent_id,
   role: row.role,
   parts: JSON.parse(row.parts) as unknown[],
   createdAt: row.created_at,
@@ -556,8 +561,16 @@ const handleConversationMessages = (db: QueryDatabaseClient, request: HttpServer
 
     const rows = yield* getConversationMessages(db, conversationId);
     const threads = yield* getThreads(db, conversationId);
+    const threadsWithMessages = yield* Effect.forEach(threads, (thread) =>
+      getThreadMessages(db, thread.id).pipe(
+        Effect.map((messages) => ({
+          ...thread,
+          message_ids: messages.map((message) => message.id),
+        })),
+      ),
+    );
     const messages = rows.map(rowToMessage);
-    return yield* HttpServerResponse.json({ conversation, messages, threads });
+    return yield* HttpServerResponse.json({ conversation, messages, threads: threadsWithMessages });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
@@ -610,13 +623,22 @@ const handleConversationThreadsCreate = (db: QueryDatabaseClient, request: HttpS
       );
     }
 
+    const anchor = yield* getMessage(db, body.anchorMessageId.trim());
+    if (anchor === null || anchor.conversation_id !== conversationId) {
+      return yield* HttpServerResponse.json({ error: "Anchor message not found" }, { status: 404 });
+    }
+
     const id = yield* createThread(
       db,
       conversationId,
       body.anchorMessageId.trim(),
       body.title?.trim(),
     );
-    return yield* HttpServerResponse.json({ id }, { status: 201 });
+    const thread = yield* getThread(db, id);
+    return yield* HttpServerResponse.json(
+      thread === null ? null : { ...thread, message_ids: [thread.anchor_message_id] },
+      { status: 201 },
+    );
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
@@ -933,6 +955,7 @@ const ChatStreamRequestSchema = Schema.Struct({
   webSearch: Schema.optional(Schema.Boolean),
   temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
+  threadId: Schema.optional(Schema.String),
 });
 
 const getFirstUserText = (
@@ -1088,7 +1111,34 @@ const handleAiSdkChat = (
       }
     }
 
-    const existingRows = isTemporary ? [] : yield* getConversationMessages(db, sessionId);
+    const thread =
+      isTemporary || chatRequest.threadId === undefined
+        ? null
+        : yield* getThread(db, chatRequest.threadId);
+    if (
+      chatRequest.threadId !== undefined &&
+      (thread === null || thread.conversation_id !== sessionId || thread.status !== "regular")
+    ) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+
+    const conversationRows = isTemporary ? [] : yield* getConversationMessages(db, sessionId);
+    const existingRows =
+      thread === null
+        ? conversationRows
+        : yield* Effect.gen(function* () {
+            const branchRows = yield* getThreadMessages(db, thread.id);
+            const anchor = conversationRows.find((row) => row.id === thread.anchor_message_id);
+            const contextRows =
+              anchor === undefined
+                ? []
+                : conversationRows.filter(
+                    (row) => row.parent_id === null && row.created_at <= anchor.created_at,
+                  );
+            return [
+              ...new Map([...contextRows, ...branchRows].map((row) => [row.id, row])).values(),
+            ].sort((left, right) => left.created_at.localeCompare(right.created_at));
+          });
     const existingMessages = existingRows.map((row) => ({
       role: row.role as "system" | "user" | "assistant",
       parts: JSON.parse(row.parts) as unknown[],
@@ -1118,13 +1168,26 @@ const handleAiSdkChat = (
       tools: toolRecord,
     };
 
+    let lastIncomingMessageId: string | null = null;
     if (!isTemporary) {
-      yield* saveConversationMessages(
+      const branchParentId =
+        thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);
+      const incomingIds = yield* saveConversationMessages(
         db,
         sessionId,
-        null,
+        branchParentId,
         incomingMessages as Array<{ role: string; parts: unknown[] }>,
       );
+      lastIncomingMessageId = incomingIds.at(-1) ?? null;
+      if (thread !== null) {
+        yield* Effect.forEach(
+          incomingIds,
+          (messageId) => addThreadMessage(db, thread.id, messageId),
+          {
+            discard: true,
+          },
+        );
+      }
     }
 
     const services = yield* Effect.context<RuntimeContext>();
@@ -1155,18 +1218,30 @@ const handleAiSdkChat = (
               );
 
               if (!isTemporary && assistantParts.length > 0) {
-                yield* saveConversationMessages(db, sessionId, null, [
-                  {
-                    role: "assistant",
-                    parts: assistantParts,
-                    usage: {
-                      prompt_tokens: event.usage.inputTokens,
-                      completion_tokens: event.usage.outputTokens,
-                      total_tokens: event.usage.totalTokens,
+                const assistantIds = yield* saveConversationMessages(
+                  db,
+                  sessionId,
+                  thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
+                  [
+                    {
+                      role: "assistant",
+                      parts: assistantParts,
+                      usage: {
+                        prompt_tokens: event.usage.inputTokens,
+                        completion_tokens: event.usage.outputTokens,
+                        total_tokens: event.usage.totalTokens,
+                      },
+                      model: chatRequest.config.model,
                     },
-                    model: chatRequest.config.model,
-                  },
-                ]);
+                  ],
+                );
+                if (thread !== null) {
+                  yield* Effect.forEach(
+                    assistantIds,
+                    (messageId) => addThreadMessage(db, thread.id, messageId),
+                    { discard: true },
+                  );
+                }
               }
 
               if (!isTemporary) {

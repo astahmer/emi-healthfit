@@ -12,6 +12,7 @@ export interface ChatSessionConfig {
   temporary?: boolean;
   historyReady?: boolean;
   sessionId?: string;
+  threadId?: string;
   initialMessages?: UIMessage[];
 }
 
@@ -33,6 +34,7 @@ export const ChatProviders = ({
         temporary: sessionConfig.temporary ?? false,
         historyReady: sessionConfig.historyReady ?? true,
         sessionId: sessionConfig.sessionId,
+        threadId: sessionConfig.threadId,
         initialMessages: sessionConfig.initialMessages ?? [],
       }}
       onSessionCreated={onSessionCreated}

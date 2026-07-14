@@ -1,16 +1,81 @@
 import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
+import { z } from "zod";
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
+
+const conversationSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  status: z.enum(["regular", "archived"]),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+const messageSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  parentId: z.string().nullable(),
+  role: z.enum(["user", "assistant", "system", "summary"]),
+  parts: z.array(z.object({ type: z.string() }).catchall(z.unknown())),
+  usage: z
+    .object({
+      promptTokens: z.number().nullable(),
+      completionTokens: z.number().nullable(),
+      totalTokens: z.number().nullable(),
+    })
+    .optional(),
+  model: z.string().optional(),
+  createdAt: z.string(),
+});
+
+const threadSchema = z.object({
+  id: z.string(),
+  conversation_id: z.string(),
+  anchor_message_id: z.string(),
+  title: z.string().nullable(),
+  status: z.enum(["regular", "discarded", "merged"]),
+  pinned: z.boolean(),
+  message_ids: z.array(z.string()),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+const toConversation = (raw: z.infer<typeof conversationSchema>): Conversation => ({
+  id: raw.id,
+  title: raw.title,
+  status: raw.status,
+  createdAt: raw.created_at,
+  updatedAt: raw.updated_at,
+});
+
+const toThread = (raw: z.infer<typeof threadSchema>): ThreadView => ({
+  id: raw.id,
+  conversationId: raw.conversation_id,
+  anchorMessageId: raw.anchor_message_id,
+  title: raw.title,
+  status: raw.status,
+  pinned: raw.pinned,
+  messageIds: raw.message_ids,
+  createdAt: raw.created_at,
+  updatedAt: raw.updated_at,
+});
 
 export const fetchConversationMessages = async (
   conversationId: string,
 ): Promise<{ conversation: Conversation; messages: MessageNode[]; threads: ThreadView[] }> => {
   const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`);
   if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
-  return (await res.json()) as {
-    conversation: Conversation;
-    messages: MessageNode[];
-    threads: ThreadView[];
+  const raw = z
+    .object({
+      conversation: conversationSchema,
+      messages: z.array(messageSchema),
+      threads: z.array(threadSchema),
+    })
+    .parse(await res.json());
+  return {
+    conversation: toConversation(raw.conversation),
+    messages: raw.messages,
+    threads: raw.threads.map(toThread),
   };
 };
 
@@ -25,7 +90,7 @@ export const forkThread = async (
     body: JSON.stringify({ anchorMessageId, title }),
   });
   if (!res.ok) throw new Error(`Failed to fork thread: ${res.status}`);
-  return (await res.json()) as ThreadView;
+  return toThread(threadSchema.parse(await res.json()));
 };
 
 export const renameConversation = async (

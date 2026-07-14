@@ -29,6 +29,7 @@ export interface ChatStreamRequest {
   webSearch?: boolean | undefined;
   temporary?: boolean | undefined;
   sessionId?: string | undefined;
+  threadId?: string | undefined;
 }
 
 const buildToolSet = (
