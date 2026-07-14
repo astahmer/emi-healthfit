@@ -103,7 +103,11 @@ Conversation
 | **C. Keep parallel** | No merge. The thread remains an alternate timeline forever. | Comparing alternatives | Tree gets wide and hard to scan |
 | **D. Discard** | The thread is marked hidden. It can be un-discarded from history. | Dead ends | Users may fear data loss |
 
-**Recommendation:** support **B (append summary)** as the default merge, **A (promote snapshot)** as an explicit power action, and **D (discard)** for dead ends. **C (keep parallel)** is the implicit state before any merge.
+**Decision:** merge actions are designed into the data model but **not implemented in the first version**.
+
+- The data model must keep enough information to support promote-snapshot and append-summary merges later (full message tree, thread anchor, thread status, sibling relationships).
+- First version ships with **D (discard)** only.
+- Merge UI/UX is specced and the schema supports it, but the actual merge endpoints and actions are deferred until there is proven demand.
 
 ### LLM tool surface proposals
 
@@ -132,7 +136,18 @@ Expose `readThread`, `summarizeThread`, and `summarizeToMessage` as tools, but d
 
 Pros: balance between power and safety. Cons: still adds tool schema and prompt instructions.
 
-**Recommendation:** start with **Option 3 (lazy hybrid)**. It gives the assistant enough context to handle references and summaries without allowing it to restructure conversations. Evaluate **Option 1** once the UI and data model are stable.
+**Decision:** use **Option 1 — Explicit thread tools**.
+
+The assistant can list, read, create, and summarize threads. Structural merges stay user-initiated (or model-suggested but requiring user confirmation).
+
+### Temporary conversations
+
+Temporary mode is kept as a lightweight, in-memory, single-turn or multi-turn exchange with **no threading support**.
+
+- No `conversation_id` is created in the database.
+- Messages are not persisted.
+- The thread UI is disabled; the input always appends to the flat temporary list.
+- This preserves the existing `temporary` flag behavior and gives users a clean, throwaway option without forcing threading everywhere.
 
 ### What the model sees
 
@@ -156,6 +171,48 @@ What LLM sees
    └─ msg (latest)
 ```
 
+### Visualization
+
+A dedicated **tree map view** shows the whole conversation as a node graph: messages as nodes, `parent_id` as edges, threads as highlighted subtrees.
+
+Tools to evaluate:
+
+- **React Flow** — most flexible, React-native, good for interactivity.
+- **Stately Editor** / **XState VS Code** paradigms — useful if we later want state-machine semantics, but heavier.
+- **Custom SVG/Canvas** — full control, more work.
+
+Usefulness beyond the “wow” effect:
+
+- Orientation: users can see where they are in a deep tree.
+- Discovery: find forgotten branches quickly.
+- Navigation: click a node to focus that thread/message.
+- Presentation: good for sharing or reviewing agent reasoning traces.
+
+Risks:
+
+- Busy graphs become unreadable fast.
+- Mobile is cramped.
+- Extra dependency and maintenance.
+
+**Decision:** build a React Flow-based tree map as an optional **zoom-out/map view**, not the primary input surface. Primary UI remains inline/tree/column views. Hide or simplify the map on mobile.
+
+### Search
+
+Search is scoped to the current conversation and covers:
+
+- All message text, including inside threads.
+- Thread titles.
+- Auto-generated summaries.
+
+Search results show:
+
+- Matching snippet.
+- Message author and time.
+- Thread breadcrumb (e.g., `Main > Upper focus > Abs`).
+- Click to jump to the message in its thread context.
+
+Implementation can start client-side for small conversations and move server-side once conversations grow large.
+
 ## What this allows
 
 - Fork any message into a persistent thread without losing the original conversation.
@@ -164,9 +221,10 @@ What LLM sees
 - Keep the main trunk clean while going deep on tangents.
 - Reference earlier messages precisely with `<message id="..." />`.
 - Summarize long side explorations into compact, referenceable messages.
-- Promote a promising branch to become the new main line.
+- Promote a promising branch to become the new line when merge is implemented.
 - Search and revisit old threads hours or days later.
 - Build agent harnesses where sub-tasks run in isolated threads that report back.
+- Search the entire conversation from any view and jump to a message in its thread context.
 
 ## What this does not allow
 
@@ -175,6 +233,7 @@ What LLM sees
 - Real-time collaborative editing by multiple human users.
 - Arbitrary reordering of messages in time (siblings are ordered by creation/position, but causality is preserved).
 - Ephemeral threads. Every thread is persisted by default; discard only hides it.
+- Threading in temporary conversations. Temporary mode stays a flat, in-memory, unsaved exchange with no threading UI or API.
 
 ## UI & UX
 
@@ -286,8 +345,18 @@ Pros: keeps main chat readable; quick access. Cons: less visual hierarchy than t
 
 ### Recommendation
 
-- **Desktop:** start with **Proposal A (inline accordion)** as the default, and add a toggle for **Proposal B (tree sidebar)** for deep conversations.
-- **Mobile:** start with **Proposal A (drill-down stack)** because it is simplest and maps directly to the tree model. Add a **thread shelf** of pinned threads for quick switching.
+**Decision:** implement all three desktop views and all three mobile views, and let the user switch the current view from a preference menu.
+
+- **Desktop views:**
+  1. Inline accordion (default).
+  2. Tree sidebar + main pane.
+  3. Mona-style columns.
+- **Mobile views:**
+  1. Drill-down stack (default).
+  2. Swipe columns.
+  3. Bottom sheet thread picker.
+
+The preference is persisted per-device (e.g., `localStorage`). Defaults are chosen to minimize cognitive load: inline accordion on desktop, drill-down stack on mobile. The React Flow tree map is available on both as a separate "map" button, not part of the three view switch.
 
 ### Common interactions
 
@@ -357,22 +426,45 @@ erDiagram
 - `MESSAGE.parts` stays as the existing JSON payload (text, image, file, tool-call, tool-result).
 - Existing `threads` and `messages` tables are migrated: `threads` → `conversations`, add `parent_id` to `messages`, create `threads` (new) and `thread_messages`.
 
+## Locked-in decisions
+
+| Topic | Decision |
+|-------|----------|
+| Naming | Existing `threads` → `conversations`; nested units are `threads`. |
+| Nesting | Unlimited nesting in the model; UI caps practical depth and offers zoom/focus. |
+| Persistence | All threads are persistent. No ephemeral threads. |
+| Temporary conversations | Flat, in-memory, no DB save, no threading UI or API. |
+| Merge semantics | Designed but not implemented. Schema must support future promote-snapshot and append-summary merges. |
+| LLM tools | Explicit thread tools: `getThreads`, `readThread`, `readMessage`, `createThread`, `summarizeThread`, `summarizeToMessage`. |
+| Discarded threads | Hidden from default LLM context; optionally show a one-line “explored and discarded” note. |
+| Message references | Custom renderer turns `<message id="..." />` into clickable quote chips. |
+| Pinned threads | Per-conversation. |
+| Thread titles | Auto-generated from first user message, editable. |
+| Desktop UI | Implement inline accordion, tree sidebar, and Mona-style columns; user-switchable. |
+| Mobile UI | Implement drill-down stack, swipe columns, and bottom sheet picker; user-switchable. |
+| Tree map | Optional React Flow map view, not the primary surface. |
+| Search | Search whole conversation including threads; results include breadcrumb and jump-to-context. |
+
 ## Open questions
 
-1. Should threads support unlimited nesting, or should we enforce a practical depth limit in the UI? Unlimited in the model; cap UI depth and offer “zoom in”.
-2. Should discarded threads be fully hidden from the LLM, or summarized as “explored and discarded”? Hide by default; optionally show a one-line note.
-3. Should merge (promote) be undoable? Yes, keep old trunk as a sibling branch so the user can switch back.
-4. How do we render `<message id="..." />` references in assistant-ui? Add a custom message part renderer that resolves the id to a small quote preview.
-5. Should pinned threads be per-conversation or global? Per-conversation keeps context clean.
-6. How do thread titles get generated? Auto-generated from first user message in the thread, editable, same mechanism as conversation titles.
+1. Should the model be allowed to discard a thread, or only the user? Start with user-only; model can suggest.
+2. Should summarization be automatic after N messages, always user-triggered, or model-triggered with approval? Start user-triggered; evaluate auto later.
+3. Should the React Flow map view be editable (drag to reorder) or read-only? Start read-only.
+4. How do we prevent the assistant from creating too many threads? Rate limit or require approval after a threshold.
+5. Should thread search be client-side-only initially, or backed by a SQLite FTS index? Start client-side; add server-side when needed.
+6. Should a thread summary be stored as a new message, a separate `summaries` table, or metadata on the thread? Store as a special `summary` message role in the message tree so it can be referenced naturally.
+7. What happens to URLs when a conversation is renamed from `threads` to `conversations`? Migrate routes from `/chat?id=...` to `/conversation/:id` or keep legacy redirect.
 
 ## Acceptance criteria
 
 - Any message can be forked into a persistent thread.
-- Threads are visible in the conversation history and searchable.
+- Threads are visible in the conversation history and searchable across the whole conversation.
 - Users can reply inside a thread without losing the parent context.
-- Users can summarize a thread and optionally append the summary to the parent line.
+- Users can summarize a thread into a referenceable summary message.
 - Users can discard a thread (soft delete) and later restore it.
-- Mobile and desktop both have a usable thread navigation pattern.
-- The model can read referenced messages and thread summaries via tools.
-- Existing conversation history remains intact after the migration.
+- Desktop supports inline accordion, tree sidebar, and Mona-style column views; user can switch.
+- Mobile supports drill-down stack, swipe columns, and bottom sheet picker views; user can switch.
+- A React Flow tree map view is available as an optional zoom-out mode.
+- The model can list, read, create, and summarize threads via explicit tools.
+- Temporary conversations remain flat, in-memory, and unsaved.
+- Existing conversation history remains intact after the migration from `threads` to `conversations`.
