@@ -27,6 +27,8 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Message, MessageContent, MessageFooter } from "@/components/ui/message";
+import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -143,20 +145,41 @@ const ToolPart = ({ part }: { part: MessagePartValue }) => {
   );
 };
 
-const MarkdownText = ({ text }: { text: string }) => (
+const MarkdownText = ({
+  text,
+  onReferenceMessage,
+}: {
+  text: string;
+  onReferenceMessage?: (messageId: string) => void;
+}) => (
   <ReactMarkdown
     remarkPlugins={[remarkGfm]}
     components={{
-      a: ({ children, ...props }) => (
-        <a
-          {...props}
-          target="_blank"
-          rel="noreferrer"
-          className="text-primary underline underline-offset-4"
-        >
-          {children}
-        </a>
-      ),
+      a: ({ children, href, ...props }) => {
+        if (href?.startsWith("message:") === true) {
+          const messageId = href.slice("message:".length);
+          return (
+            <button
+              type="button"
+              onClick={() => onReferenceMessage?.(messageId)}
+              className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
+            >
+              <GitBranchIcon className="size-3" /> {children}
+            </button>
+          );
+        }
+        return (
+          <a
+            {...props}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary underline underline-offset-4"
+          >
+            {children}
+          </a>
+        );
+      },
       code: ({ className, children, ...props }) => (
         <code
           {...props}
@@ -166,7 +189,9 @@ const MarkdownText = ({ text }: { text: string }) => (
         </code>
       ),
       pre: ({ children }) => (
-        <pre className="my-2 overflow-x-auto rounded-lg bg-muted p-3 text-sm">{children}</pre>
+        <pre className="my-4 overflow-x-auto rounded-xl border bg-muted/60 p-4 text-sm shadow-inner">
+          {children}
+        </pre>
       ),
       table: ({ children }) => (
         <div className="my-2 overflow-x-auto">
@@ -175,17 +200,36 @@ const MarkdownText = ({ text }: { text: string }) => (
       ),
       th: ({ children }) => <th className="border bg-muted px-2 py-1 text-left">{children}</th>,
       td: ({ children }) => <td className="border px-2 py-1 align-top">{children}</td>,
-      ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
-      ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
-      p: ({ children }) => <p className="my-1 first:mt-0 last:mb-0">{children}</p>,
+      h1: ({ children }) => <h1 className="mt-7 mb-3 text-xl font-semibold">{children}</h1>,
+      h2: ({ children }) => <h2 className="mt-6 mb-2 text-lg font-semibold">{children}</h2>,
+      h3: ({ children }) => <h3 className="mt-5 mb-2 font-semibold">{children}</h3>,
+      blockquote: ({ children }) => (
+        <blockquote className="my-4 border-l-2 border-primary/30 pl-4 text-muted-foreground">
+          {children}
+        </blockquote>
+      ),
+      ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-5">{children}</ul>,
+      ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-5">{children}</ol>,
+      p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
     }}
   >
-    {text}
+    {text.replace(
+      /<message\s+id=["']([^"']+)["']\s*\/?\s*>/g,
+      (_, messageId: string) => `[Referenced message](message:${messageId})`,
+    )}
   </ReactMarkdown>
 );
 
-const MessagePart = ({ part }: { part: MessagePartValue }) => {
-  if (part.type === "text") return <MarkdownText text={part.text} />;
+const MessagePart = ({
+  part,
+  onReferenceMessage,
+}: {
+  part: MessagePartValue;
+  onReferenceMessage?: (messageId: string) => void;
+}) => {
+  if (part.type === "text") {
+    return <MarkdownText text={part.text} onReferenceMessage={onReferenceMessage} />;
+  }
   if (part.type === "file") {
     if (part.mediaType.startsWith("image/")) {
       return (
@@ -283,6 +327,7 @@ const ChatMessage = ({
   onEditCancel,
   onEditSubmit,
   onRegenerate,
+  onReferenceMessage,
 }: {
   message: UIMessage;
   isStreaming: boolean;
@@ -294,6 +339,7 @@ const ChatMessage = ({
   onEditCancel: () => void;
   onEditSubmit: () => void;
   onRegenerate: (messageId: string) => void;
+  onReferenceMessage?: (messageId: string) => void;
 }) => {
   const isUser = message.role === "user";
   const usage = useUsage();
@@ -311,13 +357,30 @@ const ChatMessage = ({
     URL.revokeObjectURL(url);
   };
   return (
-    <Message align={isUser ? "end" : "start"} aria-live={isStreaming ? "polite" : undefined}>
-      <MessageContent>
+    <Message
+      id={`message-${message.id}`}
+      align={isUser ? "end" : "start"}
+      aria-live={isStreaming ? "polite" : undefined}
+      className="scroll-mt-28 py-1"
+    >
+      <MessageContent className={cn(!isUser && "gap-3")}>
         {editingDraft === undefined ? (
-          <Bubble align={isUser ? "end" : "start"} variant={isUser ? "muted" : "ghost"}>
+          <Bubble
+            align={isUser ? "end" : "start"}
+            variant={isUser ? "muted" : "ghost"}
+            className={cn(
+              isUser
+                ? "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md"
+                : "w-full rounded-2xl border border-border/70 bg-card/60 p-4 shadow-xs",
+            )}
+          >
             <BubbleContent className={cn(!isUser && "w-full")}>
               {message.parts.map((part, index) => (
-                <MessagePart key={`${message.id}-${index}`} part={part} />
+                <MessagePart
+                  key={`${message.id}-${index}`}
+                  part={part}
+                  onReferenceMessage={onReferenceMessage}
+                />
               ))}
               {isStreaming && message.parts.length === 0 && (
                 <span
@@ -357,8 +420,8 @@ const ChatMessage = ({
             </div>
           </form>
         )}
-        <MessageFooter className="gap-1">
-          <span className="me-1">{isUser ? "You" : "Coach"}</span>
+        <MessageFooter className={cn("gap-1", !isUser && "px-2")}>
+          <span className="me-1 font-medium text-foreground/70">{isUser ? "You" : "Coach"}</span>
           {model !== undefined && <span>{model.label}</span>}
           {typeof tokens === "number" && tokens > 0 && (
             <span>{tokens.toLocaleString()} tokens</span>
@@ -371,62 +434,68 @@ const ChatMessage = ({
               })}
             </time>
           )}
-          <button
+          <TooltipIconButton
+            tooltip="Copy message"
+            side="top"
             type="button"
-            className="rounded p-1 hover:bg-muted hover:text-foreground"
             aria-label="Copy message"
             onClick={() => void navigator.clipboard.writeText(getText(message))}
           >
             <CopyIcon className="size-3.5" />
-          </button>
+          </TooltipIconButton>
           {isUser && !isStreaming && editingDraft === undefined && (
-            <button
+            <TooltipIconButton
+              tooltip="Edit message"
+              side="top"
               type="button"
-              className="rounded p-1 hover:bg-muted hover:text-foreground"
               aria-label="Edit message"
               onClick={() => onEditStart(message)}
             >
               <PencilIcon className="size-3.5" />
-            </button>
+            </TooltipIconButton>
           )}
           {!isUser && !isStreaming && (
-            <button
+            <TooltipIconButton
+              tooltip="Regenerate response"
+              side="top"
               type="button"
-              className="rounded p-1 hover:bg-muted hover:text-foreground"
               aria-label="Regenerate response"
               onClick={() => onRegenerate(message.id)}
             >
               <RefreshCwIcon className="size-3.5" />
-            </button>
+            </TooltipIconButton>
           )}
           {onFork !== undefined && !isStreaming && (
-            <button
+            <TooltipIconButton
+              tooltip="Fork from this message"
+              side="top"
               type="button"
-              className="rounded p-1 hover:bg-muted hover:text-foreground"
               aria-label="Fork from message"
               onClick={() => onFork(message.id)}
             >
               <GitBranchIcon className="size-3.5" />
-            </button>
+            </TooltipIconButton>
           )}
           {!isUser && !isStreaming && getText(message).trim() !== "" && (
             <>
-              <button
+              <TooltipIconButton
+                tooltip="Save to memory"
+                side="top"
                 type="button"
-                className="rounded p-1 hover:bg-muted hover:text-foreground"
                 aria-label="Remember message"
                 onClick={() => void onRemember(message)}
               >
                 <BookmarkIcon className="size-3.5" />
-              </button>
-              <button
+              </TooltipIconButton>
+              <TooltipIconButton
+                tooltip="Export as Markdown"
+                side="top"
                 type="button"
-                className="rounded p-1 hover:bg-muted hover:text-foreground"
                 aria-label="Export message as Markdown"
                 onClick={exportMessage}
               >
                 <DownloadIcon className="size-3.5" />
-              </button>
+              </TooltipIconButton>
             </>
           )}
         </MessageFooter>
@@ -438,9 +507,11 @@ const ChatMessage = ({
 export const Thread = ({
   composerControls,
   onForkMessage,
+  onReferenceMessage,
 }: {
   composerControls: ComposerControls;
   onForkMessage?: (messageId: string) => void;
+  onReferenceMessage?: (messageId: string) => void;
 }) => {
   const runtime = useChatRuntime();
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
@@ -476,7 +547,7 @@ export const Thread = ({
         role="log"
         aria-relevant="additions"
       >
-        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-4 py-6">
+        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-8 px-4 py-8 sm:px-6">
           {runtime.messages.length === 0 ? (
             <div className="my-auto space-y-6 text-center">
               <div>
@@ -529,6 +600,7 @@ export const Thread = ({
                   sendEditor({ type: "edit.cancel" });
                 }}
                 onRegenerate={(messageId) => void runtime.revise({ messageId })}
+                onReferenceMessage={onReferenceMessage}
               />
             ))
           )}
@@ -536,10 +608,10 @@ export const Thread = ({
         </div>
       </div>
 
-      <div className="border-t bg-background/95 p-3 backdrop-blur">
+      <div className="bg-gradient-to-t from-background via-background to-transparent px-3 pt-5 pb-3">
         <form
           onSubmit={submit}
-          className="mx-auto max-w-3xl rounded-2xl border bg-muted/20 p-2 shadow-sm"
+          className="mx-auto max-w-4xl rounded-[1.35rem] border bg-background/95 p-2 shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--foreground)_28%,transparent)] backdrop-blur-xl focus-within:border-ring/50 focus-within:ring-4 focus-within:ring-ring/10"
         >
           {runtime.files.length > 0 && (
             <div className="flex flex-wrap gap-2 px-2 pb-2">
@@ -575,7 +647,7 @@ export const Thread = ({
             placeholder="Send a message..."
             aria-label="Message input"
             rows={2}
-            className="max-h-40 min-h-12 w-full resize-none bg-transparent px-2 py-1 text-base outline-none"
+            className="max-h-48 min-h-14 w-full resize-none bg-transparent px-3 py-2 text-base leading-relaxed outline-none"
           />
           {runtime.error !== null && (
             <div className="mx-2 mb-2 flex items-center justify-between rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -586,20 +658,28 @@ export const Thread = ({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-1">
-            <Button type="button" size="icon-sm" variant="ghost" asChild>
-              <label aria-label="Add attachments" className="cursor-pointer">
-                <PaperclipIcon className="size-4" />
-                <input
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  onChange={(event) => {
-                    if (event.target.files !== null) void runtime.addFiles(event.target.files);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" size="icon-sm" variant="ghost" asChild>
+                    <label aria-label="Add attachments" className="cursor-pointer">
+                      <PaperclipIcon className="size-4" />
+                      <input
+                        type="file"
+                        multiple
+                        className="sr-only"
+                        onChange={(event) => {
+                          if (event.target.files !== null)
+                            void runtime.addFiles(event.target.files);
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Add attachments</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Select value={composerControls.model} onValueChange={composerControls.onModelChange}>
               <SelectTrigger className="h-8 w-auto border-0 bg-transparent text-xs shadow-none">
                 <SelectValue />
@@ -638,10 +718,12 @@ export const Thread = ({
             >
               <GhostIcon className="size-4" /> Temporary
             </Button>
-            <Button
+            <TooltipIconButton
+              tooltip={runtime.isStreaming ? "Stop generating" : "Send message"}
+              side="top"
               type={runtime.isStreaming ? "button" : "submit"}
-              size="icon"
-              className="ms-auto rounded-full"
+              variant="default"
+              className="ms-auto size-9 rounded-full"
               onClick={runtime.isStreaming ? runtime.stop : undefined}
               aria-label={runtime.isStreaming ? "Stop generating" : "Send message"}
             >
@@ -650,7 +732,7 @@ export const Thread = ({
               ) : (
                 <ArrowUpIcon className="size-4" />
               )}
-            </Button>
+            </TooltipIconButton>
           </div>
         </form>
       </div>
