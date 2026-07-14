@@ -890,11 +890,7 @@ export const discardThread = (db: QueryDatabaseClient, threadId: string) =>
       .run();
   });
 
-export const addThreadMessage = (
-  db: QueryDatabaseClient,
-  threadId: string,
-  messageId: string,
-) =>
+export const addThreadMessage = (db: QueryDatabaseClient, threadId: string, messageId: string) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
@@ -937,6 +933,7 @@ export const summarizeThread = (
   db: QueryDatabaseClient,
   threadId: string,
   summaryText: string,
+  targetMessageId?: string,
 ) =>
   Effect.gen(function* () {
     const thread = yield* getThread(db, threadId);
@@ -952,7 +949,7 @@ export const summarizeThread = (
       .bind(
         id,
         thread.conversation_id,
-        thread.anchor_message_id,
+        targetMessageId ?? thread.anchor_message_id,
         "summary",
         JSON.stringify([{ type: "text", text: summaryText }]),
         null,
@@ -1054,13 +1051,7 @@ export const searchMemories = (db: QueryDatabaseClient, query: string, limit = 1
       ORDER BY rank DESC, created_at DESC
       LIMIT ?
     `)
-      .bind(
-        term.toLowerCase(),
-        `${term.toLowerCase()} %`,
-        pattern,
-        pattern,
-        limit,
-      )
+      .bind(term.toLowerCase(), `${term.toLowerCase()} %`, pattern, pattern, limit)
       .all<MemorySearchResult>();
 
     return result.results;

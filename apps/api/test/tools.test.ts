@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { executeTool } from "../src/tools/api.ts";
+import { executeTool, tools } from "../src/tools/api.ts";
 import * as Effect from "effect/Effect";
 
 const fakeDb = {} as never;
@@ -36,6 +36,23 @@ describe("query_database tool", () => {
     await assert.rejects(
       run(executeTool({ db: fakeDb, name: "query_database", args: {} })),
       /query/,
+    );
+  });
+});
+
+describe("conversation thread tools", () => {
+  it("exposes the explicit thread tool surface", () => {
+    const names = new Set(tools.map((tool) => tool.name));
+    assert.deepStrictEqual(
+      [
+        "get_threads",
+        "read_thread",
+        "read_message",
+        "create_thread",
+        "summarize_thread",
+        "summarize_to_message",
+      ].filter((name) => !names.has(name)),
+      [],
     );
   });
 });

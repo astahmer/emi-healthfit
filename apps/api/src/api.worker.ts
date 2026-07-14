@@ -1194,7 +1194,16 @@ const handleAiSdkChat = (
 
     const executeToolWithServices = (name: string, args: Record<string, unknown>) =>
       Effect.runPromiseWith(services)(
-        executeTool({ db, name, args }) as Effect.Effect<unknown, Error, RuntimeContext>,
+        executeTool({
+          db,
+          name,
+          args,
+          ...(isTemporary ? {} : { conversationId: sessionId }),
+          summarize: (messages) =>
+            Effect.promise(() =>
+              generateThreadSummary(apiKey, chatRequest.config.baseUrl, messages),
+            ),
+        }) as Effect.Effect<unknown, Error, RuntimeContext>,
       );
 
     const result = yield* Effect.promise(() =>

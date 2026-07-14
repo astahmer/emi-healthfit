@@ -7,12 +7,18 @@ import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
 import { buildChatContext } from "../chat/context.ts";
 import {
+  createThread,
   getDataSummary,
   getExerciseProgress,
+  getMessage,
   getSleepTrend,
+  getThread,
+  getThreadMessages,
+  getThreads,
   getWorkoutHistory,
   getWorkoutStreak,
   searchMemories,
+  summarizeThread,
   type QueryDatabaseClient,
 } from "../db/operations.ts";
 
@@ -116,6 +122,54 @@ const SearchMemories = Tool.make("search_memories", {
   failure: Schema.Unknown,
 });
 
+const GetThreads = Tool.make("get_threads", {
+  description: "List the side threads in the current conversation.",
+  parameters: Schema.Struct({}),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const ReadThread = Tool.make("read_thread", {
+  description: "Read the complete message chain for a side thread in this conversation.",
+  parameters: Schema.Struct({ thread_id: Schema.String }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const ReadMessage = Tool.make("read_message", {
+  description: "Read one message in the current conversation by id.",
+  parameters: Schema.Struct({ message_id: Schema.String }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const CreateThread = Tool.make("create_thread", {
+  description: "Create a side thread anchored at a message in the current conversation.",
+  parameters: Schema.Struct({
+    anchor_message_id: Schema.String,
+    title: Schema.optional(Schema.String),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const SummarizeThread = Tool.make("summarize_thread", {
+  description: "Summarize a side thread and store the summary as a message.",
+  parameters: Schema.Struct({ thread_id: Schema.String }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const SummarizeToMessage = Tool.make("summarize_to_message", {
+  description: "Summarize a side thread into a referenceable message at an optional target.",
+  parameters: Schema.Struct({
+    thread_id: Schema.String,
+    target_message_id: Schema.optional(Schema.String),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
 const RenderComponent = Tool.make("render_component", {
   description:
     "Render a rich UI component for workout tables, progress, recovery, metrics, or sets.",
@@ -140,16 +194,88 @@ export const FitnessToolkit = Toolkit.make(
   GetSleepTrend,
   GetWorkoutStreak,
   SearchMemories,
+  GetThreads,
+  ReadThread,
+  ReadMessage,
+  CreateThread,
+  SummarizeThread,
+  SummarizeToMessage,
   RenderComponent,
 );
 
 const toolError = ({ tool, message }: { tool: string; message: string }) =>
   new ToolExecutionError({ tool, message });
 
-const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* (db: QueryDatabaseClient) {
+type ThreadToolOptions = {
+  conversationId?: string;
+  summarize?: (messages: Array<{ role: string; text: string }>) => Effect.Effect<string, Error>;
+};
+
+const StoredParts = Schema.fromJsonString(Schema.Array(Schema.Unknown));
+
+const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
+  db,
+  threadTools,
+}: {
+  db: QueryDatabaseClient;
+  threadTools: ThreadToolOptions;
+}) {
   const services = yield* Effect.context<RuntimeContext>();
   const provideServices = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
     Effect.provideContext(effect, services);
+  const requireConversationId = (tool: string) =>
+    threadTools.conversationId === undefined
+      ? Effect.fail(toolError({ tool, message: "A persisted conversation is required." }))
+      : Effect.succeed(threadTools.conversationId);
+  const requireThread = Effect.fn("FitnessToolkit.requireThread")(function* ({
+    tool,
+    threadId,
+  }: {
+    tool: string;
+    threadId: string;
+  }) {
+    const conversationId = yield* requireConversationId(tool);
+    const thread = yield* provideServices(getThread(db, threadId));
+    if (thread === null || thread.conversation_id !== conversationId) {
+      return yield* Effect.fail(toolError({ tool, message: "Thread not found." }));
+    }
+    return thread;
+  });
+  const summarize = Effect.fn("FitnessToolkit.summarizeThread")(function* ({
+    threadId,
+    targetMessageId,
+    tool,
+  }: {
+    threadId: string;
+    targetMessageId?: string;
+    tool: string;
+  }) {
+    yield* requireThread({ tool, threadId });
+    if (threadTools.summarize === undefined) {
+      return yield* Effect.fail(toolError({ tool, message: "Summarization is unavailable." }));
+    }
+    const rows = yield* provideServices(getThreadMessages(db, threadId));
+    const messages = rows.map((row) => ({
+      role: row.role,
+      text: Schema.decodeUnknownSync(StoredParts)(row.parts)
+        .filter(
+          (part): part is { type: string; text: string } =>
+            typeof part === "object" &&
+            part !== null &&
+            "type" in part &&
+            part.type === "text" &&
+            "text" in part &&
+            typeof part.text === "string",
+        )
+        .map((part) => part.text)
+        .join("\n"),
+    }));
+    const summary = yield* threadTools.summarize(messages);
+    const messageId = yield* provideServices(
+      summarizeThread(db, threadId, summary, targetMessageId),
+    );
+    return { messageId, summary };
+  });
 
   return FitnessToolkit.of({
     get_summary: Effect.fn("FitnessToolkit.getSummary")(() => provideServices(getDataSummary(db))),
@@ -195,6 +321,55 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* (db: Que
         Effect.map((results) => ({ results })),
       ),
     ),
+    get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
+      const conversationId = yield* requireConversationId("get_threads");
+      return yield* provideServices(getThreads(db, conversationId));
+    }),
+    read_thread: Effect.fn("FitnessToolkit.readThread")(function* ({ thread_id }) {
+      yield* requireThread({ tool: "read_thread", threadId: thread_id });
+      const rows = yield* provideServices(getThreadMessages(db, thread_id));
+      return rows.map((row) => ({
+        ...row,
+        parts: Schema.decodeUnknownSync(StoredParts)(row.parts),
+      }));
+    }),
+    read_message: Effect.fn("FitnessToolkit.readMessage")(function* ({ message_id }) {
+      const conversationId = yield* requireConversationId("read_message");
+      const message = yield* provideServices(getMessage(db, message_id));
+      if (message === null || message.conversation_id !== conversationId) {
+        return yield* Effect.fail(
+          toolError({ tool: "read_message", message: "Message not found." }),
+        );
+      }
+      return { ...message, parts: Schema.decodeUnknownSync(StoredParts)(message.parts) };
+    }),
+    create_thread: Effect.fn("FitnessToolkit.createThread")(function* ({
+      anchor_message_id,
+      title,
+    }) {
+      const conversationId = yield* requireConversationId("create_thread");
+      const anchor = yield* provideServices(getMessage(db, anchor_message_id));
+      if (anchor === null || anchor.conversation_id !== conversationId) {
+        return yield* Effect.fail(
+          toolError({ tool: "create_thread", message: "Anchor message not found." }),
+        );
+      }
+      const threadId = yield* provideServices(
+        createThread(db, conversationId, anchor_message_id, title),
+      );
+      return yield* provideServices(getThread(db, threadId));
+    }),
+    summarize_thread: Effect.fn("FitnessToolkit.summarizeThreadTool")(({ thread_id }) =>
+      summarize({ threadId: thread_id, tool: "summarize_thread" }),
+    ),
+    summarize_to_message: Effect.fn("FitnessToolkit.summarizeToMessage")(
+      ({ thread_id, target_message_id }) =>
+        summarize({
+          threadId: thread_id,
+          targetMessageId: target_message_id,
+          tool: "summarize_to_message",
+        }),
+    ),
     render_component: Effect.fn("FitnessToolkit.renderComponent")(({ component, props }) =>
       Effect.succeed({
         spec: {
@@ -218,17 +393,23 @@ export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   db,
   name,
   args,
+  conversationId,
+  summarize,
 }: {
   db: QueryDatabaseClient;
   name: string;
   args: Record<string, unknown>;
+  conversationId?: string;
+  summarize?: ThreadToolOptions["summarize"];
 }) {
   if (!(name in FitnessToolkit.tools)) {
     return yield* Effect.fail(toolError({ tool: name, message: "Unknown tool." }));
   }
 
   const runtime = yield* FitnessToolkit.pipe(
-    Effect.provide(FitnessToolkit.toLayer(makeHandlers(db))),
+    Effect.provide(
+      FitnessToolkit.toLayer(makeHandlers({ db, threadTools: { conversationId, summarize } })),
+    ),
   );
   const result = yield* runtime
     .handle(name as keyof typeof FitnessToolkit.tools, args as never)
