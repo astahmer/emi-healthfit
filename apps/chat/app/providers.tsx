@@ -20,6 +20,7 @@ import { createDirectAdapter } from "./direct-adapter";
 import { buildNotesContext } from "./notes";
 import { NotesProvider, useNotes } from "./notes-context";
 import { createThread } from "./sessions";
+import { ComposerDraftSync } from "./chat/composer-draft-sync";
 
 export interface ChatSessionConfig {
   model: string;
@@ -226,7 +227,10 @@ export function ChatProviders({
   return (
     <NotesProvider>
       <ChatRuntime sessionConfig={sessionConfig}>
-        <ToolRegistrar>{children}</ToolRegistrar>
+        <ToolRegistrar>
+          <ComposerDraftSync sessionId={sessionConfig.sessionId} />
+          {children}
+        </ToolRegistrar>
       </ChatRuntime>
     </NotesProvider>
   );
