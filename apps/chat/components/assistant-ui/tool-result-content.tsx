@@ -187,7 +187,7 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
             <Line
               type="monotone"
               dataKey="weight"
-              stroke="hsl(var(--primary))"
+              stroke="var(--primary)"
               strokeWidth={2}
               dot={{ r: 3 }}
               connectNulls
