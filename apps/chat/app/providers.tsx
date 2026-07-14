@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
+  AuiProvider,
+  Suggestions,
   useAui,
   useAuiState,
   useLocalRuntime,
@@ -87,6 +89,40 @@ function UrlSync({
   return null;
 }
 
+function WelcomeSuggestions({ children }: { children: ReactNode }) {
+  const aui = useAui({
+    suggestions: Suggestions([
+      {
+        title: "How is my",
+        label: "recovery today?",
+        prompt: "How is my recovery today?",
+      },
+      {
+        title: "Summarize my",
+        label: "last workout",
+        prompt: "Summarize my last workout.",
+      },
+      {
+        title: "Show my",
+        label: "workout streak",
+        prompt: "What's my current workout streak?",
+      },
+      {
+        title: "Progress on",
+        label: "bench press",
+        prompt: "Show my progress on bench press over the last 8 weeks.",
+      },
+      {
+        title: "Compare",
+        label: "recent squat sessions",
+        prompt: "Compare my recent squat sessions.",
+      },
+    ]),
+  });
+
+  return <AuiProvider value={aui}>{children}</AuiProvider>;
+}
+
 function ProxyRuntime({
   sessionConfig,
   children,
@@ -137,8 +173,10 @@ function ProxyRuntime({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-      <UrlSync createdThreadIdRef={createdThreadIdRef} />
+      <WelcomeSuggestions>
+        {children}
+        <UrlSync createdThreadIdRef={createdThreadIdRef} />
+      </WelcomeSuggestions>
     </AssistantRuntimeProvider>
   );
 }
@@ -152,7 +190,11 @@ function DirectRuntime({ children }: { children: ReactNode }) {
   const adapter = createDirectAdapter(settings, system);
   const runtime = useLocalRuntime(adapter);
 
-  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <WelcomeSuggestions>{children}</WelcomeSuggestions>
+    </AssistantRuntimeProvider>
+  );
 }
 
 function ChatRuntime({
