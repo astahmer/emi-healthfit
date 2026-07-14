@@ -1,4 +1,7 @@
 import type { UIMessageChunk } from "ai";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import type { ChatGeneration } from "./generation-store.ts";
 
 export interface StoredGenerationChunk {
@@ -6,46 +9,46 @@ export interface StoredGenerationChunk {
   chunk: UIMessageChunk;
 }
 
-const wait = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+interface ReplayState {
+  afterSequence: number;
+}
 
-export const createGenerationReplayStream = ({
+export const createGenerationReplayStream = <E, R>({
   generationId,
   getChunks,
   getGeneration,
-  poll = () => wait(200),
+  poll = Effect.sleep("200 millis"),
 }: {
   generationId: string;
   getChunks: (options: {
     generationId: string;
     afterSequence: number;
-  }) => Promise<StoredGenerationChunk[]>;
-  getGeneration: (generationId: string) => Promise<ChatGeneration | null>;
-  poll?: () => Promise<void>;
-}): ReadableStream<UIMessageChunk> => {
-  let sequence = -1;
-  return new ReadableStream<UIMessageChunk>({
-    async pull(controller) {
-      while (true) {
-        const chunks = await getChunks({ generationId, afterSequence: sequence });
-        for (const item of chunks) {
-          sequence = item.sequence;
-          controller.enqueue(item.chunk);
-        }
-        if (chunks.length > 0) return;
-
-        const generation = await getGeneration(generationId);
-        if (generation === null || generation.status === "completed") {
-          controller.close();
-          return;
-        }
-        if (generation.status === "failed") {
-          controller.enqueue({ type: "error", errorText: generation.error ?? "Generation failed" });
-          controller.close();
-          return;
-        }
-        await poll();
+  }) => Effect.Effect<StoredGenerationChunk[], E, R>;
+  getGeneration: (generationId: string) => Effect.Effect<ChatGeneration | null, E, R>;
+  poll?: Effect.Effect<void, E, R>;
+}): Stream.Stream<UIMessageChunk, E, R> =>
+  Stream.paginate<ReplayState, UIMessageChunk, E, R>({ afterSequence: -1 }, (state) =>
+    Effect.gen(function* () {
+      const chunks = yield* getChunks({ generationId, afterSequence: state.afterSequence });
+      if (chunks.length > 0) {
+        return [
+          chunks.map((item) => item.chunk),
+          Option.some({ afterSequence: chunks.at(-1)?.sequence ?? state.afterSequence }),
+        ];
       }
-    },
-  });
-};
+
+      const generation = yield* getGeneration(generationId);
+      if (generation === null || generation.status === "completed") {
+        return [[], Option.none<ReplayState>()];
+      }
+      if (generation.status === "failed") {
+        return [
+          [{ type: "error", errorText: generation.error ?? "Generation failed" }],
+          Option.none<ReplayState>(),
+        ];
+      }
+
+      yield* poll;
+      return [[], Option.some(state)];
+    }),
+  );

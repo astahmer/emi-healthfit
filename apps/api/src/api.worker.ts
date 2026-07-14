@@ -4,9 +4,12 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { safeValidateUIMessages, type UIMessage, type UIMessageChunk } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
+import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { buildAssistantParts } from "./chat/assistant-parts.ts";
 import { buildChatContext } from "./chat/context.ts";
@@ -111,166 +114,105 @@ export default class Api extends Cloudflare.Worker<Api>()(
       | undefined;
     const assetsFetcher = assetsBinding?.fetch;
 
+    const router = yield* HttpRouter.make;
+    const cors = <E, R>(
+      request: HttpServerRequest,
+      effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
+    ) => withCors(effect, request);
+
+    yield* Effect.gen(function* () {
+      yield* router.add("OPTIONS", "/*", handleCorsPreflight);
+      yield* router.add("POST", "/ingest", (request) =>
+        cors(request, handleIngest(db, bucket, request)),
+      );
+      yield* router.add("POST", "/chat", (request) =>
+        cors(request, handleChatRoute(db, aiGateway, env, request)),
+      );
+      yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, env, request));
+      yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>
+        Effect.gen(function* () {
+          const params = yield* HttpRouter.params;
+          return yield* handleChatResume(db, params.conversationId ?? "", request);
+        }),
+      );
+      yield* router.add("POST", "/api/suggestions", (request) =>
+        cors(request, handleSuggestions(db, env, request)),
+      );
+      yield* router.add("GET", "/api/tools", (request) => cors(request, handleToolsList()));
+      yield* router.add("POST", "/api/tools/:toolName", (request) =>
+        cors(request, handleToolExecute(db, request)),
+      );
+      yield* router.add("GET", "/api/recovery", (request) => cors(request, handleRecovery(db)));
+      yield* router.add("GET", "/api/summary", (request) => cors(request, handleSummary(db)));
+      yield* router.add("GET", "/api/workouts", (request) => cors(request, handleWorkouts(db)));
+      yield* router.add("GET", "/api/conversations", (request) =>
+        cors(request, handleConversationsList(db, request)),
+      );
+      yield* router.add("POST", "/api/conversations", (request) =>
+        cors(request, handleConversationsCreate(db)),
+      );
+      yield* router.add("DELETE", "/api/conversations/:conversationId", (request) =>
+        cors(request, handleConversationDelete(db, request)),
+      );
+      yield* router.add("GET", "/api/conversations/:conversationId/messages", (request) =>
+        cors(request, handleConversationMessages(db, request)),
+      );
+      yield* router.add("PATCH", "/api/conversations/:conversationId/title", (request) =>
+        cors(request, handleConversationRename(db, request)),
+      );
+      yield* router.add("GET", "/api/conversations/:conversationId/threads", (request) =>
+        cors(request, handleConversationThreadsList(db, request)),
+      );
+      yield* router.add("POST", "/api/conversations/:conversationId/threads", (request) =>
+        cors(request, handleConversationThreadsCreate(db, request)),
+      );
+      yield* router.add("GET", "/api/threads/:threadId", (request) =>
+        cors(request, handleThreadRead(db, request)),
+      );
+      yield* router.add("PATCH", "/api/threads/:threadId", (request) =>
+        cors(request, handleThreadUpdate(db, request)),
+      );
+      yield* router.add("POST", "/api/threads/:threadId/summarize", (request) =>
+        cors(request, handleThreadSummarize(db, env, request)),
+      );
+      yield* router.add("GET", "/api/messages/:messageId", (request) =>
+        cors(request, handleMessageRead(db, request)),
+      );
+      yield* router.add("GET", "/api/memories", (request) =>
+        cors(request, handleMemoriesList(db, request)),
+      );
+      yield* router.add("POST", "/api/memories", (request) =>
+        cors(request, handleMemoryCreate(db, request)),
+      );
+      yield* router.add("POST", "/api/memories/extract", (request) =>
+        cors(request, handleMemoryExtract(db, env, request)),
+      );
+      yield* router.add("DELETE", "/api/memories/:memoryId", (request) =>
+        cors(request, handleMemoryDelete(db, request)),
+      );
+      yield* router.add("GET", "/api/notes", (request) =>
+        cors(request, handleNotesList(db, request)),
+      );
+      yield* router.add("POST", "/api/notes", (request) =>
+        cors(request, handleNoteCreate(db, request)),
+      );
+      yield* router.add("PATCH", "/api/notes/:noteId", (request) =>
+        cors(request, handleNoteUpdate(db, request)),
+      );
+      yield* router.add("DELETE", "/api/notes/:noteId", (request) =>
+        cors(request, handleNoteDelete(db, request)),
+      );
+      yield* router.add("GET", "/*", (request) => handleAssetRequest({ assetsFetcher, request }));
+      yield* router.add("*", "/*", HttpServerResponse.text("Not Found", { status: 404 }));
+    }) as Effect.Effect<void>;
+
     return {
-      fetch: Effect.gen(function* () {
-        const request = yield* HttpServerRequest;
-        const url = new URL(request.url, "http://localhost");
-
-        if (request.method === "OPTIONS") {
-          return yield* handleCorsPreflight(request);
-        }
-
-        if (request.method === "GET" && assetsFetcher !== undefined) {
-          const isAssetPath =
-            url.pathname === "/" ||
-            url.pathname === "/index.html" ||
-            url.pathname.startsWith("/assets/") ||
-            url.pathname.startsWith("/_next/");
-          if (isAssetPath) {
-            const response = yield* Effect.promise(() => assetsFetcher(request.source as Request));
-            if (response.status !== 404) {
-              return HttpServerResponse.fromWeb(response);
-            }
-          }
-        }
-
-        if (url.pathname === "/ingest" && request.method === "POST") {
-          return yield* withCors(handleIngest(db, bucket, request), request);
-        }
-
-        if (url.pathname === "/chat" && request.method === "POST") {
-          return yield* withCors(handleChatRoute(db, aiGateway, env, request), request);
-        }
-
-        if (url.pathname === "/api/chat" && request.method === "POST") {
-          return yield* handleAiSdkChat(db, env, request);
-        }
-
-        const resumeMatch = url.pathname.match(/^\/api\/chat\/([^/]+)\/stream$/);
-        if (resumeMatch !== null && request.method === "GET") {
-          return yield* handleChatResume(db, decodeURIComponent(resumeMatch[1] ?? ""), request);
-        }
-
-        if (url.pathname === "/api/suggestions" && request.method === "POST") {
-          return yield* withCors(handleSuggestions(db, env, request), request);
-        }
-
-        if (url.pathname === "/api/tools" && request.method === "GET") {
-          return yield* withCors(handleToolsList(), request);
-        }
-
-        if (url.pathname.startsWith("/api/tools/") && request.method === "POST") {
-          return yield* withCors(handleToolExecute(db, request), request);
-        }
-
-        if (url.pathname === "/api/recovery" && request.method === "GET") {
-          return yield* withCors(handleRecovery(db), request);
-        }
-
-        if (url.pathname === "/api/summary" && request.method === "GET") {
-          return yield* withCors(handleSummary(db), request);
-        }
-
-        if (url.pathname === "/api/workouts" && request.method === "GET") {
-          return yield* withCors(handleWorkouts(db), request);
-        }
-
-        if (url.pathname === "/api/conversations" && request.method === "GET") {
-          return yield* withCors(handleConversationsList(db, request), request);
-        }
-
-        if (url.pathname === "/api/conversations" && request.method === "POST") {
-          return yield* withCors(handleConversationsCreate(db), request);
-        }
-
-        if (url.pathname.startsWith("/api/conversations/") && request.method === "GET") {
-          const pathParts = url.pathname.split("/");
-          const resource = pathParts[4];
-          if (resource === "messages") {
-            return yield* withCors(handleConversationMessages(db, request), request);
-          }
-          if (resource === "threads") {
-            return yield* withCors(handleConversationThreadsList(db, request), request);
-          }
-          return HttpServerResponse.text("Not Found", { status: 404 });
-        }
-
-        if (url.pathname.startsWith("/api/conversations/") && request.method === "PATCH") {
-          const pathParts = url.pathname.split("/");
-          const resource = pathParts[4];
-          if (resource === "title") {
-            return yield* withCors(handleConversationRename(db, request), request);
-          }
-          return HttpServerResponse.text("Not Found", { status: 404 });
-        }
-
-        if (url.pathname.startsWith("/api/conversations/") && request.method === "POST") {
-          const pathParts = url.pathname.split("/");
-          const resource = pathParts[4];
-          if (resource === "threads") {
-            return yield* withCors(handleConversationThreadsCreate(db, request), request);
-          }
-          return HttpServerResponse.text("Not Found", { status: 404 });
-        }
-
-        if (url.pathname.startsWith("/api/conversations/") && request.method === "DELETE") {
-          return yield* withCors(handleConversationDelete(db, request), request);
-        }
-
-        if (url.pathname.startsWith("/api/threads/") && request.method === "GET") {
-          return yield* withCors(handleThreadRead(db, request), request);
-        }
-
-        if (url.pathname.startsWith("/api/threads/") && request.method === "PATCH") {
-          return yield* withCors(handleThreadUpdate(db, request), request);
-        }
-
-        if (url.pathname.startsWith("/api/threads/") && request.method === "POST") {
-          const pathParts = url.pathname.split("/");
-          if (pathParts[4] === "summarize") {
-            return yield* withCors(handleThreadSummarize(db, env, request), request);
-          }
-          return HttpServerResponse.text("Not Found", { status: 404 });
-        }
-
-        if (url.pathname.startsWith("/api/messages/") && request.method === "GET") {
-          return yield* withCors(handleMessageRead(db, request), request);
-        }
-
-        if (url.pathname === "/api/memories" && request.method === "GET") {
-          return yield* withCors(handleMemoriesList(db, request), request);
-        }
-
-        if (url.pathname === "/api/memories" && request.method === "POST") {
-          return yield* withCors(handleMemoryCreate(db, request), request);
-        }
-
-        if (url.pathname === "/api/memories/extract" && request.method === "POST") {
-          return yield* withCors(handleMemoryExtract(db, env, request), request);
-        }
-
-        if (url.pathname.startsWith("/api/memories/") && request.method === "DELETE") {
-          return yield* withCors(handleMemoryDelete(db, request), request);
-        }
-
-        if (url.pathname === "/api/notes" && request.method === "GET") {
-          return yield* withCors(handleNotesList(db, request), request);
-        }
-
-        if (url.pathname === "/api/notes" && request.method === "POST") {
-          return yield* withCors(handleNoteCreate(db, request), request);
-        }
-
-        if (url.pathname.startsWith("/api/notes/") && request.method === "PATCH") {
-          return yield* withCors(handleNoteUpdate(db, request), request);
-        }
-
-        if (url.pathname.startsWith("/api/notes/") && request.method === "DELETE") {
-          return yield* withCors(handleNoteDelete(db, request), request);
-        }
-
-        return HttpServerResponse.text("Not Found", { status: 404 });
-      }),
+      fetch: router.asHttpEffect().pipe(
+        Effect.scoped,
+        Effect.catch(() =>
+          Effect.succeed(HttpServerResponse.text("Internal Server Error", { status: 500 })),
+        ),
+      ),
     };
   }).pipe(
     Effect.provide(
@@ -282,6 +224,28 @@ export default class Api extends Cloudflare.Worker<Api>()(
     ),
   ),
 ) {}
+
+const handleAssetRequest = ({
+  assetsFetcher,
+  request,
+}: {
+  assetsFetcher: ((request: Request) => Promise<Response>) | undefined;
+  request: HttpServerRequest;
+}) =>
+  Effect.gen(function* () {
+    const pathname = new URL(request.url, "http://localhost").pathname;
+    const isAssetPath =
+      pathname === "/" ||
+      pathname === "/index.html" ||
+      pathname.startsWith("/assets/") ||
+      pathname.startsWith("/_next/");
+    if (!isAssetPath || assetsFetcher === undefined) {
+      return HttpServerResponse.text("Not Found", { status: 404 });
+    }
+
+    const response = yield* Effect.promise(() => assetsFetcher(request.source as Request));
+    return HttpServerResponse.fromWeb(response);
+  });
 
 const handleIngest = (
   db: QueryDatabaseClient,
@@ -944,21 +908,8 @@ const withCors = <E, R>(
   effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
   request: HttpServerRequest,
 ) =>
-  Effect.gen(function* () {
-    const response = yield* effect;
-    const webResponse = HttpServerResponse.toWeb(response);
-    const headers = new Headers(webResponse.headers);
-    for (const [key, value] of Object.entries(corsHeaders(request))) {
-      headers.set(key, value);
-    }
-    return HttpServerResponse.fromWeb(
-      new Response(webResponse.body, {
-        status: webResponse.status,
-        statusText: webResponse.statusText,
-        headers,
-      }),
-    );
-  }).pipe(
+  effect.pipe(
+    Effect.map((response) => HttpServerResponse.setHeaders(response, corsHeaders(request))),
     Effect.catch((error) =>
       HttpServerResponse.json(
         { error: error instanceof Error ? error.message : String(error) },
@@ -1291,12 +1242,9 @@ const handleAiSdkChat = (
       responseStream = streams[0];
       const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
       executionContext.waitUntil(
-        persistGenerationStream({
-          db,
-          generationId,
-          stream: streams[1],
-          services,
-        }),
+        Effect.runPromiseWith(services)(
+          persistGenerationStream({ db, generationId, stream: streams[1] }),
+        ),
       );
     }
 
@@ -1308,17 +1256,9 @@ const handleAiSdkChat = (
       },
     });
 
-    const headers = new Headers(response.headers);
-    for (const [key, value] of Object.entries(corsHeaders(request))) {
-      headers.set(key, value);
-    }
-
-    return HttpServerResponse.fromWeb(
-      new Response(response.body as unknown as BodyInit, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      }),
+    return HttpServerResponse.setHeaders(
+      HttpServerResponse.fromWeb(response),
+      corsHeaders(request),
     );
   }).pipe(
     Effect.catch((error) =>
@@ -1329,51 +1269,52 @@ const handleAiSdkChat = (
     ),
   );
 
-const persistGenerationStream = async ({
+const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(function* ({
   db,
   generationId,
   stream,
-  services,
 }: {
   db: QueryDatabaseClient;
   generationId: string;
   stream: ReadableStream<UIMessageChunk>;
-  services: Context.Context<RuntimeContext>;
-}): Promise<void> => {
-  const reader = stream.getReader();
-  let sequence = 0;
-  let streamError: string | undefined;
-  try {
-    while (true) {
-      const next = await reader.read();
-      if (next.done) break;
-      await Effect.runPromiseWith(services)(
-        appendGenerationChunk({ db, generationId, sequence, chunk: next.value }),
-      );
-      if (next.value.type === "error") streamError = next.value.errorText;
-      sequence += 1;
-    }
-    await Effect.runPromiseWith(services)(
-      finishGeneration({
-        db,
-        generationId,
-        status: streamError === undefined ? "completed" : "failed",
-        error: streamError,
+}) {
+  const streamError = yield* Ref.make<string | undefined>(undefined);
+  const persist = Stream.fromReadableStream({
+    evaluate: () => stream,
+    onError: (error) => error,
+  }).pipe(
+    Stream.zipWithIndex,
+    Stream.runForEach(([chunk, sequence]) =>
+      Effect.gen(function* () {
+        yield* appendGenerationChunk({ db, generationId, sequence, chunk });
+        if (chunk.type === "error") yield* Ref.set(streamError, chunk.errorText);
       }),
-    );
-  } catch (error) {
-    await Effect.runPromiseWith(services)(
-      finishGeneration({
-        db,
-        generationId,
-        status: "failed",
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
-  } finally {
-    reader.releaseLock();
-  }
-};
+    ),
+  );
+
+  yield* persist.pipe(
+    Effect.matchEffect({
+      onFailure: (error) =>
+        finishGeneration({
+          db,
+          generationId,
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      onSuccess: () =>
+        Ref.get(streamError).pipe(
+          Effect.flatMap((error) =>
+            finishGeneration({
+              db,
+              generationId,
+              status: error === undefined ? "completed" : "failed",
+              error,
+            }),
+          ),
+        ),
+    }),
+  );
+});
 
 const handleChatResume = (
   db: QueryDatabaseClient,
@@ -1388,15 +1329,16 @@ const handleChatResume = (
     }
 
     const services = yield* Effect.context<RuntimeContext>();
-    const runEffect = <A>(effect: Effect.Effect<A, unknown, RuntimeContext>) =>
-      Effect.runPromiseWith(services)(effect);
     const response = createChatStreamResponse({
-      stream: createGenerationReplayStream({
-        generationId: generation.id,
-        getChunks: ({ generationId, afterSequence }) =>
-          runEffect(getGenerationChunks({ db, generationId, afterSequence })),
-        getGeneration: (generationId) => runEffect(getGeneration({ db, generationId })),
-      }),
+      stream: Stream.toReadableStreamWith(
+        createGenerationReplayStream({
+          generationId: generation.id,
+          getChunks: ({ generationId, afterSequence }) =>
+            getGenerationChunks({ db, generationId, afterSequence }),
+          getGeneration: (generationId) => getGeneration({ db, generationId }),
+        }),
+        services,
+      ),
       headers: {
         "x-thread-id": conversationId,
         "x-generation-id": generation.id,

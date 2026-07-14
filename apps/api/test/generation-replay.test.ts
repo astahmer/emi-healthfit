@@ -1,6 +1,8 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import type { UIMessageChunk } from "ai";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import { createGenerationReplayStream } from "../src/chat/generation-replay.ts";
 import type { ChatGeneration } from "../src/chat/generation-store.ts";
 
@@ -16,11 +18,8 @@ const generation = (
   updated_at: "2026-07-14T00:00:00.000Z",
 });
 
-const readAll = async (stream: ReadableStream<UIMessageChunk>): Promise<UIMessageChunk[]> => {
-  const output: UIMessageChunk[] = [];
-  for await (const chunk of stream) output.push(chunk);
-  return output;
-};
+const readAll = (stream: Stream.Stream<UIMessageChunk>) =>
+  Effect.runPromise(Stream.runCollect(stream));
 
 describe("createGenerationReplayStream", () => {
   it("replays ordered chunks and waits for a running generation to complete", async () => {
@@ -29,10 +28,10 @@ describe("createGenerationReplayStream", () => {
     let polls = 0;
     const stream = createGenerationReplayStream({
       generationId: "generation",
-      getChunks: async ({ afterSequence }) =>
-        chunks.filter((item) => item.sequence > afterSequence),
-      getGeneration: async () => generation(status),
-      poll: async () => {
+      getChunks: ({ afterSequence }) =>
+        Effect.succeed(chunks.filter((item) => item.sequence > afterSequence)),
+      getGeneration: () => Effect.succeed(generation(status)),
+      poll: Effect.sync(() => {
         polls += 1;
         chunks.push(
           { sequence: 0, chunk: { type: "start" } },
@@ -42,7 +41,7 @@ describe("createGenerationReplayStream", () => {
           { sequence: 4, chunk: { type: "finish" } },
         );
         status = "completed";
-      },
+      }),
     });
 
     const output = await readAll(stream);
@@ -57,8 +56,8 @@ describe("createGenerationReplayStream", () => {
     const output = await readAll(
       createGenerationReplayStream({
         generationId: "generation",
-        getChunks: async () => [],
-        getGeneration: async () => generation("failed", "provider unavailable"),
+        getChunks: () => Effect.succeed([]),
+        getGeneration: () => Effect.succeed(generation("failed", "provider unavailable")),
       }),
     );
 
