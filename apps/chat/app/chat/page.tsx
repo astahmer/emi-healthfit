@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const HEADER_HEIGHT = 56;
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const sessionId = searchParams.get("id") ?? undefined;
 
   const [model, setModel] = useSessionParam("model", settings.model);
@@ -38,10 +40,6 @@ function ChatPageInner() {
   const [webSearch, setWebSearch] = useSessionFlag("web", false);
   const [temporary, setTemporary] = useState(false);
 
-  const [initialMessages, setInitialMessages] = useState<MessageWithUsage[] | undefined>(undefined);
-  const [thread, setThread] = useState<ChatThread | null>(null);
-  const [loading, setLoading] = useState(sessionId !== undefined);
-  const [error, setError] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [resetKey, setResetKey] = useState(0);
@@ -59,40 +57,35 @@ function ChatPageInner() {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
   }, []);
 
+  const {
+    data: sessionData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["thread", sessionId],
+    queryFn: async () => {
+      if (sessionId === undefined) {
+        return { thread: null as ChatThread | null, messages: [] as MessageWithUsage[] };
+      }
+      if (isClientCreatedThread(sessionId)) {
+        const thread = await fetchThread(sessionId);
+        return { thread, messages: [] as MessageWithUsage[] };
+      }
+      return fetchThreadMessages(sessionId);
+    },
+    enabled: sessionId !== undefined,
+  });
+
   useEffect(() => {
-    if (sessionId === undefined) {
-      setInitialMessages(undefined);
-      setThread(null);
-      setLoading(false);
-      return;
-    }
-
-    const wasCreatedHere = isClientCreatedThread(sessionId);
-
-    if (wasCreatedHere) {
-      setLoading(true);
-      fetchThread(sessionId)
-        .then((thread) => {
-          setThread(thread);
-          setInitialMessages(undefined);
-        })
-        .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-        .finally(() => setLoading(false));
-
-      return () => {
-        unmarkClientCreatedThread(sessionId);
-      };
-    }
-
-    setLoading(true);
-    fetchThreadMessages(sessionId)
-      .then((data) => {
-        setThread(data.thread);
-        setInitialMessages(data.messages);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
+    if (sessionId === undefined || !isClientCreatedThread(sessionId)) return;
+    return () => {
+      unmarkClientCreatedThread(sessionId);
+    };
   }, [sessionId]);
+
+  const thread = sessionData?.thread ?? null;
+  const initialMessages = sessionData?.messages;
 
   const selectedModel = chatModels.find((m) => m.id === model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
@@ -120,12 +113,19 @@ function ChatPageInner() {
     [model, canWebSearch, setModel, setWebSearch],
   );
 
-  // Clear saved model if user manually changes model while web search is ON
   useEffect(() => {
     if (webSearch && canWebSearch) {
       savedModelRef.current = null;
     }
   }, [model, webSearch, canWebSearch]);
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => renameThread(id, title),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["threads"] });
+    },
+  });
 
   const startRename = () => {
     setRenameDraft(thread?.title ?? "");
@@ -142,13 +142,7 @@ function ChatPageInner() {
       cancelRename();
       return;
     }
-    const title = renameDraft.trim();
-    try {
-      await renameThread(sessionId, title);
-      setThread((prev) => (prev === null ? prev : { ...prev, title }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    await renameMutation.mutateAsync({ id: sessionId, title: renameDraft.trim() });
     setIsRenaming(false);
   };
 
@@ -161,25 +155,15 @@ function ChatPageInner() {
     >
       <SessionSidebar />
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           Loading session…
         </div>
       ) : error !== null && sessionId !== undefined ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-destructive">{error}</p>
+          <p className="text-destructive">{error.message}</p>
           <button
-            onClick={() => {
-              setError(null);
-              setLoading(true);
-              fetchThreadMessages(sessionId)
-                .then((data) => {
-                  setThread(data.thread);
-                  setInitialMessages(data.messages);
-                })
-                .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-                .finally(() => setLoading(false));
-            }}
+            onClick={() => void refetch()}
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
             Retry
@@ -190,8 +174,7 @@ function ChatPageInner() {
           key={`${sessionId ?? "new"}-${resetKey}`}
           onReset={() => {
             setResetKey((k) => k + 1);
-            setInitialMessages(undefined);
-            setThread(null);
+            void queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
           }}
         >
           <UsageProvider messages={initialMessages ?? []}>

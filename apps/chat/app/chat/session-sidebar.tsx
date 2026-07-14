@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArchiveIcon,
   CheckIcon,
@@ -21,12 +22,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   deleteThread,
   fetchThreadMessages,
-  loadCachedThreads,
   renameThread,
   syncThreads,
   type Thread,
 } from "../sessions";
-import { getLastSyncTimestamp } from "../session-cache";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -131,67 +130,41 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
 export const SessionSidebar = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const activeId = searchParams.get("id");
   const { setOpenMobile } = useSidebar();
 
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [local, syncedAt] = await Promise.all([
-        loadCachedThreads(search || undefined),
-        getLastSyncTimestamp(),
-      ]);
-      setThreads(local);
-      if (syncedAt !== null) setLastSyncedAt(syncedAt);
-    } catch {
-      // ignore local cache errors; remote load will surface real problems
-    }
-    syncThreads(search || undefined)
-      .then((remote) => {
-        setThreads(remote);
-        setLastSyncedAt(Date.now());
-      })
-      .catch((err) => {
-        if (threads.length === 0) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      })
-      .finally(() => setLoading(false));
-  };
+  const {
+    data: threads = [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+    dataUpdatedAt,
+  } = useQuery({
+    queryKey: ["threads", search],
+    queryFn: () => syncThreads(search || undefined),
+  });
 
-  const handleSync = async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      const remote = await syncThreads(search || undefined);
-      setThreads(remote);
-      setLastSyncedAt(Date.now());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncing(false);
-    }
-  };
+  const deleteMutation = useMutation({
+    mutationFn: deleteThread,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+  });
 
-  useEffect(() => {
-    load();
-  }, [search]);
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => renameThread(id, title),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
+  });
 
   useEffect(() => {
     const syncIfOnline = () => {
-      if (navigator.onLine) void handleSync();
+      if (navigator.onLine) void refetch();
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") syncIfOnline();
@@ -202,7 +175,7 @@ export const SessionSidebar = () => {
       window.removeEventListener("online", syncIfOnline);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [search]);
+  }, [refetch]);
 
   const handleNew = () => {
     setOpenMobile(false);
@@ -215,9 +188,9 @@ export const SessionSidebar = () => {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteThread(id);
+    await deleteMutation.mutateAsync(id);
     if (activeId === id) router.push("/chat");
-    load();
+    setDeletingId(null);
   };
 
   const startRename = (thread: Thread) => {
@@ -226,11 +199,11 @@ export const SessionSidebar = () => {
   };
 
   const submitRename = async (id: string) => {
-    if (editTitle.trim() !== "") {
-      await renameThread(id, editTitle.trim());
+    const title = editTitle.trim();
+    if (title !== "") {
+      await renameMutation.mutateAsync({ id, title });
     }
     setEditingId(null);
-    load();
   };
 
   const handleCopyMarkdown = useCallback(async (threadId: string) => {
@@ -278,11 +251,13 @@ export const SessionSidebar = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          {loading && threads.length === 0 && (
+          {isLoading && threads.length === 0 && (
             <p className="px-4 text-sm text-muted-foreground">Loading…</p>
           )}
-          {error !== null && <p className="px-4 text-sm text-destructive">{error}</p>}
-          {threads.length === 0 && !loading && (
+          {error !== null && threads.length === 0 && (
+            <p className="px-4 text-sm text-destructive">{error.message}</p>
+          )}
+          {threads.length === 0 && !isLoading && (
             <p className="px-4 text-sm text-muted-foreground">No sessions yet.</p>
           )}
           {groupThreads(threads).map((group) => (
@@ -398,23 +373,19 @@ export const SessionSidebar = () => {
           ))}
         </SidebarContent>
         <SidebarFooter className="px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {syncing ? (
-              <>
-                <RefreshCwIcon className="h-3 w-3 animate-spin" />
-                <span>Syncing…</span>
-              </>
-            ) : (
-              <>
-                <RefreshCwIcon className="h-3 w-3" />
-                <span>
-                  {lastSyncedAt !== null
-                    ? `Synced ${formatRelativeTime(new Date(lastSyncedAt).toISOString())}`
-                    : "Not synced"}
-                </span>
-              </>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCwIcon className={isFetching ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+            <span>
+              {dataUpdatedAt > 0
+                ? `Synced ${formatRelativeTime(new Date(dataUpdatedAt).toISOString())}`
+                : "Not synced"}
+            </span>
+          </button>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
@@ -437,7 +408,6 @@ export const SessionSidebar = () => {
             <AlertDialogAction
               onClick={() => {
                 if (deletingId) void handleDelete(deletingId);
-                setDeletingId(null);
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

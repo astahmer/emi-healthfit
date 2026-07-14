@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavHeader } from "./nav-header";
 import { ThemeProvider } from "./theme-provider";
+import { QueryProvider } from "./query-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -44,16 +45,18 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider>
-          <TooltipProvider>
-            <div className="flex h-dvh flex-col bg-background text-foreground">
-              <Suspense>
-                <NavHeader />
-              </Suspense>
-              <div className="flex-1 overflow-hidden">{children}</div>
-            </div>
-          </TooltipProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <TooltipProvider>
+              <div className="flex h-dvh flex-col bg-background text-foreground">
+                <Suspense>
+                  <NavHeader />
+                </Suspense>
+                <div className="flex-1 overflow-hidden">{children}</div>
+              </div>
+            </TooltipProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

@@ -165,9 +165,7 @@ export const FollowUpChips = () => {
           <RefreshCwIcon />
         </Button>
       )}
-      {error !== null && (
-        <span className="text-destructive text-xs">{error}</span>
-      )}
+      {error !== null && <span className="text-destructive text-xs">{error}</span>}
     </div>
   );
 };
