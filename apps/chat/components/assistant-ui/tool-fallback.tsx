@@ -501,31 +501,19 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
   argsText,
   result,
   status,
-  addResult,
-  resume,
-  interrupt,
-  approval,
-  respondToApproval,
 }) => {
   const messageStatus = useAuiState((s) => s.message.status);
 
   const effectiveStatus = useMemo(() => {
     if (status?.type !== "requires-action") return status;
-    if (approval != null || interrupt != null) return status;
     const messageState = messageStatus?.type ?? "complete";
     return { type: messageState } as ToolCallMessagePartStatus;
-  }, [status, approval, interrupt, messageStatus]);
+  }, [status, messageStatus]);
 
   const isCancelled =
     effectiveStatus?.type === "incomplete" && effectiveStatus.reason === "cancelled";
-  const isRequiresAction = effectiveStatus?.type === "requires-action";
 
-  const [open, setOpen] = useState(isRequiresAction);
-  const [prevRequiresAction, setPrevRequiresAction] = useState(isRequiresAction);
-  if (isRequiresAction !== prevRequiresAction) {
-    setPrevRequiresAction(isRequiresAction);
-    if (isRequiresAction) setOpen(true);
-  }
+  const [open, setOpen] = useState(false);
 
   return (
     <ToolFallbackRoot open={open} onOpenChange={setOpen}>
@@ -533,17 +521,6 @@ const ToolFallbackImpl: ToolCallMessagePartComponent = ({
       <ToolFallbackContent>
         <ToolFallbackError status={effectiveStatus} />
         <ToolFallbackArgs argsText={argsText} className={cn(isCancelled && "opacity-60")} />
-        {isRequiresAction && (
-          <ToolFallbackApproval
-            toolName={toolName}
-            argsText={argsText}
-            addResult={addResult}
-            resume={resume}
-            interrupt={interrupt}
-            approval={approval}
-            respondToApproval={respondToApproval}
-          />
-        )}
         {!isCancelled && (
           <div className="pt-1">
             <p className="text-muted-foreground text-xs font-medium">Result:</p>

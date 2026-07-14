@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ToolFallback } from "./tool-fallback";
 
@@ -20,7 +20,7 @@ const baseProps = {
   respondToApproval: vi.fn(),
 };
 
-describe("ToolFallback approval UI", () => {
+describe("ToolFallback", () => {
   it("does not render approval buttons for a completed tool call", () => {
     render(<ToolFallback {...baseProps} status={{ type: "complete" }} addResult={vi.fn()} />);
 
@@ -29,37 +29,18 @@ describe("ToolFallback approval UI", () => {
     expect(screen.queryByRole("button", { name: /deny/i })).not.toBeInTheDocument();
   });
 
-  it("approves a tool that requires action", () => {
-    const respondToApproval = vi.fn();
-
+  it("does not render approval buttons for a tool that requires action", () => {
     render(
       <ToolFallback
         {...baseProps}
         status={{ type: "requires-action", reason: "interrupt" }}
         approval={{ id: "approval-1", options: [] }}
-        respondToApproval={respondToApproval}
+        respondToApproval={vi.fn()}
         addResult={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /allow/i }));
-    expect(respondToApproval).toHaveBeenCalledWith({ approved: true });
-  });
-
-  it("denies a tool that requires action", () => {
-    const respondToApproval = vi.fn();
-
-    render(
-      <ToolFallback
-        {...baseProps}
-        status={{ type: "requires-action", reason: "interrupt" }}
-        approval={{ id: "approval-2", options: [] }}
-        respondToApproval={respondToApproval}
-        addResult={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /deny/i }));
-    expect(respondToApproval).toHaveBeenCalledWith({ approved: false });
+    expect(screen.queryByRole("button", { name: /allow/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /deny/i })).not.toBeInTheDocument();
   });
 });
