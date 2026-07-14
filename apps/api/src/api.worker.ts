@@ -12,8 +12,10 @@ import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
   createThread,
   type DataSummary,
+  deleteMemory,
   deleteThread,
   getDataSummary,
+  getMemories,
   getSuggestionsById,
   getThread,
   getThreadMessages,
@@ -21,10 +23,12 @@ import {
   getWorkouts,
   hashSuggestionsKey,
   insertHealthWorkouts,
+  insertMemory,
   type QueryDatabaseClient,
   renameThread,
   saveSuggestions,
   saveThreadMessages,
+  searchMemories,
   updateSyncCursor,
   upsertBodyMetrics,
   upsertDailyActivity,
@@ -36,6 +40,7 @@ import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
 import {
   createChatStream,
+  extractMemories,
   generateSuggestions,
   generateThreadTitle,
   type ChatStreamRequest,
@@ -147,6 +152,22 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname.startsWith("/api/threads/") && request.method === "DELETE") {
           return yield* withCors(handleThreadDelete(db, request), request);
+        }
+
+        if (url.pathname === "/api/memories" && request.method === "GET") {
+          return yield* withCors(handleMemoriesList(db, request), request);
+        }
+
+        if (url.pathname === "/api/memories" && request.method === "POST") {
+          return yield* withCors(handleMemoryCreate(db, request), request);
+        }
+
+        if (url.pathname === "/api/memories/extract" && request.method === "POST") {
+          return yield* withCors(handleMemoryExtract(db, env, request), request);
+        }
+
+        if (url.pathname.startsWith("/api/memories/") && request.method === "DELETE") {
+          return yield* withCors(handleMemoryDelete(db, request), request);
         }
 
         return HttpServerResponse.text("Not Found", { status: 404 });
@@ -482,6 +503,90 @@ const handleThreadDelete = (db: QueryDatabaseClient, request: HttpServerRequest)
     return yield* HttpServerResponse.json({ success: true });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const getMemoryIdFromPath = (pathname: string): string | undefined => {
+  const match = pathname.match(/^\/api\/memories\/([^/]+)$/);
+  return match?.[1];
+};
+
+const handleMemoriesList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const search = url.searchParams.get("search") ?? undefined;
+    const limit = Number(url.searchParams.get("limit") ?? "10");
+    const memories =
+      search !== undefined
+        ? yield* searchMemories(db, search, limit)
+        : yield* getMemories(db, limit);
+    return yield* HttpServerResponse.json({ memories });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleMemoryCreate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const text = yield* request.text;
+    const body = JSON.parse(text || "{}") as {
+      content?: string;
+      source?: string;
+      threadId?: string;
+    };
+    if (body.content === undefined || body.content.trim() === "") {
+      return yield* HttpServerResponse.json({ error: "content is required" }, { status: 400 });
+    }
+    const id = yield* insertMemory(db, body.content, body.source, body.threadId);
+    return yield* HttpServerResponse.json({ id }, { status: id === null ? 400 : 201 });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleMemoryDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const url = new URL(request.url, "http://localhost");
+    const id = getMemoryIdFromPath(url.pathname);
+    if (id === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid memory id" }, { status: 400 });
+    }
+    yield* deleteMemory(db, id);
+    return yield* HttpServerResponse.json({ success: true });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleMemoryExtract = (
+  db: QueryDatabaseClient,
+  env: Record<string, unknown>,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const requestText = yield* request.text;
+    const body = JSON.parse(requestText || "{}") as { text?: string; threadId?: string };
+    if (body.text === undefined || body.text.trim() === "") {
+      return yield* HttpServerResponse.json({ error: "text is required" }, { status: 400 });
+    }
+    const text = body.text;
+
+    const apiKey = env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "";
+    if (apiKey === "") {
+      return yield* HttpServerResponse.json({ error: "OpenAI API key is required" }, { status: 400 });
+    }
+
+    const baseUrl = env.OPENAI_BASE_URL !== undefined ? String(env.OPENAI_BASE_URL) : undefined;
+    const snippets = yield* Effect.promise(() => extractMemories(apiKey, baseUrl, text));
+    const ids: string[] = [];
+    for (const snippet of snippets) {
+      const id = yield* insertMemory(db, snippet, "assistant", body.threadId);
+      if (id !== null) ids.push(id);
+    }
+    return yield* HttpServerResponse.json({ ids, count: ids.length });
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 500 },
+      ),
+    ),
   );
 
 const corsHeaders = (request: HttpServerRequest): Record<string, string> => {

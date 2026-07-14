@@ -137,3 +137,33 @@ export const generateThreadTitle = async (
   });
   return result.text.trim().replace(/^["']|["']$/g, "");
 };
+
+export const extractMemories = async (
+  apiKey: string,
+  baseUrl: string | undefined,
+  text: string,
+): Promise<string[]> => {
+  const openai = createOpenAI({ apiKey, baseURL: baseUrl });
+  const result = await generateText({
+    model: openai.chat("gpt-4o-mini"),
+    prompt:
+      `Extract any facts, preferences, or context from the assistant message below that would be useful to remember for future conversations. ` +
+      `Return only a JSON array of short strings. If there is nothing worth remembering, return an empty array.\n\n${text}`,
+  });
+
+  const cleaned = result.text.trim().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+  } catch {
+    // Fall through.
+  }
+
+  return [];
+};

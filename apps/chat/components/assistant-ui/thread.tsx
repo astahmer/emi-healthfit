@@ -35,6 +35,7 @@ import {
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  BookmarkIcon,
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -48,7 +49,10 @@ import {
   RefreshCwIcon,
   SquareIcon,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useState } from "react";
 import type { FC } from "react";
+import { extractMemories } from "@/app/memories";
 
 export interface ComposerControls {
   model: string;
@@ -397,6 +401,44 @@ const AssistantMessage: FC = () => {
   );
 };
 
+const RememberButton: FC = () => {
+  const searchParams = useSearchParams();
+  const threadId = searchParams.get("id") ?? undefined;
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+  const text = useAuiState((s) =>
+    s.message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => (part as { text: string }).text)
+      .join("\n"),
+  );
+
+  const handleClick = useCallback(async () => {
+    if (text.trim() === "" || status === "saving") return;
+    setStatus("saving");
+    try {
+      await extractMemories(text, threadId);
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch {
+      setStatus("idle");
+    }
+  }, [text, threadId, status]);
+
+  return (
+    <TooltipIconButton
+      tooltip={status === "saved" ? "Remembered" : "Remember this as memory"}
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={status === "saved" ? "text-primary" : undefined}
+      onClick={handleClick}
+    >
+      {status === "saved" ? <CheckIcon className="size-4" /> : <BookmarkIcon className="size-4" />}
+    </TooltipIconButton>
+  );
+};
+
 const AssistantActionBar: FC = () => {
   return (
     <ActionBarPrimitive.Root
@@ -419,6 +461,7 @@ const AssistantActionBar: FC = () => {
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
+      <RememberButton />
       <ActionBarMorePrimitive.Root>
         <ActionBarMorePrimitive.Trigger asChild>
           <TooltipIconButton tooltip="More" className="data-[state=open]:bg-accent">

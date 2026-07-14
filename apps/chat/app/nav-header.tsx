@@ -27,7 +27,11 @@ export const NavHeader: FC = () => {
         <ThemeToggle />
         <nav className="flex gap-1">
           {tabs.map((tab) => (
-            <TabButton key={tab.href} href={tab.href} active={pathname === tab.href}>
+            <TabButton
+              key={tab.href}
+              href={tab.href}
+              active={pathname.replace(/\/$/, "") === tab.href}
+            >
               {tab.label}
             </TabButton>
           ))}

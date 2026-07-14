@@ -8,6 +8,7 @@ import {
   getSleepTrend,
   getWorkoutHistory,
   getWorkoutStreak,
+  searchMemories,
   type QueryDatabaseClient,
 } from "../db/operations.ts";
 import { buildChatContext } from "../chat/context.ts";
@@ -91,6 +92,25 @@ const tools: ToolDefinition[] = [
     name: "get_workout_streak",
     description: "Get current and longest consecutive workout streaks from Hevy sessions.",
     parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "search_memories",
+    description:
+      "Search previously saved memory snippets from past sessions. Use when the user asks something that may have been discussed before.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Search terms to match against saved memory snippets.",
+        },
+        limit: {
+          type: "integer",
+          description: "Maximum number of memories to return (default 10).",
+        },
+      },
+      required: ["query"],
+    },
   },
 ];
 
@@ -193,6 +213,16 @@ const executeTool = (
     }
     case "get_workout_streak":
       return getWorkoutStreak(db);
+    case "search_memories": {
+      const query = args.query;
+      if (typeof query !== "string") {
+        return Effect.fail(new Error("query is required"));
+      }
+      const limit = typeof args.limit === "number" ? args.limit : 10;
+      return searchMemories(db, query, limit).pipe(
+        Effect.map((results) => ({ results })),
+      );
+    }
     default:
       return Effect.fail(new Error(`Unknown tool: ${name}`));
   }

@@ -68,3 +68,11 @@ export interface SuggestionsRow {
   suggestions: string;
   created_at: string;
 }
+
+export interface MemoryRow {
+  id: string;
+  content: string;
+  source: string | null;
+  thread_id: string | null;
+  created_at: string;
+}

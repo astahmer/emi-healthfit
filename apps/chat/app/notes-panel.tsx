@@ -119,9 +119,7 @@ export function NotesPanel() {
         ))}
       </ul>
 
-      {filtered.length === 0 && (
-        <p className="text-muted-foreground text-sm">No notes yet.</p>
-      )}
+      {filtered.length === 0 && <p className="text-muted-foreground text-sm">No notes yet.</p>}
     </div>
   );
 }

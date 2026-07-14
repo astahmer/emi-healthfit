@@ -8,6 +8,7 @@ import {
   CopyIcon,
   DownloadIcon,
   FileTextIcon,
+  MessageSquareIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PinIcon,
@@ -188,6 +189,7 @@ export const SessionSidebar = () => {
                         handleSelect(thread.id);
                       }}
                     >
+                      <MessageSquareIcon />
                       <span>{thread.title ?? "New chat"}</span>
                     </a>
                   </SidebarMenuButton>

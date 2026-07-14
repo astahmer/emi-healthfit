@@ -6,6 +6,7 @@ import type {
   HealthWorkoutRow,
   HevySessionRow,
   HevySetRow,
+  MemoryRow,
   SleepSessionRow,
   SuggestionsRow,
 } from "./schema.ts";
@@ -715,4 +716,97 @@ export const saveSuggestions = (db: QueryDatabaseClient, id: string, suggestions
     `)
       .bind(id, JSON.stringify(suggestions), nowIso())
       .run();
+  });
+
+export const insertMemory = (
+  db: QueryDatabaseClient,
+  content: string,
+  source?: string,
+  threadId?: string,
+) =>
+  Effect.gen(function* () {
+    const trimmed = content.trim();
+    if (trimmed === "") return null;
+
+    const id = crypto.randomUUID();
+    yield* db
+      .prepare(`
+      INSERT INTO memories (id, content, source, thread_id, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+      .bind(id, trimmed, source ?? null, threadId ?? null, nowIso())
+      .run();
+
+    return id;
+  });
+
+export interface MemorySearchResult {
+  id: string;
+  content: string;
+  source: string | null;
+  thread_id: string | null;
+  created_at: string;
+  rank: number;
+}
+
+export const searchMemories = (db: QueryDatabaseClient, query: string, limit = 10) =>
+  Effect.gen(function* () {
+    const term = query.trim();
+    if (term === "") {
+      const result = yield* db
+        .prepare(`
+        SELECT id, content, source, thread_id, created_at
+        FROM memories
+        ORDER BY created_at DESC
+        LIMIT ?
+      `)
+        .bind(limit)
+        .all<Omit<MemorySearchResult, "rank">>();
+      return result.results.map((row) => ({ ...row, rank: 0 }));
+    }
+
+    const pattern = `%${term.toLowerCase()}%`;
+    const result = yield* db
+      .prepare(`
+      SELECT id, content, source, thread_id, created_at,
+        CASE
+          WHEN LOWER(content) = ? THEN 3
+          WHEN LOWER(content) LIKE ? THEN 2
+          WHEN LOWER(content) LIKE ? THEN 1
+          ELSE 0
+        END as rank
+      FROM memories
+      WHERE LOWER(content) LIKE ?
+      ORDER BY rank DESC, created_at DESC
+      LIMIT ?
+    `)
+      .bind(
+        term.toLowerCase(),
+        `${term.toLowerCase()} %`,
+        pattern,
+        pattern,
+        limit,
+      )
+      .all<MemorySearchResult>();
+
+    return result.results;
+  });
+
+export const getMemories = (db: QueryDatabaseClient, limit = 100) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT id, content, source, thread_id, created_at
+      FROM memories
+      ORDER BY created_at DESC
+      LIMIT ?
+    `)
+      .bind(limit)
+      .all<MemoryRow>();
+    return result.results;
+  });
+
+export const deleteMemory = (db: QueryDatabaseClient, id: string) =>
+  Effect.gen(function* () {
+    yield* db.prepare(`DELETE FROM memories WHERE id = ?`).bind(id).run();
   });

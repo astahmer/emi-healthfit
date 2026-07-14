@@ -9,7 +9,7 @@ import { chatModels } from "../models";
 import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
-import { fetchThreadMessages, type MessageWithUsage } from "../sessions";
+import { fetchThreadMessages, type MessageWithUsage, type Thread as ChatThread } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { UsageProvider } from "../usage-context";
@@ -29,6 +29,7 @@ function ChatPageInner() {
   const [webSearch, setWebSearch] = useSessionFlag("web", false);
 
   const [initialMessages, setInitialMessages] = useState<MessageWithUsage[] | undefined>(undefined);
+  const [thread, setThread] = useState<ChatThread | null>(null);
   const [loading, setLoading] = useState(sessionId !== undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,13 +49,17 @@ function ChatPageInner() {
   useEffect(() => {
     if (sessionId === undefined) {
       setInitialMessages(undefined);
+      setThread(null);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     fetchThreadMessages(sessionId)
-      .then((data) => setInitialMessages(data.messages))
+      .then((data) => {
+        setThread(data.thread);
+        setInitialMessages(data.messages);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
   }, [sessionId]);
@@ -109,7 +114,10 @@ function ChatPageInner() {
               setError(null);
               setLoading(true);
               fetchThreadMessages(sessionId)
-                .then((data) => setInitialMessages(data.messages))
+                .then((data) => {
+                  setThread(data.thread);
+                  setInitialMessages(data.messages);
+                })
                 .catch((err) => setError(err instanceof Error ? err.message : String(err)))
                 .finally(() => setLoading(false));
             }}
@@ -143,6 +151,11 @@ function ChatPageInner() {
               <div className="flex h-full flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                   <SidebarTrigger />
+                  {sessionId && thread !== null && (
+                    <span className="flex-1 truncate px-2 text-sm font-medium">
+                      {thread.title ?? "New chat"}
+                    </span>
+                  )}
                   {sessionId && <ExportThreadButton sessionId={sessionId} className="ms-auto" />}
                 </div>
                 <div className="flex-1 overflow-hidden">
