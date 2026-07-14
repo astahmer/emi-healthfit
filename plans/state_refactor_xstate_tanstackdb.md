@@ -77,11 +77,14 @@ Make the chat UI robust and maintainable by:
 - Add unit tests for the machine.
 - Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
-#### Phase 2 — Sidebar
+#### Phase 2 — Sidebar ✅
 
-- Introduce `sidebarMachine` (or per-item `sidebarItemMachine`) for rename/delete/copy.
-- Replace the `useState` flags and async handlers in `SessionSidebar`.
+- Introduce `sidebarItemMachine` for rename/delete/copy per item.
+- Replace `editingId`, `editTitle`, `deletingId`, `copiedId` `useState` flags in `SessionSidebar`.
 - Keep React Query for the thread list query; use the machine for UI orchestration.
+- Move delete confirmation dialog into `SidebarItem`.
+- Add unit tests for `sidebarItemMachine`.
+- Verified: `pnpm typecheck`, `pnpm test`, `pnpm lint` pass in `apps/chat`.
 
 #### Phase 3 — Chat session shell
 

@@ -2,8 +2,9 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMachine } from "@xstate/react";
 import {
   ArchiveIcon,
   CheckIcon,
@@ -20,13 +21,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  deleteThread,
-  fetchThreadMessages,
-  renameThread,
-  syncThreads,
-  type Thread,
-} from "../sessions";
+import { fetchThreadMessages, syncThreads, type Thread } from "../sessions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +55,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { sidebarItemMachine } from "./sidebar-item-machine";
 
 const formatFullDate = (value: string) =>
   new Date(value).toLocaleString(undefined, {
@@ -128,6 +124,165 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
   return orderedKeys.map((key) => groups.get(key) as HistoryGroup);
 };
 
+interface SidebarItemProps {
+  thread: Thread;
+  isActive: boolean;
+  onDeleted: () => void;
+}
+
+const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
+  const queryClient = useQueryClient();
+  const { setOpenMobile } = useSidebar();
+  const [state, send] = useMachine(sidebarItemMachine, {
+    input: {
+      thread,
+      onRenamed: () => {
+        void queryClient.invalidateQueries({ queryKey: ["threads"] });
+        void queryClient.invalidateQueries({ queryKey: ["thread", thread.id] });
+      },
+      onDeleted,
+    },
+  });
+
+  const title = state.context.thread.title ?? "New chat";
+  const isRenaming = state.matches("renaming") || state.matches("submittingRename");
+  const isDeleting = state.matches("confirmingDelete") || state.matches("deleting");
+
+  return (
+    <>
+      <SidebarMenuItem>
+        {isRenaming ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              send({ type: "rename.submit" });
+            }}
+            className="flex w-full items-center gap-1 px-2"
+          >
+            <input
+              value={state.context.draft}
+              onChange={(e) => send({ type: "rename.change", value: e.target.value })}
+              autoFocus
+              className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm"
+            />
+            {state.context.error !== null && (
+              <span className="text-xs text-destructive">{state.context.error}</span>
+            )}
+          </form>
+        ) : (
+          <SidebarMenuButton asChild isActive={isActive} tooltip={title}>
+            <Link
+              href={`/chat?id=${thread.id}`}
+              onClick={() => setOpenMobile(false)}
+              onMouseEnter={() =>
+                queryClient.prefetchQuery({
+                  queryKey: ["thread", thread.id],
+                  queryFn: () => fetchThreadMessages(thread.id),
+                })
+              }
+            >
+              <MessageSquareIcon />
+              <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
+                <span className="flex-1 truncate">{title}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <time
+                      dateTime={thread.updated_at}
+                      className="text-xs whitespace-nowrap text-muted-foreground"
+                    >
+                      {formatRelativeTime(thread.updated_at)}
+                    </time>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{formatFullDate(thread.updated_at)}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </Link>
+          </SidebarMenuButton>
+        )}
+
+        {!isRenaming && !isDeleting && (
+          <DropdownMenu>
+            <SidebarMenuAction showOnHover asChild>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label="Session actions">
+                  <MoreHorizontalIcon />
+                </button>
+              </DropdownMenuTrigger>
+            </SidebarMenuAction>
+            <DropdownMenuContent align="start" side="right">
+              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                <ShareIcon />
+                <span>Partager</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                <DownloadIcon />
+                <span>Télécharger</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => send({ type: "copy.markdown" })}>
+                {state.context.copiedId === thread.id ? <CheckIcon /> : <FileTextIcon />}
+                <span>{state.context.copiedId === thread.id ? "Copié !" : "Copier en .md"}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => send({ type: "rename.start" })}>
+                <PencilIcon />
+                <span>Renommer</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                <PinIcon />
+                <span>Épingler</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                <CopyIcon />
+                <span>Cloner</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+                <ArchiveIcon />
+                <span>Archiver</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => send({ type: "delete.request" })}
+                className="text-destructive"
+              >
+                <Trash2Icon />
+                <span>Supprimer</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </SidebarMenuItem>
+
+      <AlertDialog
+        open={isDeleting}
+        onOpenChange={(open) => {
+          if (!open) send({ type: "delete.cancel" });
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette session ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Toutes les messages de cette session seront supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => send({ type: "delete.cancel" })}>
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => send({ type: "delete.confirm" })}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
+
 export const SessionSidebar = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -136,10 +291,6 @@ export const SessionSidebar = () => {
   const { setOpenMobile } = useSidebar();
 
   const [search, setSearch] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const {
     data: threads = [],
@@ -153,76 +304,10 @@ export const SessionSidebar = () => {
     queryFn: () => syncThreads(search || undefined),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteThread,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
-  });
-
-  const renameMutation = useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) => renameThread(id, title),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["threads"] }),
-  });
-
-  useEffect(() => {
-    const syncIfOnline = () => {
-      if (navigator.onLine) void refetch();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") syncIfOnline();
-    };
-    window.addEventListener("online", syncIfOnline);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("online", syncIfOnline);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [refetch]);
-
   const handleNew = () => {
     setOpenMobile(false);
     router.push("/chat");
   };
-
-  const handleDelete = async (id: string) => {
-    await deleteMutation.mutateAsync(id);
-    if (activeId === id) router.push("/chat");
-    setDeletingId(null);
-  };
-
-  const startRename = (thread: Thread) => {
-    setEditingId(thread.id);
-    setEditTitle(thread.title ?? "");
-  };
-
-  const submitRename = async (id: string) => {
-    const title = editTitle.trim();
-    if (title !== "") {
-      await renameMutation.mutateAsync({ id, title });
-    }
-    setEditingId(null);
-  };
-
-  const handleCopyMarkdown = useCallback(async (threadId: string) => {
-    try {
-      const { messages } = await fetchThreadMessages(threadId);
-      const md = messages
-        .map((msg) => {
-          const role = msg.role === "user" ? "User" : "Assistant";
-          const text =
-            msg.parts
-              ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
-              .map((p) => p.text)
-              .join("\n") ?? "";
-          return `## ${role}\n\n${text}`;
-        })
-        .join("\n\n---\n\n");
-      await navigator.clipboard.writeText(md);
-      setCopiedId(threadId);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      // silently fail
-    }
-  }, []);
 
   return (
     <>
@@ -263,109 +348,15 @@ export const SessionSidebar = () => {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {group.threads.map((thread) => (
-                    <SidebarMenuItem key={thread.id}>
-                      {editingId === thread.id ? (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            void submitRename(thread.id);
-                          }}
-                          className="flex w-full items-center gap-1 px-2"
-                        >
-                          <input
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            autoFocus
-                            className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm"
-                          />
-                        </form>
-                      ) : (
-                        <SidebarMenuButton
-                          asChild
-                          isActive={activeId === thread.id}
-                          tooltip={thread.title ?? "New chat"}
-                        >
-                          <Link
-                            href={`/chat?id=${thread.id}`}
-                            onClick={() => setOpenMobile(false)}
-                            onMouseEnter={() =>
-                              queryClient.prefetchQuery({
-                                queryKey: ["thread", thread.id],
-                                queryFn: () => fetchThreadMessages(thread.id),
-                              })
-                            }
-                          >
-                            <MessageSquareIcon />
-                            <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
-                              <span className="flex-1 truncate">{thread.title ?? "New chat"}</span>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <time
-                                    dateTime={thread.updated_at}
-                                    className="text-xs whitespace-nowrap text-muted-foreground"
-                                  >
-                                    {formatRelativeTime(thread.updated_at)}
-                                  </time>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">
-                                  <p>{formatFullDate(thread.updated_at)}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </Link>
-                        </SidebarMenuButton>
-                      )}
-
-                      {editingId !== thread.id && (
-                        <DropdownMenu>
-                          <SidebarMenuAction showOnHover asChild>
-                            <DropdownMenuTrigger asChild>
-                              <button type="button" aria-label="Session actions">
-                                <MoreHorizontalIcon />
-                              </button>
-                            </DropdownMenuTrigger>
-                          </SidebarMenuAction>
-                          <DropdownMenuContent align="start" side="right">
-                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                              <ShareIcon />
-                              <span>Partager</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                              <DownloadIcon />
-                              <span>Télécharger</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => void handleCopyMarkdown(thread.id)}>
-                              {copiedId === thread.id ? <CheckIcon /> : <FileTextIcon />}
-                              <span>{copiedId === thread.id ? "Copié !" : "Copier en .md"}</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => startRename(thread)}>
-                              <PencilIcon />
-                              <span>Renommer</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                              <PinIcon />
-                              <span>Épingler</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                              <CopyIcon />
-                              <span>Cloner</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => alert("Coming soon")}>
-                              <ArchiveIcon />
-                              <span>Archiver</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeletingId(thread.id)}
-                              className="text-destructive"
-                            >
-                              <Trash2Icon />
-                              <span>Supprimer</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </SidebarMenuItem>
+                    <SidebarItem
+                      key={thread.id}
+                      thread={thread}
+                      isActive={activeId === thread.id}
+                      onDeleted={() => {
+                        if (activeId === thread.id) router.push("/chat");
+                        void queryClient.invalidateQueries({ queryKey: ["threads"] });
+                      }}
+                    />
                   ))}
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -390,33 +381,6 @@ export const SessionSidebar = () => {
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
-
-      <AlertDialog
-        open={deletingId !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeletingId(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette session ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. Toutes les messages de cette session seront supprimés.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deletingId) void handleDelete(deletingId);
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 };
