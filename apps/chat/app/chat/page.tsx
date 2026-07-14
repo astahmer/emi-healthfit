@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { Thread } from "@/components/chat/thread";
@@ -24,19 +24,10 @@ import type { MessageNode } from "./conversation-machine";
 
 const HEADER_HEIGHT = 56;
 const RUNTIME_ROLES = new Set(["user", "assistant", "system"]);
-
-function UrlSync({ createdConversationId }: { createdConversationId: string | undefined }) {
-  const router = useRouter();
-  const urlSyncedRef = useRef(false);
-
-  useEffect(() => {
-    if (createdConversationId === undefined || urlSyncedRef.current) return;
-    urlSyncedRef.current = true;
-    router.replace(`/chat?id=${createdConversationId}`, { scroll: false });
-  }, [createdConversationId, router]);
-
-  return null;
-}
+const sessionIdFromPath = (pathname: string): string | undefined => {
+  const encodedSessionId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
+  return encodedSessionId === undefined ? undefined : decodeURIComponent(encodedSessionId);
+};
 
 const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
   messages
@@ -69,23 +60,16 @@ const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
-  const sessionId = searchParams.get("id") ?? undefined;
-  const [createdConversationId, setCreatedConversationId] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    setCreatedConversationId(undefined);
-  }, [sessionId]);
-
-  const activeConversationId = sessionId ?? createdConversationId;
+  const sessionId = sessionIdFromPath(pathname);
 
   const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
   const [urlCoachMode, setUrlCoachMode] = useSessionFlag("coach", settings.coachMode);
   const [urlWebSearch, setUrlWebSearch] = useSessionFlag("web", false);
 
-  const { state: conversationState, send: sendConversation } =
-    useConversationMachine(activeConversationId);
+  const { state: conversationState, send: sendConversation } = useConversationMachine(sessionId);
+  const activeConversationId = conversationState.context.conversationId ?? sessionId;
 
   const [configState, sendConfig] = useMachine(composerConfigMachine, {
     input: {
@@ -158,11 +142,10 @@ function ChatPageInner() {
               initialMessages: runtimeMessages,
             }}
             onSessionCreated={(id) => {
-              setCreatedConversationId(id);
               sendConversation({ type: "session.created", conversationId: id });
+              window.history.replaceState(null, "", `/chat/${encodeURIComponent(id)}`);
             }}
           >
-            <UrlSync createdConversationId={createdConversationId} />
             <div className="relative flex h-full flex-1 flex-col">
               <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                 <SidebarTrigger />

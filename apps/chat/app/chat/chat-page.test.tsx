@@ -7,11 +7,18 @@ import ChatPage from "./page";
 
 const searchStore = vi.hoisted(() => {
   let params = new URLSearchParams();
+  let pathname = "/chat";
+  let routeParams: { sessionId?: string } = {};
   const listeners = new Set<() => void>();
   return {
     get: () => params,
-    set: (next: URLSearchParams) => {
-      params = next;
+    getPathname: () => pathname,
+    getRouteParams: () => routeParams,
+    set: (next: { params: URLSearchParams; pathname: string }) => {
+      pathname = next.pathname;
+      const sessionId = pathname.match(/^\/chat\/([^/]+)$/)?.[1];
+      routeParams = sessionId === undefined ? {} : { sessionId: decodeURIComponent(sessionId) };
+      params = next.params;
       listeners.forEach((listener) => listener());
     },
     subscribe: (callback: () => void) => {
@@ -23,7 +30,7 @@ const searchStore = vi.hoisted(() => {
 
 const updateFromUrl = (url: string) => {
   const parsed = new URL(url, "http://localhost");
-  searchStore.set(parsed.searchParams);
+  searchStore.set({ params: parsed.searchParams, pathname: parsed.pathname });
 };
 
 vi.mock("next/navigation", () => ({
@@ -35,7 +42,22 @@ vi.mock("next/navigation", () => ({
     const React = require("react");
     return React.useSyncExternalStore(searchStore.subscribe, searchStore.get, searchStore.get);
   },
-  usePathname: () => "/chat",
+  usePathname: () => {
+    const React = require("react");
+    return React.useSyncExternalStore(
+      searchStore.subscribe,
+      searchStore.getPathname,
+      searchStore.getPathname,
+    );
+  },
+  useParams: () => {
+    const React = require("react");
+    return React.useSyncExternalStore(
+      searchStore.subscribe,
+      searchStore.getRouteParams,
+      searchStore.getRouteParams,
+    );
+  },
 }));
 
 vi.mock("@/app/settings-store", () => ({
@@ -143,8 +165,14 @@ const conversationMessagesResponse = {
 
 describe("ChatPage", () => {
   beforeEach(() => {
-    searchStore.set(new URLSearchParams());
+    updateFromUrl("/chat");
     providerMountCount = 0;
+    vi.spyOn(window.history, "replaceState").mockImplementation((_data, _unused, url) => {
+      if (url !== undefined && url !== null) updateFromUrl(String(url));
+    });
+    vi.spyOn(window.history, "pushState").mockImplementation((_data, _unused, url) => {
+      if (url !== undefined && url !== null) updateFromUrl(String(url));
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -175,7 +203,7 @@ describe("ChatPage", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("does not show a loading flash when the created conversation id appears in the url", async () => {
@@ -187,7 +215,7 @@ describe("ChatPage", () => {
 
     await userEvent.click(screen.getByTestId("simulate-created"));
 
-    await waitFor(() => expect(searchStore.get().get("id")).toBe("created-id"));
+    await waitFor(() => expect(searchStore.getPathname()).toBe("/chat/created-id"));
 
     expect(screen.queryByText("Loading session…")).not.toBeInTheDocument();
     expect(screen.getByTestId("thread")).toBeInTheDocument();
@@ -195,7 +223,7 @@ describe("ChatPage", () => {
   });
 
   it("switches to a new chat without remounting the runtime", async () => {
-    searchStore.set(new URLSearchParams({ id: "existing-id" }));
+    updateFromUrl("/chat/existing-id");
 
     render(<ChatPage />);
 
@@ -205,19 +233,19 @@ describe("ChatPage", () => {
     const newChatButton = screen.getByLabelText("New chat");
     await userEvent.click(newChatButton);
 
-    await waitFor(() => expect(searchStore.get().toString()).toBe(""));
+    await waitFor(() => expect(searchStore.getPathname()).toBe("/chat"));
 
     expect(providerMountCount).toBe(beforeNewChat);
     expect(screen.queryByText("Existing chat")).not.toBeInTheDocument();
   });
 
   it("loads another existing session without remounting the runtime", async () => {
-    searchStore.set(new URLSearchParams({ id: "existing-id" }));
+    updateFromUrl("/chat/existing-id");
     render(<ChatPage />);
 
     await waitFor(() => expect(screen.getByText("Existing chat")).toBeInTheDocument());
     const beforeSwitch = providerMountCount;
-    updateFromUrl("/chat?id=other-id");
+    updateFromUrl("/chat/other-id");
 
     await waitFor(() => expect(screen.getByText("Other chat")).toBeInTheDocument());
     expect(providerMountCount).toBe(beforeSwitch);

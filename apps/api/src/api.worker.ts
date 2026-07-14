@@ -235,17 +235,16 @@ const handleAssetRequest = ({
   request: HttpServerRequest;
 }) =>
   Effect.gen(function* () {
-    const pathname = new URL(request.url, "http://localhost").pathname;
-    const isAssetPath =
-      pathname === "/" ||
-      pathname === "/index.html" ||
-      pathname.startsWith("/assets/") ||
-      pathname.startsWith("/_next/");
-    if (!isAssetPath || assetsFetcher === undefined) {
+    const url = new URL(request.url, "http://localhost");
+    const pathname = url.pathname;
+    if (assetsFetcher === undefined) {
       return HttpServerResponse.text("Not Found", { status: 404 });
     }
 
-    const response = yield* Effect.promise(() => assetsFetcher(request.source as Request));
+    const assetRequest = pathname.match(/^\/chat\/[^/]+\/?$/)
+      ? new Request(new URL("/chat/", url), request.source as Request)
+      : (request.source as Request);
+    const response = yield* Effect.promise(() => assetsFetcher(assetRequest));
     return HttpServerResponse.fromWeb(response);
   });
 

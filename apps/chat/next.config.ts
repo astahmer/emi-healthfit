@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   async rewrites() {
     return [
+      { source: "/chat/:sessionId", destination: "/chat" },
       { source: "/api/:path*", destination: `${apiBase}/api/:path*` },
       { source: "/ingest", destination: `${apiBase}/ingest` },
       { source: "/chat", destination: `${apiBase}/chat` },

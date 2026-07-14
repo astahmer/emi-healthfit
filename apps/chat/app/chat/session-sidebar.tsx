@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -171,9 +171,22 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
           </form>
         ) : (
           <SidebarMenuButton asChild isActive={isActive} tooltip={title}>
-            <Link
-              href={`/chat?id=${thread.id}`}
-              onClick={() => setOpenMobile(false)}
+            <a
+              href={`/chat/${encodeURIComponent(thread.id)}`}
+              onClick={(event) => {
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                setOpenMobile(false);
+                window.history.pushState(null, "", event.currentTarget.href);
+              }}
               onMouseEnter={() =>
                 queryClient.prefetchQuery({
                   queryKey: ["thread", thread.id],
@@ -198,7 +211,7 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
                   </TooltipContent>
                 </Tooltip>
               </div>
-            </Link>
+            </a>
           </SidebarMenuButton>
         )}
 
@@ -285,9 +298,10 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
 
 export const SessionSidebar = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
-  const activeId = searchParams.get("id");
+  const encodedActiveId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
+  const activeId = encodedActiveId === undefined ? undefined : decodeURIComponent(encodedActiveId);
   const { setOpenMobile } = useSidebar();
 
   const [search, setSearch] = useState("");
