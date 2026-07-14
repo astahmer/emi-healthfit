@@ -1,4 +1,3 @@
-import { withAui } from "@assistant-ui/next";
 import type { NextConfig } from "next";
 
 const apiBase = process.env.API_BASE_URL || "http://localhost:1337";
@@ -16,4 +15,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withAui(nextConfig);
+export default nextConfig;

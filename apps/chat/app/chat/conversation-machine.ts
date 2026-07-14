@@ -57,7 +57,6 @@ export interface ConversationContext {
   isTemporary: boolean;
   renameDraft: string;
   sidebarWidth: number;
-  resetKey: number;
   error: Error | null;
 }
 
@@ -214,7 +213,6 @@ export const conversationMachine = setup({
       searchQuery: () => "",
       searchResults: () => [],
       renameDraft: () => "",
-      resetKey: ({ context }) => context.resetKey + 1,
       error: () => null,
     }),
     persistSidebarWidth: ({ context }) => persistSidebarWidth(context.sidebarWidth),
@@ -252,7 +250,6 @@ export const conversationMachine = setup({
     isTemporary: input.isTemporary ?? false,
     renameDraft: "",
     sidebarWidth: 16,
-    resetKey: 0,
     error: null,
   }),
   states: {
@@ -545,7 +542,6 @@ export const conversationMachine = setup({
         reset: {
           target: "ready",
           actions: assign({
-            resetKey: ({ context }) => context.resetKey + 1,
             error: () => null,
             renameDraft: () => "",
           }),

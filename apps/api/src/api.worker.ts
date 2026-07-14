@@ -1,9 +1,16 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import {
+  createUIMessageStreamResponse,
+  safeValidateUIMessages,
+  type UIMessage,
+  type UIMessageChunk,
+} from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { buildAssistantParts } from "./chat/assistant-parts.ts";
@@ -69,6 +76,17 @@ import {
   tools as staticToolDefinitions,
 } from "./tools/api.ts";
 import { TtlCache } from "./cache.ts";
+import {
+  appendGenerationChunk,
+  createGeneration,
+  expireStaleGenerations,
+  finishGeneration,
+  getGeneration,
+  getGenerationChunks,
+  getResumableGeneration,
+  getRunningGeneration,
+} from "./chat/generation-store.ts";
+import { createGenerationReplayStream } from "./chat/generation-replay.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -130,6 +148,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
 
         if (url.pathname === "/api/chat" && request.method === "POST") {
           return yield* handleAiSdkChat(db, env, request);
+        }
+
+        const resumeMatch = url.pathname.match(/^\/api\/chat\/([^/]+)\/stream$/);
+        if (resumeMatch !== null && request.method === "GET") {
+          return yield* handleChatResume(db, decodeURIComponent(resumeMatch[1] ?? ""), request);
         }
 
         if (url.pathname === "/api/suggestions" && request.method === "POST") {
@@ -883,7 +906,10 @@ const handleMemoryExtract = (
 
     const apiKey = env.OPENAI_API_KEY !== undefined ? String(env.OPENAI_API_KEY) : "";
     if (apiKey === "") {
-      return yield* HttpServerResponse.json({ error: "OpenAI API key is required" }, { status: 400 });
+      return yield* HttpServerResponse.json(
+        { error: "OpenAI API key is required" },
+        { status: 400 },
+      );
     }
 
     const baseUrl = env.OPENAI_BASE_URL !== undefined ? String(env.OPENAI_BASE_URL) : undefined;
@@ -910,7 +936,8 @@ const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
     "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "access-control-allow-headers":
       "authorization, content-type, mcp-session-id, last-event-id, mcp-protocol-version",
-    "access-control-expose-headers": "mcp-session-id, mcp-protocol-version, x-thread-id",
+    "access-control-expose-headers":
+      "mcp-session-id, mcp-protocol-version, x-thread-id, x-generation-id",
   };
 };
 
@@ -1019,6 +1046,9 @@ const getAttachmentSize = (part: Record<string, unknown>): number => {
   if (part.type === "file" && typeof part.data === "string") {
     return part.data.length;
   }
+  if (part.type === "file" && typeof part.url === "string") {
+    return part.url.length;
+  }
   if (part.type === "image" && typeof part.image === "string") {
     return part.image.length;
   }
@@ -1062,7 +1092,20 @@ const handleAiSdkChat = (
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const chatRequest = parsed.value as ChatStreamRequest;
+    const validatedMessages = yield* Effect.promise(() =>
+      safeValidateUIMessages<UIMessage>({ messages: parsed.value.messages }),
+    );
+    if (!validatedMessages.success) {
+      return yield* HttpServerResponse.json(
+        { error: validatedMessages.error.message },
+        { status: 400 },
+      );
+    }
+
+    const chatRequest: ChatStreamRequest = {
+      ...(parsed.value as ChatStreamRequest),
+      messages: validatedMessages.data,
+    };
     const apiKey =
       chatRequest.config.apiKey !== ""
         ? chatRequest.config.apiKey
@@ -1092,9 +1135,17 @@ const handleAiSdkChat = (
           : yield* createConversation(db);
 
     if (!isTemporary) {
+      yield* expireStaleGenerations({ db });
       const conversation = yield* getConversation(db, sessionId);
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+      }
+      const runningGeneration = yield* getRunningGeneration({ db, conversationId: sessionId });
+      if (runningGeneration !== null) {
+        return yield* HttpServerResponse.json(
+          { error: "A generation is already running", generationId: runningGeneration.id },
+          { status: 409, headers: corsHeaders(request) },
+        );
       }
     }
 
@@ -1135,18 +1186,6 @@ const handleAiSdkChat = (
         null,
         incomingMessages as Array<{ role: string; parts: unknown[] }>,
       );
-
-      const firstUserText = getFirstUserText(incomingMessages);
-      const conversation = yield* getConversation(db, sessionId);
-      const needsTitle = conversation !== null && (conversation.title === null || conversation.title === "");
-
-      if (needsTitle && firstUserText !== undefined) {
-        const title = yield* Effect.tryPromise({
-          try: () => generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
-          catch: (error) => new Error(`Failed to generate title: ${error}`),
-        });
-        yield* renameConversation(db, sessionId, title);
-      }
     }
 
     const services = yield* Effect.context<RuntimeContext>();
@@ -1157,13 +1196,24 @@ const handleAiSdkChat = (
       );
 
     const result = yield* Effect.promise(() =>
-      createChatStream(
-        requestWithHistory,
-        executeToolWithServices,
-        async (event) => {
+      createChatStream({
+        request: requestWithHistory,
+        executeTool: executeToolWithServices,
+        onFinish: async (event) => {
           await Effect.runPromiseWith(services)(
             Effect.gen(function* () {
               const assistantParts = buildAssistantParts(event.response?.messages ?? []);
+
+              console.log(
+                JSON.stringify({
+                  event: "chat.generation.finished",
+                  sessionId,
+                  assistantParts: assistantParts.length,
+                  textLength: event.text.length,
+                  promptTokens: event.usage.inputTokens,
+                  completionTokens: event.usage.outputTokens,
+                }),
+              );
 
               if (!isTemporary && assistantParts.length > 0) {
                 yield* saveConversationMessages(db, sessionId, null, [
@@ -1181,8 +1231,37 @@ const handleAiSdkChat = (
               }
 
               if (!isTemporary) {
+                const firstUserText = getFirstUserText(incomingMessages);
+                const conversation = yield* getConversation(db, sessionId);
+                const needsTitle =
+                  conversation !== null &&
+                  (conversation.title === null || conversation.title === "");
+
+                if (needsTitle && firstUserText !== undefined) {
+                  const title = yield* Effect.promise(() =>
+                    generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
+                  );
+                  yield* renameConversation(db, sessionId, title);
+                }
+
                 const lastUserText = getLastUserText(requestWithHistory.messages);
-                const key = yield* hashSuggestionsKey(event.text, lastUserText);
+                const finalAssistantText =
+                  event.text.trim() !== ""
+                    ? event.text
+                    : assistantParts
+                        .filter(
+                          (part): part is { type: "text"; text: string } =>
+                            typeof part === "object" &&
+                            part !== null &&
+                            "type" in part &&
+                            part.type === "text" &&
+                            "text" in part &&
+                            typeof part.text === "string",
+                        )
+                        .map((part) => part.text)
+                        .join("\n");
+                if (finalAssistantText === "") return;
+                const key = yield* hashSuggestionsKey(finalAssistantText, lastUserText);
                 const cached = yield* getSuggestionsById(db, key);
                 if (cached !== null) return;
 
@@ -1190,7 +1269,7 @@ const handleAiSdkChat = (
                   generateSuggestions({
                     apiKey,
                     baseUrl: chatRequest.config.baseUrl,
-                    lastAssistantText: event.text,
+                    lastAssistantText: finalAssistantText,
                     lastUserText,
                   }),
                 );
@@ -1199,16 +1278,38 @@ const handleAiSdkChat = (
             }).pipe(Effect.catch(() => Effect.void)),
           );
         },
-      ),
+      }),
     );
 
-    const response = result.toUIMessageStreamResponse({
+    const uiMessageStream = result.toUIMessageStream({
       sendReasoning: true,
       onError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
     });
 
+    const generationId = crypto.randomUUID();
+    let responseStream = uiMessageStream;
+
+    if (!isTemporary) {
+      yield* createGeneration({ db, generationId, conversationId: sessionId });
+      const streams = uiMessageStream.tee();
+      responseStream = streams[0];
+      const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
+      executionContext.waitUntil(
+        persistGenerationStream({
+          db,
+          generationId,
+          stream: streams[1],
+          services,
+        }),
+      );
+    }
+
+    const response = createUIMessageStreamResponse({
+      stream: responseStream,
+      headers: { "x-thread-id": sessionId, "x-generation-id": generationId },
+    });
+
     const headers = new Headers(response.headers);
-    headers.set("x-thread-id", sessionId);
     for (const [key, value] of Object.entries(corsHeaders(request))) {
       headers.set(key, value);
     }
@@ -1225,6 +1326,90 @@ const handleAiSdkChat = (
       HttpServerResponse.json(
         { error: error instanceof Error ? error.message : String(error) },
         { status: 500 },
+      ),
+    ),
+  );
+
+const persistGenerationStream = async ({
+  db,
+  generationId,
+  stream,
+  services,
+}: {
+  db: QueryDatabaseClient;
+  generationId: string;
+  stream: ReadableStream<UIMessageChunk>;
+  services: Context.Context<RuntimeContext>;
+}): Promise<void> => {
+  const reader = stream.getReader();
+  let sequence = 0;
+  let streamError: string | undefined;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      await Effect.runPromiseWith(services)(
+        appendGenerationChunk({ db, generationId, sequence, chunk: next.value }),
+      );
+      if (next.value.type === "error") streamError = next.value.errorText;
+      sequence += 1;
+    }
+    await Effect.runPromiseWith(services)(
+      finishGeneration({
+        db,
+        generationId,
+        status: streamError === undefined ? "completed" : "failed",
+        error: streamError,
+      }),
+    );
+  } catch (error) {
+    await Effect.runPromiseWith(services)(
+      finishGeneration({
+        db,
+        generationId,
+        status: "failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  } finally {
+    reader.releaseLock();
+  }
+};
+
+const handleChatResume = (
+  db: QueryDatabaseClient,
+  conversationId: string,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    yield* expireStaleGenerations({ db });
+    const generation = yield* getResumableGeneration({ db, conversationId });
+    if (generation === null) {
+      return HttpServerResponse.empty({ status: 204, headers: corsHeaders(request) });
+    }
+
+    const services = yield* Effect.context<RuntimeContext>();
+    const runEffect = <A>(effect: Effect.Effect<A, unknown, RuntimeContext>) =>
+      Effect.runPromiseWith(services)(effect);
+    const response = createUIMessageStreamResponse({
+      stream: createGenerationReplayStream({
+        generationId: generation.id,
+        getChunks: ({ generationId, afterSequence }) =>
+          runEffect(getGenerationChunks({ db, generationId, afterSequence })),
+        getGeneration: (generationId) => runEffect(getGeneration({ db, generationId })),
+      }),
+      headers: {
+        "x-thread-id": conversationId,
+        "x-generation-id": generation.id,
+        ...corsHeaders(request),
+      },
+    });
+    return HttpServerResponse.fromWeb(response);
+  }).pipe(
+    Effect.catch((error) =>
+      HttpServerResponse.json(
+        { error: String(error) },
+        { status: 500, headers: corsHeaders(request) },
       ),
     ),
   );

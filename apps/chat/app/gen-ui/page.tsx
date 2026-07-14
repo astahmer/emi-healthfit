@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GenUIRenderer } from "@/components/assistant-ui/gen-ui/registry";
+import { GenUIRenderer } from "@/components/chat/gen-ui/registry";
 import { Button } from "@/components/ui/button";
 
 const samples = [

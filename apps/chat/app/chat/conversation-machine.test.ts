@@ -335,14 +335,12 @@ describe("conversationMachine", () => {
 
     await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
 
-    const previousResetKey = actor.getSnapshot().context.resetKey;
     actor.send({ type: "conversationId.changed", conversationId: undefined });
 
     expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true);
     expect(actor.getSnapshot().context.conversation).toBeNull();
     expect(actor.getSnapshot().context.messages).toEqual([]);
     expect(actor.getSnapshot().context.createdConversationId).toBeUndefined();
-    expect(actor.getSnapshot().context.resetKey).toBe(previousResetKey + 1);
   });
 
   it("does not reload when the conversation id matches the created conversation id", async () => {
@@ -415,7 +413,7 @@ describe("conversationMachine", () => {
     expect(snapshot.context.focusedThreadId).toBeNull();
   });
 
-  it("resets to remount state without losing data", async () => {
+  it("clears runtime errors without losing conversation data", async () => {
     const machine = conversationMachine.provide({
       actors: {
         loadConversation: fromPromise(async () => ({
@@ -432,7 +430,6 @@ describe("conversationMachine", () => {
 
     actor.send({ type: "reset" });
 
-    expect(actor.getSnapshot().context.resetKey).toBe(1);
     expect(actor.getSnapshot().context.conversation).not.toBeNull();
     expect(actor.getSnapshot().context.messages.length).toBe(1);
   });

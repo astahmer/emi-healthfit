@@ -22,11 +22,11 @@ export const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButton
               variant="ghost"
               size="icon"
               {...rest}
-              className={cn("aui-button-icon size-6 p-1 active:scale-90", className)}
+              className={cn("size-6 p-1 active:scale-90", className)}
               ref={ref}
             >
               <Slot.Slottable>{children}</Slot.Slottable>
-              <span className="aui-sr-only sr-only">{tooltip}</span>
+              <span className="sr-only">{tooltip}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side={side}>{tooltip}</TooltipContent>

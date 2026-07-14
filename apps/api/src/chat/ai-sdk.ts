@@ -59,21 +59,25 @@ const buildToolSet = (
   };
 };
 
-export const createChatStream = async (
-  request: ChatStreamRequest,
-  executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>,
-  onFinish?: (
-    event: { text: string; usage: LanguageModelUsage; response?: { messages: unknown[] } },
-  ) => void | Promise<void>,
-) => {
+export const createChatStream = async ({
+  request,
+  executeTool,
+  onFinish,
+}: {
+  request: ChatStreamRequest;
+  executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  onFinish?: (event: {
+    text: string;
+    usage: LanguageModelUsage;
+    response?: { messages: unknown[] };
+  }) => void | Promise<void>;
+}) => {
   const openai = createOpenAI({
     apiKey: request.config.apiKey,
     baseURL: request.config.baseUrl,
   });
 
-  const system = request.coachMode
-    ? fitnessCoachV1
-    : (request.system ?? request.config.system);
+  const system = request.coachMode ? fitnessCoachV1 : (request.system ?? request.config.system);
 
   const model = request.webSearch
     ? openai.responses(request.config.model)
@@ -85,13 +89,25 @@ export const createChatStream = async (
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
     stopWhen: isLoopFinished(),
-    onFinish: (event) => {
-      void onFinish?.({
-        text: event.text,
-        usage: event.usage,
-        response: event.response as { messages: unknown[] } | undefined,
-      });
+    onStepFinish: (event) => {
+      console.log(
+        JSON.stringify({
+          event: "chat.step.finished",
+          finishReason: event.finishReason,
+          toolCalls: event.toolCalls.length,
+          toolResults: event.toolResults.length,
+          textLength: event.text.length,
+        }),
+      );
     },
+    onFinish: (event) =>
+      onFinish?.({
+        text: event.text,
+        usage: event.totalUsage,
+        response: {
+          messages: event.steps.flatMap((step) => step.response.messages),
+        },
+      }),
   });
 };
 
@@ -102,14 +118,13 @@ export interface SuggestionsRequest {
   lastUserText?: string | undefined;
 }
 
-export const generateSuggestions = async (
-  request: SuggestionsRequest,
-): Promise<string[]> => {
+export const generateSuggestions = async (request: SuggestionsRequest): Promise<string[]> => {
   const openai = createOpenAI({ apiKey: request.apiKey, baseURL: request.baseUrl });
 
-  const context = request.lastUserText !== undefined && request.lastUserText !== ""
-    ? `User: ${request.lastUserText}\nAssistant: ${request.lastAssistantText}`
-    : `Assistant: ${request.lastAssistantText}`;
+  const context =
+    request.lastUserText !== undefined && request.lastUserText !== ""
+      ? `User: ${request.lastUserText}\nAssistant: ${request.lastAssistantText}`
+      : `Assistant: ${request.lastAssistantText}`;
 
   const result = await generateText({
     model: openai.chat("gpt-4o-mini"),
@@ -177,7 +192,10 @@ export const extractMemories = async (
       `Return only a JSON array of short strings. If there is nothing worth remembering, return an empty array.\n\n${text}`,
   });
 
-  const cleaned = result.text.trim().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
+  const cleaned = result.text
+    .trim()
+    .replace(/^```(?:json)?\s*|\s*```$/gi, "")
+    .trim();
 
   try {
     const parsed = JSON.parse(cleaned);

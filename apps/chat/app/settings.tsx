@@ -34,25 +34,6 @@ export function SettingsPanel() {
         </div>
 
         <div>
-          <label htmlFor="mode" className="text-sm font-medium">
-            Mode
-          </label>
-          <select
-            id="mode"
-            value={settings.mode}
-            onChange={(e) => update({ mode: e.target.value as "proxy" | "direct" })}
-            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="proxy">Proxy via CF Worker (tools enabled)</option>
-            <option value="direct">Direct to provider</option>
-          </select>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Proxy mode routes chat through the CF Worker, which can call tools. Direct mode calls
-            the provider API from the browser.
-          </p>
-        </div>
-
-        <div>
           <label htmlFor="base-url" className="text-sm font-medium">
             Base URL
           </label>
@@ -161,7 +142,6 @@ export function SettingsPanel() {
           onClick={() =>
             update({
               provider: "openai",
-              mode: "proxy",
               baseUrl: "",
               apiKey: "",
               model: defaultModel.id,

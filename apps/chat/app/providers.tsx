@@ -1,221 +1,43 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  AssistantRuntimeProvider,
-  AuiProvider,
-  Suggestions,
-  useAui,
-  useLocalRuntime,
-  type Tool,
-} from "@assistant-ui/react";
-import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
-import { useSettings } from "./settings-store";
-import { buildTools, fetchTools, type ToolDefinition } from "./tools";
-import { createDirectAdapter } from "./direct-adapter";
-import { buildNotesContext } from "./notes";
-import { NotesProvider, useNotes } from "./notes-context";
-import { createConversation } from "./sessions";
-import { ComposerDraftSync } from "./chat/composer-draft-sync";
+import { NotesProvider } from "./notes-context";
+import { ChatRuntimeProvider } from "./chat/chat-runtime";
 
 export interface ChatSessionConfig {
   model: string;
   coachMode: boolean;
   webSearch: boolean;
   temporary?: boolean;
+  historyReady?: boolean;
   sessionId?: string;
   initialMessages?: UIMessage[];
 }
 
-function ToolRegistrar({ children }: { children: ReactNode }) {
-  const settings = useSettings((state) => state.settings);
-  const { notes } = useNotes();
-  const [definitions, setDefinitions] = useState<ToolDefinition[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const aui = useAui();
-
-  useEffect(() => {
-    fetchTools()
-      .then(setDefinitions)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, []);
-
-  useEffect(() => {
-    const tools: Record<string, Tool<Record<string, unknown>, unknown>> = buildTools(
-      definitions,
-      settings.mode === "direct" ? "frontend" : "backend",
-    );
-    const notesContext = buildNotesContext(notes);
-    const system =
-      notesContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${notesContext}`;
-    return aui.modelContext().register({
-      getModelContext: () => ({
-        system,
-        tools,
-      }),
-    });
-  }, [aui, definitions, settings.mode, settings.systemPrompt, notes]);
-
-  return (
-    <>
-      {error !== null && (
-        <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-md bg-red-100 px-4 py-2 text-sm text-red-800 dark:bg-red-900 dark:text-red-100">
-          {error}
-        </div>
-      )}
+export const ChatProviders = ({
+  sessionConfig,
+  onSessionCreated,
+  children,
+}: {
+  sessionConfig: ChatSessionConfig;
+  onSessionCreated?: (id: string) => void;
+  children: ReactNode;
+}) => (
+  <NotesProvider>
+    <ChatRuntimeProvider
+      config={{
+        model: sessionConfig.model,
+        coachMode: sessionConfig.coachMode,
+        webSearch: sessionConfig.webSearch,
+        temporary: sessionConfig.temporary ?? false,
+        historyReady: sessionConfig.historyReady ?? true,
+        sessionId: sessionConfig.sessionId,
+        initialMessages: sessionConfig.initialMessages ?? [],
+      }}
+      onSessionCreated={onSessionCreated}
+    >
       {children}
-    </>
-  );
-}
-
-function WelcomeSuggestions({ children }: { children: ReactNode }) {
-  const aui = useAui({
-    suggestions: Suggestions([
-      {
-        title: "How is my",
-        label: "recovery today?",
-        prompt: "How is my recovery today?",
-      },
-      {
-        title: "Summarize my",
-        label: "last workout",
-        prompt: "Summarize my last workout.",
-      },
-      {
-        title: "Show my",
-        label: "workout streak",
-        prompt: "What's my current workout streak?",
-      },
-      {
-        title: "Progress on",
-        label: "bench press",
-        prompt: "Show my progress on bench press over the last 8 weeks.",
-      },
-      {
-        title: "Compare",
-        label: "recent squat sessions",
-        prompt: "Compare my recent squat sessions.",
-      },
-    ]),
-  });
-
-  return <AuiProvider value={aui}>{children}</AuiProvider>;
-}
-
-function ProxyRuntime({
-  sessionConfig,
-  onSessionCreated,
-  children,
-}: {
-  sessionConfig: ChatSessionConfig;
-  onSessionCreated?: (id: string) => void;
-  children: ReactNode;
-}) {
-  const settings = useSettings((state) => state.settings);
-  const createdThreadIdRef = useRef<string | null>(null);
-
-  const runtime = useChatRuntime({
-    messages: sessionConfig.initialMessages,
-    transport: new AssistantChatTransport({
-      api: "/api/chat",
-      prepareSendMessagesRequest: async (options) => {
-        let sessionId = sessionConfig.sessionId ?? createdThreadIdRef.current;
-        if (sessionId === null) {
-          if (sessionConfig.temporary) {
-            sessionId = `temp_${crypto.randomUUID()}`;
-          } else {
-            sessionId = await createConversation();
-          }
-          createdThreadIdRef.current = sessionId;
-          onSessionCreated?.(sessionId);
-        }
-
-        const baseBody = (options.body ?? {}) as Record<string, unknown>;
-        return {
-          ...options,
-          body: {
-            ...baseBody,
-            id: options.id,
-            messages: options.messages,
-            trigger: options.trigger,
-            messageId: options.messageId,
-            metadata: options.requestMetadata,
-            config: {
-              provider: settings.provider,
-              apiKey: settings.apiKey || "",
-              baseUrl: settings.baseUrl || undefined,
-              model: sessionConfig.model,
-            },
-            coachMode: sessionConfig.coachMode,
-            webSearch: sessionConfig.webSearch,
-            temporary: sessionConfig.temporary,
-            sessionId,
-          },
-        };
-      },
-    }),
-  });
-
-  return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <WelcomeSuggestions>{children}</WelcomeSuggestions>
-    </AssistantRuntimeProvider>
-  );
-}
-
-function DirectRuntime({ children }: { children: ReactNode }) {
-  const settings = useSettings((state) => state.settings);
-  const { notes } = useNotes();
-  const notesContext = buildNotesContext(notes);
-  const system =
-    notesContext === "" ? settings.systemPrompt : `${settings.systemPrompt}\n\n${notesContext}`;
-  const adapter = createDirectAdapter(settings, system);
-  const runtime = useLocalRuntime(adapter);
-
-  return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <WelcomeSuggestions>{children}</WelcomeSuggestions>
-    </AssistantRuntimeProvider>
-  );
-}
-
-function ChatRuntime({
-  sessionConfig,
-  onSessionCreated,
-  children,
-}: {
-  sessionConfig: ChatSessionConfig;
-  onSessionCreated?: (id: string) => void;
-  children: ReactNode;
-}) {
-  const mode = useSettings((state) => state.settings.mode);
-  if (mode === "direct") return <DirectRuntime>{children}</DirectRuntime>;
-  return (
-    <ProxyRuntime sessionConfig={sessionConfig} onSessionCreated={onSessionCreated}>
-      {children}
-    </ProxyRuntime>
-  );
-}
-
-export function ChatProviders({
-  sessionConfig,
-  onSessionCreated,
-  children,
-}: {
-  sessionConfig: ChatSessionConfig;
-  onSessionCreated?: (id: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <NotesProvider>
-      <ChatRuntime sessionConfig={sessionConfig} onSessionCreated={onSessionCreated}>
-        <ToolRegistrar>
-          <ComposerDraftSync sessionId={sessionConfig.sessionId} />
-          {children}
-        </ToolRegistrar>
-      </ChatRuntime>
-    </NotesProvider>
-  );
-}
+    </ChatRuntimeProvider>
+  </NotesProvider>
+);

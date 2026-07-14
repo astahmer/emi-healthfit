@@ -1,7 +1,16 @@
 export const buildAssistantParts = (messages: unknown[]): unknown[] => {
   const assistantParts: unknown[] = [];
-  const toolCalls = new Map<string, { toolName: string; args: unknown }>();
+  const toolCalls = new Map<string, { toolName: string; input: unknown }>();
   const toolResults = new Map<string, unknown>();
+  const emittedToolCalls = new Set<string>();
+
+  const normalizeToolOutput = (output: unknown): unknown => {
+    if (typeof output !== "object" || output === null || !("type" in output)) return output;
+    if ((output.type === "json" || output.type === "text") && "value" in output) {
+      return output.value;
+    }
+    return output;
+  };
 
   const messageParts = (message: unknown): unknown[] => {
     if (typeof message !== "object" || message === null) return [];
@@ -24,10 +33,10 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
       if (role === "assistant" && type === "tool-call" && toolCallId !== undefined) {
         toolCalls.set(toolCallId, {
           toolName: (part as { toolName?: string }).toolName ?? "",
-          args: (part as { args?: unknown }).args,
+          input: (part as { input?: unknown }).input,
         });
       } else if (role === "tool" && type === "tool-result" && toolCallId !== undefined) {
-        toolResults.set(toolCallId, (part as { result?: unknown }).result);
+        toolResults.set(toolCallId, normalizeToolOutput((part as { output?: unknown }).output));
       }
     }
   }
@@ -49,14 +58,17 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
           assistantParts.push({ type: "text", text });
         }
       } else if (type === "tool-call" && toolCallId !== undefined) {
+        if (emittedToolCalls.has(toolCallId)) continue;
         const call = toolCalls.get(toolCallId);
         if (call !== undefined) {
+          emittedToolCalls.add(toolCallId);
           assistantParts.push({
-            type: "tool-call",
+            type: "dynamic-tool",
             toolName: call.toolName,
-            argsText: JSON.stringify(call.args),
-            result: toolResults.get(toolCallId),
-            status: { type: "complete" },
+            toolCallId,
+            input: call.input,
+            output: toolResults.get(toolCallId),
+            state: "output-available",
           });
         }
       }

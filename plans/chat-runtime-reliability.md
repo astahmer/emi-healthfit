@@ -16,6 +16,10 @@ Recent fixes:
 
 Make the chat feel reliable: messages never get stuck, tools produce answers, switching sessions is instant, and a page refresh never loses in-flight progress.
 
+## Implementation status
+
+Completed on 2026-07-14. The frontend now owns messages, composer drafts, attachments, streaming, and errors in `chat-runtime-machine`. AI SDK `DefaultChatTransport` handles the wire protocol without owning UI state. The backend tees each UI-message stream: one branch goes directly to the response while a `waitUntil` branch checkpoints ordered chunks in D1. `GET /api/chat/:conversationId/stream` replays an active generation after refresh. Assistant UI and its runtime dependencies were removed.
+
 ## What we learned this session
 
 1. **Assistant-ui message state does not reset automatically.** `useChatRuntime` creates a single `Chat` instance keyed by an internal id. Changing `messages`/`sessionId` props does not recreate it, which is why New Chat used to show the previous session's messages.
@@ -78,9 +82,9 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 
 | Choice | Decision | Rationale |
 |--------|----------|-----------|
-| Keep assistant-ui for now | Yes | A full rewrite would delay the fix for the stuck-tool bug. Migrate incrementally. |
+| Keep assistant-ui for now | No — removed | Owning runtime state eliminates remount workarounds and stale cross-session messages. |
 | Use `stopWhen: isLoopFinished()` | Yes | One-line fix that makes the current tool loop work without changing frontend code. |
-| Resumable stream library | TBD between `@vercel/resumable-stream` and `ai-resumable-stream` | Need to compare Cloudflare Worker compatibility and storage requirements. |
+| Resumable stream library | Native AI SDK chunks + D1 | Avoids Redis and Node-specific adapters; works directly in Cloudflare Workers. |
 | Future primitives | shadcn chat primitives + `@shadcn/helpers/ai-sdk` | Gives full control, aligns with existing shadcn/ui usage, and is not tied to assistant-ui's runtime. |
 | Future state owner | xstate | Already used for conversation/threading; can model streaming and tool execution explicitly and prevent invalid states. |
 
@@ -103,12 +107,12 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 
 ## Acceptance criteria
 
-- [ ] A message that triggers tools always ends with a visible assistant answer.
-- [ ] Refreshing the page during a generation reconnects and finishes the answer.
-- [ ] New Chat resets the view instantly with no previous messages.
-- [ ] Switching sessions does not require a full runtime remount.
-- [ ] Tool results are visible both during the stream and after refresh.
-- [ ] No impossible UI states (loading + streaming, stale messages after New Chat, etc.).
+- [x] A message that triggers tools always ends with a visible assistant answer.
+- [x] Refreshing the page during a generation reconnects and finishes the answer.
+- [x] New Chat resets the view instantly with no previous messages.
+- [x] Switching sessions does not require a full runtime remount.
+- [x] Tool results are visible both during the stream and after refresh.
+- [x] No impossible UI states (loading + streaming, stale messages after New Chat, etc.).
 
 ## Decisions log
 
@@ -119,3 +123,6 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 | 2026-07-14 | Use `chatKey` + `resetKey` to remount assistant-ui runtime | Assistant-ui does not reset message state on prop changes. |
 | 2026-07-14 | Plan incremental migration away from assistant-ui | Full control over runtime, streaming, and primitives is needed to avoid this class of bugs. |
 | 2026-07-14 | Investigated streaming — found HTTP relay buffering | AI SDK source streams per-step correctly, but `HttpServerResponse.fromWeb()` or Cloudflare Workers buffer the full multi-step response before delivering to client. |
+| 2026-07-14 | Replace assistant-ui with an XState-owned runtime | Session changes are atomic and stale async chunks are rejected with operation tokens. |
+| 2026-07-14 | Checkpoint native UI-message chunks in D1 | A tee consumed under Worker `waitUntil` keeps generation alive after browser disconnect and supports replay. |
+| 2026-07-14 | Aggregate every AI SDK step before persistence | AI SDK v6 exposes per-step response messages; aggregating, normalizing, and deduplicating preserves tool results and final text. |

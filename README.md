@@ -1,6 +1,6 @@
 # Emi HealthFit — Personal Gym Assistant
 
-A personal gym assistant powered by **Apple Health** + **Hevy** data, running on **Cloudflare Workers** with **Effect 4**, **Alchemy**, and a new **assistant-ui** chat frontend.
+A personal gym assistant powered by **Apple Health** + **Hevy** data, running on **Cloudflare Workers** with **Effect 4**, **Alchemy**, and an XState-driven chat frontend.
 
 It answers questions like "what should I train today?", "am I recovered enough?", or "how's my squat progress?" by combining your recent workouts, sleep, activity, and a lightweight recovery score. The chat UI supports OpenAI (BYOK), GPT-compatible endpoints, and remote tools exposed by the CF Worker.
 
@@ -9,7 +9,7 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 - **Runtime:** Cloudflare Workers
 - **Language:** TypeScript 7
 - **Infra + runtime framework:** [Alchemy](https://alchemy.run) + [Effect](https://effect.website)
-- **Frontend:** [assistant-ui](https://github.com/assistant-ui/assistant-ui) (Next.js, static export)
+- **Frontend:** Next.js static export, XState chat runtime, Vercel AI SDK transport, shadcn UI
 - **Database:** Cloudflare D1
 - **Raw export storage:** Cloudflare R2
 - **LLM:** OpenAI (`gpt-4o-mini` by default) via BYOK or CF Worker proxy
@@ -120,13 +120,13 @@ Response:
 
 ### `POST /api/chat`
 
-Streaming chat endpoint used by the assistant-ui frontend.
+Resumable streaming chat endpoint. Generation chunks are checkpointed in D1 and can be replayed from `GET /api/chat/:conversationId/stream` after a refresh or disconnect.
 
 ```bash
 curl -X POST https://<worker-url>/api/chat \
   -H "content-type: application/json" \
   -d '{
-    "messages": [{"role":"user","content":"what should I train today?"}],
+    "messages": [{"id":"user-1","role":"user","parts":[{"type":"text","text":"what should I train today?"}]}],
     "config": {"provider":"openai","apiKey":"sk-...","model":"gpt-4o-mini"}
   }'
 ```
@@ -182,8 +182,8 @@ No dedicated app needed.
 │   │   ├── migrations/         # D1 schema
 │   │   ├── test/               # Parser tests
 │   │   └── scripts/            # Standalone parser smoke test
-│   └── chat/                   # assistant-ui Next.js frontend
-│       ├── app/                # Pages, providers, settings, tool loader
+│   └── chat/                   # XState + Next.js chat frontend
+│       ├── app/                # Pages, runtime machine, providers, settings
 │       └── components/         # UI components
 ├── data/                       # Your export files (gitignored)
 └── .references/                # Cloned reference repositories

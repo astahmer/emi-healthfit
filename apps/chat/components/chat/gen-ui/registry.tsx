@@ -6,7 +6,7 @@ import {
   ExerciseProgressView,
   RecoveryCard,
   WorkoutHistoryTable,
-} from "@/components/assistant-ui/tool-result-content";
+} from "@/components/chat/tool-result-content";
 
 const { registry } = defineRegistry(catalog, {
   actions: {},

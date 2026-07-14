@@ -17,11 +17,6 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.74",
-    "@assistant-ui/react": "latest",
-    "@assistant-ui/react-ai-sdk": "latest",
-    "@assistant-ui/react-data-stream": "latest",
-    "@assistant-ui/react-markdown": "latest",
-    "@assistant-ui/react-mcp": "latest",
     "@json-render/core": "0.19.0",
     "@json-render/react": "0.19.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -33,7 +28,6 @@
     "@tanstack/react-query": "^5.101.2",
     "@xstate/react": "^6.1.0",
     "ai": "^6.0.209",
-    "assistant-stream": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.4.4",
@@ -42,6 +36,7 @@
     "radix-ui": "^1.6.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.9.2",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
@@ -52,7 +47,6 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@assistant-ui/next": "latest",
     "@serwist/cli": "^9.5.11",
     "@serwist/next": "^9.5.11",
     "@tailwindcss/postcss": "^4.3.1",

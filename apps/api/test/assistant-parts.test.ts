@@ -7,9 +7,7 @@ describe("buildAssistantParts", () => {
     const parts = buildAssistantParts([
       {
         role: "assistant",
-        content: [
-          { type: "tool-call", toolCallId: "call-1", toolName: "get_recovery", args: {} },
-        ],
+        content: [{ type: "tool-call", toolCallId: "call-1", toolName: "get_recovery", input: {} }],
       },
       {
         role: "tool",
@@ -18,7 +16,7 @@ describe("buildAssistantParts", () => {
             type: "tool-result",
             toolCallId: "call-1",
             toolName: "get_recovery",
-            result: { label: "Good", explanation: "You slept well" },
+            output: { label: "Good", explanation: "You slept well" },
           },
         ],
       },
@@ -28,13 +26,17 @@ describe("buildAssistantParts", () => {
     const toolPart = parts[0] as {
       type: string;
       toolName: string;
-      result: { label: string; explanation: string };
-      status: { type: string };
+      toolCallId: string;
+      input: unknown;
+      output: { label: string; explanation: string };
+      state: string;
     };
-    assert.strictEqual(toolPart.type, "tool-call");
+    assert.strictEqual(toolPart.type, "dynamic-tool");
     assert.strictEqual(toolPart.toolName, "get_recovery");
-    assert.strictEqual(toolPart.result.label, "Good");
-    assert.strictEqual(toolPart.status.type, "complete");
+    assert.strictEqual(toolPart.toolCallId, "call-1");
+    assert.deepStrictEqual(toolPart.input, {});
+    assert.strictEqual(toolPart.output.label, "Good");
+    assert.strictEqual(toolPart.state, "output-available");
   });
 
   it("keeps text and tool-call order from the assistant message", () => {
@@ -43,27 +45,61 @@ describe("buildAssistantParts", () => {
         role: "assistant",
         content: [
           { type: "text", text: "Here is the info:" },
-          { type: "tool-call", toolCallId: "call-2", toolName: "get_summary", args: { date: "today" } },
+          {
+            type: "tool-call",
+            toolCallId: "call-2",
+            toolName: "get_summary",
+            input: { date: "today" },
+          },
         ],
       },
       {
         role: "tool",
         content: [
-          { type: "tool-result", toolCallId: "call-2", toolName: "get_summary", result: { total: 100 } },
+          {
+            type: "tool-result",
+            toolCallId: "call-2",
+            toolName: "get_summary",
+            output: { total: 100 },
+          },
         ],
       },
     ]);
 
     assert.strictEqual(parts.length, 2);
     assert.deepStrictEqual(parts[0], { type: "text", text: "Here is the info:" });
-    const toolPart = parts[1] as { type: string; toolName: string; result: { total: number } };
-    assert.strictEqual(toolPart.type, "tool-call");
+    const toolPart = parts[1] as { type: string; toolName: string; output: { total: number } };
+    assert.strictEqual(toolPart.type, "dynamic-tool");
     assert.strictEqual(toolPart.toolName, "get_summary");
-    assert.strictEqual(toolPart.result.total, 100);
+    assert.strictEqual(toolPart.output.total, 100);
   });
 
   it("returns an empty array when there are no assistant messages", () => {
     const parts = buildAssistantParts([]);
     assert.strictEqual(parts.length, 0);
+  });
+
+  it("unwraps provider outputs and deduplicates repeated step messages", () => {
+    const assistantMessage = {
+      role: "assistant",
+      content: [{ type: "tool-call", toolCallId: "call-3", toolName: "get_recovery", input: {} }],
+    };
+    const parts = buildAssistantParts([
+      assistantMessage,
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call-3",
+            output: { type: "json", value: { score: 90 } },
+          },
+        ],
+      },
+      assistantMessage,
+    ]);
+
+    assert.strictEqual(parts.length, 1);
+    assert.deepStrictEqual((parts[0] as { output: unknown }).output, { score: 90 });
   });
 });

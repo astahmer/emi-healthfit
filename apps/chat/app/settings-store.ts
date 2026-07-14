@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ProviderMode = "proxy" | "direct";
-
 export interface ChatSettings {
-  mode: ProviderMode;
   provider: "openai";
   baseUrl: string;
   apiKey: string;
@@ -14,7 +11,6 @@ export interface ChatSettings {
 }
 
 const defaultSettings: ChatSettings = {
-  mode: "proxy",
   provider: "openai",
   baseUrl: "",
   apiKey: "",

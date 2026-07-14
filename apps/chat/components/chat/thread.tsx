@@ -1,0 +1,470 @@
+"use client";
+
+import { useEffect, useRef, type FormEvent } from "react";
+import type { UIMessage } from "ai";
+import {
+  ArrowUpIcon,
+  BrainIcon,
+  CopyIcon,
+  GitBranchIcon,
+  GlobeIcon,
+  GhostIcon,
+  LoaderIcon,
+  PaperclipIcon,
+  SquareIcon,
+  WrenchIcon,
+  XIcon,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Button } from "@/components/ui/button";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Message, MessageContent, MessageFooter } from "@/components/ui/message";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ToolResultContent } from "@/components/chat/tool-result-content";
+import { cn } from "@/lib/utils";
+import { useChatRuntime } from "@/app/chat/chat-runtime";
+import type { ChatModel } from "@/app/models";
+import { fetchSuggestions } from "@/app/suggestions";
+import { useSettings } from "@/app/settings-store";
+
+export interface ComposerControls {
+  model: string;
+  onModelChange: (model: string) => void;
+  coachMode: boolean;
+  onCoachModeChange: () => void;
+  webSearch: boolean;
+  onWebSearchChange: (value: boolean) => void;
+  temporary: boolean;
+  onTemporaryChange: (value: boolean) => void;
+  models: ChatModel[];
+  canWebSearch: boolean;
+}
+
+const suggestions = [
+  "How is my recovery today?",
+  "Summarize my last workout.",
+  "What's my current workout streak?",
+  "Show my progress on bench press over the last 8 weeks.",
+];
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+
+type MessagePartValue = UIMessage["parts"][number];
+
+const ToolPart = ({ part }: { part: MessagePartValue }) => {
+  const record = asRecord(part);
+  if (record === null || typeof record.type !== "string") return null;
+  const isTool =
+    record.type === "dynamic-tool" ||
+    record.type === "tool-call" ||
+    record.type.startsWith("tool-");
+  if (!isTool) return null;
+
+  const toolName =
+    typeof record.toolName === "string"
+      ? record.toolName
+      : record.type.startsWith("tool-")
+        ? record.type.slice(5)
+        : "tool";
+  const input = record.input ?? record.args ?? record.argsText;
+  const output = record.output ?? record.result;
+  const hasOutput = output !== undefined || record.state === "output-available";
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        {hasOutput ? (
+          <WrenchIcon className="size-3.5" />
+        ) : (
+          <LoaderIcon className="size-3.5 animate-spin" />
+        )}
+        {toolName.replaceAll("_", " ")}
+      </div>
+      {input !== undefined && (
+        <details className="mt-2 text-xs">
+          <summary className="cursor-pointer text-muted-foreground">Input</summary>
+          <pre className="mt-1 overflow-auto whitespace-pre-wrap">
+            {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
+          </pre>
+        </details>
+      )}
+      {hasOutput && <ToolResultContent toolName={toolName} result={output} className="mt-2" />}
+    </div>
+  );
+};
+
+const MarkdownText = ({ text }: { text: string }) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      a: ({ children, ...props }) => (
+        <a
+          {...props}
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary underline underline-offset-4"
+        >
+          {children}
+        </a>
+      ),
+      code: ({ className, children, ...props }) => (
+        <code
+          {...props}
+          className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]", className)}
+        >
+          {children}
+        </code>
+      ),
+      pre: ({ children }) => (
+        <pre className="my-2 overflow-x-auto rounded-lg bg-muted p-3 text-sm">{children}</pre>
+      ),
+      table: ({ children }) => (
+        <div className="my-2 overflow-x-auto">
+          <table className="w-full border-collapse text-sm">{children}</table>
+        </div>
+      ),
+      th: ({ children }) => <th className="border bg-muted px-2 py-1 text-left">{children}</th>,
+      td: ({ children }) => <td className="border px-2 py-1 align-top">{children}</td>,
+      ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+      ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+      p: ({ children }) => <p className="my-1 first:mt-0 last:mb-0">{children}</p>,
+    }}
+  >
+    {text}
+  </ReactMarkdown>
+);
+
+const MessagePart = ({ part }: { part: MessagePartValue }) => {
+  if (part.type === "text") return <MarkdownText text={part.text} />;
+  if (part.type === "file") {
+    if (part.mediaType.startsWith("image/")) {
+      return (
+        <img
+          src={part.url}
+          alt={part.filename ?? "Attachment"}
+          className="max-h-80 rounded-lg object-contain"
+        />
+      );
+    }
+    return (
+      <a
+        href={part.url}
+        download={part.filename}
+        className="text-primary underline underline-offset-4"
+      >
+        {part.filename ?? "Attachment"}
+      </a>
+    );
+  }
+  if (part.type === "reasoning") {
+    return (
+      <details className="text-sm text-muted-foreground">
+        <summary className="cursor-pointer">Reasoning</summary>
+        <div className="mt-2 whitespace-pre-wrap">{part.text}</div>
+      </details>
+    );
+  }
+  return <ToolPart part={part} />;
+};
+
+const getText = (message: UIMessage | undefined): string =>
+  message?.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n") ?? "";
+
+const FollowUpSuggestions = () => {
+  const runtime = useChatRuntime();
+  const settings = useSettings((state) => state.settings);
+  const lastAssistantIndex = runtime.messages.findLastIndex(
+    (message) => message.role === "assistant",
+  );
+  const lastAssistant = runtime.messages[lastAssistantIndex];
+  const lastUser = runtime.messages
+    .slice(0, lastAssistantIndex)
+    .findLast((message) => message.role === "user");
+  const lastAssistantText = getText(lastAssistant);
+  const query = useQuery({
+    queryKey: ["suggestions", lastAssistant?.id, lastAssistantText, getText(lastUser)],
+    queryFn: () =>
+      fetchSuggestions({
+        threadId: runtime.sessionId,
+        messageId: lastAssistant?.id,
+        lastAssistantText,
+        lastUserText: getText(lastUser),
+        config: {
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl || undefined,
+          model: settings.model,
+        },
+      }),
+    enabled: !runtime.isStreaming && lastAssistantText !== "",
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  if (query.data === undefined || query.data.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2 pl-3">
+      {query.data.map((suggestion) => (
+        <Button
+          key={suggestion}
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-auto rounded-full whitespace-normal"
+          onClick={() => void runtime.submit(suggestion)}
+        >
+          {suggestion}
+        </Button>
+      ))}
+    </div>
+  );
+};
+
+const ChatMessage = ({
+  message,
+  isStreaming,
+  onFork,
+}: {
+  message: UIMessage;
+  isStreaming: boolean;
+  onFork?: (messageId: string) => void;
+}) => {
+  const isUser = message.role === "user";
+  return (
+    <Message align={isUser ? "end" : "start"} aria-live={isStreaming ? "polite" : undefined}>
+      <MessageContent>
+        <Bubble align={isUser ? "end" : "start"} variant={isUser ? "muted" : "ghost"}>
+          <BubbleContent className={cn(!isUser && "w-full")}>
+            {message.parts.map((part, index) => (
+              <MessagePart key={`${message.id}-${index}`} part={part} />
+            ))}
+            {isStreaming && message.parts.length === 0 && (
+              <LoaderIcon className="size-4 animate-spin text-muted-foreground" />
+            )}
+          </BubbleContent>
+        </Bubble>
+        <MessageFooter className="gap-1">
+          <span className="me-1">{isUser ? "You" : "Coach"}</span>
+          <button
+            type="button"
+            className="rounded p-1 hover:bg-muted hover:text-foreground"
+            aria-label="Copy message"
+            onClick={() => void navigator.clipboard.writeText(getText(message))}
+          >
+            <CopyIcon className="size-3.5" />
+          </button>
+          {onFork !== undefined && !isStreaming && (
+            <button
+              type="button"
+              className="rounded p-1 hover:bg-muted hover:text-foreground"
+              aria-label="Fork from message"
+              onClick={() => onFork(message.id)}
+            >
+              <GitBranchIcon className="size-3.5" />
+            </button>
+          )}
+        </MessageFooter>
+      </MessageContent>
+    </Message>
+  );
+};
+
+export const Thread = ({
+  composerControls,
+  onForkMessage,
+}: {
+  composerControls: ComposerControls;
+  onForkMessage?: (messageId: string) => void;
+}) => {
+  const runtime = useChatRuntime();
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    if (distanceFromBottom < 160) viewport.scrollTo({ top: viewport.scrollHeight });
+  }, [runtime.messages]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void runtime.submit();
+  };
+
+  return (
+    <div className="flex h-full flex-col bg-background">
+      <div
+        ref={viewportRef}
+        className="flex-1 overflow-y-auto"
+        role="log"
+        aria-relevant="additions"
+      >
+        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-4 py-6">
+          {runtime.messages.length === 0 ? (
+            <div className="my-auto space-y-6 text-center">
+              <div>
+                <h1 className="text-2xl font-semibold">What are we working on?</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Ask about training, recovery, sleep, or progress.
+                </p>
+              </div>
+              <div className="mx-auto grid max-w-xl gap-2 sm:grid-cols-2">
+                {suggestions.map((suggestion) => (
+                  <Button
+                    key={suggestion}
+                    variant="outline"
+                    className="h-auto justify-start whitespace-normal p-3 text-left"
+                    onClick={() => void runtime.submit(suggestion)}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            runtime.messages.map((message, index) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                isStreaming={
+                  runtime.isStreaming &&
+                  index === runtime.messages.length - 1 &&
+                  message.role === "assistant"
+                }
+                onFork={onForkMessage}
+              />
+            ))
+          )}
+          <FollowUpSuggestions />
+        </div>
+      </div>
+
+      <div className="border-t bg-background/95 p-3 backdrop-blur">
+        <form
+          onSubmit={submit}
+          className="mx-auto max-w-3xl rounded-2xl border bg-muted/20 p-2 shadow-sm"
+        >
+          {runtime.files.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 pb-2">
+              {runtime.files.map((file) => (
+                <div
+                  key={file.url}
+                  className="flex max-w-48 items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs"
+                >
+                  <span className="truncate">{file.filename ?? "Attachment"}</span>
+                  <button
+                    type="button"
+                    onClick={() => runtime.removeFile(file.url)}
+                    aria-label={`Remove ${file.filename ?? "attachment"}`}
+                  >
+                    <XIcon className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <textarea
+            value={runtime.draft}
+            onChange={(event) => runtime.setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void runtime.submit();
+              }
+            }}
+            placeholder="Send a message..."
+            aria-label="Message input"
+            rows={2}
+            className="max-h-40 min-h-12 w-full resize-none bg-transparent px-2 py-1 text-base outline-none"
+          />
+          {runtime.error !== null && (
+            <div className="mx-2 mb-2 flex items-center justify-between rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <span>{runtime.error.message}</span>
+              <button type="button" onClick={runtime.clearError}>
+                Dismiss
+              </button>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-1">
+            <Button type="button" size="icon-sm" variant="ghost" asChild>
+              <label aria-label="Add attachments" className="cursor-pointer">
+                <PaperclipIcon className="size-4" />
+                <input
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    if (event.target.files !== null) void runtime.addFiles(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            </Button>
+            <Select value={composerControls.model} onValueChange={composerControls.onModelChange}>
+              <SelectTrigger className="h-8 w-auto border-0 bg-transparent text-xs shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {composerControls.models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              size="sm"
+              variant={composerControls.coachMode ? "secondary" : "ghost"}
+              onClick={composerControls.onCoachModeChange}
+            >
+              <BrainIcon className="size-4" /> Coach
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={composerControls.webSearch ? "secondary" : "ghost"}
+              disabled={!composerControls.canWebSearch}
+              onClick={() => composerControls.onWebSearchChange(!composerControls.webSearch)}
+            >
+              <GlobeIcon className="size-4" /> Web
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={composerControls.temporary ? "secondary" : "ghost"}
+              disabled={runtime.isStreaming}
+              onClick={() => composerControls.onTemporaryChange(!composerControls.temporary)}
+            >
+              <GhostIcon className="size-4" /> Temporary
+            </Button>
+            <Button
+              type={runtime.isStreaming ? "button" : "submit"}
+              size="icon"
+              className="ms-auto rounded-full"
+              onClick={runtime.isStreaming ? runtime.stop : undefined}
+              aria-label={runtime.isStreaming ? "Stop generating" : "Send message"}
+            >
+              {runtime.isStreaming ? (
+                <SquareIcon className="size-4" />
+              ) : (
+                <ArrowUpIcon className="size-4" />
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

@@ -69,7 +69,7 @@ vi.mock("@/app/chat/session-sidebar", () => ({
   SessionSidebar: () => <aside data-testid="session-sidebar" />,
 }));
 
-vi.mock("@/components/assistant-ui/tooltip-icon-button", () => ({
+vi.mock("@/components/ui/tooltip-icon-button", () => ({
   TooltipIconButton: ({ children }: { children: ReactNode }) => (
     <button type="button">{children}</button>
   ),
@@ -82,12 +82,6 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
     useQueryClient: () => new actual.QueryClient({ defaultOptions: { queries: { retry: false } } }),
   };
 });
-
-const auiState = { thread: { isRunning: false } };
-
-vi.mock("@assistant-ui/react", () => ({
-  useAuiState: vi.fn((selector: (state: typeof auiState) => unknown) => selector(auiState)),
-}));
 
 const ChatProvidersMock = ({
   children,
@@ -122,7 +116,7 @@ vi.mock("@/app/providers", () => ({
   },
 }));
 
-vi.mock("@/components/assistant-ui/thread", () => ({
+vi.mock("@/components/chat/thread", () => ({
   Thread: ({ composerControls }: { composerControls?: unknown }) => (
     <div data-testid="thread">Thread {JSON.stringify(composerControls)}</div>
   ),
@@ -160,6 +154,20 @@ describe("ChatPage", () => {
             json: async () => conversationMessagesResponse,
           } as Response);
         }
+        if (url.includes("/api/conversations/other-id/messages")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              ...conversationMessagesResponse,
+              conversation: {
+                ...conversationMessagesResponse.conversation,
+                id: "other-id",
+                title: "Other chat",
+              },
+              messages: [],
+            }),
+          } as Response);
+        }
         return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
       }),
     );
@@ -186,7 +194,7 @@ describe("ChatPage", () => {
     expect(providerMountCount).toBe(beforeCreation);
   });
 
-  it("remounts the chat runtime when starting a new chat from an existing session", async () => {
+  it("switches to a new chat without remounting the runtime", async () => {
     searchStore.set(new URLSearchParams({ id: "existing-id" }));
 
     render(<ChatPage />);
@@ -199,7 +207,20 @@ describe("ChatPage", () => {
 
     await waitFor(() => expect(searchStore.get().toString()).toBe(""));
 
-    expect(providerMountCount).toBeGreaterThan(beforeNewChat);
+    expect(providerMountCount).toBe(beforeNewChat);
+    expect(screen.queryByText("Existing chat")).not.toBeInTheDocument();
+  });
+
+  it("loads another existing session without remounting the runtime", async () => {
+    searchStore.set(new URLSearchParams({ id: "existing-id" }));
+    render(<ChatPage />);
+
+    await waitFor(() => expect(screen.getByText("Existing chat")).toBeInTheDocument());
+    const beforeSwitch = providerMountCount;
+    updateFromUrl("/chat?id=other-id");
+
+    await waitFor(() => expect(screen.getByText("Other chat")).toBeInTheDocument());
+    expect(providerMountCount).toBe(beforeSwitch);
     expect(screen.queryByText("Existing chat")).not.toBeInTheDocument();
   });
 });

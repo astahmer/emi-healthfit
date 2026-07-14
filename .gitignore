@@ -7,3 +7,4 @@ dist
 # Serwist
 apps/chat/public/sw*.js
 apps/chat/public/swe-worker*.js
+.cachebro

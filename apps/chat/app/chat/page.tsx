@@ -4,8 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-import { useAuiState } from "@assistant-ui/react";
-import { Thread } from "@/components/assistant-ui/thread";
+import { Thread } from "@/components/chat/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -17,7 +16,7 @@ import type { MessageWithUsage } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { UsageProvider } from "../usage-context";
-import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
 import { useConversationMachine } from "./use-conversation-machine";
 import { composerConfigMachine } from "./composer-config-machine";
@@ -29,17 +28,12 @@ const RUNTIME_ROLES = new Set(["user", "assistant", "system"]);
 function UrlSync({ createdConversationId }: { createdConversationId: string | undefined }) {
   const router = useRouter();
   const urlSyncedRef = useRef(false);
-  const isRunning = useAuiState((s) => s.thread.isRunning);
 
   useEffect(() => {
-    if (isRunning) {
-      urlSyncedRef.current = false;
-      return;
-    }
     if (createdConversationId === undefined || urlSyncedRef.current) return;
     urlSyncedRef.current = true;
     router.replace(`/chat?id=${createdConversationId}`, { scroll: false });
-  }, [isRunning, createdConversationId, router]);
+  }, [createdConversationId, router]);
 
   return null;
 }
@@ -74,25 +68,14 @@ const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const sessionId = searchParams.get("id") ?? undefined;
   const [createdConversationId, setCreatedConversationId] = useState<string | undefined>(undefined);
-  const createdIdRef = useRef<string | undefined>(undefined);
-  const [chatKey, setChatKey] = useState(sessionId ?? "new");
 
   useEffect(() => {
     setCreatedConversationId(undefined);
-  }, [sessionId]);
-
-  useEffect(() => {
-    setChatKey((previous) => {
-      const next = sessionId ?? "new";
-      if (previous === next) return previous;
-      if (previous === "new" && sessionId === createdIdRef.current) return previous;
-      createdIdRef.current = undefined;
-      return next;
-    });
   }, [sessionId]);
 
   const activeConversationId = sessionId ?? createdConversationId;
@@ -138,8 +121,9 @@ function ChatPageInner() {
   const selectedModel = chatModels.find((m) => m.id === configState.context.model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
 
-  const conversation = conversationState.context.conversation;
-  const initialMessages = conversationState.context.messages;
+  const historyMatchesSelection = conversationState.context.conversationId === activeConversationId;
+  const conversation = historyMatchesSelection ? conversationState.context.conversation : null;
+  const initialMessages = historyMatchesSelection ? conversationState.context.messages : [];
   const isLoading = conversationState.matches("loading");
   const loadError = conversationState.matches("error") ? conversationState.context.error : null;
   const isRenaming = conversationState.matches({ ready: "renamingConversation" });
@@ -156,144 +140,150 @@ function ChatPageInner() {
     >
       <SessionSidebar />
 
-      {isLoading ? (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          Loading session…
-        </div>
-      ) : loadError !== null && activeConversationId !== undefined ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-destructive">{loadError.message}</p>
-          <button
-            type="button"
-            onClick={() => sendConversation({ type: "retry" })}
-            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+      <ErrorBoundary
+        onReset={() => {
+          sendConversation({ type: "reset" });
+          void queryClient.invalidateQueries({ queryKey: ["thread", activeConversationId] });
+        }}
+      >
+        <UsageProvider messages={usageMessages}>
+          <ChatProviders
+            sessionConfig={{
+              model: configState.context.model,
+              coachMode: configState.context.coachMode,
+              webSearch: configState.context.webSearch,
+              temporary: configState.context.temporary,
+              historyReady: !isLoading && historyMatchesSelection,
+              sessionId: activeConversationId,
+              initialMessages: runtimeMessages,
+            }}
+            onSessionCreated={(id) => {
+              setCreatedConversationId(id);
+              sendConversation({ type: "session.created", conversationId: id });
+            }}
           >
-            Retry
-          </button>
-        </div>
-      ) : (
-        <ErrorBoundary
-          key={`${chatKey}-${conversationState.context.resetKey}`}
-          onReset={() => {
-            sendConversation({ type: "reset" });
-            void queryClient.invalidateQueries({ queryKey: ["thread", activeConversationId] });
-          }}
-        >
-          <UsageProvider messages={usageMessages}>
-            <ChatProviders
-              sessionConfig={{
-                model: configState.context.model,
-                coachMode: configState.context.coachMode,
-                webSearch: configState.context.webSearch,
-                temporary: configState.context.temporary,
-                sessionId: activeConversationId,
-                initialMessages: runtimeMessages,
-              }}
-              onSessionCreated={(id) => {
-                createdIdRef.current = id;
-                setCreatedConversationId(id);
-                sendConversation({ type: "session.created", conversationId: id });
-              }}
-            >
-              <UrlSync createdConversationId={createdConversationId} />
-              <div className="flex h-full flex-1 flex-col">
-                <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
-                  <SidebarTrigger />
-                  {activeConversationId && conversation !== null && (
-                    <>
-                      {isRenaming ? (
-                        <form
-                          className="flex flex-1 items-center gap-2 px-2"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            sendConversation({ type: "conversation.rename.submit" });
-                          }}
-                        >
-                          <input
-                            value={conversationState.context.renameDraft}
-                            onChange={(e) =>
-                              sendConversation({
-                                type: "conversation.rename.change",
-                                value: e.target.value,
-                              })
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape")
-                                sendConversation({ type: "conversation.rename.cancel" });
-                            }}
-                            autoFocus
-                            aria-label="Session title"
-                            className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm outline-none"
-                          />
-                          <button
-                            type="submit"
-                            className="rounded-md p-1 hover:bg-muted"
-                            aria-label="Save title"
-                          >
-                            <CheckIcon className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => sendConversation({ type: "conversation.rename.cancel" })}
-                            className="rounded-md p-1 hover:bg-muted"
-                            aria-label="Cancel rename"
-                          >
-                            <XIcon className="size-4" />
-                          </button>
-                        </form>
-                      ) : (
-                        <>
-                          <span className="flex-1 truncate px-2 text-sm font-medium">
-                            {conversation.title ?? "New chat"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => sendConversation({ type: "conversation.rename.start" })}
-                            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                            aria-label="Rename session"
-                          >
-                            <PencilIcon className="size-4" />
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
-                  <div className="ms-auto flex items-center gap-1">
-                    <NewChatButton />
-                    {activeConversationId && (
-                      <TooltipIconButton
-                        tooltip="Export as Markdown"
-                        side="bottom"
-                        type="button"
-                        variant="ghost"
-                        onClick={() => sendConversation({ type: "export" })}
+            <UrlSync createdConversationId={createdConversationId} />
+            <div className="relative flex h-full flex-1 flex-col">
+              <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
+                <SidebarTrigger />
+                {activeConversationId && conversation !== null && (
+                  <>
+                    {isRenaming ? (
+                      <form
+                        className="flex flex-1 items-center gap-2 px-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          sendConversation({ type: "conversation.rename.submit" });
+                        }}
                       >
-                        <DownloadIcon className="size-4" />
-                      </TooltipIconButton>
+                        <input
+                          value={conversationState.context.renameDraft}
+                          onChange={(e) =>
+                            sendConversation({
+                              type: "conversation.rename.change",
+                              value: e.target.value,
+                            })
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape")
+                              sendConversation({ type: "conversation.rename.cancel" });
+                          }}
+                          autoFocus
+                          aria-label="Session title"
+                          className="flex-1 rounded border border-input bg-background px-2 py-1 text-sm outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-md p-1 hover:bg-muted"
+                          aria-label="Save title"
+                        >
+                          <CheckIcon className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => sendConversation({ type: "conversation.rename.cancel" })}
+                          className="rounded-md p-1 hover:bg-muted"
+                          aria-label="Cancel rename"
+                        >
+                          <XIcon className="size-4" />
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <span className="flex-1 truncate px-2 text-sm font-medium">
+                          {conversation.title ?? "New chat"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => sendConversation({ type: "conversation.rename.start" })}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="Rename session"
+                        >
+                          <PencilIcon className="size-4" />
+                        </button>
+                      </>
                     )}
-                  </div>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <Thread
-                    composerControls={{
-                      model: configState.context.model,
-                      onModelChange: (model) => sendConfig({ type: "model.select", model }),
-                      coachMode: configState.context.coachMode,
-                      onCoachModeChange: () => sendConfig({ type: "coach.toggle" }),
-                      webSearch: configState.context.webSearch,
-                      onWebSearchChange: (value) => sendConfig({ type: "web.toggle", value }),
-                      temporary: configState.context.temporary,
-                      onTemporaryChange: (value) => sendConfig({ type: "temporary.toggle", value }),
-                      models: chatModels,
-                      canWebSearch,
-                    }}
-                  />
+                  </>
+                )}
+                <div className="ms-auto flex items-center gap-1">
+                  <NewChatButton />
+                  {activeConversationId && (
+                    <TooltipIconButton
+                      tooltip="Export as Markdown"
+                      side="bottom"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => sendConversation({ type: "export" })}
+                    >
+                      <DownloadIcon className="size-4" />
+                    </TooltipIconButton>
+                  )}
                 </div>
               </div>
-            </ChatProviders>
-          </UsageProvider>
-        </ErrorBoundary>
-      )}
+              <div className="flex-1 overflow-hidden">
+                <Thread
+                  onForkMessage={(messageId) =>
+                    sendConversation({ type: "thread.fork", anchorMessageId: messageId })
+                  }
+                  composerControls={{
+                    model: configState.context.model,
+                    onModelChange: (model) => sendConfig({ type: "model.select", model }),
+                    coachMode: configState.context.coachMode,
+                    onCoachModeChange: () => sendConfig({ type: "coach.toggle" }),
+                    webSearch: configState.context.webSearch,
+                    onWebSearchChange: (value) => sendConfig({ type: "web.toggle", value }),
+                    temporary: configState.context.temporary,
+                    onTemporaryChange: (value) => {
+                      sendConfig({ type: "temporary.toggle", value });
+                      sendConversation({ type: "temporary.changed", isTemporary: value });
+                      if (value && activeConversationId !== undefined) router.push("/chat");
+                    },
+                    models: chatModels,
+                    canWebSearch,
+                  }}
+                />
+              </div>
+              {isLoading && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 text-muted-foreground backdrop-blur-sm">
+                  Loading session…
+                </div>
+              )}
+              {loadError !== null && activeConversationId !== undefined && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/95 p-6 text-center backdrop-blur-sm">
+                  <p className="text-destructive">{loadError.message}</p>
+                  <button
+                    type="button"
+                    onClick={() => sendConversation({ type: "retry" })}
+                    className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </div>
+          </ChatProviders>
+        </UsageProvider>
+      </ErrorBoundary>
     </SidebarProvider>
   );
 }

@@ -1,49 +1,19 @@
-This is the [assistant-ui](https://github.com/assistant-ui/assistant-ui) minimal starter project.
+# Chat frontend
 
-## Getting Started
-
-### 1. Configure Environment Variables
-
-Add your OpenAI API key to a `.env.local` file:
-
-```
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-### 2. Install Dependencies
-
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-```
-
-### 3. Run the Development Server
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Next.js static chat UI with an XState-owned runtime and Vercel AI SDK transport. Message history, streaming state, per-session composer drafts, attachments, tool results, and resumable reconnects are independent of rendering primitives.
 
 ## Development
 
-You can start customizing the UI by modifying components in the `components/assistant-ui/` directory.
-
-To add more assistant-ui components:
-
 ```bash
-npx assistant-ui add
+pnpm install
+pnpm --filter chat dev
 ```
 
-### Key Files
+Open [http://localhost:3000/chat](http://localhost:3000/chat).
 
-- `app/assistant.tsx` - Sets up the runtime provider
-- `app/api/chat/route.ts` - Chat API endpoint
-- `components/assistant-ui/thread.tsx` - Chat thread component
+Key files:
+
+- `app/chat/chat-runtime-machine.ts` — valid runtime states and message ownership
+- `app/chat/chat-runtime.tsx` — streaming transport, reconnect, and session isolation
+- `components/chat/thread.tsx` — shadcn-based message and composer UI
+- `app/chat/page.tsx` — conversation shell and URL selection
