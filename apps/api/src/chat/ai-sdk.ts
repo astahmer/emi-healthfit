@@ -57,7 +57,9 @@ const buildToolSet = (
 
 export const createChatStream = async (
   request: ChatStreamRequest,
-  onFinish?: (event: { text: string; usage: LanguageModelUsage }) => void | Promise<void>,
+  onFinish?: (
+    event: { text: string; usage: LanguageModelUsage; response?: { messages: unknown[] } },
+  ) => void | Promise<void>,
 ) => {
   const openai = createOpenAI({
     apiKey: request.config.apiKey,
@@ -78,7 +80,11 @@ export const createChatStream = async (
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai),
     onFinish: (event) => {
-      void onFinish?.(event);
+      void onFinish?.({
+        text: event.text,
+        usage: event.usage,
+        response: event.response as { messages: unknown[] } | undefined,
+      });
     },
   });
 };

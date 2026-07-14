@@ -1,6 +1,6 @@
 "use client";
 
-import { defineRegistry, Renderer, type Spec } from "@json-render/react";
+import { defineRegistry, Renderer } from "@json-render/react";
 import { catalog } from "@/app/gen-ui/catalog";
 import {
   ExerciseProgressView,
@@ -53,6 +53,6 @@ const { registry } = defineRegistry(catalog, {
   },
 });
 
-export const GenUIRenderer = ({ spec }: { spec: Spec }) => (
-  <Renderer spec={spec} registry={registry} />
+export const GenUIRenderer = ({ spec }: { spec: unknown }) => (
+  <Renderer spec={spec as never} registry={registry} />
 );

@@ -4,12 +4,13 @@ import type { ReactNode } from "react";
 import { AssistantRuntimeProvider, useAui, useLocalRuntime, type Tool } from "@assistant-ui/react";
 import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSettings } from "./settings-store";
 import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
 import { buildNotesContext } from "./notes";
 import { NotesProvider, useNotes } from "./notes-context";
+import { createThread } from "./sessions";
 
 export interface ChatSessionConfig {
   model: string;
@@ -67,6 +68,7 @@ function ProxyRuntime({
   children: ReactNode;
 }) {
   const settings = useSettings((state) => state.settings);
+  const createdThreadIdRef = useRef<string | null>(null);
 
   const runtime = useChatRuntime({
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
@@ -74,6 +76,13 @@ function ProxyRuntime({
     transport: new AssistantChatTransport({
       api: "/api/chat",
       prepareSendMessagesRequest: async (options) => {
+        let sessionId = sessionConfig.sessionId ?? createdThreadIdRef.current;
+        if (sessionId === null) {
+          sessionId = await createThread();
+          createdThreadIdRef.current = sessionId;
+          window.history.replaceState({}, "", `/chat?id=${sessionId}`);
+        }
+
         const baseBody = (options.body ?? {}) as Record<string, unknown>;
         return {
           ...options,
@@ -92,7 +101,7 @@ function ProxyRuntime({
             },
             coachMode: sessionConfig.coachMode,
             webSearch: sessionConfig.webSearch,
-            sessionId: sessionConfig.sessionId,
+            sessionId,
           },
         };
       },

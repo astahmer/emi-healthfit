@@ -1,11 +1,29 @@
 "use client";
 
+import { useState } from "react";
+import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { chatModels, defaultModel } from "./models";
 import { useSettings } from "./settings-store";
+import { syncThreads } from "./sessions";
 
 export function SettingsPanel() {
   const { settings, update } = useSettings();
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncStatus(null);
+    try {
+      await syncThreads();
+      setSyncStatus("Sessions synced");
+    } catch (err) {
+      setSyncStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-xl p-6">
@@ -114,6 +132,25 @@ export function SettingsPanel() {
         </div>
 
         <Button
+          onClick={() => void handleSync()}
+          disabled={syncing}
+          variant="outline"
+          className="w-full gap-2"
+        >
+          <RefreshCwIcon className={syncing ? "size-4 animate-spin" : "size-4"} />
+          Sync sessions now
+        </Button>
+        {syncStatus !== null && (
+          <p
+            className={`text-center text-xs ${
+              syncStatus === "Sessions synced" ? "text-muted-foreground" : "text-destructive"
+            }`}
+          >
+            {syncStatus}
+          </p>
+        )}
+
+        <Button
           onClick={() =>
             update({
               provider: "openai",
@@ -123,7 +160,7 @@ export function SettingsPanel() {
               model: defaultModel.id,
               systemPrompt:
                 "You are Emi, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
-              coachMode: false,
+              coachMode: true,
             })
           }
           variant="outline"

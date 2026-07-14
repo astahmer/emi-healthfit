@@ -22,7 +22,7 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon } from "lucide-react";
 
 const SIDEBAR_WIDTH_KEY = "emi-sidebar-width";
-const HEADER_HEIGHT = 65;
+const HEADER_HEIGHT = 56;
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
@@ -128,6 +128,7 @@ function ChatPageInner() {
 
   return (
     <SidebarProvider
+      className="flex h-full"
       defaultWidth={sidebarWidth}
       onWidthChange={setSidebarWidth}
       style={{ "--sidebar-top": `${HEADER_HEIGHT}px` } as React.CSSProperties}

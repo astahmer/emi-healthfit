@@ -43,6 +43,7 @@ import {
   DownloadIcon,
   GlobeIcon,
   GraduationCapIcon,
+  Loader2Icon,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -101,7 +102,7 @@ export const Thread: FC<{ composerControls?: ComposerControls }> = ({ composerCo
 
           <div
             data-slot="aui_message-group"
-            className="mb-4 flex flex-col gap-y-6 empty:hidden md:mb-14"
+            className="mb-24 flex flex-col gap-y-6 empty:hidden md:mb-14"
           >
             <ThreadPrimitive.Messages>{() => <ThreadMessage />}</ThreadPrimitive.Messages>
           </div>
@@ -377,13 +378,11 @@ const AssistantMessage: FC = () => {
         <AuiIf
           condition={(s) => s.message.status?.type === "running" && s.message.parts.length === 0}
         >
-          <span
+          <Loader2Icon
             data-slot="aui_assistant-message-indicator"
-            className="animate-pulse font-sans"
+            className="size-4 animate-spin text-muted-foreground"
             aria-label="Assistant is working"
-          >
-            {"●"}
-          </span>
+          />
         </AuiIf>
         <MessageError />
         <FollowUpChips />

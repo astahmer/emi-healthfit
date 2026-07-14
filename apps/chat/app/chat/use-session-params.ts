@@ -8,12 +8,13 @@ export const useSessionParam = (key: string, defaultValue: string) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const value = searchParams.get(key) ?? defaultValue;
+  const raw = searchParams.get(key);
+  const value = raw !== null && raw !== "" ? raw : defaultValue;
 
   const setValue = useCallback(
     (next: string) => {
       const params = new URLSearchParams(searchParams);
-      if (next === defaultValue) {
+      if (next === defaultValue || next === "") {
         params.delete(key);
       } else {
         params.set(key, next);

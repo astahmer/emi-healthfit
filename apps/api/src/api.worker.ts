@@ -915,6 +915,48 @@ const handleAiSdkChat = (
               },
             ]);
 
+            const toolCalls = new Map<string, { toolName: string; args: unknown }>();
+            const toolResults = new Map<string, unknown>();
+            for (const message of event.response?.messages ?? []) {
+              if (
+                typeof message !== "object" ||
+                message === null ||
+                (message as { role?: string }).role !== "assistant"
+              ) {
+                continue;
+              }
+              const content = (message as { content?: unknown }).content;
+              if (!Array.isArray(content)) continue;
+              for (const part of content) {
+                if (typeof part !== "object" || part === null) continue;
+                const type = (part as { type?: string }).type;
+                const toolCallId = (part as { toolCallId?: string }).toolCallId;
+                if (type === "tool-call" && toolCallId !== undefined) {
+                  toolCalls.set(toolCallId, {
+                    toolName: (part as { toolName?: string }).toolName ?? "",
+                    args: (part as { args?: unknown }).args,
+                  });
+                } else if (type === "tool-result" && toolCallId !== undefined) {
+                  toolResults.set(toolCallId, (part as { result?: unknown }).result);
+                }
+              }
+            }
+            const toolParts: unknown[] = [];
+            for (const [toolCallId, call] of toolCalls) {
+              toolParts.push({
+                type: "tool-call",
+                toolName: call.toolName,
+                argsText: JSON.stringify(call.args),
+                result: toolResults.get(toolCallId),
+                status: { type: "complete" },
+              });
+            }
+            if (toolParts.length > 0) {
+              yield* saveThreadMessages(db, sessionId, [
+                { role: "assistant", parts: toolParts },
+              ]);
+            }
+
             const lastUserText = getLastUserText(requestWithHistory.messages);
             const key = yield* hashSuggestionsKey(event.text, lastUserText);
             const cached = yield* getSuggestionsById(db, key);

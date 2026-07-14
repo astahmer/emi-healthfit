@@ -26,6 +26,7 @@ import {
   syncThreads,
   type Thread,
 } from "../sessions";
+import { getLastSyncTimestamp } from "../session-cache";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
@@ -92,6 +94,7 @@ export const SessionSidebar = () => {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -103,13 +106,20 @@ export const SessionSidebar = () => {
     setLoading(true);
     setError(null);
     try {
-      const local = await loadCachedThreads(search || undefined);
-      if (local.length > 0) setThreads(local);
+      const [local, syncedAt] = await Promise.all([
+        loadCachedThreads(search || undefined),
+        getLastSyncTimestamp(),
+      ]);
+      setThreads(local);
+      if (syncedAt !== null) setLastSyncedAt(syncedAt);
     } catch {
       // ignore local cache errors; remote load will surface real problems
     }
     syncThreads(search || undefined)
-      .then(setThreads)
+      .then((remote) => {
+        setThreads(remote);
+        setLastSyncedAt(Date.now());
+      })
       .catch((err) => {
         if (threads.length === 0) {
           setError(err instanceof Error ? err.message : String(err));
@@ -124,6 +134,7 @@ export const SessionSidebar = () => {
     try {
       const remote = await syncThreads(search || undefined);
       setThreads(remote);
+      setLastSyncedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -133,6 +144,21 @@ export const SessionSidebar = () => {
 
   useEffect(() => {
     load();
+  }, [search]);
+
+  useEffect(() => {
+    const syncIfOnline = () => {
+      if (navigator.onLine) void handleSync();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") syncIfOnline();
+    };
+    window.addEventListener("online", syncIfOnline);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("online", syncIfOnline);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [search]);
 
   const handleNew = () => {
@@ -199,16 +225,6 @@ export const SessionSidebar = () => {
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => void handleSync()}
-                tooltip="Sync sessions"
-                disabled={syncing}
-              >
-                <RefreshCwIcon className={syncing ? "animate-spin" : undefined} />
-                <span>Sync</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
@@ -219,9 +235,11 @@ export const SessionSidebar = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          {loading && <p className="px-4 text-sm text-muted-foreground">Loading…</p>}
+          {loading && threads.length === 0 && (
+            <p className="px-4 text-sm text-muted-foreground">Loading…</p>
+          )}
           {error !== null && <p className="px-4 text-sm text-destructive">{error}</p>}
-          {!loading && threads.length === 0 && (
+          {threads.length === 0 && !loading && (
             <p className="px-4 text-sm text-muted-foreground">No sessions yet.</p>
           )}
           <SidebarMenu>
@@ -256,13 +274,13 @@ export const SessionSidebar = () => {
                       }}
                     >
                       <MessageSquareIcon />
-                      <div className="flex min-w-0 flex-col items-start">
-                        <span className="truncate">{thread.title ?? "New chat"}</span>
+                      <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
+                        <span className="flex-1 truncate">{thread.title ?? "New chat"}</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <time
                               dateTime={thread.updated_at}
-                              className="text-xs text-muted-foreground"
+                              className="text-xs whitespace-nowrap text-muted-foreground"
                             >
                               {formatRelativeTime(thread.updated_at)}
                             </time>
@@ -329,6 +347,25 @@ export const SessionSidebar = () => {
             ))}
           </SidebarMenu>
         </SidebarContent>
+        <SidebarFooter className="px-3 py-2">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {syncing ? (
+              <>
+                <RefreshCwIcon className="h-3 w-3 animate-spin" />
+                <span>Syncing…</span>
+              </>
+            ) : (
+              <>
+                <RefreshCwIcon className="h-3 w-3" />
+                <span>
+                  {lastSyncedAt !== null
+                    ? `Synced ${formatRelativeTime(new Date(lastSyncedAt).toISOString())}`
+                    : "Not synced"}
+                </span>
+              </>
+            )}
+          </div>
+        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
 
