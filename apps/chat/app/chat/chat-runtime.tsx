@@ -66,10 +66,8 @@ const consumeAssistantStream = async ({
   };
   cancelRef.current = cancel;
   try {
-    while (true) {
-      const next = await iterator.next();
-      if (next.done) return;
-      onMessage(next.value);
+    for await (const message of { [Symbol.asyncIterator]: () => iterator }) {
+      onMessage(message);
     }
   } finally {
     if (cancelRef.current === cancel) cancelRef.current = null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -79,28 +79,6 @@ function ChatPageInner() {
       webSearch: urlWebSearch,
     },
   });
-
-  useEffect(() => {
-    if (configState.context.model !== urlModel) {
-      setUrlModel(configState.context.model);
-    }
-    if (configState.context.coachMode !== urlCoachMode) {
-      setUrlCoachMode(configState.context.coachMode);
-    }
-    if (configState.context.webSearch !== urlWebSearch) {
-      setUrlWebSearch(configState.context.webSearch);
-    }
-  }, [
-    configState.context.model,
-    configState.context.coachMode,
-    configState.context.webSearch,
-    urlModel,
-    urlCoachMode,
-    urlWebSearch,
-    setUrlModel,
-    setUrlCoachMode,
-    setUrlWebSearch,
-  ]);
 
   const selectedModel = chatModels.find((m) => m.id === configState.context.model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
@@ -230,11 +208,20 @@ function ChatPageInner() {
                   }
                   composerControls={{
                     model: configState.context.model,
-                    onModelChange: (model) => sendConfig({ type: "model.select", model }),
+                    onModelChange: (model) => {
+                      sendConfig({ type: "model.select", model });
+                      setUrlModel(model);
+                    },
                     coachMode: configState.context.coachMode,
-                    onCoachModeChange: () => sendConfig({ type: "coach.toggle" }),
+                    onCoachModeChange: () => {
+                      sendConfig({ type: "coach.toggle" });
+                      setUrlCoachMode(!configState.context.coachMode);
+                    },
                     webSearch: configState.context.webSearch,
-                    onWebSearchChange: (value) => sendConfig({ type: "web.toggle", value }),
+                    onWebSearchChange: (value) => {
+                      sendConfig({ type: "web.toggle", value });
+                      setUrlWebSearch(value);
+                    },
                     temporary: configState.context.temporary,
                     onTemporaryChange: (value) => {
                       sendConfig({ type: "temporary.toggle", value });
