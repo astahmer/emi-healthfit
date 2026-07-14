@@ -25,6 +25,7 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 3. **Backend tool loop was broken by design.** `streamText` defaults to `stopWhen: isStepCount(1)`. With that default the model stops immediately after emitting tool calls and never sees the results, so the frontend received tool outputs but no final answer.
 4. **Tool results were dropped on persistence.** `event.response.messages` stores tool results as separate `role: "tool"` messages, but the old persistence code only looked at `role: "assistant"` content.
 5. **Assistant-ui couples too many concerns.** Transport, runtime state, and primitives are bundled. Debugging required reading internal `useChatRuntime`, `useRemoteThreadListRuntime`, and AI SDK `streamText` source.
+6. **Streaming with `isLoopFinished()` works correctly.** Investigated the full pipeline: AI SDK `stitchableStream` streams each step's chunks immediately via `addStream()` + `controller.enqueue()`. `toUIMessageStreamResponse()` pipes through `JsonToSseTransformStream` → `TextEncoderStream` with no buffering. Client `parseJsonEventStream` yields chunks as they arrive. The "streaming feels broken" perception is UX: step 0 only emits tool-call/tool-input-delta chunks (no visible text), then after tool execution pause, step 1 streams the final text — making it appear non-streaming even though it is.
 
 ## Bugs still open
 
@@ -114,3 +115,4 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 | 2026-07-14 | Extract `buildAssistantParts` and read `role: "tool"` messages | Tool results are delivered as separate messages in AI SDK v6. |
 | 2026-07-14 | Use `chatKey` + `resetKey` to remount assistant-ui runtime | Assistant-ui does not reset message state on prop changes. |
 | 2026-07-14 | Plan incremental migration away from assistant-ui | Full control over runtime, streaming, and primitives is needed to avoid this class of bugs. |
+| 2026-07-14 | Investigated streaming with `isLoopFinished()` — confirmed no buffering issue | Full pipeline traced: AI SDK `stitchableStream` streams immediately, `toUIMessageStreamResponse` pipes SSE without buffering, client parses as chunks arrive. "Feels non-streaming" is UX: step 0 only emits tool-call chunks (no text), then step 1 streams the final answer. |
