@@ -13,19 +13,17 @@ import {
   PencilIcon,
   PinIcon,
   PlusIcon,
+  RefreshCwIcon,
   ShareIcon,
   Trash2Icon,
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   deleteThread,
   fetchThreadMessages,
-  fetchThreads,
+  loadCachedThreads,
   renameThread,
+  syncThreads,
   type Thread,
 } from "../sessions";
 import {
@@ -93,6 +91,7 @@ export const SessionSidebar = () => {
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,11 +99,36 @@ export const SessionSidebar = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const load = () => {
-    fetchThreads(search || undefined)
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const local = await loadCachedThreads(search || undefined);
+      if (local.length > 0) setThreads(local);
+    } catch {
+      // ignore local cache errors; remote load will surface real problems
+    }
+    syncThreads(search || undefined)
       .then(setThreads)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) => {
+        if (threads.length === 0) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
       .finally(() => setLoading(false));
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const remote = await syncThreads(search || undefined);
+      setThreads(remote);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncing(false);
+    }
   };
 
   useEffect(() => {
@@ -173,6 +197,16 @@ export const SessionSidebar = () => {
                   <PlusIcon />
                   <span>New chat</span>
                 </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => void handleSync()}
+                tooltip="Sync sessions"
+                disabled={syncing}
+              >
+                <RefreshCwIcon className={syncing ? "animate-spin" : undefined} />
+                <span>Sync</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

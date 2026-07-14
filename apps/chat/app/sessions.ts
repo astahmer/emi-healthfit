@@ -1,4 +1,12 @@
 import type { UIMessage } from "ai";
+import {
+  deleteCachedThread,
+  getCachedMessages,
+  getCachedThreads,
+  setCachedMessages,
+  setCachedThreads,
+  updateCachedThread,
+} from "./session-cache";
 
 export interface Thread {
   id: string;
@@ -25,6 +33,10 @@ export interface ThreadWithMessages {
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
 
+const ignoreCacheError = (promise: Promise<unknown>): void => {
+  promise.catch(() => {});
+};
+
 export const fetchThreads = async (search?: string): Promise<Thread[]> => {
   const params = search ? `?search=${encodeURIComponent(search)}` : "";
   const res = await fetch(`${apiBase()}/api/threads${params}`);
@@ -33,17 +45,56 @@ export const fetchThreads = async (search?: string): Promise<Thread[]> => {
   return data.threads;
 };
 
+export const loadCachedThreads = async (search?: string): Promise<Thread[]> => {
+  return getCachedThreads(search);
+};
+
+export const syncThreads = async (search?: string): Promise<Thread[]> => {
+  const threads = await fetchThreads(search);
+  await setCachedThreads(threads);
+  return threads;
+};
+
 export const createThread = async (): Promise<string> => {
   const res = await fetch(`${apiBase()}/api/threads`, { method: "POST" });
   if (!res.ok) throw new Error(`Failed to create thread: ${res.status}`);
   const data = (await res.json()) as { id: string };
+  const now = new Date().toISOString();
+  ignoreCacheError(
+    updateCachedThread({
+      id: data.id,
+      title: null,
+      status: "regular",
+      created_at: now,
+      updated_at: now,
+    }),
+  );
   return data.id;
 };
 
 export const fetchThreadMessages = async (threadId: string): Promise<ThreadWithMessages> => {
-  const res = await fetch(`${apiBase()}/api/threads/${threadId}`);
-  if (!res.ok) throw new Error(`Failed to load thread: ${res.status}`);
-  return (await res.json()) as ThreadWithMessages;
+  try {
+    const res = await fetch(`${apiBase()}/api/threads/${threadId}`);
+    if (!res.ok) throw new Error(`Failed to load thread: ${res.status}`);
+    const data = (await res.json()) as ThreadWithMessages;
+    ignoreCacheError(updateCachedThread(data.thread));
+    ignoreCacheError(
+      setCachedMessages(
+        threadId,
+        data.messages.map((message) => ({ ...message, threadId })),
+      ),
+    );
+    return data;
+  } catch (error) {
+    const cached = await getCachedMessages(threadId);
+    if (cached.length > 0) {
+      const thread = (await getCachedThreads()).find((t) => t.id === threadId);
+      if (thread !== undefined) {
+        return { thread, messages: cached };
+      }
+    }
+    throw error;
+  }
 };
 
 export const renameThread = async (threadId: string, title: string): Promise<void> => {
@@ -53,9 +104,22 @@ export const renameThread = async (threadId: string, title: string): Promise<voi
     body: JSON.stringify({ title }),
   });
   if (!res.ok) throw new Error(`Failed to rename thread: ${res.status}`);
+  const threads = await getCachedThreads();
+  const existing = threads.find((t) => t.id === threadId);
+  const now = new Date().toISOString();
+  ignoreCacheError(
+    updateCachedThread({
+      id: threadId,
+      title,
+      status: existing?.status ?? "regular",
+      created_at: existing?.created_at ?? now,
+      updated_at: now,
+    }),
+  );
 };
 
 export const deleteThread = async (threadId: string): Promise<void> => {
   const res = await fetch(`${apiBase()}/api/threads/${threadId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Failed to delete thread: ${res.status}`);
+  ignoreCacheError(deleteCachedThread(threadId));
 };

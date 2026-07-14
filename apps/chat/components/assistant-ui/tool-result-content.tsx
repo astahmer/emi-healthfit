@@ -1,7 +1,18 @@
 "use client";
 
 import { memo, type FC } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { cn } from "@/lib/utils";
+import { GenUIRenderer } from "./gen-ui/registry";
+import { ErrorBoundary } from "../error-boundary";
 
 interface WorkoutHistoryItem {
   session_id: string;
@@ -130,7 +141,7 @@ const Table: FC<{ headers: string[]; rows: React.ReactNode[][] }> = ({ headers, 
   );
 };
 
-const WorkoutHistoryTable: FC<{ items: WorkoutHistoryItem[] }> = ({ items }) => {
+export const WorkoutHistoryTable: FC<{ items: WorkoutHistoryItem[] }> = ({ items }) => {
   return (
     <Table
       headers={["Date", "Workout", "Volume", "Exercises", "Sets"]}
@@ -145,7 +156,12 @@ const WorkoutHistoryTable: FC<{ items: WorkoutHistoryItem[] }> = ({ items }) => 
   );
 };
 
-const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => {
+export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => {
+  const chartData = data.workouts.map((workout) => ({
+    date: formatDate(workout.start_time),
+    weight: workout.max_weight_kg,
+  }));
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2">
@@ -161,6 +177,24 @@ const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => {
           </span>
         )}
       </div>
+      <div className="h-48 w-full rounded-md border p-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} unit=" kg" />
+            <RechartsTooltip />
+            <Line
+              type="monotone"
+              dataKey="weight"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              connectNulls
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
       <Table
         headers={["Date", "Max weight", "Volume", "Sets", "Reps"]}
         rows={data.workouts.map((workout) => [
@@ -175,7 +209,7 @@ const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => {
   );
 };
 
-const RecoveryCard: FC<{ data: RecoveryResult }> = ({ data }) => {
+export const RecoveryCard: FC<{ data: RecoveryResult }> = ({ data }) => {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {data.label !== undefined && (
@@ -266,6 +300,31 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, c
   const citations = getCitations(parsed);
   if ((toolName === "web_search" || toolName === "web-search") && citations !== undefined) {
     return <WebSearchCitations citations={citations} />;
+  }
+
+  if (
+    toolName === "render_component" &&
+    typeof parsed === "object" &&
+    parsed !== null &&
+    "spec" in parsed
+  ) {
+    const spec = (parsed as Record<string, unknown>).spec;
+    return (
+      <ErrorBoundary
+        fallback={
+          <pre
+            className={cn(
+              "bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap",
+              className,
+            )}
+          >
+            {JSON.stringify(parsed, null, 2)}
+          </pre>
+        }
+      >
+        <GenUIRenderer spec={spec as never} />
+      </ErrorBoundary>
+    );
   }
 
   return (

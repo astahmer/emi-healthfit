@@ -112,6 +112,26 @@ const tools: ToolDefinition[] = [
       required: ["query"],
     },
   },
+  {
+    name: "render_component",
+    description:
+      "Render a rich UI component in the chat. Use for workout tables, exercise progress, recovery cards, metric cards, or set lists when a visual answer is better than plain text.",
+    parameters: {
+      type: "object",
+      properties: {
+        component: {
+          type: "string",
+          description:
+            "Component name from the catalog: WorkoutTable, ExerciseProgress, RecoveryCard, MetricCard, or SetList.",
+        },
+        props: {
+          type: "object",
+          description: "Props object for the selected component.",
+        },
+      },
+      required: ["component", "props"],
+    },
+  },
 ];
 
 export const handleToolsList = () =>
@@ -222,6 +242,21 @@ const executeTool = (
       return searchMemories(db, query, limit).pipe(
         Effect.map((results) => ({ results })),
       );
+    }
+    case "render_component": {
+      const component = args.component;
+      if (typeof component !== "string") {
+        return Effect.fail(new Error("component is required"));
+      }
+      const props = typeof args.props === "object" && args.props !== null ? args.props : {};
+      return Effect.succeed({
+        spec: {
+          root: {
+            type: component,
+            props,
+          },
+        },
+      });
     }
     default:
       return Effect.fail(new Error(`Unknown tool: ${name}`));

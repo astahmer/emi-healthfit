@@ -551,7 +551,7 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
         s.end_time,
         s.duration_sec,
         s.total_volume_kg,
-        COUNT(DISTINCT st.set_index) as sets,
+        COUNT(st.id) as sets,
         COUNT(DISTINCT st.exercise_title) as exercises
       FROM hevy_sessions s
       LEFT JOIN hevy_sets st ON st.session_id = s.session_id
