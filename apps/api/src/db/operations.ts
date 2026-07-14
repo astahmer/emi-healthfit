@@ -849,6 +849,19 @@ export const getThreads = (db: QueryDatabaseClient, conversationId: string) =>
     return result.results.map(mapThreadRow);
   });
 
+export const getThreadsIncludingDiscarded = (db: QueryDatabaseClient, conversationId: string) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT * FROM threads
+      WHERE conversation_id = ?
+      ORDER BY pinned DESC, updated_at DESC
+    `)
+      .bind(conversationId)
+      .all<ThreadRow>();
+    return result.results.map(mapThreadRow);
+  });
+
 export const getThread = (db: QueryDatabaseClient, threadId: string) =>
   Effect.gen(function* () {
     const result = yield* db
@@ -886,6 +899,14 @@ export const discardThread = (db: QueryDatabaseClient, threadId: string) =>
       .prepare(`
       UPDATE threads SET status = 'discarded', updated_at = ? WHERE id = ?
     `)
+      .bind(nowIso(), threadId)
+      .run();
+  });
+
+export const restoreThread = (db: QueryDatabaseClient, threadId: string) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare("UPDATE threads SET status = 'regular', updated_at = ? WHERE id = ?")
       .bind(nowIso(), threadId)
       .run();
   });

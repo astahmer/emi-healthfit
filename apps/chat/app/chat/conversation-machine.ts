@@ -7,6 +7,7 @@ import {
   pinThread as pinThreadApi,
   renameConversation as renameConversationApi,
   renameThread as renameThreadApi,
+  restoreThread as restoreThreadApi,
   summarizeThread as summarizeThreadApi,
 } from "../conversations";
 import { searchMessages } from "./conversation-tree";
@@ -83,6 +84,7 @@ export type ConversationEvent =
   | { type: "thread.discard"; threadId: string }
   | { type: "discard.succeeded"; threadId: string }
   | { type: "discard.failed"; error: Error }
+  | { type: "thread.restore"; threadId: string }
   | { type: "thread.summarize"; threadId: string }
   | { type: "summarize.succeeded"; message: MessageNode }
   | { type: "summarize.failed"; error: Error }
@@ -198,6 +200,10 @@ export const conversationMachine = setup({
       async ({ input }: { input: { threadId: string } }): Promise<{ threadId: string }> =>
         discardThreadApi(input.threadId),
     ),
+    restoreThread: fromPromise(
+      async ({ input }: { input: { threadId: string } }): Promise<{ threadId: string }> =>
+        restoreThreadApi(input.threadId),
+    ),
     summarizeThread: fromPromise(
       async ({ input }: { input: { threadId: string } }): Promise<{ message: MessageNode }> =>
         summarizeThreadApi(input.threadId),
@@ -297,6 +303,7 @@ export const conversationMachine = setup({
             "thread.rename": { target: "renamingThread" },
             "thread.pin": { target: "pinning" },
             "thread.discard": { target: "discarding" },
+            "thread.restore": { target: "restoring" },
             "thread.summarize": { target: "summarizing" },
             "search.query": {
               actions: assign({
@@ -430,6 +437,33 @@ export const conversationMachine = setup({
                   context.threads.map((thread) =>
                     thread.id === event.output.threadId
                       ? { ...thread, status: "discarded" as const }
+                      : thread,
+                  ),
+              }),
+            },
+            onError: {
+              target: "idle",
+              actions: assign({
+                error: ({ event }) =>
+                  event.error instanceof Error ? event.error : new Error(String(event.error)),
+              }),
+            },
+          },
+        },
+        restoring: {
+          invoke: {
+            src: "restoreThread",
+            input: ({ event }) => {
+              if (event.type !== "thread.restore") throw new Error("Unexpected event");
+              return { threadId: event.threadId };
+            },
+            onDone: {
+              target: "idle",
+              actions: assign({
+                threads: ({ context, event }) =>
+                  context.threads.map((thread) =>
+                    thread.id === event.output.threadId
+                      ? { ...thread, status: "regular" as const }
                       : thread,
                   ),
               }),

@@ -229,6 +229,27 @@ describe("conversationMachine", () => {
     expect(thread?.status).toBe("discarded");
   });
 
+  it("restores a discarded thread", async () => {
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(async () => ({
+          conversation: makeConversation(),
+          messages: [makeMessage()],
+          threads: [makeThread({ status: "discarded" })],
+        })),
+        restoreThread: fromPromise(async () => ({ threadId: "thread-1" })),
+      },
+    });
+    const actor = createActor(machine, { input: { conversationId: "conv-1" } });
+    actor.start();
+
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+    actor.send({ type: "thread.restore", threadId: "thread-1" });
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+
+    expect(actor.getSnapshot().context.threads[0]?.status).toBe("regular");
+  });
+
   it("summarizes a thread by adding a summary message", async () => {
     const summary = makeMessage({
       id: "summary-1",

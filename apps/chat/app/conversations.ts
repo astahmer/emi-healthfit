@@ -154,6 +154,16 @@ export const discardThread = async (threadId: string): Promise<{ threadId: strin
   return { threadId };
 };
 
+export const restoreThread = async (threadId: string): Promise<{ threadId: string }> => {
+  const res = await fetch(`${apiBase()}/api/threads/${threadId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status: "regular" }),
+  });
+  if (!res.ok) throw new Error(`Failed to restore thread: ${res.status}`);
+  return { threadId };
+};
+
 export const summarizeThread = async (threadId: string): Promise<{ message: MessageNode }> => {
   const res = await fetch(`${apiBase()}/api/threads/${threadId}/summarize`, { method: "POST" });
   if (!res.ok) throw new Error(`Failed to summarize thread: ${res.status}`);

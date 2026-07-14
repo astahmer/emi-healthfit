@@ -89,6 +89,12 @@ function ChatPageInner() {
   const focusedThread = conversationState.context.threads.find(
     (thread) => thread.id === conversationState.context.focusedThreadId,
   );
+  const visibleThreads = conversationState.context.threads.filter(
+    (thread) => thread.status !== "discarded",
+  );
+  const discardedThreads = conversationState.context.threads.filter(
+    (thread) => thread.status === "discarded",
+  );
   const initialMessages = historyMatchesSelection
     ? getConversationViewMessages({
         messages: conversationState.context.messages,
@@ -184,7 +190,7 @@ function ChatPageInner() {
                         <span className="flex-1 truncate px-2 text-sm font-medium">
                           {conversation.title ?? "New chat"}
                         </span>
-                        {conversationState.context.threads.length > 0 && (
+                        {visibleThreads.length > 0 && (
                           <select
                             aria-label="Focused thread"
                             value={conversationState.context.focusedThreadId ?? ""}
@@ -197,7 +203,28 @@ function ChatPageInner() {
                             className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
                           >
                             <option value="">Main thread</option>
-                            {conversationState.context.threads.map((thread, index) => (
+                            {visibleThreads.map((thread, index) => (
+                              <option key={thread.id} value={thread.id}>
+                                {thread.title ?? `Thread ${index + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {discardedThreads.length > 0 && (
+                          <select
+                            aria-label="Restore discarded thread"
+                            value=""
+                            onChange={(event) => {
+                              if (event.target.value === "") return;
+                              sendConversation({
+                                type: "thread.restore",
+                                threadId: event.target.value,
+                              });
+                            }}
+                            className="max-w-48 rounded-md border border-input bg-background px-2 py-1 text-sm"
+                          >
+                            <option value="">Restore thread…</option>
+                            {discardedThreads.map((thread, index) => (
                               <option key={thread.id} value={thread.id}>
                                 {thread.title ?? `Thread ${index + 1}`}
                               </option>

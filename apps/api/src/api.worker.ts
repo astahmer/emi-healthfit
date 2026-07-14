@@ -35,6 +35,7 @@ import {
   getThread,
   getThreadMessages,
   getThreads,
+  getThreadsIncludingDiscarded,
   getWorkouts,
   hashSuggestionsKey,
   insertHealthWorkouts,
@@ -44,6 +45,7 @@ import {
   type QueryDatabaseClient,
   renameConversation,
   renameThread,
+  restoreThread,
   saveConversationMessages,
   saveSuggestions,
   searchMemories,
@@ -560,7 +562,7 @@ const handleConversationMessages = (db: QueryDatabaseClient, request: HttpServer
     }
 
     const rows = yield* getConversationMessages(db, conversationId);
-    const threads = yield* getThreads(db, conversationId);
+    const threads = yield* getThreadsIncludingDiscarded(db, conversationId);
     const threadsWithMessages = yield* Effect.forEach(threads, (thread) =>
       getThreadMessages(db, thread.id).pipe(
         Effect.map((messages) => ({
@@ -686,6 +688,10 @@ const handleThreadUpdate = (db: QueryDatabaseClient, request: HttpServerRequest)
 
     if (body.status === "discarded") {
       yield* discardThread(db, threadId);
+    }
+
+    if (body.status === "regular") {
+      yield* restoreThread(db, threadId);
     }
 
     return yield* HttpServerResponse.json({ success: true });
