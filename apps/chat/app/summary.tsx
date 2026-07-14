@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 
 interface DataSummary {
@@ -14,29 +14,23 @@ interface DataSummary {
   lastHevySync: string | null;
 }
 
+const fetchSummary = async (): Promise<DataSummary> => {
+  const res = await fetch(`${window.location.origin}/api/summary`);
+  const data = (await res.json()) as DataSummary & { error?: string };
+  if (!res.ok) throw new Error(data.error || "Failed to load summary.");
+  return data;
+};
+
 export function SummaryPanel() {
-  const [summary, setSummary] = useState<DataSummary | null>(null);
-  const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`${window.location.origin}/api/summary`);
-      const data = (await res.json()) as DataSummary & { error?: string };
-      if (!res.ok) throw new Error(data.error || "Failed to load summary.");
-      setSummary(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
+  const {
+    data: summary,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["summary"],
+    queryFn: fetchSummary,
+  });
 
   const items = summary
     ? [
@@ -53,16 +47,16 @@ export function SummaryPanel() {
     <div className="mx-auto max-w-xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold">Summary</h2>
-        <Button onClick={load} disabled={loading} size="sm">
-          {loading ? "Loading…" : "Refresh"}
+        <Button onClick={() => void refetch()} disabled={isLoading} size="sm">
+          {isLoading ? "Loading…" : "Refresh"}
         </Button>
       </div>
 
-      {error !== "" && (
-        <div className="bg-muted mb-4 rounded-md p-3 text-sm text-red-500">{error}</div>
+      {error !== null && (
+        <div className="bg-muted mb-4 rounded-md p-3 text-sm text-red-500">{error.message}</div>
       )}
 
-      {summary !== null && (
+      {summary !== undefined && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {items.map((item) => (

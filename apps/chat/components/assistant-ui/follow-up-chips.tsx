@@ -1,10 +1,10 @@
 "use client";
 
 import { useAui, useAuiState } from "@assistant-ui/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
-import { useEffect, useRef, useState } from "react";
 import { RefreshCwIcon } from "lucide-react";
 
 interface TextPart {
@@ -18,9 +18,6 @@ interface MessageWithParts {
   parts: readonly unknown[];
   status?: { type: string } | undefined;
 }
-
-const suggestionCache = new Map<string, string[]>();
-const pendingFetches = new Map<string, Promise<string[]>>();
 
 const asMessagesWithParts = (messages: readonly unknown[]): MessageWithParts[] => {
   return messages as MessageWithParts[];
@@ -39,16 +36,11 @@ const getMessageText = (message: MessageWithParts): string => {
 
 export const FollowUpChips = () => {
   const aui = useAui();
+  const queryClient = useQueryClient();
   const message = useAuiState((s) => s.message as MessageWithParts);
   const isRunning = useAuiState((s) => s.thread.isRunning);
   const messages = useAuiState((s) => asMessagesWithParts(s.thread.messages));
   const settings = useSettings((state) => state.settings);
-
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [regenerateKey, setRegenerateKey] = useState(0);
-  const fetchedRef = useRef<Set<string>>(new Set());
 
   const isLastAssistant = (() => {
     const last = messages[messages.length - 1];
@@ -57,38 +49,19 @@ export const FollowUpChips = () => {
 
   const status = message.status?.type;
 
-  useEffect(() => {
-    if (!isLastAssistant || status !== "complete" || isRunning) return;
+  const assistantText = getMessageText(message).trim();
+  const lastUserMessage = [...messages]
+    .reverse()
+    .find((threadMessage) => threadMessage.role === "user");
+  const lastUserText = lastUserMessage !== undefined ? getMessageText(lastUserMessage) : undefined;
 
-    const assistantText = getMessageText(message).trim();
-    if (assistantText === "") return;
-
-    const skipCache = regenerateKey > 0;
-    if (!skipCache) {
-      const cached = suggestionCache.get(message.id);
-      if (cached !== undefined) {
-        setSuggestions(cached);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-    }
-
-    if (fetchedRef.current.has(message.id) && !skipCache) return;
-    fetchedRef.current.add(message.id);
-
-    setSuggestions([]);
-    setLoading(true);
-    setError(null);
-
-    const lastUserMessage = [...messages]
-      .reverse()
-      .find((threadMessage) => threadMessage.role === "user");
-    const lastUserText =
-      lastUserMessage !== undefined ? getMessageText(lastUserMessage) : undefined;
-
-    const fetchPromise =
-      pendingFetches.get(message.id) ??
+  const {
+    data: suggestions = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["suggestions", message.id],
+    queryFn: () =>
       fetchSuggestions({
         messageId: message.id,
         lastAssistantText: assistantText,
@@ -99,26 +72,9 @@ export const FollowUpChips = () => {
           baseUrl: settings.baseUrl,
           model: settings.model,
         },
-      });
-
-    if (!pendingFetches.has(message.id)) {
-      pendingFetches.set(message.id, fetchPromise);
-    }
-
-    fetchPromise
-      .then((items) => {
-        suggestionCache.set(message.id, items);
-        pendingFetches.delete(message.id);
-        setSuggestions(items);
-        setLoading(false);
-      })
-      .catch((err) => {
-        pendingFetches.delete(message.id);
-        fetchedRef.current.delete(message.id);
-        setError(err instanceof Error ? err.message : String(err));
-        setLoading(false);
-      });
-  }, [isLastAssistant, isRunning, status, message, messages, settings, regenerateKey]);
+      }),
+    enabled: isLastAssistant && status === "complete" && !isRunning && assistantText !== "",
+  });
 
   if (!isLastAssistant || status !== "complete" || isRunning) return null;
 
@@ -130,9 +86,7 @@ export const FollowUpChips = () => {
   };
 
   const handleRegenerate = () => {
-    suggestionCache.delete(message.id);
-    fetchedRef.current.delete(message.id);
-    setRegenerateKey((key) => key + 1);
+    void queryClient.invalidateQueries({ queryKey: ["suggestions", message.id] });
   };
 
   return (
@@ -148,13 +102,13 @@ export const FollowUpChips = () => {
           {text}
         </Button>
       ))}
-      {loading && (
+      {isLoading && (
         <>
           <span className="bg-muted h-7 w-24 animate-pulse rounded-full" />
           <span className="bg-muted h-7 w-32 animate-pulse rounded-full" />
         </>
       )}
-      {!loading && suggestions.length > 0 && (
+      {!isLoading && suggestions.length > 0 && (
         <Button
           variant="ghost"
           size="icon-xs"
@@ -165,7 +119,7 @@ export const FollowUpChips = () => {
           <RefreshCwIcon className="size-3.5" />
         </Button>
       )}
-      {error !== null && <span className="text-destructive text-xs">{error}</span>}
+      {error !== null && <span className="text-destructive text-xs">{error.message}</span>}
     </div>
   );
 };

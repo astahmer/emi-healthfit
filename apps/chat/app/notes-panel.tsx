@@ -1,40 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createNote, deleteNote, fetchNotes, updateNote, type Note } from "./notes";
 
 export function NotesPanel() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetchNotes(query || undefined)
-      .then(setNotes)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  }, [query]);
+  const {
+    data: notes = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["notes", query],
+    queryFn: () => fetchNotes(query || undefined),
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const createMutation = useMutation({
+    mutationFn: createNote,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, content }: { id: string; content: string }) => updateNote(id, content),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteNote,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+  });
 
   const handleAdd = async () => {
-    if (draft.trim() === "") return;
-    try {
-      await createNote(draft.trim());
-      setDraft("");
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    const content = draft.trim();
+    if (content === "") return;
+    await createMutation.mutateAsync(content);
+    setDraft("");
   };
 
   const startEdit = (note: Note) => {
@@ -44,23 +51,13 @@ export function NotesPanel() {
 
   const submitEdit = async () => {
     if (editingId === null || editDraft.trim() === "") return;
-    try {
-      await updateNote(editingId, editDraft.trim());
-      setEditingId(null);
-      setEditDraft("");
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    await updateMutation.mutateAsync({ id: editingId, content: editDraft.trim() });
+    setEditingId(null);
+    setEditDraft("");
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await deleteNote(id);
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    await deleteMutation.mutateAsync(id);
   };
 
   return (
@@ -77,10 +74,12 @@ export function NotesPanel() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleAdd();
+            if (e.key === "Enter") void handleAdd();
           }}
         />
-        <Button onClick={handleAdd}>Add</Button>
+        <Button onClick={() => void handleAdd()} disabled={createMutation.isPending}>
+          Add
+        </Button>
       </div>
 
       <Input
@@ -90,8 +89,8 @@ export function NotesPanel() {
         className="mb-4"
       />
 
-      {loading && <p className="text-muted-foreground text-sm">Loading…</p>}
-      {error !== null && <p className="text-destructive text-sm">{error}</p>}
+      {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
+      {error !== null && <p className="text-destructive text-sm">{error.message}</p>}
 
       <ul className="space-y-2">
         {notes.map((note) => (
@@ -102,7 +101,7 @@ export function NotesPanel() {
                   value={editDraft}
                   onChange={(e) => setEditDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") submitEdit();
+                    if (e.key === "Enter") void submitEdit();
                     if (e.key === "Escape") {
                       setEditingId(null);
                       setEditDraft("");
@@ -110,7 +109,11 @@ export function NotesPanel() {
                   }}
                   autoFocus
                 />
-                <Button size="sm" onClick={submitEdit}>
+                <Button
+                  size="sm"
+                  onClick={() => void submitEdit()}
+                  disabled={updateMutation.isPending}
+                >
                   Save
                 </Button>
                 <Button
@@ -135,7 +138,8 @@ export function NotesPanel() {
                     size="sm"
                     variant="ghost"
                     className="text-destructive"
-                    onClick={() => handleDelete(note.id)}
+                    onClick={() => void handleDelete(note.id)}
+                    disabled={deleteMutation.isPending}
                   >
                     Delete
                   </Button>
@@ -146,7 +150,7 @@ export function NotesPanel() {
         ))}
       </ul>
 
-      {!loading && notes.length === 0 && (
+      {!isLoading && notes.length === 0 && (
         <p className="text-muted-foreground text-sm">No notes yet.</p>
       )}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 interface WorkoutSet {
@@ -86,23 +87,24 @@ const buildSearchOptions = (sessions: WorkoutSession[]): string[] => {
   return Array.from(options).sort((a, b) => a.localeCompare(b));
 };
 
+const fetchWorkouts = async (): Promise<WorkoutSession[]> => {
+  const res = await fetch("/api/workouts");
+  if (!res.ok) throw new Error(`Failed to load workouts: ${res.status}`);
+  const data = (await res.json()) as { workouts: WorkoutSession[] };
+  return data.workouts;
+};
+
 export default function WorkoutsPage() {
-  const [workouts, setWorkouts] = useState<WorkoutSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: workouts = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["workouts"],
+    queryFn: fetchWorkouts,
+  });
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/workouts")
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to load workouts: ${res.status}`);
-        const data = (await res.json()) as { workouts: WorkoutSession[] };
-        setWorkouts(data.workouts);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filteredWorkouts = useMemo(
     () => workouts.filter((session) => matchesSearch(session, search)),
@@ -115,7 +117,7 @@ export default function WorkoutsPage() {
     setExpandedId((current) => (current === sessionId ? null : sessionId));
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         Loading workouts…
@@ -124,7 +126,11 @@ export default function WorkoutsPage() {
   }
 
   if (error !== null) {
-    return <div className="flex h-full items-center justify-center text-destructive">{error}</div>;
+    return (
+      <div className="flex h-full items-center justify-center text-destructive">
+        {error.message}
+      </div>
+    );
   }
 
   if (workouts.length === 0) {

@@ -1,47 +1,44 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createMemory, deleteMemory, fetchMemories, type Memory } from "./memories";
+import { createMemory, deleteMemory, fetchMemories } from "./memories";
 
 export function MemoryPanel() {
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetchMemories(search || undefined)
-      .then(setMemories)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  }, [search]);
+  const {
+    data: memories = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["memories", search],
+    queryFn: () => fetchMemories(search || undefined),
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const createMutation = useMutation({
+    mutationFn: (content: string) => createMemory(content, "manual"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["memories"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteMemory,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["memories"] }),
+  });
 
   const handleAdd = async () => {
-    if (draft.trim() === "") return;
-    try {
-      await createMemory(draft.trim(), "manual");
-      setDraft("");
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    const content = draft.trim();
+    if (content === "") return;
+    await createMutation.mutateAsync(content);
+    setDraft("");
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await deleteMemory(id);
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    await deleteMutation.mutateAsync(id);
   };
 
   return (
@@ -58,10 +55,12 @@ export function MemoryPanel() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleAdd();
+            if (e.key === "Enter") void handleAdd();
           }}
         />
-        <Button onClick={handleAdd}>Save</Button>
+        <Button onClick={() => void handleAdd()} disabled={createMutation.isPending}>
+          Save
+        </Button>
       </div>
 
       <Input
@@ -71,8 +70,8 @@ export function MemoryPanel() {
         className="mb-4"
       />
 
-      {loading && <p className="text-muted-foreground text-sm">Loading…</p>}
-      {error !== null && <p className="text-destructive text-sm">{error}</p>}
+      {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
+      {error !== null && <p className="text-destructive text-sm">{error.message}</p>}
 
       <ul className="space-y-2">
         {memories.map((memory) => (
@@ -82,7 +81,8 @@ export function MemoryPanel() {
               size="sm"
               variant="ghost"
               className="text-destructive"
-              onClick={() => handleDelete(memory.id)}
+              onClick={() => void handleDelete(memory.id)}
+              disabled={deleteMutation.isPending}
             >
               Delete
             </Button>
@@ -90,7 +90,7 @@ export function MemoryPanel() {
         ))}
       </ul>
 
-      {!loading && memories.length === 0 && (
+      {!isLoading && memories.length === 0 && (
         <p className="text-muted-foreground text-sm">No memories yet.</p>
       )}
     </div>

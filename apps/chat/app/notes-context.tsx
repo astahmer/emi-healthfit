@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchNotes, type Note } from "./notes";
 
 interface NotesContextValue {
@@ -21,25 +14,24 @@ interface NotesContextValue {
 const NotesContext = createContext<NotesContextValue | null>(null);
 
 export const NotesProvider = ({ children }: { children: ReactNode }) => {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: notes = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["notes"],
+    queryFn: () => fetchNotes(undefined, 100),
+  });
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetchNotes(undefined, 100)
-      .then(setNotes)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const value = useMemo(
-    () => ({ notes, loading, error, reload: load }),
-    [notes, loading, error, load],
+  const value = useMemo<NotesContextValue>(
+    () => ({
+      notes,
+      loading: isLoading,
+      error: error?.message ?? null,
+      reload: refetch,
+    }),
+    [notes, isLoading, error, refetch],
   );
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
