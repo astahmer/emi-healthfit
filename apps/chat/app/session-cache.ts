@@ -12,9 +12,16 @@ interface CachedMessage extends UIMessage {
   syncedAt: number;
 }
 
+interface CachedConversationSnapshot {
+  conversationId: string;
+  data: unknown;
+  syncedAt: number;
+}
+
 class SessionCacheDatabase extends Dexie {
   threads: Dexie.Table<CachedThread, string>;
   messages: Dexie.Table<CachedMessage, string>;
+  conversationSnapshots: Dexie.Table<CachedConversationSnapshot, string>;
 
   constructor() {
     super("EmiSessions");
@@ -22,8 +29,14 @@ class SessionCacheDatabase extends Dexie {
       threads: "id, updated_at",
       messages: "id, threadId, [threadId+syncedAt]",
     });
+    this.version(2).stores({
+      threads: "id, updated_at",
+      messages: "id, threadId, [threadId+syncedAt]",
+      conversationSnapshots: "conversationId, syncedAt",
+    });
     this.threads = this.table("threads");
     this.messages = this.table("messages");
+    this.conversationSnapshots = this.table("conversationSnapshots");
   }
 }
 
@@ -49,6 +62,14 @@ const toCachedThread = (thread: Thread, syncedAt: number): CachedThread => ({
   syncedAt,
 });
 
+const fromCachedThread = ({ syncedAt: _syncedAt, ...thread }: CachedThread): Thread => thread;
+
+const fromCachedMessage = ({
+  threadId: _threadId,
+  syncedAt: _syncedAt,
+  ...message
+}: CachedMessage): UIMessage & { usage?: MessageUsage } => message;
+
 const toCachedMessage = ({
   message,
   threadId,
@@ -65,7 +86,9 @@ const toCachedMessage = ({
 
 export const getCachedThreads = async (search?: string): Promise<Thread[]> =>
   safeDb(async (database) => {
-    const all = await database.threads.orderBy("updated_at").reverse().toArray();
+    const all = (await database.threads.orderBy("updated_at").reverse().toArray()).map(
+      fromCachedThread,
+    );
     if (search === undefined || search.trim() === "") return all;
     const term = search.trim().toLowerCase();
     return all.filter((thread) => thread.title?.toLowerCase().includes(term));
@@ -95,11 +118,36 @@ export const deleteCachedThread = async (threadId: string): Promise<void> =>
   safeDb(async (database) => {
     await database.threads.delete(threadId);
     await database.messages.where("threadId").equals(threadId).delete();
+    await database.conversationSnapshots.delete(threadId);
   });
 
-export const getCachedMessages = async (threadId: string): Promise<CachedMessage[]> =>
+export const getCachedConversationSnapshot = async (
+  conversationId: string,
+): Promise<unknown | undefined> =>
+  safeDb(async (database) => (await database.conversationSnapshots.get(conversationId))?.data);
+
+export const setCachedConversationSnapshot = async ({
+  conversationId,
+  data,
+}: {
+  conversationId: string;
+  data: unknown;
+}): Promise<void> =>
   safeDb(async (database) => {
-    return database.messages.where("threadId").equals(threadId).sortBy("created_at");
+    await database.conversationSnapshots.put({
+      conversationId,
+      data,
+      syncedAt: Date.now(),
+    });
+  });
+
+export const getCachedMessages = async (
+  threadId: string,
+): Promise<Array<UIMessage & { usage?: MessageUsage }>> =>
+  safeDb(async (database) => {
+    return (await database.messages.where("threadId").equals(threadId).sortBy("created_at")).map(
+      fromCachedMessage,
+    );
   });
 
 export const setCachedMessages = async (

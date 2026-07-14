@@ -21,7 +21,9 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { fetchConversationMessages, syncConversations, type Thread } from "../sessions";
+import { syncConversations, type Thread } from "../sessions";
+import { getCachedThreads } from "../session-cache";
+import { fetchConversationMessages as fetchConversationSnapshot } from "../conversations";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -187,10 +189,18 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
                 setOpenMobile(false);
                 window.history.pushState(null, "", event.currentTarget.href);
               }}
+              onPointerDown={() =>
+                queryClient.prefetchQuery({
+                  queryKey: ["conversation", thread.id],
+                  queryFn: () => fetchConversationSnapshot(thread.id),
+                  staleTime: 30_000,
+                })
+              }
               onMouseEnter={() =>
                 queryClient.prefetchQuery({
-                  queryKey: ["thread", thread.id],
-                  queryFn: () => fetchConversationMessages(thread.id),
+                  queryKey: ["conversation", thread.id],
+                  queryFn: () => fetchConversationSnapshot(thread.id),
+                  staleTime: 30_000,
                 })
               }
             >
@@ -308,14 +318,23 @@ export const SessionSidebar = () => {
 
   const {
     data: threads = [],
-    isLoading,
     isFetching,
     error,
     refetch,
     dataUpdatedAt,
   } = useQuery({
     queryKey: ["threads", search],
-    queryFn: () => syncConversations(search || undefined),
+    queryFn: async () => {
+      const querySearch = search || undefined;
+      const cached = await getCachedThreads(querySearch);
+      if (cached.length === 0) return syncConversations(querySearch);
+      void syncConversations(querySearch)
+        .then((fresh) => queryClient.setQueryData(["threads", search], fresh))
+        .catch(() => undefined);
+      return cached;
+    },
+    staleTime: 30_000,
+    gcTime: 86_400_000,
   });
 
   const handleNew = () => {
@@ -347,13 +366,10 @@ export const SessionSidebar = () => {
               aria-label="Search sessions"
             />
           </div>
-          {isLoading && threads.length === 0 && (
-            <p className="px-4 text-sm text-muted-foreground">Loading…</p>
-          )}
           {error !== null && threads.length === 0 && (
             <p className="px-4 text-sm text-destructive">{error.message}</p>
           )}
-          {threads.length === 0 && !isLoading && (
+          {threads.length === 0 && !isFetching && error === null && (
             <p className="px-4 text-sm text-muted-foreground">No sessions yet.</p>
           )}
           {groupThreads(threads).map((group) => (

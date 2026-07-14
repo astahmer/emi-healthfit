@@ -68,6 +68,55 @@ describe("conversationMachine", () => {
     expect(snapshot.context.threads).toEqual(threads);
   });
 
+  it("renders cached messages before refreshing them from the network", async () => {
+    let releaseRefresh = () => {};
+    const cachedThreads: ThreadView[] = [];
+    const refreshedThreads: ThreadView[] = [];
+    const refreshReady = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(
+          async (): Promise<{
+            conversation: Conversation;
+            messages: MessageNode[];
+            threads: ThreadView[];
+            source?: "cache" | "network";
+          }> => ({
+            conversation: makeConversation({ title: "Cached" }),
+            messages: [makeMessage({ parts: [{ type: "text", text: "cached" }] })],
+            threads: cachedThreads,
+            source: "cache",
+          }),
+        ),
+        refreshConversation: fromPromise(
+          async (): Promise<
+            | {
+                conversation: Conversation;
+                messages: MessageNode[];
+                threads: ThreadView[];
+              }
+            | undefined
+          > => {
+            await refreshReady;
+            return {
+              conversation: makeConversation({ title: "Fresh" }),
+              messages: [makeMessage({ parts: [{ type: "text", text: "fresh" }] })],
+              threads: refreshedThreads,
+            };
+          },
+        ),
+      },
+    });
+    const actor = createActor(machine, { input: { conversationId: "conv-1" } });
+    actor.start();
+
+    await vi.waitFor(() => expect(actor.getSnapshot().context.conversation?.title).toBe("Cached"));
+    releaseRefresh();
+    await vi.waitFor(() => expect(actor.getSnapshot().context.conversation?.title).toBe("Fresh"));
+  });
+
   it("skips loading in temporary mode", () => {
     const actor = createActor(conversationMachine, {
       input: { conversationId: "conv-1", isTemporary: true },

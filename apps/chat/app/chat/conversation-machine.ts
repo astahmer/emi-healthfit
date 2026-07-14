@@ -4,6 +4,7 @@ import {
   discardThread as discardThreadApi,
   fetchConversationMessages,
   forkThread as forkThreadApi,
+  loadConversationMessages,
   pinThread as pinThreadApi,
   renameConversation as renameConversationApi,
   renameThread as renameThreadApi,
@@ -59,6 +60,7 @@ export interface ConversationContext {
   renameDraft: string;
   sidebarWidth: number;
   error: Error | null;
+  refreshFromNetwork: boolean;
 }
 
 export type ConversationEvent =
@@ -159,8 +161,21 @@ export const conversationMachine = setup({
         conversation: Conversation;
         messages: MessageNode[];
         threads: ThreadView[];
+        source?: "cache" | "network";
       }> => {
         if (input.conversationId === undefined) throw new Error("conversationId is required");
+        return loadConversationMessages(input.conversationId);
+      },
+    ),
+    refreshConversation: fromPromise(
+      async ({
+        input,
+      }: {
+        input: { conversationId: string | undefined; enabled: boolean };
+      }): Promise<
+        { conversation: Conversation; messages: MessageNode[]; threads: ThreadView[] } | undefined
+      > => {
+        if (!input.enabled || input.conversationId === undefined) return undefined;
         return fetchConversationMessages(input.conversationId);
       },
     ),
@@ -220,6 +235,7 @@ export const conversationMachine = setup({
       searchResults: () => [],
       renameDraft: () => "",
       error: () => null,
+      refreshFromNetwork: () => false,
     }),
     persistSidebarWidth: ({ context }) => persistSidebarWidth(context.sidebarWidth),
     exportMarkdown: ({ context }) => {
@@ -236,6 +252,8 @@ export const conversationMachine = setup({
       event.type === "conversationId.changed" &&
       event.conversationId !== undefined &&
       event.conversationId === context.createdConversationId,
+    isCurrentConversation: ({ context, event }) =>
+      event.type === "conversationId.changed" && event.conversationId === context.conversationId,
     isTemporary: ({ context }) => context.isTemporary,
     canRenameConversation: ({ context }) =>
       context.conversationId !== undefined && context.renameDraft.trim() !== "",
@@ -257,6 +275,7 @@ export const conversationMachine = setup({
     renameDraft: "",
     sidebarWidth: 16,
     error: null,
+    refreshFromNetwork: false,
   }),
   states: {
     initializing: {
@@ -280,6 +299,7 @@ export const conversationMachine = setup({
             threads: ({ event }) => event.output.threads,
             focusedThreadId: () => null,
             error: () => null,
+            refreshFromNetwork: ({ event }) => event.output.source === "cache",
           }),
         },
         onError: {
@@ -292,6 +312,25 @@ export const conversationMachine = setup({
       },
     },
     ready: {
+      invoke: {
+        src: "refreshConversation",
+        input: ({ context }) => ({
+          conversationId: context.conversationId,
+          enabled: context.refreshFromNetwork,
+        }),
+        onDone: {
+          actions: assign({
+            conversation: ({ context, event }) =>
+              event.output?.conversation ?? context.conversation,
+            messages: ({ context, event }) => event.output?.messages ?? context.messages,
+            threads: ({ context, event }) => event.output?.threads ?? context.threads,
+            refreshFromNetwork: () => false,
+          }),
+        },
+        onError: {
+          actions: assign({ refreshFromNetwork: () => false }),
+        },
+      },
       initial: "idle",
       states: {
         idle: {
@@ -536,6 +575,7 @@ export const conversationMachine = setup({
       },
       on: {
         "conversationId.changed": [
+          { guard: "isCurrentConversation" },
           {
             target: "ready",
             guard: "isNewlyCreated",

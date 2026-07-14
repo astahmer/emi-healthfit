@@ -59,6 +59,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "esbuild": "^0.28.1",
+    "fake-indexeddb": "6.2.4",
     "jsdom": "^29.1.1",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",

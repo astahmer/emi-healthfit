@@ -1,4 +1,5 @@
 import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
+import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./session-cache";
 import { z } from "zod";
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
@@ -40,6 +41,20 @@ const threadSchema = z.object({
   updated_at: z.string(),
 });
 
+const conversationPayloadSchema = z.object({
+  conversation: conversationSchema,
+  messages: z.array(messageSchema),
+  threads: z.array(threadSchema),
+});
+
+type ConversationSnapshot = {
+  conversation: Conversation;
+  messages: MessageNode[];
+  threads: ThreadView[];
+};
+
+const memorySnapshots = new Map<string, ConversationSnapshot>();
+
 const toConversation = (raw: z.infer<typeof conversationSchema>): Conversation => ({
   id: raw.id,
   title: raw.title,
@@ -72,23 +87,51 @@ const toMessage = ({
   parentId: raw.parentId ?? null,
 });
 
-export const fetchConversationMessages = async (
-  conversationId: string,
-): Promise<{ conversation: Conversation; messages: MessageNode[]; threads: ThreadView[] }> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`);
-  if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
-  const raw = z
-    .object({
-      conversation: conversationSchema,
-      messages: z.array(messageSchema),
-      threads: z.array(threadSchema),
-    })
-    .parse(await res.json());
+const decodeConversationSnapshot = ({
+  data,
+  conversationId,
+}: {
+  data: unknown;
+  conversationId: string;
+}): ConversationSnapshot => {
+  const raw = conversationPayloadSchema.parse(data);
   return {
     conversation: toConversation(raw.conversation),
     messages: raw.messages.map((message) => toMessage({ raw: message, conversationId })),
     threads: raw.threads.map(toThread),
   };
+};
+
+export const getCachedConversationMessages = async (
+  conversationId: string,
+): Promise<ConversationSnapshot | undefined> => {
+  const memorySnapshot = memorySnapshots.get(conversationId);
+  if (memorySnapshot !== undefined) return memorySnapshot;
+  const data = await getCachedConversationSnapshot(conversationId).catch(() => undefined);
+  if (data === undefined) return undefined;
+  const snapshot = decodeConversationSnapshot({ data, conversationId });
+  memorySnapshots.set(conversationId, snapshot);
+  return snapshot;
+};
+
+export const fetchConversationMessages = async (
+  conversationId: string,
+): Promise<ConversationSnapshot> => {
+  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`);
+  if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
+  const data: unknown = await res.json();
+  const snapshot = decodeConversationSnapshot({ data, conversationId });
+  memorySnapshots.set(conversationId, snapshot);
+  void setCachedConversationSnapshot({ conversationId, data }).catch(() => undefined);
+  return snapshot;
+};
+
+export const loadConversationMessages = async (
+  conversationId: string,
+): Promise<ConversationSnapshot & { source: "cache" | "network" }> => {
+  const cached = await getCachedConversationMessages(conversationId);
+  if (cached !== undefined) return { ...cached, source: "cache" };
+  return { ...(await fetchConversationMessages(conversationId)), source: "network" };
 };
 
 export const forkThread = async (
