@@ -1,7 +1,11 @@
 import * as Effect from "effect/Effect";
-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
+import * as Schema from "effect/Schema";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
+import * as Tool from "effect/unstable/ai/Tool";
+import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
+import { buildChatContext } from "../chat/context.ts";
 import {
   getDataSummary,
   getExerciseProgress,
@@ -11,7 +15,6 @@ import {
   searchMemories,
   type QueryDatabaseClient,
 } from "../db/operations.ts";
-import { buildChatContext } from "../chat/context.ts";
 
 export interface ToolDefinition {
   name: string;
@@ -19,249 +22,217 @@ export interface ToolDefinition {
   parameters: JSONSchema7;
 }
 
-export const tools: ToolDefinition[] = [
+export class ToolExecutionError extends Schema.TaggedErrorClass<ToolExecutionError>()(
+  "ToolExecutionError",
   {
-    name: "get_summary",
-    description: "Returns a summary of imported health and workout data.",
-    parameters: { type: "object", properties: {} },
+    tool: Schema.String,
+    message: Schema.String,
   },
-  {
-    name: "get_recovery",
-    description: "Returns today's recovery score and supporting stats.",
-    parameters: { type: "object", properties: {} },
-  },
-  {
-    name: "query_database",
-    description: "Run a read-only SQL query against the gym data D1 database.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "A single read-only SQL query.",
-        },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "get_workout_history",
-    description: "List recent strength workouts with date, title, volume, exercise count, and set count.",
-    parameters: {
-      type: "object",
-      properties: {
-        limit: {
-          type: "integer",
-          description: "Maximum number of workouts to return (default 10).",
-        },
-      },
-    },
-  },
-  {
-    name: "get_exercise_progress",
-    description: "Get weight, rep, and volume trend plus the current PR for a specific exercise over recent weeks.",
-    parameters: {
-      type: "object",
-      properties: {
-        exercise_title: {
-          type: "string",
-          description: "Exact exercise name as it appears in Hevy (e.g. 'Bench Press (Barbell)').",
-        },
-        weeks: {
-          type: "integer",
-          description: "Number of weeks to look back (default 8).",
-        },
-      },
-      required: ["exercise_title"],
-    },
-  },
-  {
-    name: "get_sleep_trend",
-    description: "Get average sleep duration over the last N days.",
-    parameters: {
-      type: "object",
-      properties: {
-        days: {
-          type: "integer",
-          description: "Number of days to average (default 7).",
-        },
-      },
-    },
-  },
-  {
-    name: "get_workout_streak",
-    description: "Get current and longest consecutive workout streaks from Hevy sessions.",
-    parameters: { type: "object", properties: {} },
-  },
-  {
-    name: "search_memories",
-    description:
-      "Search previously saved memory snippets from past sessions. Use when the user asks something that may have been discussed before.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Search terms to match against saved memory snippets.",
-        },
-        limit: {
-          type: "integer",
-          description: "Maximum number of memories to return (default 10).",
-        },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "render_component",
-    description:
-      "Render a rich UI component in the chat. Use for workout tables, exercise progress, recovery cards, metric cards, or set lists when a visual answer is better than plain text.",
-    parameters: {
-      type: "object",
-      properties: {
-        component: {
-          type: "string",
-          description:
-            "Component name from the catalog: WorkoutTable, ExerciseProgress, RecoveryCard, MetricCard, or SetList.",
-        },
-        props: {
-          type: "object",
-          description: "Props object for the selected component.",
-        },
-      },
-      required: ["component", "props"],
-    },
-  },
-];
+) {}
 
-export const handleToolsList = () =>
-  Effect.gen(function* () {
-    return yield* HttpServerResponse.json({ tools });
-  });
+const GetSummary = Tool.make("get_summary", {
+  description: "Returns a summary of imported health and workout data.",
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
 
-export const handleToolExecute = (
-  db: QueryDatabaseClient,
-  request: HttpServerRequest,
-) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url, "http://localhost");
-    const name = url.pathname.split("/").pop();
-    const tool = tools.find((t) => t.name === name);
+const GetRecovery = Tool.make("get_recovery", {
+  description: "Returns today's recovery score and supporting stats.",
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
 
-    if (tool === undefined) {
-      return yield* HttpServerResponse.json(
-        { error: "Tool not found" },
-        { status: 404 },
-      );
-    }
+const QueryDatabase = Tool.make("query_database", {
+  description: "Run a read-only SQL SELECT query against the gym data D1 database.",
+  parameters: Schema.Struct({
+    query: Schema.String.annotate({ description: "A single read-only SELECT query." }),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
 
-    const text = yield* request.text;
-    const args = JSON.parse(text || "{}") as Record<string, unknown>;
-    const result = yield* executeTool(db, tool.name, args);
-    return yield* HttpServerResponse.json(result);
-  }).pipe(
-    Effect.catch((error) =>
-      Effect.gen(function* () {
-        return yield* HttpServerResponse.json(
-          { error: error instanceof Error ? error.message : String(error) },
-          { status: 500 },
-        );
+const GetWorkoutHistory = Tool.make("get_workout_history", {
+  description:
+    "List recent strength workouts with date, title, volume, exercise count, and set count.",
+  parameters: Schema.Struct({
+    limit: Schema.optional(
+      Schema.Int.annotate({
+        description: "Maximum number of workouts to return (default 10).",
       }),
     ),
-  );
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
 
-export const executeTool = (
-  db: QueryDatabaseClient,
-  name: string,
-  args: Record<string, unknown>,
-) => {
-  switch (name) {
-    case "get_summary":
-      return getDataSummary(db);
-    case "get_recovery":
-      return buildChatContext(db).pipe(
-        Effect.map((ctx) => ({
-          today: ctx.today,
-          label: ctx.recoveryLabel,
-          explanation: ctx.recoveryExplanation,
-          lastWorkout: ctx.lastWorkout.lastSessionSummary,
+const GetExerciseProgress = Tool.make("get_exercise_progress", {
+  description:
+    "Get weight, rep, and volume trend plus the current PR for a specific exercise over recent weeks.",
+  parameters: Schema.Struct({
+    exercise_title: Schema.String.annotate({
+      description: "Exact exercise name as it appears in Hevy.",
+    }),
+    weeks: Schema.optional(
+      Schema.Int.annotate({
+        description: "Number of weeks to look back (default 8).",
+      }),
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetSleepTrend = Tool.make("get_sleep_trend", {
+  description: "Get average sleep duration over the last N days.",
+  parameters: Schema.Struct({
+    days: Schema.optional(
+      Schema.Int.annotate({
+        description: "Number of days to average (default 7).",
+      }),
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetWorkoutStreak = Tool.make("get_workout_streak", {
+  description: "Get current and longest consecutive workout streaks from Hevy sessions.",
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const SearchMemories = Tool.make("search_memories", {
+  description:
+    "Search saved memory snippets from past sessions when the user references earlier context.",
+  parameters: Schema.Struct({
+    query: Schema.String.annotate({ description: "Search terms to match against memories." }),
+    limit: Schema.optional(
+      Schema.Int.annotate({
+        description: "Maximum number of memories to return (default 10).",
+      }),
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const RenderComponent = Tool.make("render_component", {
+  description:
+    "Render a rich UI component for workout tables, progress, recovery, metrics, or sets.",
+  parameters: Schema.Struct({
+    component: Schema.String.annotate({
+      description: "WorkoutTable, ExerciseProgress, RecoveryCard, MetricCard, or SetList.",
+    }),
+    props: Schema.Record(Schema.String, Schema.Unknown).annotate({
+      description: "Props for the selected component.",
+    }),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+export const FitnessToolkit = Toolkit.make(
+  GetSummary,
+  GetRecovery,
+  QueryDatabase,
+  GetWorkoutHistory,
+  GetExerciseProgress,
+  GetSleepTrend,
+  GetWorkoutStreak,
+  SearchMemories,
+  RenderComponent,
+);
+
+const toolError = ({ tool, message }: { tool: string; message: string }) =>
+  new ToolExecutionError({ tool, message });
+
+const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* (db: QueryDatabaseClient) {
+  const services = yield* Effect.context<RuntimeContext>();
+  const provideServices = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
+    Effect.provideContext(effect, services);
+
+  return FitnessToolkit.of({
+    get_summary: Effect.fn("FitnessToolkit.getSummary")(() => provideServices(getDataSummary(db))),
+    get_recovery: Effect.fn("FitnessToolkit.getRecovery")(() =>
+      provideServices(buildChatContext(db)).pipe(
+        Effect.map((context) => ({
+          today: context.today,
+          label: context.recoveryLabel,
+          explanation: context.recoveryExplanation,
+          lastWorkout: context.lastWorkout.lastSessionSummary,
           sleepAverageHours:
-            ctx.sleep.sevenDayAverage !== null
-              ? ctx.sleep.sevenDayAverage / 60
-              : null,
-          recentWorkoutCount: ctx.recentWorkoutCount,
-          recentVolume: ctx.lastWorkout.recentVolume,
+            context.sleep.sevenDayAverage === null ? null : context.sleep.sevenDayAverage / 60,
+          recentWorkoutCount: context.recentWorkoutCount,
+          recentVolume: context.lastWorkout.recentVolume,
         })),
-      );
-    case "query_database": {
-      const query = args.query;
-      if (typeof query !== "string") {
-        return Effect.fail(new Error("query is required"));
+      ),
+    ),
+    query_database: Effect.fn("FitnessToolkit.queryDatabase")(function* ({ query }) {
+      const normalized = query.trim();
+      if (!/^select\b/i.test(normalized) || normalized.includes(";")) {
+        return yield* Effect.fail(
+          toolError({ tool: "query_database", message: "Only one SELECT query is allowed." }),
+        );
       }
-      const writeCommands = [
-        "insert",
-        "update",
-        "delete",
-        "drop",
-        "alter",
-        "create",
-        "pragma",
-      ];
-      const normalized = query.trim().toLowerCase();
-      if (writeCommands.some((cmd) => normalized.startsWith(cmd))) {
-        return Effect.fail(new Error("Only read-only queries are allowed."));
-      }
-      return db.prepare(query).all<unknown>().pipe(
-        Effect.map((result) => result.results),
-      );
-    }
-    case "get_workout_history": {
-      const limit = typeof args.limit === "number" ? args.limit : 10;
-      return getWorkoutHistory(db, limit);
-    }
-    case "get_exercise_progress": {
-      const exerciseTitle = args.exercise_title;
-      if (typeof exerciseTitle !== "string") {
-        return Effect.fail(new Error("exercise_title is required"));
-      }
-      const weeks = typeof args.weeks === "number" ? args.weeks : 8;
-      return getExerciseProgress(db, exerciseTitle, weeks);
-    }
-    case "get_sleep_trend": {
-      const days = typeof args.days === "number" ? args.days : 7;
-      return getSleepTrend(db, days);
-    }
-    case "get_workout_streak":
-      return getWorkoutStreak(db);
-    case "search_memories": {
-      const query = args.query;
-      if (typeof query !== "string") {
-        return Effect.fail(new Error("query is required"));
-      }
-      const limit = typeof args.limit === "number" ? args.limit : 10;
-      return searchMemories(db, query, limit).pipe(
+      const result = yield* provideServices(db.prepare(normalized).all<unknown>());
+      return result.results;
+    }),
+    get_workout_history: Effect.fn("FitnessToolkit.getWorkoutHistory")(({ limit }) =>
+      provideServices(getWorkoutHistory(db, limit ?? 10)),
+    ),
+    get_exercise_progress: Effect.fn("FitnessToolkit.getExerciseProgress")(
+      ({ exercise_title, weeks }) =>
+        provideServices(getExerciseProgress(db, exercise_title, weeks ?? 8)),
+    ),
+    get_sleep_trend: Effect.fn("FitnessToolkit.getSleepTrend")(({ days }) =>
+      provideServices(getSleepTrend(db, days ?? 7)),
+    ),
+    get_workout_streak: Effect.fn("FitnessToolkit.getWorkoutStreak")(() =>
+      provideServices(getWorkoutStreak(db)),
+    ),
+    search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
+      provideServices(searchMemories(db, query, limit ?? 10)).pipe(
         Effect.map((results) => ({ results })),
-      );
-    }
-    case "render_component": {
-      const component = args.component;
-      if (typeof component !== "string") {
-        return Effect.fail(new Error("component is required"));
-      }
-      const props = typeof args.props === "object" && args.props !== null ? args.props : {};
-      return Effect.succeed({
+      ),
+    ),
+    render_component: Effect.fn("FitnessToolkit.renderComponent")(({ component, props }) =>
+      Effect.succeed({
         spec: {
           root: "root",
           elements: {
-            root: {
-              type: component,
-              props,
-            },
+            root: { type: component, props },
           },
         },
-      });
-    }
-    default:
-      return Effect.fail(new Error(`Unknown tool: ${name}`));
+      }),
+    ),
+  });
+});
+
+export const tools: ToolDefinition[] = Object.values(FitnessToolkit.tools).map((tool) => ({
+  name: tool.name,
+  description: Tool.getDescription(tool) ?? "",
+  parameters: Tool.getJsonSchema(tool) as JSONSchema7,
+}));
+
+export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
+  db,
+  name,
+  args,
+}: {
+  db: QueryDatabaseClient;
+  name: string;
+  args: Record<string, unknown>;
+}) {
+  if (!(name in FitnessToolkit.tools)) {
+    return yield* Effect.fail(toolError({ tool: name, message: "Unknown tool." }));
   }
-};
+
+  const runtime = yield* FitnessToolkit.pipe(
+    Effect.provide(FitnessToolkit.toLayer(makeHandlers(db))),
+  );
+  const result = yield* runtime
+    .handle(name as keyof typeof FitnessToolkit.tools, args as never)
+    .pipe(Stream.unwrap, Stream.run(Sink.last()), Effect.flatMap(Effect.fromOption));
+  return result.encodedResult;
+});
+import { RuntimeContext } from "alchemy";

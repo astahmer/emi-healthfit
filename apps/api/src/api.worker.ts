@@ -67,12 +67,7 @@ import {
   generateThreadTitle,
   type ChatStreamRequest,
 } from "./chat/ai-sdk.ts";
-import {
-  executeTool,
-  handleToolExecute,
-  handleToolsList,
-  tools as staticToolDefinitions,
-} from "./tools/api.ts";
+import { executeTool, tools as staticToolDefinitions } from "./tools/api.ts";
 import { TtlCache } from "./cache.ts";
 import {
   appendGenerationChunk,
@@ -136,10 +131,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
       );
       yield* router.add("POST", "/api/suggestions", (request) =>
         cors(request, handleSuggestions(db, env, request)),
-      );
-      yield* router.add("GET", "/api/tools", (request) => cors(request, handleToolsList()));
-      yield* router.add("POST", "/api/tools/:toolName", (request) =>
-        cors(request, handleToolExecute(db, request)),
       );
       yield* router.add("GET", "/api/recovery", (request) => cors(request, handleRecovery(db)));
       yield* router.add("GET", "/api/summary", (request) => cors(request, handleSummary(db)));
@@ -1140,7 +1131,7 @@ const handleAiSdkChat = (
 
     const executeToolWithServices = (name: string, args: Record<string, unknown>) =>
       Effect.runPromiseWith(services)(
-        executeTool(db, name, args) as Effect.Effect<unknown, Error, RuntimeContext>,
+        executeTool({ db, name, args }) as Effect.Effect<unknown, Error, RuntimeContext>,
       );
 
     const result = yield* Effect.promise(() =>

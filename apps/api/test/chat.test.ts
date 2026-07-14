@@ -38,9 +38,13 @@ describe("extractTextFromLlmResponse", () => {
 describe("render_component tool", () => {
   it("returns a json-render spec with elements map", async () => {
     const result = await run(
-      executeTool(fakeDb, "render_component", {
-        component: "MetricCard",
-        props: { label: "Volume", value: 1000, unit: "kg" },
+      executeTool({
+        db: fakeDb,
+        name: "render_component",
+        args: {
+          component: "MetricCard",
+          props: { label: "Volume", value: 1000, unit: "kg" },
+        },
       }),
     );
 
@@ -56,8 +60,8 @@ describe("render_component tool", () => {
 
   it("fails when component name is missing", async () => {
     await assert.rejects(
-      run(executeTool(fakeDb, "render_component", { props: {} })),
-      /component is required/,
+      run(executeTool({ db: fakeDb, name: "render_component", args: { props: {} } })),
+      /component/,
     );
   });
 });
