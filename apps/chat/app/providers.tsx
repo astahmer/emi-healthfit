@@ -11,15 +11,15 @@ import {
   type Tool,
 } from "@assistant-ui/react";
 import { useChatRuntime, AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
-import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "./settings-store";
-import { buildFrontendTools, fetchTools, type ToolDefinition } from "./tools";
+import { buildTools, fetchTools, type ToolDefinition } from "./tools";
 import { createDirectAdapter } from "./direct-adapter";
 import { buildNotesContext } from "./notes";
 import { NotesProvider, useNotes } from "./notes-context";
-import { createThread, markThreadAsClientCreated } from "./sessions";
+import { createThread } from "./sessions";
 
 export interface ChatSessionConfig {
   model: string;
@@ -44,8 +44,9 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const tools: Record<string, Tool<Record<string, unknown>, unknown>> = buildFrontendTools(
+    const tools: Record<string, Tool<Record<string, unknown>, unknown>> = buildTools(
       definitions,
+      settings.mode === "direct" ? "frontend" : "backend",
     );
     const notesContext = buildNotesContext(notes);
     const system =
@@ -56,7 +57,7 @@ function ToolRegistrar({ children }: { children: ReactNode }) {
         tools,
       }),
     });
-  }, [aui, definitions, settings.systemPrompt, notes]);
+  }, [aui, definitions, settings.mode, settings.systemPrompt, notes]);
 
   return (
     <>
@@ -137,7 +138,6 @@ function ProxyRuntime({
   const createdThreadIdRef = useRef<string | null>(null);
 
   const runtime = useChatRuntime({
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     messages: sessionConfig.initialMessages,
     transport: new AssistantChatTransport({
       api: "/api/chat",
@@ -148,7 +148,6 @@ function ProxyRuntime({
             sessionId = `temp_${crypto.randomUUID()}`;
           } else {
             sessionId = await createThread();
-            markThreadAsClientCreated(sessionId);
           }
           createdThreadIdRef.current = sessionId;
         }

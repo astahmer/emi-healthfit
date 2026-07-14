@@ -19,7 +19,7 @@ export interface ToolDefinition {
   parameters: JSONSchema7;
 }
 
-const tools: ToolDefinition[] = [
+export const tools: ToolDefinition[] = [
   {
     name: "get_summary",
     description: "Returns a summary of imported health and workout data.",

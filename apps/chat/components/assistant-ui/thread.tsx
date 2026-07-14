@@ -367,7 +367,7 @@ const MessageTimestamp: FC = () => {
     <time
       dateTime={createdAt}
       title={new Date(createdAt).toLocaleString()}
-      className="text-muted-foreground text-[10px] tabular-nums"
+      className="text-muted-foreground/60 text-[10px] tabular-nums"
     >
       {new Date(createdAt).toLocaleTimeString(undefined, {
         hour: "numeric",
@@ -410,7 +410,7 @@ const AssistantMessage: FC<{ modelOverride?: string }> = ({ modelOverride }) => 
     <MessagePrimitive.Root
       data-slot="aui_assistant-message-root"
       data-role="assistant"
-      className="fade-in slide-in-from-bottom-1 animate-in relative duration-150"
+      className="fade-in slide-in-from-bottom-1 animate-in group/message relative duration-150"
     >
       <div
         data-slot="aui_assistant-message-content"
@@ -493,11 +493,7 @@ const RememberButton: FC = () => {
 
 const AssistantActionBar: FC = () => {
   return (
-    <ActionBarPrimitive.Root
-      hideWhenRunning
-      autohide="not-last"
-      className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
-    >
+    <ActionBarPrimitive.Root className="aui-assistant-action-bar-root text-muted-foreground col-start-3 row-start-2 -ms-1 flex gap-1 opacity-0 transition-opacity duration-200 group-hover/message:opacity-100">
       <ActionBarPrimitive.Copy asChild>
         <TooltipIconButton tooltip="Copy">
           <AuiIf condition={(s) => s.message.isCopied}>
@@ -550,13 +546,14 @@ const UserMessage: FC = () => {
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
         <div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts />
-          <div className="mt-1 flex justify-end">
-            <MessageTimestamp />
-          </div>
         </div>
         <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">
           <UserActionBar />
         </div>
+      </div>
+
+      <div className="col-start-2 mt-0.5 text-right">
+        <MessageTimestamp />
       </div>
 
       <BranchPicker

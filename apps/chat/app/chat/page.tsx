@@ -12,11 +12,8 @@ import { ChatProviders } from "../providers";
 import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
 import {
-  fetchThread,
   fetchThreadMessages,
-  isClientCreatedThread,
   renameThread,
-  unmarkClientCreatedThread,
   type MessageWithUsage,
   type Thread as ChatThread,
 } from "../sessions";
@@ -67,21 +64,10 @@ function ChatPageInner() {
       if (sessionId === undefined) {
         return { thread: null as ChatThread | null, messages: [] as MessageWithUsage[] };
       }
-      if (isClientCreatedThread(sessionId)) {
-        const thread = await fetchThread(sessionId);
-        return { thread, messages: [] as MessageWithUsage[] };
-      }
       return fetchThreadMessages(sessionId);
     },
     enabled: sessionId !== undefined,
   });
-
-  useEffect(() => {
-    if (sessionId === undefined || !isClientCreatedThread(sessionId)) return;
-    return () => {
-      unmarkClientCreatedThread(sessionId);
-    };
-  }, [sessionId]);
 
   const thread = sessionData?.thread ?? null;
   const initialMessages = sessionData?.messages;
@@ -89,8 +75,7 @@ function ChatPageInner() {
   const selectedModel = chatModels.find((m) => m.id === model);
   const canWebSearch = selectedModel?.supportsWebSearch ?? false;
 
-  const runtimeSessionId =
-    sessionId !== undefined && !isClientCreatedThread(sessionId) ? sessionId : undefined;
+  const runtimeSessionId = sessionId;
 
   const handleWebSearchChange = useCallback(
     (next: boolean) => {
@@ -277,7 +262,7 @@ const MobileNewChatButton = () => {
   return (
     <Button
       size="icon"
-      className="fixed bottom-24 right-4 z-40 size-12 rounded-full shadow-lg md:hidden"
+      className="fixed bottom-24 right-5 z-40 size-12 rounded-full bg-primary text-primary-foreground shadow-xl ring-2 ring-background transition-transform hover:scale-105 active:scale-95 md:hidden"
       aria-label="New chat"
       onClick={() => router.push("/chat")}
     >

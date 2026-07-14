@@ -50,7 +50,12 @@ import {
   generateThreadTitle,
   type ChatStreamRequest,
 } from "./chat/ai-sdk.ts";
-import { executeTool, handleToolExecute, handleToolsList } from "./tools/api.ts";
+import {
+  executeTool,
+  handleToolExecute,
+  handleToolsList,
+  tools as staticToolDefinitions,
+} from "./tools/api.ts";
 import { TtlCache } from "./cache.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -884,10 +889,18 @@ const handleAiSdkChat = (
       return yield* HttpServerResponse.json({ error: attachmentError }, { status: 400 });
     }
 
+    const toolRecord = Object.fromEntries(
+      staticToolDefinitions.map((definition) => [
+        definition.name,
+        { description: definition.description, parameters: definition.parameters },
+      ]),
+    );
+
     const requestWithHistory: ChatStreamRequest = {
       ...requestWithKey,
       messages: [...existingMessages, ...incomingMessages] as ChatStreamRequest["messages"],
       sessionId,
+      tools: toolRecord,
     };
 
     if (!isTemporary) {

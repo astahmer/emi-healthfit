@@ -11,6 +11,8 @@ export interface ToolListResponse {
   tools: ToolDefinition[];
 }
 
+export type ToolMode = "frontend" | "backend";
+
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
 
 export const fetchTools = async (): Promise<ToolDefinition[]> => {
@@ -33,21 +35,38 @@ const executeTool = async (name: string, args: Record<string, unknown>): Promise
   return res.json();
 };
 
-export const buildFrontendTools = (
+export const buildTools = (
   definitions: ToolDefinition[],
+  mode: ToolMode,
 ): Record<string, Tool<Record<string, unknown>, unknown>> => {
   return Object.fromEntries(
-    definitions.map((definition) => [
-      definition.name,
-      {
-        type: "frontend" as const,
+    definitions.map((definition) => {
+      const common = {
         description: definition.description,
         parameters: definition.parameters,
-        execute: async (args: Record<string, unknown>) => {
-          const result = await executeTool(definition.name, args);
-          return JSON.stringify(result);
+      };
+
+      if (mode === "backend") {
+        return [
+          definition.name,
+          {
+            type: "backend" as const,
+            ...common,
+          },
+        ];
+      }
+
+      return [
+        definition.name,
+        {
+          type: "frontend" as const,
+          ...common,
+          execute: async (args: Record<string, unknown>) => {
+            const result = await executeTool(definition.name, args);
+            return JSON.stringify(result);
+          },
         },
-      },
-    ]),
+      ];
+    }),
   );
 };

@@ -285,7 +285,16 @@ export const SessionSidebar = () => {
                           isActive={activeId === thread.id}
                           tooltip={thread.title ?? "New chat"}
                         >
-                          <Link href={`/chat?id=${thread.id}`} onClick={() => setOpenMobile(false)}>
+                          <Link
+                            href={`/chat?id=${thread.id}`}
+                            onClick={() => setOpenMobile(false)}
+                            onMouseEnter={() =>
+                              queryClient.prefetchQuery({
+                                queryKey: ["thread", thread.id],
+                                queryFn: () => fetchThreadMessages(thread.id),
+                              })
+                            }
+                          >
                             <MessageSquareIcon />
                             <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
                               <span className="flex-1 truncate">{thread.title ?? "New chat"}</span>

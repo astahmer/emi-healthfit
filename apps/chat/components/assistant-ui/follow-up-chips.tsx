@@ -154,7 +154,7 @@ export const FollowUpChips = () => {
           <span className="bg-muted h-7 w-32 animate-pulse rounded-full" />
         </>
       )}
-      {!loading && (
+      {!loading && suggestions.length > 0 && (
         <Button
           variant="ghost"
           size="icon-xs"
@@ -162,7 +162,7 @@ export const FollowUpChips = () => {
           aria-label="Regenerate suggestions"
           onClick={handleRegenerate}
         >
-          <RefreshCwIcon />
+          <RefreshCwIcon className="size-3.5" />
         </Button>
       )}
       {error !== null && <span className="text-destructive text-xs">{error}</span>}
