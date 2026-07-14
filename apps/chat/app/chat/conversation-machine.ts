@@ -1,4 +1,5 @@
 import { assign, fromPromise, setup } from "xstate";
+import type { UIMessage } from "ai";
 import type { MessageUsage } from "../sessions";
 import {
   discardThread as discardThreadApi,
@@ -28,7 +29,7 @@ export interface MessageNode {
   conversationId: string;
   parentId: string | null;
   role: "user" | "assistant" | "system" | "summary";
-  parts: Array<{ type: string } & Record<string, unknown>>;
+  parts: UIMessage["parts"];
   usage?: MessageUsage;
   model?: string;
   createdAt: string;
@@ -475,7 +476,7 @@ export const conversationMachine = setup({
                 threads: ({ context, event }) =>
                   context.threads.map((thread) =>
                     thread.id === event.output.threadId
-                      ? { ...thread, status: "discarded" as const }
+                      ? { ...thread, status: "discarded" }
                       : thread,
                   ),
               }),
@@ -501,9 +502,7 @@ export const conversationMachine = setup({
               actions: assign({
                 threads: ({ context, event }) =>
                   context.threads.map((thread) =>
-                    thread.id === event.output.threadId
-                      ? { ...thread, status: "regular" as const }
-                      : thread,
+                    thread.id === event.output.threadId ? { ...thread, status: "regular" } : thread,
                   ),
               }),
             },

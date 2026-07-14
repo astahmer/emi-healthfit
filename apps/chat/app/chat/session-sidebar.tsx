@@ -99,13 +99,12 @@ const getDaysAgo = (value: string) => {
 
 const groupThreads = (threads: Thread[]): HistoryGroup[] => {
   const groups = new Map<string, HistoryGroup>();
-  const orderedKeys: string[] = [];
   const ensureGroup = (key: string, label: string) => {
-    if (!groups.has(key)) {
-      groups.set(key, { key, label, threads: [] });
-      orderedKeys.push(key);
-    }
-    return groups.get(key) as HistoryGroup;
+    const existing = groups.get(key);
+    if (existing !== undefined) return existing;
+    const group: HistoryGroup = { key, label, threads: [] };
+    groups.set(key, group);
+    return group;
   };
 
   for (const thread of threads) {
@@ -123,7 +122,7 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
     }
   }
 
-  return orderedKeys.map((key) => groups.get(key) as HistoryGroup);
+  return Array.from(groups.values());
 };
 
 interface SidebarItemProps {

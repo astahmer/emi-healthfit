@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -24,39 +24,35 @@ import type { MessageNode } from "./conversation-machine";
 import { getConversationViewMessages } from "./conversation-tree";
 
 const HEADER_HEIGHT = 56;
-const RUNTIME_ROLES = new Set(["user", "assistant", "system"]);
+type RuntimeMessage = MessageNode & { role: UIMessage["role"] };
+
+const isRuntimeMessage = (message: MessageNode): message is RuntimeMessage =>
+  message.role === "user" || message.role === "assistant" || message.role === "system";
+
+const sidebarStyle: CSSProperties & { "--sidebar-top": string } = {
+  "--sidebar-top": `${HEADER_HEIGHT}px`,
+};
 const sessionIdFromPath = (pathname: string): string | undefined => {
   const encodedSessionId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
   return encodedSessionId === undefined ? undefined : decodeURIComponent(encodedSessionId);
 };
 
 const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
-  messages
-    .filter((message) => RUNTIME_ROLES.has(message.role))
-    .map(
-      (message) =>
-        ({
-          id: message.id,
-          role: message.role,
-          parts: message.parts,
-          createdAt: message.createdAt,
-        }) as UIMessage,
-    );
+  messages.filter(isRuntimeMessage).map((message) => ({
+    id: message.id,
+    role: message.role,
+    parts: message.parts,
+  }));
 
 const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
-  messages
-    .filter((message) => RUNTIME_ROLES.has(message.role))
-    .map(
-      (message) =>
-        ({
-          id: message.id,
-          role: message.role,
-          parts: message.parts,
-          usage: message.usage,
-          model: message.model,
-          createdAt: message.createdAt,
-        }) as MessageWithUsage,
-    );
+  messages.filter(isRuntimeMessage).map((message) => ({
+    id: message.id,
+    role: message.role,
+    parts: message.parts,
+    usage: message.usage,
+    model: message.model,
+    createdAt: message.createdAt,
+  }));
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
@@ -113,7 +109,7 @@ function ChatPageInner() {
       className="flex h-full"
       defaultWidth={conversationState.context.sidebarWidth}
       onWidthChange={(width) => sendConversation({ type: "sidebar.widthChanged", width })}
-      style={{ "--sidebar-top": `${HEADER_HEIGHT}px` } as React.CSSProperties}
+      style={sidebarStyle}
     >
       <SessionSidebar />
 

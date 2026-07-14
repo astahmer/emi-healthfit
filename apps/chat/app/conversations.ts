@@ -1,5 +1,6 @@
 import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
 import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./session-cache";
+import type { UIMessage } from "ai";
 import { z } from "zod";
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
@@ -17,7 +18,11 @@ const messageSchema = z.object({
   conversationId: z.string().optional(),
   parentId: z.string().nullable().optional(),
   role: z.enum(["user", "assistant", "system", "summary"]),
-  parts: z.array(z.object({ type: z.string() }).catchall(z.unknown())),
+  parts: z.array(
+    z.custom<UIMessage["parts"][number]>(
+      (part) => typeof part === "object" && part !== null && "type" in part,
+    ),
+  ),
   usage: z
     .object({
       promptTokens: z.number().nullable(),

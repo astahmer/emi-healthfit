@@ -225,8 +225,6 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   threadTools: ThreadToolOptions;
 }) {
   const services = yield* Effect.context<RuntimeContext>();
-  const provideServices = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
-    Effect.provideContext(effect, services);
   const requireConversationId = (tool: string) =>
     threadTools.conversationId === undefined
       ? Effect.fail(toolError({ tool, message: "A persisted conversation is required." }))
@@ -239,7 +237,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     threadId: string;
   }) {
     const conversationId = yield* requireConversationId(tool);
-    const thread = yield* provideServices(getThread(db, threadId));
+    const thread = yield* getThread(db, threadId).pipe(Effect.provideContext(services));
     if (thread === null || thread.conversation_id !== conversationId) {
       return yield* Effect.fail(toolError({ tool, message: "Thread not found." }));
     }
@@ -258,7 +256,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     if (threadTools.summarize === undefined) {
       return yield* Effect.fail(toolError({ tool, message: "Summarization is unavailable." }));
     }
-    const rows = yield* provideServices(getThreadMessages(db, threadId));
+    const rows = yield* getThreadMessages(db, threadId).pipe(Effect.provideContext(services));
     const messages = rows.map((row) => ({
       role: row.role,
       text: Schema.decodeUnknownSync(StoredParts)(row.parts)
@@ -275,16 +273,19 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         .join("\n"),
     }));
     const summary = yield* threadTools.summarize(messages);
-    const messageId = yield* provideServices(
-      summarizeThread(db, threadId, summary, targetMessageId),
+    const messageId = yield* summarizeThread(db, threadId, summary, targetMessageId).pipe(
+      Effect.provideContext(services),
     );
     return { messageId, summary };
   });
 
   return FitnessToolkit.of({
-    get_summary: Effect.fn("FitnessToolkit.getSummary")(() => provideServices(getDataSummary(db))),
+    get_summary: Effect.fn("FitnessToolkit.getSummary")(() =>
+      getDataSummary(db).pipe(Effect.provideContext(services)),
+    ),
     get_recovery: Effect.fn("FitnessToolkit.getRecovery")(() =>
-      provideServices(buildChatContext(db)).pipe(
+      buildChatContext(db).pipe(
+        Effect.provideContext(services),
         Effect.map((context) => ({
           today: context.today,
           label: context.recoveryLabel,
@@ -304,34 +305,38 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
           toolError({ tool: "query_database", message: "Only one SELECT query is allowed." }),
         );
       }
-      const result = yield* provideServices(db.prepare(normalized).all<unknown>());
+      const result = yield* db
+        .prepare(normalized)
+        .all<unknown>()
+        .pipe(Effect.provideContext(services));
       return result.results;
     }),
     get_workout_history: Effect.fn("FitnessToolkit.getWorkoutHistory")(({ limit }) =>
-      provideServices(getWorkoutHistory(db, limit ?? 10)),
+      getWorkoutHistory(db, limit ?? 10).pipe(Effect.provideContext(services)),
     ),
     get_exercise_progress: Effect.fn("FitnessToolkit.getExerciseProgress")(
       ({ exercise_title, weeks }) =>
-        provideServices(getExerciseProgress(db, exercise_title, weeks ?? 8)),
+        getExerciseProgress(db, exercise_title, weeks ?? 8).pipe(Effect.provideContext(services)),
     ),
     get_sleep_trend: Effect.fn("FitnessToolkit.getSleepTrend")(({ days }) =>
-      provideServices(getSleepTrend(db, days ?? 7)),
+      getSleepTrend(db, days ?? 7).pipe(Effect.provideContext(services)),
     ),
     get_workout_streak: Effect.fn("FitnessToolkit.getWorkoutStreak")(() =>
-      provideServices(getWorkoutStreak(db)),
+      getWorkoutStreak(db).pipe(Effect.provideContext(services)),
     ),
     search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
-      provideServices(searchMemories(db, query, limit ?? 10)).pipe(
+      searchMemories(db, query, limit ?? 10).pipe(
+        Effect.provideContext(services),
         Effect.map((results) => ({ results })),
       ),
     ),
     get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
       const conversationId = yield* requireConversationId("get_threads");
-      return yield* provideServices(getThreads(db, conversationId));
+      return yield* getThreads(db, conversationId).pipe(Effect.provideContext(services));
     }),
     read_thread: Effect.fn("FitnessToolkit.readThread")(function* ({ thread_id }) {
       yield* requireThread({ tool: "read_thread", threadId: thread_id });
-      const rows = yield* provideServices(getThreadMessages(db, thread_id));
+      const rows = yield* getThreadMessages(db, thread_id).pipe(Effect.provideContext(services));
       return rows.map((row) => ({
         ...row,
         parts: Schema.decodeUnknownSync(StoredParts)(row.parts),
@@ -339,7 +344,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     }),
     read_message: Effect.fn("FitnessToolkit.readMessage")(function* ({ message_id }) {
       const conversationId = yield* requireConversationId("read_message");
-      const message = yield* provideServices(getMessage(db, message_id));
+      const message = yield* getMessage(db, message_id).pipe(Effect.provideContext(services));
       if (message === null || message.conversation_id !== conversationId) {
         return yield* Effect.fail(
           toolError({ tool: "read_message", message: "Message not found." }),
@@ -352,16 +357,16 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       title,
     }) {
       const conversationId = yield* requireConversationId("create_thread");
-      const anchor = yield* provideServices(getMessage(db, anchor_message_id));
+      const anchor = yield* getMessage(db, anchor_message_id).pipe(Effect.provideContext(services));
       if (anchor === null || anchor.conversation_id !== conversationId) {
         return yield* Effect.fail(
           toolError({ tool: "create_thread", message: "Anchor message not found." }),
         );
       }
-      const threadId = yield* provideServices(
-        createThread(db, conversationId, anchor_message_id, title),
+      const threadId = yield* createThread(db, conversationId, anchor_message_id, title).pipe(
+        Effect.provideContext(services),
       );
-      return yield* provideServices(getThread(db, threadId));
+      return yield* getThread(db, threadId).pipe(Effect.provideContext(services));
     }),
     summarize_thread: Effect.fn("FitnessToolkit.summarizeThreadTool")(({ thread_id }) =>
       summarize({ threadId: thread_id, tool: "summarize_thread" }),
