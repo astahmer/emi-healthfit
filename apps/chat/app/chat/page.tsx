@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
+
 import { useAuiState } from "@assistant-ui/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -23,11 +24,28 @@ import { composerConfigMachine } from "./composer-config-machine";
 
 const HEADER_HEIGHT = 56;
 
+function UrlSync({ createdSessionId }: { createdSessionId: string | undefined }) {
+  const router = useRouter();
+  const urlSyncedRef = useRef(false);
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+
+  useEffect(() => {
+    if (isRunning) {
+      urlSyncedRef.current = false;
+      return;
+    }
+    if (createdSessionId === undefined || urlSyncedRef.current) return;
+    urlSyncedRef.current = true;
+    router.replace(`/chat?id=${createdSessionId}`, { scroll: false });
+  }, [isRunning, createdSessionId, router]);
+
+  return null;
+}
+
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const router = useRouter();
   const sessionId = searchParams.get("id") ?? undefined;
 
   const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
@@ -47,23 +65,9 @@ function ChatPageInner() {
     },
   });
 
-  const urlSyncedRef = useRef(false);
-  const isRunning = useAuiState((s) => s.thread.isRunning);
-
   useEffect(() => {
     sendSession({ type: "sessionId.changed", sessionId });
   }, [sessionId, sendSession]);
-
-  useEffect(() => {
-    if (isRunning) {
-      urlSyncedRef.current = false;
-      return;
-    }
-    const createdId = sessionState.context.createdSessionId;
-    if (createdId === undefined || urlSyncedRef.current) return;
-    urlSyncedRef.current = true;
-    router.replace(`/chat?id=${createdId}`, { scroll: false });
-  }, [isRunning, sessionState.context.createdSessionId, router]);
 
   useEffect(() => {
     if (configState.context.model !== urlModel) {
@@ -140,6 +144,7 @@ function ChatPageInner() {
               }}
               onSessionCreated={(id) => sendSession({ type: "session.created", sessionId: id })}
             >
+              <UrlSync createdSessionId={sessionState.context.createdSessionId} />
               <div className="flex h-full flex-1 flex-col">
                 <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                   <SidebarTrigger />
