@@ -7,6 +7,12 @@
       "skillPath": "assistant-ui/skills/assistant-ui/SKILL.md",
       "computedHash": "5e342f1cae9193afe989d2244b73f5e1074951adc8cf7014119cedac88747a53"
     },
+    "improve-react": {
+      "source": "react-doctor/skills",
+      "sourceType": "github",
+      "skillPath": "react-doctor/skills/improve-react/SKILL.md",
+      "computedHash": "c50776c79e15f53dd7769b4a4d33c3d9f1723d7f23064201e37086d15910d9ac"
+    },
     "cloud": {
       "source": "assistant-ui/skills",
       "sourceType": "github",
