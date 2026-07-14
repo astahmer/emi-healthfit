@@ -25,12 +25,13 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 3. **Backend tool loop was broken by design.** `streamText` defaults to `stopWhen: isStepCount(1)`. With that default the model stops immediately after emitting tool calls and never sees the results, so the frontend received tool outputs but no final answer.
 4. **Tool results were dropped on persistence.** `event.response.messages` stores tool results as separate `role: "tool"` messages, but the old persistence code only looked at `role: "assistant"` content.
 5. **Assistant-ui couples too many concerns.** Transport, runtime state, and primitives are bundled. Debugging required reading internal `useChatRuntime`, `useRemoteThreadListRuntime`, and AI SDK `streamText` source.
-6. **Streaming with `isLoopFinished()` works correctly.** Investigated the full pipeline: AI SDK `stitchableStream` streams each step's chunks immediately via `addStream()` + `controller.enqueue()`. `toUIMessageStreamResponse()` pipes through `JsonToSseTransformStream` → `TextEncoderStream` with no buffering. Client `parseJsonEventStream` yields chunks as they arrive. The "streaming feels broken" perception is UX: step 0 only emits tool-call/tool-input-delta chunks (no visible text), then after tool execution pause, step 1 streams the final text — making it appear non-streaming even though it is.
+6. **Streaming with `isLoopFinished()` buffers the full multi-step response.** AI SDK source looks like it should stream per-step (stitchableStream, controller.enqueue), but in practice the entire multi-step response arrives buffered to the client. The likely cause is the HTTP relay layer: `HttpServerResponse.fromWeb()` in the Effect HTTP server, or Cloudflare Workers response buffering. The model's text only starts appearing after ALL steps complete, defeating the purpose of streaming.
 
 ## Bugs still open
 
 | Bug | Severity | Root cause | Fix needed |
 |-----|----------|------------|------------|
+| Stream buffers full multi-step response instead of streaming per-step | High | HTTP relay layer buffering — likely `HttpServerResponse.fromWeb()` or Cloudflare Workers | Investigate: bypass Effect HTTP layer for streaming responses, or use `web: true` in worker config, or pipe stream directly to `Response` |
 | Refresh does not resume an in-flight generation | High | No resumable stream backend or storage | Implement resumable stream adapter |
 | Runtime reset on session switch is a workaround, not a solution | Medium | Message state lives inside assistant-ui runtime | Own message state or move to a simpler ai-sdk integration |
 | Follow-up suggestions may not appear after tool-only answers | Low | Suggestions are generated from `event.text`; if text is empty after tool loop, suggestions key/text may be off | Use final assistant text + last user message, or disable suggestions when there is no text |
@@ -40,9 +41,10 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 
 ### Short term (this week)
 
-1. **Ship the current fixes and verify in production.** The `stopWhen` change is the highest-impact fix. Confirm that a message like "make me a program for the week" now produces a visible answer after the tools complete.
-2. **Add backend observability.** Log each `streamText` step, finish reason, and the assistant parts produced by `buildAssistantParts`. If a generation gets stuck again we will know whether it is the model, the tool loop, or the UI.
-3. **Add an end-to-end API test for multi-step tool use.** Mock the OpenAI provider responses so we can assert: tool calls are emitted, tool results are returned, model continues, final text is streamed, and persisted messages contain tool results + text.
+1. **Fix streaming buffering for multi-step tool responses.** The HTTP relay layer is buffering the full response. Investigate: (a) whether `HttpServerResponse.fromWeb()` buffers the body, (b) whether Cloudflare Workers `web: true` flag helps, (c) bypass Effect HTTP for streaming endpoints by returning a raw `Response` from the worker.
+2. **Ship the current fixes and verify in production.** The `stopWhen` change is the highest-impact fix. Confirm that a message like "make me a program for the week" now produces a visible answer after the tools complete.
+3. **Add backend observability.** Log each `streamText` step, finish reason, and the assistant parts produced by `buildAssistantParts`. If a generation gets stuck again we will know whether it is the model, the tool loop, or the UI.
+4. **Add an end-to-end API test for multi-step tool use.** Mock the OpenAI provider responses so we can assert: tool calls are emitted, tool results are returned, model continues, final text is streamed, and persisted messages contain tool results + text.
 
 ### Medium term (next 2–4 weeks)
 
@@ -84,13 +86,14 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 
 ## Implementation steps
 
-1. Deploy current fixes and monitor the tool-loop behavior.
-2. Add backend logging around `streamText` steps and `buildAssistantParts` output.
-3. Write an API test that mocks the provider and verifies multi-step tool flow.
-4. Spike resumable stream integration in a branch.
-5. Design the custom runtime machine and migrate one component at a time (message list first, composer second, tool rendering third).
-6. Swap assistant-ui primitives for shadcn chat primitives once the runtime is independent.
-7. Remove assistant-ui and add end-to-end state-machine tests.
+1. Fix streaming buffering — investigate Effect HTTP + Cloudflare Workers relay layer.
+2. Deploy current fixes and monitor the tool-loop behavior.
+3. Add backend logging around `streamText` steps and `buildAssistantParts` output.
+4. Write an API test that mocks the provider and verifies multi-step tool flow.
+5. Spike resumable stream integration in a branch.
+6. Design the custom runtime machine and migrate one component at a time (message list first, composer second, tool rendering third).
+7. Swap assistant-ui primitives for shadcn chat primitives once the runtime is independent.
+8. Remove assistant-ui and add end-to-end state-machine tests.
 
 ## Open questions
 
@@ -115,4 +118,4 @@ Make the chat feel reliable: messages never get stuck, tools produce answers, sw
 | 2026-07-14 | Extract `buildAssistantParts` and read `role: "tool"` messages | Tool results are delivered as separate messages in AI SDK v6. |
 | 2026-07-14 | Use `chatKey` + `resetKey` to remount assistant-ui runtime | Assistant-ui does not reset message state on prop changes. |
 | 2026-07-14 | Plan incremental migration away from assistant-ui | Full control over runtime, streaming, and primitives is needed to avoid this class of bugs. |
-| 2026-07-14 | Investigated streaming with `isLoopFinished()` — confirmed no buffering issue | Full pipeline traced: AI SDK `stitchableStream` streams immediately, `toUIMessageStreamResponse` pipes SSE without buffering, client parses as chunks arrive. "Feels non-streaming" is UX: step 0 only emits tool-call chunks (no text), then step 1 streams the final answer. |
+| 2026-07-14 | Investigated streaming — found HTTP relay buffering | AI SDK source streams per-step correctly, but `HttpServerResponse.fromWeb()` or Cloudflare Workers buffer the full multi-step response before delivering to client. |
