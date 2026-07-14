@@ -212,7 +212,10 @@ function ChatPageInner() {
                       )}
                     </>
                   )}
-                  {sessionId && <ExportThreadButton sessionId={sessionId} className="ms-auto" />}
+                  <div className="ms-auto flex items-center gap-1">
+                    <NewChatButton />
+                    {sessionId && <ExportThreadButton sessionId={sessionId} />}
+                  </div>
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <Thread
@@ -230,7 +233,6 @@ function ChatPageInner() {
                     }}
                   />
                 </div>
-                <MobileNewChatButton />
               </div>
             </ChatProviders>
           </UsageProvider>
@@ -240,16 +242,19 @@ function ChatPageInner() {
   );
 }
 
-const MobileNewChatButton = () => {
+const NewChatButton = () => {
   const router = useRouter();
   return (
     <Button
-      size="icon"
-      className="fixed bottom-24 right-5 z-40 size-12 rounded-full bg-primary text-primary-foreground shadow-xl ring-2 ring-background transition-transform hover:scale-105 active:scale-95 md:hidden"
+      type="button"
+      variant="outline"
+      size="sm"
+      className="gap-1.5 rounded-full"
       aria-label="New chat"
       onClick={() => router.push("/chat")}
     >
-      <PlusIcon className="size-5" />
+      <PlusIcon className="size-4" />
+      <span className="hidden md:inline">New chat</span>
     </Button>
   );
 };
