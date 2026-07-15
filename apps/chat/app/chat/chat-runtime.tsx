@@ -225,7 +225,7 @@ export const ChatRuntimeProvider = ({
       if (parts === undefined && content === "" && stateRef.current.context.files.length === 0)
         return;
 
-      let sessionId = config.sessionId ?? stateRef.current.context.sessionId;
+      let sessionId = config.sessionId;
       if (sessionId === undefined) {
         sessionId = config.temporary ? `temp_${crypto.randomUUID()}` : await createConversation();
         onSessionCreated?.(sessionId);
@@ -331,7 +331,7 @@ export const ChatRuntimeProvider = ({
       const userMessage = messages
         .slice(0, selectedIndex + 1)
         .findLast((message) => message.role === "user");
-      const sessionId = config.sessionId ?? stateRef.current.context.sessionId;
+      const sessionId = config.sessionId;
       if (userMessage === undefined || sessionId === undefined || config.temporary) return;
 
       const parts: UIMessage["parts"] =
@@ -362,13 +362,14 @@ export const ChatRuntimeProvider = ({
     [config.sessionId, config.temporary, config.threadId, send, submitMessage],
   );
 
-  const value = useMemo<ChatRuntimeValue>(
-    () => ({
-      messages: state.context.messages,
-      sessionId: state.context.sessionId,
-      draft: state.context.draft,
-      files: state.context.files,
-      isStreaming: state.matches("streaming"),
+  const value = useMemo<ChatRuntimeValue>(() => {
+    const selectionMatchesRuntime = state.context.sessionId === config.sessionId;
+    return {
+      messages: selectionMatchesRuntime ? state.context.messages : config.initialMessages,
+      sessionId: config.sessionId,
+      draft: selectionMatchesRuntime ? state.context.draft : "",
+      files: selectionMatchesRuntime ? state.context.files : [],
+      isStreaming: selectionMatchesRuntime && state.matches("streaming"),
       error: state.context.error,
       setDraft: (value) => send({ type: "draft.changed", value }),
       addFiles: async (files) => {
@@ -390,9 +391,8 @@ export const ChatRuntimeProvider = ({
         cancelStreamRef.current?.();
       },
       clearError: () => send({ type: "error.cleared" }),
-    }),
-    [revise, send, state, submit],
-  );
+    };
+  }, [config.initialMessages, config.sessionId, revise, send, state, submit]);
 
   return <ChatRuntimeContext.Provider value={value}>{children}</ChatRuntimeContext.Provider>;
 };

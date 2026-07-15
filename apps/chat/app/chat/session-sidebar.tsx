@@ -309,7 +309,7 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
   );
 };
 
-export const SessionSidebar = () => {
+export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
@@ -342,6 +342,7 @@ export const SessionSidebar = () => {
 
   const handleNew = () => {
     setOpenMobile(false);
+    onNewChat?.();
     router.push("/chat");
   };
 

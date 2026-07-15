@@ -108,12 +108,15 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 const ChatProvidersMock = ({
   children,
   onSessionCreated,
+  sessionConfig,
 }: {
   children: ReactNode;
   onSessionCreated?: (id: string) => void;
+  sessionConfig?: { sessionId?: string };
 }) => {
   return (
     <div data-testid="chat-providers">
+      <output data-testid="runtime-session">{sessionConfig?.sessionId ?? "new"}</output>
       <button
         type="button"
         data-testid="simulate-created"
@@ -129,7 +132,11 @@ const ChatProvidersMock = ({
 let providerMountCount = 0;
 
 vi.mock("@/app/providers", () => ({
-  ChatProviders: (props: { children: ReactNode; onSessionCreated?: (id: string) => void }) => {
+  ChatProviders: (props: {
+    children: ReactNode;
+    onSessionCreated?: (id: string) => void;
+    sessionConfig?: { sessionId?: string };
+  }) => {
     const React = require("react");
     React.useEffect(() => {
       providerMountCount += 1;
@@ -228,6 +235,7 @@ describe("ChatPage", () => {
     render(<ChatPage />);
 
     await waitFor(() => expect(screen.getByText("Existing chat")).toBeInTheDocument());
+    expect(screen.getByTestId("runtime-session")).toHaveTextContent("existing-id");
     const beforeNewChat = providerMountCount;
 
     const newChatButton = screen.getByLabelText("New chat");
@@ -237,6 +245,7 @@ describe("ChatPage", () => {
 
     expect(providerMountCount).toBe(beforeNewChat);
     expect(screen.queryByText("Existing chat")).not.toBeInTheDocument();
+    expect(screen.getByTestId("runtime-session")).toHaveTextContent("new");
   });
 
   it("loads another existing session without remounting the runtime", async () => {

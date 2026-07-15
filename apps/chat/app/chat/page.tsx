@@ -67,7 +67,7 @@ function ChatPageInner() {
   const [urlWebSearch, setUrlWebSearch] = useSessionFlag("web", false);
 
   const { state: conversationState, send: sendConversation } = useConversationMachine(sessionId);
-  const activeConversationId = conversationState.context.conversationId ?? sessionId;
+  const activeConversationId = sessionId;
 
   const [configState, sendConfig] = useMachine(composerConfigMachine, {
     input: {
@@ -115,7 +115,11 @@ function ChatPageInner() {
       onWidthChange={(width) => sendConversation({ type: "sidebar.widthChanged", width })}
       style={sidebarStyle}
     >
-      <SessionSidebar />
+      <SessionSidebar
+        onNewChat={() =>
+          sendConversation({ type: "conversationId.changed", conversationId: undefined })
+        }
+      />
 
       <ErrorBoundary
         onReset={() => {
@@ -203,7 +207,14 @@ function ChatPageInner() {
                   </>
                 )}
                 <div className="ms-auto flex items-center gap-1">
-                  <NewChatButton />
+                  <NewChatButton
+                    onNewChat={() =>
+                      sendConversation({
+                        type: "conversationId.changed",
+                        conversationId: undefined,
+                      })
+                    }
+                  />
                   {activeConversationId && (
                     <TooltipIconButton
                       tooltip="Export as Markdown"
@@ -220,7 +231,6 @@ function ChatPageInner() {
               {activeConversationId !== undefined && !configState.context.temporary && (
                 <ThreadNavigation
                   threads={conversationState.context.threads}
-                  messages={conversationState.context.messages}
                   focusedThreadId={conversationState.context.focusedThreadId}
                   searchQuery={conversationState.context.searchQuery}
                   searchResults={conversationState.context.searchResults}
@@ -313,7 +323,7 @@ function ChatPageInner() {
   );
 }
 
-const NewChatButton = () => {
+const NewChatButton = ({ onNewChat }: { onNewChat: () => void }) => {
   const router = useRouter();
   return (
     <Button
@@ -322,7 +332,10 @@ const NewChatButton = () => {
       size="sm"
       className="gap-1.5 rounded-full"
       aria-label="New chat"
-      onClick={() => router.push("/chat")}
+      onClick={() => {
+        onNewChat();
+        router.push("/chat");
+      }}
     >
       <PlusIcon className="size-4" />
       <span className="hidden md:inline">New chat</span>
