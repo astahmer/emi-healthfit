@@ -1355,9 +1355,9 @@ const handleAiSdkChat = (
         executeTool: executeToolWithServices,
         onChunk: ({ chunk }) => {
           const timestamp = performance.now();
-          console.log(
-            JSON.stringify({
-              event: "chat.provider.chunk",
+          Effect.runSync(
+            Effect.logDebug("chat.provider.chunk").pipe(
+              Effect.annotateLogs({
               sessionId,
               chunkType: chunk.type,
               chunkIndex: providerChunkCount,
@@ -1367,7 +1367,8 @@ const handleAiSdkChat = (
                 providerChunkCount === 0
                   ? undefined
                   : Math.round(timestamp - previousProviderChunkAt),
-            }),
+              }),
+            ),
           );
           providerChunkCount += 1;
           previousProviderChunkAt = timestamp;
@@ -1528,9 +1529,8 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
         const timestamp = performance.now();
         const previous = yield* Ref.get(previousChunkAt);
         yield* appendGenerationChunk({ db, generationId, sequence, chunk });
-        console.log(
-          JSON.stringify({
-            event: "chat.persistence.chunk",
+        yield* Effect.logDebug("chat.persistence.chunk").pipe(
+          Effect.annotateLogs({
             generationId,
             sequence,
             timeToFirstChunkMilliseconds:
@@ -1550,8 +1550,8 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
       onFailure: (error) =>
         Effect.gen(function* () {
           const message = error instanceof Error ? error.message : String(error);
-          console.log(
-            JSON.stringify({ event: "chat.generation.failure", generationId, error: message }),
+          yield* Effect.logError("chat.generation.failure").pipe(
+            Effect.annotateLogs({ generationId, error: message }),
           );
           yield* finishGeneration({
             db,

@@ -11,6 +11,7 @@ import {
 } from "ai";
 import { streamText } from "ai";
 import type { JSONSchema7 } from "json-schema";
+import * as Effect from "effect/Effect";
 import { fitnessCoachV1 } from "./prompts/fitness-coach-v1.ts";
 
 export interface ChatConfig {
@@ -96,21 +97,23 @@ export const createChatStream = async ({
     stopWhen: isLoopFinished(),
     onChunk,
     onError: ({ error }) =>
-      console.log(
-        JSON.stringify({
-          event: "chat.provider.failure",
-          error: error instanceof Error ? error.message : String(error),
-        }),
+      Effect.runSync(
+        Effect.logError("chat.provider.failure").pipe(
+          Effect.annotateLogs({
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        ),
       ),
     onStepFinish: (event) => {
-      console.log(
-        JSON.stringify({
-          event: "chat.step.finished",
+      Effect.runSync(
+        Effect.logDebug("chat.step.finished").pipe(
+          Effect.annotateLogs({
           finishReason: event.finishReason,
           toolCalls: event.toolCalls.length,
           toolResults: event.toolResults.length,
           textLength: event.text.length,
-        }),
+          }),
+        ),
       );
     },
     onFinish: (event) =>

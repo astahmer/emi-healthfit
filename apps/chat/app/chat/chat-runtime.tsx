@@ -81,11 +81,10 @@ const consumeAssistantStream = async ({
         error instanceof Error ? error : new Error(String(error)),
       ).pipe(
         Stream.runForEach((message) =>
-          Effect.sync(() => {
+          Effect.gen(function* () {
             const timestamp = performance.now();
-            console.info(
-              JSON.stringify({
-                event: "chat.browser.chunk",
+            yield* Effect.logDebug("chat.browser.chunk").pipe(
+              Effect.annotateLogs({
                 boundary: "default-transport",
                 chunkIndex: chunkCount,
                 timeToFirstChunkMilliseconds:
@@ -95,9 +94,8 @@ const consumeAssistantStream = async ({
               }),
             );
             onMessage(message);
-            console.info(
-              JSON.stringify({
-                event: "chat.browser.chunk",
+            yield* Effect.logDebug("chat.browser.chunk").pipe(
+              Effect.annotateLogs({
                 boundary: "xstate-stream-updated",
                 chunkIndex: chunkCount,
                 dispatchLatencyMilliseconds: Math.round(performance.now() - timestamp),
@@ -221,12 +219,13 @@ export const ChatRuntimeProvider = ({
     };
     void resume().catch((error) => {
       if (stateRef.current.context.sessionId !== sessionId) return;
-      console.info(
-        JSON.stringify({
-          event: "chat.browser.reconnect.failure",
+      Effect.runSync(
+        Effect.logWarning("chat.browser.reconnect.failure").pipe(
+          Effect.annotateLogs({
           sessionId,
           error: error instanceof Error ? error.message : String(error),
-        }),
+          }),
+        ),
       );
       send({
         type: "stream.failed",
