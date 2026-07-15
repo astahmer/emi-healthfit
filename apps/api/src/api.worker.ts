@@ -83,6 +83,9 @@ import {
   getGenerationChunks,
   getResumableGeneration,
   getRunningGeneration,
+  isGenerationStale,
+  reconcileFinishedGenerations,
+  type ChatGeneration,
 } from "./chat/generation-store.ts";
 import { createGenerationReplayStream } from "./chat/generation-replay.ts";
 import { createChatStreamResponse } from "./chat/ui-message-stream-response.ts";
@@ -1174,11 +1177,12 @@ const handleAiSdkChat = (
           : yield* createConversation(db);
 
     if (!isTemporary) {
+      const reconciledGenerations = yield* reconcileFinishedGenerations({ db });
       const abandonedGenerations = yield* expireStaleGenerations({ db });
       const deletedGenerations = yield* cleanupGenerationHistory({ db });
-      if (abandonedGenerations > 0 || deletedGenerations > 0) {
+      if (reconciledGenerations > 0 || abandonedGenerations > 0 || deletedGenerations > 0) {
         yield* Effect.logInfo("chat.generation.maintenance").pipe(
-          Effect.annotateLogs({ abandonedGenerations, deletedGenerations }),
+          Effect.annotateLogs({ reconciledGenerations, abandonedGenerations, deletedGenerations }),
         );
       }
       const conversation = yield* getConversation(db, sessionId);
@@ -1567,13 +1571,14 @@ const handleChatResume = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const reconciledGenerations = yield* reconcileFinishedGenerations({ db });
     const abandonedGenerations = yield* expireStaleGenerations({ db });
     const deletedGenerations = yield* cleanupGenerationHistory({ db });
-    console.log(
-      JSON.stringify({
-        event: "chat.generation.reconnect",
+    yield* Effect.logInfo("chat.generation.reconnect").pipe(
+      Effect.annotateLogs({
         conversationId,
         reconnectCount: 1,
+        reconciledGenerations,
         abandonedGenerations,
         deletedGenerations,
       }),
@@ -1590,7 +1595,24 @@ const handleChatResume = (
           generationId: generation.id,
           getChunks: ({ generationId, afterSequence }) =>
             getGenerationChunks({ db, generationId, afterSequence }),
-          getGeneration: (generationId) => getGeneration({ db, generationId }),
+          getGeneration: (generationId) =>
+            Effect.gen(function* () {
+              const current = yield* getGeneration({ db, generationId });
+              if (current === null || !isGenerationStale(current)) return current;
+              yield* finishGeneration({
+                db,
+                generationId,
+                status: "failed",
+                error: "Generation timed out",
+              });
+              const failedGeneration: ChatGeneration = {
+                ...current,
+                status: "failed",
+                error: "Generation timed out",
+              };
+              return failedGeneration;
+            }),
+          poll: Effect.sleep("1 second"),
         }),
         services,
       ),
