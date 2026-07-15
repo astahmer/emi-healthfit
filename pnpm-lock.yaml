@@ -59,6 +59,9 @@ importers:
       '@ai-sdk/openai':
         specifier: 'catalog:'
         version: 3.0.84(zod@3.25.76)
+      '@emi/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
       ai:
         specifier: 'catalog:'
         version: 6.0.224(zod@3.25.76)
@@ -99,6 +102,9 @@ importers:
 
   apps/chat:
     dependencies:
+      '@emi/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
       '@json-render/core':
         specifier: 0.19.0
         version: 0.19.0(zod@3.25.76)
@@ -229,6 +235,22 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/api-contract:
+    dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.88
+    devDependencies:
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.56.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.73.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.1-rc
 
 packages:
 

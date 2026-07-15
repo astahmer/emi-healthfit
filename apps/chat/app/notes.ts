@@ -1,45 +1,32 @@
-export interface Note {
-  id: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}
+import type { Note } from "@emi/api-contract";
+import { runApi } from "./api-client";
 
-const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
+export type { Note } from "@emi/api-contract";
 
 export const fetchNotes = async (search?: string, limit = 100): Promise<Note[]> => {
-  const params = new URLSearchParams();
-  if (search !== undefined && search.trim() !== "") params.set("search", search.trim());
-  params.set("limit", String(limit));
-  const res = await fetch(`${apiBase()}/api/notes?${params.toString()}`);
-  if (!res.ok) throw new Error(`Failed to load notes: ${res.status}`);
-  const data = (await res.json()) as { notes: Note[] };
-  return data.notes;
+  const normalizedSearch = search?.trim();
+  const data = await runApi((client) =>
+    client.notes.list({
+      query: {
+        search: normalizedSearch === "" ? undefined : normalizedSearch,
+        limit,
+      },
+    }),
+  );
+  return [...data.notes];
 };
 
 export const createNote = async (content: string): Promise<string> => {
-  const res = await fetch(`${apiBase()}/api/notes`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content }),
-  });
-  if (!res.ok) throw new Error(`Failed to create note: ${res.status}`);
-  const data = (await res.json()) as { id: string };
+  const data = await runApi((client) => client.notes.create({ payload: { content } }));
   return data.id;
 };
 
 export const updateNote = async (id: string, content: string): Promise<void> => {
-  const res = await fetch(`${apiBase()}/api/notes/${id}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content }),
-  });
-  if (!res.ok) throw new Error(`Failed to update note: ${res.status}`);
+  await runApi((client) => client.notes.update({ params: { id }, payload: { content } }));
 };
 
 export const deleteNote = async (id: string): Promise<void> => {
-  const res = await fetch(`${apiBase()}/api/notes/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Failed to delete note: ${res.status}`);
+  await runApi((client) => client.notes.remove({ params: { id } }));
 };
 
 export const buildNotesContext = (notes: Note[]): string => {

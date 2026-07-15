@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "packages/*"
 catalog:
   "@ai-sdk/openai": "^3.0.74"
   "@types/json-schema": "^7.0.15"

@@ -22,8 +22,6 @@ import {
   type DataSummary,
   deleteConversation,
   deleteIngestedSource,
-  deleteMemory,
-  deleteNote,
   discardThread,
   getConversation,
   getConversationMessages,
@@ -33,9 +31,7 @@ import {
   getAnalyticsOverview,
   getIngestedDataExport,
   getIngestedDataExportSummary,
-  getMemories,
   getMessage,
-  getNotes,
   getSuggestionsById,
   getThread,
   getThreadMessages,
@@ -45,7 +41,6 @@ import {
   hashSuggestionsKey,
   insertHealthWorkouts,
   insertMemory,
-  insertNote,
   pinThread,
   type QueryDatabaseClient,
   renameConversation,
@@ -54,12 +49,9 @@ import {
   restoreThread,
   saveConversationMessages,
   saveSuggestions,
-  searchMemories,
-  searchNotes,
   summarizeThread,
   updateConversationState,
   updateRawUploadRetentionDays,
-  updateNote,
   updateSyncCursor,
   upsertBodyMetrics,
   upsertDailyActivity,
@@ -100,6 +92,7 @@ import {
 } from "./chat/generation-store.ts";
 import { createGenerationReplayStream } from "./chat/generation-replay.ts";
 import { createChatStreamResponse } from "./chat/ui-message-stream-response.ts";
+import { registerHttpApi } from "./http-api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -273,29 +266,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
             );
           }),
       );
-      yield* router.add("GET", "/api/memories", (request) =>
-        cors(request, handleMemoriesList(db, request)),
-      );
-      yield* router.add("POST", "/api/memories", (request) =>
-        cors(request, handleMemoryCreate(db, request)),
-      );
       yield* router.add("POST", "/api/memories/extract", (request) =>
         cors(request, handleMemoryExtract(db, env, request)),
-      );
-      yield* router.add("DELETE", "/api/memories/:memoryId", (request) =>
-        cors(request, handleMemoryDelete(db, request)),
-      );
-      yield* router.add("GET", "/api/notes", (request) =>
-        cors(request, handleNotesList(db, request)),
-      );
-      yield* router.add("POST", "/api/notes", (request) =>
-        cors(request, handleNoteCreate(db, request)),
-      );
-      yield* router.add("PATCH", "/api/notes/:noteId", (request) =>
-        cors(request, handleNoteUpdate(db, request)),
-      );
-      yield* router.add("DELETE", "/api/notes/:noteId", (request) =>
-        cors(request, handleNoteDelete(db, request)),
       );
       yield* router.add("*", "/*", (request) => {
         if (request.method === "OPTIONS") return handleCorsPreflight(request);
@@ -305,7 +277,22 @@ export default class Api extends Cloudflare.Worker<Api>()(
     }) as Effect.Effect<void>;
 
     return {
-      fetch: router.asHttpEffect().pipe(
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        const pathname = new URL(request.url, "http://localhost").pathname;
+        if (
+          pathname === "/api/openapi.json" ||
+          pathname === "/api/notes" ||
+          pathname.startsWith("/api/notes/") ||
+          pathname === "/api/memories" ||
+          (pathname.startsWith("/api/memories/") && pathname !== "/api/memories/extract")
+        ) {
+          const httpApiRouter = yield* HttpRouter.make;
+          yield* registerHttpApi({ db, router: httpApiRouter });
+          return yield* httpApiRouter.asHttpEffect();
+        }
+        return yield* router.asHttpEffect();
+      }).pipe(
         Effect.scoped,
         Effect.catch(() =>
           Effect.succeed(HttpServerResponse.text("Internal Server Error", { status: 500 })),
@@ -1002,116 +989,6 @@ const handleMessageRead = (db: QueryDatabaseClient, request: HttpServerRequest) 
     }
 
     return yield* HttpServerResponse.json({ message: rowToMessage(message) });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const getMemoryIdFromPath = (pathname: string): string | undefined => {
-  const match = pathname.match(/^\/api\/memories\/([^/]+)$/);
-  return match?.[1];
-};
-
-const getNoteIdFromPath = (pathname: string): string | undefined => {
-  const match = pathname.match(/^\/api\/notes\/([^/]+)$/);
-  return match?.[1];
-};
-
-const handleMemoriesList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url, "http://localhost");
-    const search = url.searchParams.get("search") ?? undefined;
-    const limit = Number(url.searchParams.get("limit") ?? "10");
-    const memories =
-      search !== undefined
-        ? yield* searchMemories(db, search, limit)
-        : yield* getMemories(db, limit);
-    return yield* HttpServerResponse.json({ memories });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const handleMemoryCreate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const text = yield* request.text;
-    const body = JSON.parse(text || "{}") as {
-      content?: string;
-      source?: string;
-      threadId?: string;
-    };
-    if (body.content === undefined || body.content.trim() === "") {
-      return yield* HttpServerResponse.json({ error: "content is required" }, { status: 400 });
-    }
-    const id = yield* insertMemory(db, body.content, body.source, body.threadId);
-    return yield* HttpServerResponse.json({ id }, { status: id === null ? 400 : 201 });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const handleMemoryDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url, "http://localhost");
-    const id = getMemoryIdFromPath(url.pathname);
-    if (id === undefined) {
-      return yield* HttpServerResponse.json({ error: "Invalid memory id" }, { status: 400 });
-    }
-    yield* deleteMemory(db, id);
-    return yield* HttpServerResponse.json({ success: true });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const handleNotesList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url, "http://localhost");
-    const search = url.searchParams.get("search") ?? undefined;
-    const limit = Number(url.searchParams.get("limit") ?? "100");
-    const notes =
-      search !== undefined ? yield* searchNotes(db, search, limit) : yield* getNotes(db, limit);
-    return yield* HttpServerResponse.json({ notes });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const handleNoteCreate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const requestText = yield* request.text;
-    const body = JSON.parse(requestText || "{}") as { content?: string };
-    if (body.content === undefined || body.content.trim() === "") {
-      return yield* HttpServerResponse.json({ error: "content is required" }, { status: 400 });
-    }
-    const id = yield* insertNote(db, body.content);
-    return yield* HttpServerResponse.json({ id }, { status: id === null ? 400 : 201 });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const handleNoteUpdate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url, "http://localhost");
-    const id = getNoteIdFromPath(url.pathname);
-    if (id === undefined) {
-      return yield* HttpServerResponse.json({ error: "Invalid note id" }, { status: 400 });
-    }
-    const requestText = yield* request.text;
-    const body = JSON.parse(requestText || "{}") as { content?: string };
-    if (body.content === undefined || body.content.trim() === "") {
-      return yield* HttpServerResponse.json({ error: "content is required" }, { status: 400 });
-    }
-    yield* updateNote(db, id, body.content);
-    return yield* HttpServerResponse.json({ success: true });
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const handleNoteDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
-  Effect.gen(function* () {
-    const url = new URL(request.url, "http://localhost");
-    const id = getNoteIdFromPath(url.pathname);
-    if (id === undefined) {
-      return yield* HttpServerResponse.json({ error: "Invalid note id" }, { status: 400 });
-    }
-    yield* deleteNote(db, id);
-    return yield* HttpServerResponse.json({ success: true });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );

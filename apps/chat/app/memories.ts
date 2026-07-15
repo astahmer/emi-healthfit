@@ -1,22 +1,21 @@
-export interface Memory {
-  id: string;
-  content: string;
-  source: string | null;
-  thread_id: string | null;
-  created_at: string;
-  rank?: number;
-}
+import type { Memory } from "@emi/api-contract";
+import { runApi } from "./api-client";
+
+export type { Memory } from "@emi/api-contract";
 
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
 
 export const fetchMemories = async (search?: string, limit = 100): Promise<Memory[]> => {
-  const params = new URLSearchParams();
-  if (search !== undefined && search.trim() !== "") params.set("search", search.trim());
-  params.set("limit", String(limit));
-  const res = await fetch(`${apiBase()}/api/memories?${params.toString()}`);
-  if (!res.ok) throw new Error(`Failed to load memories: ${res.status}`);
-  const data = (await res.json()) as { memories: Memory[] };
-  return data.memories;
+  const normalizedSearch = search?.trim();
+  const data = await runApi((client) =>
+    client.memories.list({
+      query: {
+        search: normalizedSearch === "" ? undefined : normalizedSearch,
+        limit,
+      },
+    }),
+  );
+  return [...data.memories];
 };
 
 export const createMemory = async (
@@ -24,13 +23,9 @@ export const createMemory = async (
   source?: string,
   threadId?: string,
 ): Promise<string> => {
-  const res = await fetch(`${apiBase()}/api/memories`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content, source, threadId }),
-  });
-  if (!res.ok) throw new Error(`Failed to create memory: ${res.status}`);
-  const data = (await res.json()) as { id: string };
+  const data = await runApi((client) =>
+    client.memories.create({ payload: { content, source, threadId } }),
+  );
   return data.id;
 };
 
@@ -46,6 +41,5 @@ export const extractMemories = async (text: string, threadId?: string): Promise<
 };
 
 export const deleteMemory = async (id: string): Promise<void> => {
-  const res = await fetch(`${apiBase()}/api/memories/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Failed to delete memory: ${res.status}`);
+  await runApi((client) => client.memories.remove({ params: { id } }));
 };
