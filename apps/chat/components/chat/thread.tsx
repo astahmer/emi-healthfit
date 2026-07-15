@@ -643,6 +643,12 @@ export const Thread = ({
               ))}
             </div>
           )}
+          {runtime.isPreparingAttachments && (
+            <p className="px-3 pb-2 text-xs text-muted-foreground">Optimizing attachments…</p>
+          )}
+          {runtime.attachmentError !== null && (
+            <p className="px-3 pb-2 text-xs text-destructive">{runtime.attachmentError}</p>
+          )}
           <textarea
             value={runtime.draft}
             onChange={(event) => runtime.setDraft(event.target.value)}

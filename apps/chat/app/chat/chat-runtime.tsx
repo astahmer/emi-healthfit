@@ -17,6 +17,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import { buildNotesContext } from "../notes";
 import { useNotes } from "../notes-context";
 import { getConversationViewMessages } from "./conversation-tree";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
+import { prepareAttachments } from "./attachments";
 
 export interface ChatRuntimeConfig {
   model: string;
@@ -46,6 +48,8 @@ interface ChatRuntimeValue {
   files: import("ai").FileUIPart[];
   isStreaming: boolean;
   error: Error | null;
+  attachmentError: string | null;
+  isPreparingAttachments: boolean;
   setDraft: (value: string) => void;
   addFiles: (files: FileList) => Promise<void>;
   removeFile: (url: string) => void;
@@ -127,6 +131,8 @@ export const ChatRuntimeProvider = ({
   const [state, send] = useMachine(chatRuntimeMachine, {
     input: { sessionId: config.sessionId, messages: config.initialMessages },
   });
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const historySignatureRef = useRef("");
@@ -402,13 +408,27 @@ export const ChatRuntimeProvider = ({
       files: selectionMatchesRuntime ? state.context.files : [],
       isStreaming: selectionMatchesRuntime && state.matches("streaming"),
       error: state.context.error,
+      attachmentError,
+      isPreparingAttachments,
       setDraft: (value) => send({ type: "draft.changed", value }),
       addFiles: async (files) => {
-        const additions = await convertFileListToFileUIParts(files);
-        send({
-          type: "files.changed",
-          files: [...stateRef.current.context.files, ...additions].slice(0, 10),
-        });
+        setAttachmentError(null);
+        setIsPreparingAttachments(true);
+        try {
+          const prepared = await prepareAttachments({
+            files,
+            existingCount: stateRef.current.context.files.length,
+          });
+          const additions = await convertFileListToFileUIParts(prepared);
+          send({
+            type: "files.changed",
+            files: [...stateRef.current.context.files, ...additions],
+          });
+        } catch (error) {
+          setAttachmentError(error instanceof Error ? error.message : "Could not add attachment.");
+        } finally {
+          setIsPreparingAttachments(false);
+        }
       },
       removeFile: (url) =>
         send({
@@ -423,7 +443,16 @@ export const ChatRuntimeProvider = ({
       },
       clearError: () => send({ type: "error.cleared" }),
     };
-  }, [config.initialMessages, config.sessionId, revise, send, state, submit]);
+  }, [
+    attachmentError,
+    config.initialMessages,
+    config.sessionId,
+    isPreparingAttachments,
+    revise,
+    send,
+    state,
+    submit,
+  ]);
 
   return <ChatRuntimeContext.Provider value={value}>{children}</ChatRuntimeContext.Provider>;
 };

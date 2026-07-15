@@ -42,6 +42,8 @@ describe("Thread", () => {
       files: [],
       isStreaming: false,
       error: null,
+      attachmentError: null,
+      isPreparingAttachments: false,
       setDraft: vi.fn(),
       addFiles: vi.fn(),
       removeFile: vi.fn(),
