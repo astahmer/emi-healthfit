@@ -9,7 +9,7 @@ pnpm install
 pnpm --filter chat dev
 ```
 
-Open [http://localhost:3000/chat](http://localhost:3000/chat).
+Open [http://localhost:3232/chat](http://localhost:3232/chat).
 
 Key files:
 
