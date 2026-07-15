@@ -150,20 +150,6 @@ export const getCachedMessages = async (
     );
   });
 
-export const setCachedMessages = async (
-  threadId: string,
-  messages: Array<UIMessage & { usage?: MessageUsage }>,
-): Promise<void> =>
-  safeDb(async (database) => {
-    const now = Date.now();
-    await database.transaction("rw", database.messages, async () => {
-      await database.messages.where("threadId").equals(threadId).delete();
-      await database.messages.bulkPut(
-        messages.map((message) => toCachedMessage({ message, threadId, syncedAt: now })),
-      );
-    });
-  });
-
 export const setCachedConversation = async ({
   thread,
   messages,

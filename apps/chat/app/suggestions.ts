@@ -1,4 +1,4 @@
-export interface SuggestionsConfig {
+interface SuggestionsConfig {
   provider?: string;
   apiKey?: string;
   baseUrl?: string;

@@ -12,6 +12,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
+    "knip": "knip",
     "format": "pnpm -r format",
     "format:fix": "pnpm -r format:fix",
     "verify": "pnpm --filter api verify",
@@ -20,6 +21,7 @@
     "chat:build": "pnpm --filter chat build"
   },
   "devDependencies": {
+    "knip": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:"

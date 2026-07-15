@@ -77,7 +77,9 @@ const estimateMessageCost = (metadata: MessageMeta): number => {
 };
 
 const formatTokens = (tokens: number): string =>
-  new Intl.NumberFormat("en", { notation: tokens >= 10_000 ? "compact" : "standard" }).format(tokens);
+  new Intl.NumberFormat("en", { notation: tokens >= 10_000 ? "compact" : "standard" }).format(
+    tokens,
+  );
 
 export const ConversationUsage = ({ conversationId }: { conversationId: string }) => {
   const usage = useUsage();
@@ -108,7 +110,9 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
         <div>
           <p className="text-sm font-medium">Conversation usage</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {formatTokens(usage.totalUsage.promptTokens ?? 0)} input · {formatTokens(usage.totalUsage.completionTokens ?? 0)} output · ~${estimatedCost.toFixed(4)}
+            {formatTokens(usage.totalUsage.promptTokens ?? 0)} input ·{" "}
+            {formatTokens(usage.totalUsage.completionTokens ?? 0)} output · ~$
+            {estimatedCost.toFixed(4)}
           </p>
         </div>
         <label className="block text-xs font-medium">
@@ -132,22 +136,35 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
             <span>{formatTokens(budget)}</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full bg-primary" style={{ width: `${Math.min(100, (totalTokens / budget) * 100)}%` }} />
+            <div
+              className="h-full bg-primary"
+              style={{ width: `${Math.min(100, (totalTokens / budget) * 100)}%` }}
+            />
           </div>
         </div>
         <div className="max-h-48 space-y-2 overflow-y-auto">
           {history.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Usage appears after a completed response.</p>
+            <p className="text-xs text-muted-foreground">
+              Usage appears after a completed response.
+            </p>
           ) : (
             history.map(([messageId, metadata]) => (
               <div key={messageId} className="flex justify-between gap-3 text-xs">
-                <span className="truncate text-muted-foreground">{metadata.model ?? "Unknown model"}</span>
-                <span>{formatTokens(metadata.usage?.totalTokens ?? 0)} · ${estimateMessageCost(metadata).toFixed(4)}</span>
+                <span className="truncate text-muted-foreground">
+                  {metadata.model ?? "Unknown model"}
+                </span>
+                <span>
+                  {formatTokens(metadata.usage?.totalTokens ?? 0)} · $
+                  {estimateMessageCost(metadata).toFixed(4)}
+                </span>
               </div>
             ))
           )}
         </div>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">Estimates use standard token prices and exclude cached-token and tool-call discounts or fees.</p>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          Estimates use standard token prices and exclude cached-token and tool-call discounts or
+          fees.
+        </p>
       </div>
     </details>
   );

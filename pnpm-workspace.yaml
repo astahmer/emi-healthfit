@@ -5,6 +5,7 @@ catalog:
   "@types/json-schema": "^7.0.15"
   ai: "^6.0.209"
   effect: "4.0.0-beta.88"
+  knip: "^6.26.0"
   oxfmt: "^0.56.0"
   oxlint: "^1.71.0"
   typescript: "7.0.1-rc"

@@ -11,12 +11,6 @@ export interface ChatRequest {
   systemPrompt?: string;
 }
 
-export interface ChatResponse {
-  response: string;
-  recoveryLabel: string;
-  model: string;
-}
-
 type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
 
 const buildMessages = (userMessage: string, systemPrompt?: string) => {

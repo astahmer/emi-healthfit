@@ -41,7 +41,7 @@ const ignoreCacheError = (promise: Promise<unknown>): void => {
   promise.catch(() => {});
 };
 
-export const fetchConversations = async (search?: string): Promise<Thread[]> => {
+const fetchConversations = async (search?: string): Promise<Thread[]> => {
   const params = search ? `?search=${encodeURIComponent(search)}` : "";
   const res = await fetch(`${apiBase()}/api/conversations${params}`);
   if (!res.ok) throw new Error(`Failed to load conversations: ${res.status}`);

@@ -28,7 +28,7 @@ export interface ToolDefinition {
   parameters: JSONSchema7;
 }
 
-export class ToolExecutionError extends Schema.TaggedErrorClass<ToolExecutionError>()(
+class ToolExecutionError extends Schema.TaggedErrorClass<ToolExecutionError>()(
   "ToolExecutionError",
   {
     tool: Schema.String,
@@ -189,7 +189,7 @@ const RenderComponent = Tool.make("render_component", {
   failure: Schema.Unknown,
 });
 
-export const FitnessToolkit = Toolkit.make(
+const FitnessToolkit = Toolkit.make(
   GetSummary,
   GetRecovery,
   QueryDatabase,

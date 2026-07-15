@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import type { QueryDatabaseClient } from "../db/operations.ts";
 import type { HevySetRow, SleepSessionRow } from "../db/schema.ts";
 
-export interface WorkoutContext {
+interface WorkoutContext {
   lastSessionDate: string | null;
   lastSessionSummary: string;
   recentVolume: number;
@@ -10,7 +10,7 @@ export interface WorkoutContext {
   recentSets: Array<HevySetRow & { session_start: string }>;
 }
 
-export interface SleepContext {
+interface SleepContext {
   averageMinutes: number | null;
   lastNight: SleepSessionRow | null;
   sevenDayAverage: number | null;

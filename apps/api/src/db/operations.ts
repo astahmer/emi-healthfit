@@ -352,7 +352,7 @@ export interface ExerciseProgressSet {
   sets: number;
 }
 
-export interface ExerciseProgress {
+interface ExerciseProgress {
   exercise_title: string;
   weeks: number;
   workouts: ExerciseProgressSet[];
@@ -427,7 +427,7 @@ export const getExerciseProgress = (db: QueryDatabaseClient, exerciseTitle: stri
     } satisfies ExerciseProgress;
   });
 
-export interface SleepTrend {
+interface SleepTrend {
   days: number;
   avg_in_bed_min: number | null;
   avg_asleep_min: number | null;
@@ -467,7 +467,7 @@ export const getSleepTrend = (db: QueryDatabaseClient, days = 7) =>
     } satisfies SleepTrend;
   });
 
-export interface WorkoutStreak {
+interface WorkoutStreak {
   current_streak: number;
   longest_streak: number;
   last_workout_date: string | null;
@@ -770,12 +770,12 @@ export interface WorkoutSet {
   exercise_notes: string | null;
 }
 
-export interface WorkoutExercise {
+interface WorkoutExercise {
   exercise_title: string;
   sets: WorkoutSet[];
 }
 
-export interface WorkoutSessionDetail extends WorkoutSession {
+interface WorkoutSessionDetail extends WorkoutSession {
   exerciseDetails: WorkoutExercise[];
 }
 
@@ -1083,7 +1083,7 @@ export const renameConversation = (
       .run();
   });
 
-export const updateConversationTimestamp = (db: QueryDatabaseClient, conversationId: string) =>
+const updateConversationTimestamp = (db: QueryDatabaseClient, conversationId: string) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`

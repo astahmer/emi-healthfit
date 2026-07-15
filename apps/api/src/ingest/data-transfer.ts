@@ -102,7 +102,7 @@ interface ImportCount {
   new: number;
 }
 
-export interface IngestedDataImportPreview {
+interface IngestedDataImportPreview {
   groups: Record<
     | "dailyActivity"
     | "healthWorkouts"

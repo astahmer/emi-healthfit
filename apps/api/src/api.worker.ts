@@ -209,9 +209,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("POST", "/api/import/ingested-data", (request) =>
         cors(request, handleIngestedDataImport(db, request)),
       );
-      yield* router.add("GET", "/api/privacy", (request) =>
-        cors(request, handlePrivacyRead(db)),
-      );
+      yield* router.add("GET", "/api/privacy", (request) => cors(request, handlePrivacyRead(db)));
       yield* router.add("PATCH", "/api/privacy", (request) =>
         cors(request, handlePrivacyUpdate(db, bucket, request)),
       );
@@ -635,9 +633,7 @@ const handlePrivacyUpdate = (
     const raw = JSON.parse((yield* request.text) || "{}") as unknown;
     const parsed = Schema.decodeUnknownOption(
       Schema.Struct({
-        rawUploadRetentionDays: Schema.Int.check(
-          Schema.isBetween({ minimum: 0, maximum: 3650 }),
-        ),
+        rawUploadRetentionDays: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 3650 })),
       }),
     )(raw);
     if (Option.isNone(parsed)) {

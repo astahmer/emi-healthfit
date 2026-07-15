@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [
+    ".references/**",
+    "apps/chat/components/ui/alert-dialog.tsx",
+    "apps/chat/components/ui/button.tsx",
+    "apps/chat/components/ui/dropdown-menu.tsx",
+    "apps/chat/components/ui/select.tsx",
+    "apps/chat/components/ui/sheet.tsx",
+    "apps/chat/components/ui/sidebar.tsx"
+  ],
+  "ignoreDependencies": ["oxfmt", "oxlint"],
+  "workspaces": {
+    "apps/api": {
+      "entry": ["alchemy.run.ts", "src/api.worker.ts", "scripts/**/*.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
+    },
+    "apps/chat": {
+      "ignoreDependencies": ["tailwindcss", "tw-animate-css"],
+      "entry": [
+        "app/**/{page,layout,route}.tsx",
+        "app/sw.ts",
+        "e2e/**/*.ts",
+        "scripts/**/*.mjs"
+      ],
+      "project": ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "e2e/**/*.ts", "lib/**/*.ts"]
+    }
+  }
+}

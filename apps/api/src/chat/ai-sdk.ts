@@ -14,7 +14,7 @@ import type { JSONSchema7 } from "json-schema";
 import * as Effect from "effect/Effect";
 import { fitnessCoachV1 } from "./prompts/fitness-coach-v1.ts";
 
-export interface ChatConfig {
+interface ChatConfig {
   provider: "openai";
   baseUrl?: string | undefined;
   apiKey: string;

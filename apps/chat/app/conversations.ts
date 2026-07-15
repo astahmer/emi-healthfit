@@ -107,7 +107,7 @@ const decodeConversationSnapshot = ({
   };
 };
 
-export const getCachedConversationMessages = async (
+const getCachedConversationMessages = async (
   conversationId: string,
 ): Promise<ConversationSnapshot | undefined> => {
   const memorySnapshot = memorySnapshots.get(conversationId);

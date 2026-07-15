@@ -14,7 +14,7 @@ import {
 } from "../conversations";
 import { searchMessages } from "./conversation-tree";
 
-export type ViewMode = "inline" | "sidebar" | "columns";
+type ViewMode = "inline" | "sidebar" | "columns";
 
 export interface Conversation {
   id: string;
