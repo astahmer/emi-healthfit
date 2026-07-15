@@ -216,7 +216,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
               }
             >
               <MessageSquareIcon />
-              {thread.pinned && <PinIcon className="size-3 fill-current" aria-label="Pinned" />}
+              {Boolean(thread.pinned) && <PinIcon className="size-3 fill-current" aria-label="Pinned" />}
               <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
                 <span className="flex-1 truncate">{title}</span>
                 <Tooltip>

@@ -190,7 +190,7 @@ export const ThreadNavigation = ({
                       >
                         <GitBranchIcon className="size-3.5 shrink-0" />
                         <span className="truncate">{title}</span>
-                        {thread.pinned && <PinIcon className="size-3 fill-current" />}
+                        {Boolean(thread.pinned) && <PinIcon className="size-3 fill-current" />}
                       </button>
                       <ThreadMenu
                         thread={thread}
