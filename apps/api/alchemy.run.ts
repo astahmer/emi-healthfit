@@ -4,7 +4,6 @@ import * as Effect from "effect/Effect";
 
 import Api from "./src/api.worker.ts";
 
-
 export default Alchemy.Stack(
   "emi-healthfit",
   {

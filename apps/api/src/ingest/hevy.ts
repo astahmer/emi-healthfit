@@ -22,7 +22,20 @@ type HevyRow = typeof HevyRow.Type;
 
 const HEVY_DATE_FORMAT = /^\d{1,2} [A-Za-z]{3} \d{4}, \d{2}:\d{2}$/;
 
-const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthNames = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 export const parseHevyDate = (value: string): Effect.Effect<Date, Error> =>
   Effect.gen(function* () {
@@ -71,10 +84,15 @@ const toDateTimeLocal = (date: Date): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-export const parseHevyCsv = (text: string): Effect.Effect<{
-  sessions: HevySessionRow[];
-  sets: HevySetRow[];
-}, Error> =>
+export const parseHevyCsv = (
+  text: string,
+): Effect.Effect<
+  {
+    sessions: HevySessionRow[];
+    sets: HevySetRow[];
+  },
+  Error
+> =>
   Effect.gen(function* () {
     const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
     if (lines.length < 2) {
@@ -110,9 +128,8 @@ export const parseHevyCsv = (text: string): Effect.Effect<{
           onSome: (end) => parseHevyDate(end).pipe(Effect.map((date) => date)),
         });
 
-        const durationSec = endDate !== null
-          ? Math.round((endDate.getTime() - startDate.getTime()) / 1000)
-          : null;
+        const durationSec =
+          endDate !== null ? Math.round((endDate.getTime() - startDate.getTime()) / 1000) : null;
 
         sessionsById.set(sessionId, {
           session_id: sessionId,

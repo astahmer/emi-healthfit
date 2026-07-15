@@ -84,10 +84,7 @@
       "indexes": {
         "idx_chat_generation_chunks_generation": {
           "name": "idx_chat_generation_chunks_generation",
-          "columns": [
-            "generation_id",
-            "sequence"
-          ],
+          "columns": ["generation_id", "sequence"],
           "isUnique": false
         }
       },
@@ -96,22 +93,15 @@
           "name": "chat_generation_chunks_generation_id_chat_generations_id_fk",
           "tableFrom": "chat_generation_chunks",
           "tableTo": "chat_generations",
-          "columnsFrom": [
-            "generation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["generation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "chat_generation_chunks_generation_id_sequence_pk": {
-          "columns": [
-            "generation_id",
-            "sequence"
-          ],
+          "columns": ["generation_id", "sequence"],
           "name": "chat_generation_chunks_generation_id_sequence_pk"
         }
       },
@@ -167,26 +157,17 @@
       "indexes": {
         "idx_chat_generations_conversation_status": {
           "name": "idx_chat_generations_conversation_status",
-          "columns": [
-            "conversation_id",
-            "status",
-            "created_at"
-          ],
+          "columns": ["conversation_id", "status", "created_at"],
           "isUnique": false
         },
         "idx_chat_generations_retention": {
           "name": "idx_chat_generations_retention",
-          "columns": [
-            "status",
-            "updated_at"
-          ],
+          "columns": ["status", "updated_at"],
           "isUnique": false
         },
         "idx_chat_generations_one_running": {
           "name": "idx_chat_generations_one_running",
-          "columns": [
-            "conversation_id"
-          ],
+          "columns": ["conversation_id"],
           "isUnique": true,
           "where": "status = 'running'"
         }
@@ -196,12 +177,8 @@
           "name": "chat_generations_conversation_id_conversations_id_fk",
           "tableFrom": "chat_generations",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -253,9 +230,7 @@
       "indexes": {
         "idx_conversations_updated_at": {
           "name": "idx_conversations_updated_at",
-          "columns": [
-            "updated_at"
-          ],
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -407,11 +382,7 @@
       "indexes": {
         "health_workouts_date_type_start_raw_unique": {
           "name": "health_workouts_date_type_start_raw_unique",
-          "columns": [
-            "date",
-            "type",
-            "start_raw"
-          ],
+          "columns": ["date", "type", "start_raw"],
           "isUnique": true
         }
       },
@@ -556,11 +527,7 @@
       "indexes": {
         "hevy_sets_session_id_exercise_title_set_index_unique": {
           "name": "hevy_sets_session_id_exercise_title_set_index_unique",
-          "columns": [
-            "session_id",
-            "exercise_title",
-            "set_index"
-          ],
+          "columns": ["session_id", "exercise_title", "set_index"],
           "isUnique": true
         }
       },
@@ -569,12 +536,8 @@
           "name": "hevy_sets_session_id_hevy_sessions_session_id_fk",
           "tableFrom": "hevy_sets",
           "tableTo": "hevy_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "session_id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["session_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -625,16 +588,12 @@
       "indexes": {
         "idx_memories_created_at": {
           "name": "idx_memories_created_at",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         },
         "idx_memories_thread_id": {
           "name": "idx_memories_thread_id",
-          "columns": [
-            "thread_id"
-          ],
+          "columns": ["thread_id"],
           "isUnique": false
         }
       },
@@ -720,16 +679,12 @@
       "indexes": {
         "idx_messages_conversation_id": {
           "name": "idx_messages_conversation_id",
-          "columns": [
-            "conversation_id"
-          ],
+          "columns": ["conversation_id"],
           "isUnique": false
         },
         "idx_messages_parent_id": {
           "name": "idx_messages_parent_id",
-          "columns": [
-            "parent_id"
-          ],
+          "columns": ["parent_id"],
           "isUnique": false
         }
       },
@@ -738,12 +693,8 @@
           "name": "messages_conversation_id_conversations_id_fk",
           "tableFrom": "messages",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -787,9 +738,7 @@
       "indexes": {
         "idx_notes_updated_at": {
           "name": "idx_notes_updated_at",
-          "columns": [
-            "updated_at"
-          ],
+          "columns": ["updated_at"],
           "isUnique": false
         }
       },
@@ -854,10 +803,7 @@
       "indexes": {
         "sleep_sessions_date_start_unique": {
           "name": "sleep_sessions_date_start_unique",
-          "columns": [
-            "date",
-            "start"
-          ],
+          "columns": ["date", "start"],
           "isUnique": true
         }
       },
@@ -949,9 +895,7 @@
       "indexes": {
         "idx_thread_messages_thread_id": {
           "name": "idx_thread_messages_thread_id",
-          "columns": [
-            "thread_id"
-          ],
+          "columns": ["thread_id"],
           "isUnique": false
         }
       },
@@ -960,12 +904,8 @@
           "name": "thread_messages_thread_id_threads_id_fk",
           "tableFrom": "thread_messages",
           "tableTo": "threads",
-          "columnsFrom": [
-            "thread_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["thread_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -973,22 +913,15 @@
           "name": "thread_messages_message_id_messages_id_fk",
           "tableFrom": "thread_messages",
           "tableTo": "messages",
-          "columnsFrom": [
-            "message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["message_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "thread_messages_thread_id_message_id_pk": {
-          "columns": [
-            "thread_id",
-            "message_id"
-          ],
+          "columns": ["thread_id", "message_id"],
           "name": "thread_messages_thread_id_message_id_pk"
         }
       },
@@ -1060,9 +993,7 @@
       "indexes": {
         "idx_threads_conversation_id": {
           "name": "idx_threads_conversation_id",
-          "columns": [
-            "conversation_id"
-          ],
+          "columns": ["conversation_id"],
           "isUnique": false
         }
       },
@@ -1071,12 +1002,8 @@
           "name": "threads_conversation_id_conversations_id_fk",
           "tableFrom": "threads",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1084,12 +1011,8 @@
           "name": "threads_anchor_message_id_messages_id_fk",
           "tableFrom": "threads",
           "tableTo": "messages",
-          "columnsFrom": [
-            "anchor_message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["anchor_message_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

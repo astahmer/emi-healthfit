@@ -21,7 +21,7 @@ export function UploadPanel() {
     if (!state.matches("success")) return;
     if (healthRef.current !== null) healthRef.current.value = "";
     if (hevyRef.current !== null) hevyRef.current.value = "";
-  }, [state.value]);
+  }, [state]);
 
   const status = state.matches("success")
     ? formatResult(state.context.result)

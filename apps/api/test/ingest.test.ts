@@ -22,7 +22,10 @@ describe("HealthExportKit parser", () => {
     assert.strictEqual(result.workouts.at(-1)?.date, "2026-07-07");
 
     const workoutTypes = new Set(result.workouts.map((w) => w.type));
-    assert.deepStrictEqual(workoutTypes, new Set(["Cycling", "Elliptical", "Strength Training", "Walking"]));
+    assert.deepStrictEqual(
+      workoutTypes,
+      new Set(["Cycling", "Elliptical", "Strength Training", "Walking"]),
+    );
 
     const firstSleep = result.sleep[0];
     assert.ok(firstSleep);

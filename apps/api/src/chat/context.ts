@@ -42,58 +42,69 @@ const minutesToHours = (minutes: number | null): string => {
   return `${hours}h ${mins}m`;
 };
 
-export const buildChatContext = (
-  db: QueryDatabaseClient,
-) =>
+export const buildChatContext = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const today = formatDate(now());
     const sevenDaysAgo = daysAgo(7);
     const twoDaysAgo = daysAgo(2);
 
-    const lastSets = yield* db.prepare(`
+    const lastSets = yield* db
+      .prepare(`
       SELECT s.*, ses.start_time as session_start
       FROM hevy_sets s
       JOIN hevy_sessions ses ON s.session_id = ses.session_id
       ORDER BY ses.start_time DESC
       LIMIT 30
-    `).all<HevySetRow & { session_start: string }>();
+    `)
+      .all<HevySetRow & { session_start: string }>();
 
-    const lastSessions = yield* db.prepare(`
+    const lastSessions = yield* db
+      .prepare(`
       SELECT *
       FROM hevy_sessions
       ORDER BY start_time DESC
       LIMIT 3
-    `).all<{
-      session_id: string;
-      title: string;
-      start_time: string;
-      total_volume_kg: number;
-    }>();
+    `)
+      .all<{
+        session_id: string;
+        title: string;
+        start_time: string;
+        total_volume_kg: number;
+      }>();
 
-    const recentSets = yield* db.prepare(`
+    const recentSets = yield* db
+      .prepare(`
       SELECT s.*
       FROM hevy_sets s
       JOIN hevy_sessions ses ON s.session_id = ses.session_id
       WHERE ses.start_time >= ?
-    `).bind(sevenDaysAgo).all<HevySetRow>();
+    `)
+      .bind(sevenDaysAgo)
+      .all<HevySetRow>();
 
-    const sleepRows = yield* db.prepare(`
+    const sleepRows = yield* db
+      .prepare(`
       SELECT *
       FROM sleep_sessions
       WHERE date >= ?
       ORDER BY date DESC
-    `).bind(sevenDaysAgo).all<SleepSessionRow>();
+    `)
+      .bind(sevenDaysAgo)
+      .all<SleepSessionRow>();
 
-    const dailyActivity = yield* db.prepare(`
+    const dailyActivity = yield* db
+      .prepare(`
       SELECT *
       FROM daily_activity
       WHERE date >= ?
       ORDER BY date DESC
-    `).bind(sevenDaysAgo).all<{
-      date: string;
-      active_kcal: number;
-      steps: number;
-    }>();
+    `)
+      .bind(sevenDaysAgo)
+      .all<{
+        date: string;
+        active_kcal: number;
+        steps: number;
+      }>();
 
     const recentVolume = recentSets.results.reduce((sum: number, set: HevySetRow) => {
       if (set.weight_kg !== null && set.reps !== null) {
@@ -102,25 +113,26 @@ export const buildChatContext = (
       return sum;
     }, 0);
 
-    const recentWorkoutCount = new Set(
-      recentSets.results.map((set: HevySetRow) => set.session_id),
-    ).size;
+    const recentWorkoutCount = new Set(recentSets.results.map((set: HevySetRow) => set.session_id))
+      .size;
 
     const lastSessionDate = lastSessions.results[0]?.start_time.slice(0, 10) ?? null;
 
-    const lastSessionSummary = lastSessions.results.length > 0
-      ? lastSessions.results
-        .map((session) => `${session.title} on ${session.start_time.slice(0, 10)}`)
-        .join("; ")
-      : "No recent workouts found";
+    const lastSessionSummary =
+      lastSessions.results.length > 0
+        ? lastSessions.results
+            .map((session) => `${session.title} on ${session.start_time.slice(0, 10)}`)
+            .join("; ")
+        : "No recent workouts found";
 
     const sleepMinutes = sleepRows.results
       .map((s: SleepSessionRow) => s.asleep_min ?? s.in_bed_min)
       .filter((m): m is number => m !== null);
 
-    const sevenDaySleepAvg = sleepMinutes.length > 0
-      ? sleepMinutes.reduce((a: number, b: number) => a + b, 0) / sleepMinutes.length
-      : null;
+    const sevenDaySleepAvg =
+      sleepMinutes.length > 0
+        ? sleepMinutes.reduce((a: number, b: number) => a + b, 0) / sleepMinutes.length
+        : null;
 
     const strain48h = lastSets.results
       .filter((set: HevySetRow & { session_start: string }) => set.session_start >= twoDaysAgo)
@@ -131,16 +143,15 @@ export const buildChatContext = (
         return sum;
       }, 0);
 
-    const activeKcalAvg = dailyActivity.results.length > 0
-      ? dailyActivity.results.reduce((sum: number, d: { active_kcal: number }) => sum + (d.active_kcal ?? 0), 0) /
-        dailyActivity.results.length
-      : null;
+    const activeKcalAvg =
+      dailyActivity.results.length > 0
+        ? dailyActivity.results.reduce(
+            (sum: number, d: { active_kcal: number }) => sum + (d.active_kcal ?? 0),
+            0,
+          ) / dailyActivity.results.length
+        : null;
 
-    const { label, explanation } = computeRecoveryLabel(
-      sevenDaySleepAvg,
-      strain48h,
-      activeKcalAvg,
-    );
+    const { label, explanation } = computeRecoveryLabel(sevenDaySleepAvg, strain48h, activeKcalAvg);
 
     return {
       today,
@@ -194,9 +205,12 @@ const computeRecoveryLabel = (
 };
 
 export const renderContextPrompt = (ctx: ChatContext, userMessage: string): string => {
-  const recentExercises = ctx.lastWorkout.recentSets.length > 0
-    ? Array.from(new Set(ctx.lastWorkout.recentSets.map((s) => s.exercise_title))).slice(0, 10).join(", ")
-    : "none";
+  const recentExercises =
+    ctx.lastWorkout.recentSets.length > 0
+      ? Array.from(new Set(ctx.lastWorkout.recentSets.map((s) => s.exercise_title)))
+          .slice(0, 10)
+          .join(", ")
+      : "none";
 
   return `You are the user's personal gym assistant with access to their Apple Health and Hevy workout data.
 

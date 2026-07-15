@@ -4,21 +4,54 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@ai-sdk/openai':
+      specifier: ^3.0.74
+      version: 3.0.84
+    '@types/json-schema':
+      specifier: ^7.0.15
+      version: 7.0.15
+    ai:
+      specifier: ^6.0.209
+      version: 6.0.224
+    effect:
+      specifier: 4.0.0-beta.88
+      version: 4.0.0-beta.88
+    oxfmt:
+      specifier: ^0.56.0
+      version: 0.56.0
+    oxlint:
+      specifier: ^1.71.0
+      version: 1.73.0
+    typescript:
+      specifier: 7.0.1-rc
+      version: 7.0.1-rc
+    zod:
+      specifier: ^3.25.76
+      version: 3.25.76
+
 importers:
 
   .:
     devDependencies:
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.56.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.73.0
       typescript:
-        specifier: 7.0.1-rc
+        specifier: 'catalog:'
         version: 7.0.1-rc
 
   apps/api:
     dependencies:
       '@ai-sdk/openai':
-        specifier: ^3.0.74
+        specifier: 'catalog:'
         version: 3.0.84(zod@3.25.76)
       ai:
-        specifier: ^6.0.209
+        specifier: 'catalog:'
         version: 6.0.224(zod@3.25.76)
       alchemy:
         specifier: 2.0.0-beta.59
@@ -27,10 +60,10 @@ importers:
         specifier: 0.45.2
         version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0)
       effect:
-        specifier: 4.0.0-beta.88
+        specifier: 'catalog:'
         version: 4.0.0-beta.88
       zod:
-        specifier: ^3.25.56
+        specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
       '@cloudflare/workers-types':
@@ -40,19 +73,25 @@ importers:
         specifier: 4.0.0-beta.88
         version: 4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1)
       '@types/json-schema':
-        specifier: ^7.0.15
+        specifier: 'catalog:'
         version: 7.0.15
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.56.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.73.0
       typescript:
-        specifier: 7.0.1-rc
+        specifier: 'catalog:'
         version: 7.0.1-rc
 
   apps/chat:
     dependencies:
       '@ai-sdk/openai':
-        specifier: ^3.0.74
+        specifier: 'catalog:'
         version: 3.0.84(zod@3.25.76)
       '@json-render/core':
         specifier: 0.19.0
@@ -82,7 +121,7 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0(@types/react@19.2.17)(react@19.2.7)(xstate@5.32.4)
       ai:
-        specifier: ^6.0.209
+        specifier: 'catalog:'
         version: 6.0.224(zod@3.25.76)
       class-variance-authority:
         specifier: ^0.7.1
@@ -94,7 +133,7 @@ importers:
         specifier: ^4.4.4
         version: 4.4.4
       effect:
-        specifier: 4.0.0-beta.88
+        specifier: 'catalog:'
         version: 4.0.0-beta.88
       lucide-react:
         specifier: ^1.21.0
@@ -133,7 +172,7 @@ importers:
         specifier: ^5.32.4
         version: 5.32.4
       zod:
-        specifier: ^3.25.76
+        specifier: 'catalog:'
         version: 3.25.76
       zustand:
         specifier: ^5.0.14
@@ -144,10 +183,10 @@ importers:
         version: 1.61.1
       '@serwist/cli':
         specifier: ^9.5.11
-        version: 9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@6.0.3)
+        version: 9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@7.0.1-rc)
       '@serwist/next':
         specifier: ^9.5.11
-        version: 9.5.11(@serwist/cli@9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@6.0.3))(next@16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
+        version: 9.5.11(@serwist/cli@9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@7.0.1-rc))(next@16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.1-rc)
       '@tailwindcss/postcss':
         specifier: ^4.3.1
         version: 4.3.2
@@ -161,7 +200,7 @@ importers:
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
       '@types/json-schema':
-        specifier: ^7.0.15
+        specifier: 'catalog:'
         version: 7.0.15
       '@types/node':
         specifier: ^26.0.0
@@ -185,20 +224,20 @@ importers:
         specifier: ^29.1.1
         version: 29.1.1
       oxfmt:
-        specifier: ^0.56.0
+        specifier: 'catalog:'
         version: 0.56.0
       oxlint:
-        specifier: ^1.71.0
+        specifier: 'catalog:'
         version: 1.73.0
       serwist:
         specifier: ^9.5.11
-        version: 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+        version: 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.2
       typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
+        specifier: 'catalog:'
+        version: 7.0.1-rc
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -5053,11 +5092,6 @@ packages:
     resolution: {integrity: sha512-YGYEVz3Fm5iy/AybuA0oyNFq7H4CgQNfRp/qfe8nurE1kuCeNm3/vfm9X4Mtl+qLyaKJUh5xrFZwogr41SMjYA==}
     engines: {node: '>=20'}
 
-  typescript@6.0.3:
-    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
   typescript@7.0.1-rc:
     resolution: {integrity: sha512-drEP77wK7CCDlPfXZH4e008UUQOsw1DFmHmZOZjuNA+yoDLLnSNMZRXi90NbV/1LVo7SbNLq1bs3jjvk49TEqQ==}
     engines: {node: '>=16.20.0'}
@@ -7503,7 +7537,7 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@serwist/build@9.5.11(browserslist@4.28.2)(typescript@6.0.3)':
+  '@serwist/build@9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)':
     dependencies:
       '@serwist/utils': 9.5.11(browserslist@4.28.2)
       common-tags: 1.8.2
@@ -7513,14 +7547,14 @@ snapshots:
       type-fest: 5.6.0
       zod: 4.4.1
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.1-rc
     transitivePeerDependencies:
       - browserslist
 
-  '@serwist/cli@9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@6.0.3)':
+  '@serwist/cli@9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@7.0.1-rc)':
     dependencies:
       '@inquirer/prompts': 8.4.2(@types/node@26.1.1)
-      '@serwist/build': 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+      '@serwist/build': 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
       '@serwist/utils': 9.5.11(browserslist@4.28.2)
       chalk: 5.6.2
       chokidar: 5.0.0
@@ -7538,23 +7572,23 @@ snapshots:
       - browserslist
       - typescript
 
-  '@serwist/next@9.5.11(@serwist/cli@9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@6.0.3))(next@16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@6.0.3)':
+  '@serwist/next@9.5.11(@serwist/cli@9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@7.0.1-rc))(next@16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@7.0.1-rc)':
     dependencies:
-      '@serwist/build': 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+      '@serwist/build': 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
       '@serwist/utils': 9.5.11(browserslist@4.28.2)
-      '@serwist/webpack-plugin': 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
-      '@serwist/window': 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+      '@serwist/webpack-plugin': 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
+      '@serwist/window': 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
       browserslist: 4.28.2
       glob: 13.0.6
       kolorist: 1.8.0
       next: 16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react: 19.2.7
       semver: 7.7.4
-      serwist: 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+      serwist: 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
       zod: 4.4.1
     optionalDependencies:
-      '@serwist/cli': 9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@6.0.3)
-      typescript: 6.0.3
+      '@serwist/cli': 9.5.11(@types/node@26.1.1)(browserslist@4.28.2)(esbuild@0.28.1)(typescript@7.0.1-rc)
+      typescript: 7.0.1-rc
     transitivePeerDependencies:
       - webpack
 
@@ -7562,23 +7596,23 @@ snapshots:
     optionalDependencies:
       browserslist: 4.28.2
 
-  '@serwist/webpack-plugin@9.5.11(browserslist@4.28.2)(typescript@6.0.3)':
+  '@serwist/webpack-plugin@9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)':
     dependencies:
-      '@serwist/build': 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+      '@serwist/build': 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
       '@serwist/utils': 9.5.11(browserslist@4.28.2)
       pretty-bytes: 6.1.1
       zod: 4.4.1
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.1-rc
     transitivePeerDependencies:
       - browserslist
 
-  '@serwist/window@9.5.11(browserslist@4.28.2)(typescript@6.0.3)':
+  '@serwist/window@9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)':
     dependencies:
       '@types/trusted-types': 2.0.7
-      serwist: 9.5.11(browserslist@4.28.2)(typescript@6.0.3)
+      serwist: 9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc)
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.1-rc
     transitivePeerDependencies:
       - browserslist
 
@@ -9787,12 +9821,12 @@ snapshots:
 
   semver@7.8.5: {}
 
-  serwist@9.5.11(browserslist@4.28.2)(typescript@6.0.3):
+  serwist@9.5.11(browserslist@4.28.2)(typescript@7.0.1-rc):
     dependencies:
       '@serwist/utils': 9.5.11(browserslist@4.28.2)
       idb: 8.0.3
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.1-rc
     transitivePeerDependencies:
       - browserslist
 
@@ -10030,8 +10064,6 @@ snapshots:
   type-fest@5.8.0:
     dependencies:
       tagged-tag: 1.0.0
-
-  typescript@6.0.3: {}
 
   typescript@7.0.1-rc:
     optionalDependencies:

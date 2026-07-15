@@ -24,7 +24,10 @@ const run = async () => {
   console.log("  sets:", hevy.sets.length);
   console.log("  first session:", hevy.sessions[0]?.start_time);
   console.log("  last session:", hevy.sessions.at(-1)?.start_time);
-  console.log("  total volume:", hevy.sessions.reduce((sum, s) => sum + (s.total_volume_kg ?? 0), 0));
+  console.log(
+    "  total volume:",
+    hevy.sessions.reduce((sum, s) => sum + (s.total_volume_kg ?? 0), 0),
+  );
 };
 
 run().catch((error) => {

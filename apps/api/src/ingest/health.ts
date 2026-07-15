@@ -75,7 +75,9 @@ const HealthExport = Schema.Struct({
 
 type HealthExport = typeof HealthExport.Type;
 
-const parseDateParts = (value: string): { month: number; day: number; hour: number; minute: number; second: number } => {
+const parseDateParts = (
+  value: string,
+): { month: number; day: number; hour: number; minute: number; second: number } => {
   const [datePart, timePart = "00:00:00"] = value.split(" ");
   const [month, day] = datePart.split("-").map(Number);
   const [hour, minute, second] = timePart.split(":").map(Number);
@@ -126,12 +128,18 @@ const parseSessionEnd = (session: typeof SleepSession.Type, startDate: Date): Da
   return endDate;
 };
 
-export const parseHealthExport = (text: string, startYear: number): Effect.Effect<{
-  daily: DailyActivityRow[];
-  workouts: HealthWorkoutRow[];
-  sleep: SleepSessionRow[];
-  body: BodyMetricRow[];
-}, Error> =>
+export const parseHealthExport = (
+  text: string,
+  startYear: number,
+): Effect.Effect<
+  {
+    daily: DailyActivityRow[];
+    workouts: HealthWorkoutRow[];
+    sleep: SleepSessionRow[];
+    body: BodyMetricRow[];
+  },
+  Error
+> =>
   Effect.gen(function* () {
     const raw = yield* Effect.try({
       try: () => JSON.parse(text),
