@@ -16,7 +16,7 @@
       "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
     },
     "apps/chat": {
-      "ignoreDependencies": ["tailwindcss", "tw-animate-css"],
+      "ignoreDependencies": ["@typescript/native-preview", "tailwindcss", "tw-animate-css"],
       "entry": [
         "app/**/{page,layout,route}.tsx",
         "app/sw.ts",
