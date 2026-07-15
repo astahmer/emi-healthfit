@@ -510,6 +510,43 @@ export const getDataSummary = (db: QueryDatabaseClient) =>
     } satisfies DataSummary;
   });
 
+export const getIngestedDataExport = Effect.fn("dataExport.readIngested")(function* ({
+  db,
+}: {
+  db: QueryDatabaseClient;
+}) {
+  const [dailyActivity, healthWorkouts, hevySessions, hevySets, sleepSessions, bodyMetrics, cursors] =
+    yield* Effect.all([
+      db.prepare("SELECT * FROM daily_activity ORDER BY date").all<DailyActivityRow>(),
+      db.prepare("SELECT * FROM health_workouts ORDER BY date, id").all<HealthWorkoutRow>(),
+      db.prepare("SELECT * FROM hevy_sessions ORDER BY start_time, session_id").all<HevySessionRow>(),
+      db
+        .prepare("SELECT * FROM hevy_sets ORDER BY session_id, exercise_title, set_index")
+        .all<HevySetRow>(),
+      db.prepare("SELECT * FROM sleep_sessions ORDER BY date, start").all<SleepSessionRow>(),
+      db.prepare("SELECT * FROM body_metrics ORDER BY date").all<BodyMetricRow>(),
+      db
+        .prepare("SELECT source, last_sync FROM sync_cursors ORDER BY source")
+        .all<{ source: string; last_sync: string | null }>(),
+    ]);
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    health: {
+      dailyActivity: dailyActivity.results,
+      workouts: healthWorkouts.results,
+      sleepSessions: sleepSessions.results,
+      bodyMetrics: bodyMetrics.results,
+    },
+    hevy: {
+      sessions: hevySessions.results,
+      sets: hevySets.results,
+    },
+    syncCursors: cursors.results,
+  };
+});
+
 export interface WorkoutSession {
   session_id: string;
   title: string | null;

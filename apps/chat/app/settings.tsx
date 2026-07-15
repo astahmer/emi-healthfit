@@ -1,7 +1,8 @@
 "use client";
 
 import { useMachine } from "@xstate/react";
-import { RefreshCwIcon } from "lucide-react";
+import { DownloadIcon, RefreshCwIcon } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { chatModels, defaultModel } from "./models";
 import { useSettings } from "./settings-store";
@@ -10,9 +11,30 @@ import { settingsSyncMachine } from "./settings-sync-machine";
 export function SettingsPanel() {
   const { settings, update } = useSettings();
   const [syncState, sendSync] = useMachine(settingsSyncMachine);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const syncing = syncState.matches("syncing");
   const syncStatus = syncState.context.status;
+  const downloadIngestedData = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const response = await fetch("/api/export/ingested-data");
+      if (!response.ok) throw new Error(`Export failed (${response.status})`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `emi-healthfit-data-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-xl p-6">
@@ -137,6 +159,25 @@ export function SettingsPanel() {
             {syncStatus}
           </p>
         )}
+
+        <div className="rounded-lg border p-4">
+          <h3 className="text-sm font-medium">Your ingested data</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Download all imported Apple Health and Hevy records as a portable JSON file.
+          </p>
+          <Button
+            onClick={() => void downloadIngestedData()}
+            disabled={exporting}
+            variant="outline"
+            className="mt-3 w-full gap-2"
+          >
+            <DownloadIcon className="size-4" />
+            {exporting ? "Preparing export…" : "Export Health + Hevy data"}
+          </Button>
+          {exportError !== null && (
+            <p className="mt-2 text-center text-xs text-destructive">{exportError}</p>
+          )}
+        </div>
 
         <Button
           onClick={() =>
