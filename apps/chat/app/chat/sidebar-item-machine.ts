@@ -61,7 +61,13 @@ const downloadConversation = async ({ threadId, title }: { threadId: string; tit
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${title.trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "conversation"}.md`;
+  anchor.download = `${
+    title
+      .trim()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase() || "conversation"
+  }.md`;
   anchor.click();
   URL.revokeObjectURL(url);
 };

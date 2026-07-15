@@ -648,9 +648,7 @@ export const Thread = ({
             onChange={(event) => runtime.setDraft(event.target.value)}
             onPaste={(event) => {
               if (
-                Array.from(event.clipboardData.files).some((file) =>
-                  file.type.startsWith("image/"),
-                )
+                Array.from(event.clipboardData.files).some((file) => file.type.startsWith("image/"))
               ) {
                 void runtime.addFiles(event.clipboardData.files);
               }

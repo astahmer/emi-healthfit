@@ -22,10 +22,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "../settings-store";
 import { createConversation } from "../sessions";
-import {
-  fetchConversationMessages,
-  type ConversationSnapshot,
-} from "../conversations";
+import { fetchConversationMessages, type ConversationSnapshot } from "../conversations";
 import { buildNotesContext } from "../notes";
 import { useNotes } from "../notes-context";
 import { getConversationViewMessages } from "./conversation-tree";
@@ -147,12 +144,12 @@ export const ChatRuntimeProvider = ({
     async (sessionId: string) => {
       const snapshot = await fetchConversationMessages(sessionId);
       const thread = snapshot.threads.find((candidate) => candidate.id === config.threadId);
-      const messages = getConversationViewMessages({ messages: snapshot.messages, thread })
-        .flatMap((message) =>
+      const messages = getConversationViewMessages({ messages: snapshot.messages, thread }).flatMap(
+        (message) =>
           message.role === "summary"
             ? []
             : [{ id: message.id, role: message.role, parts: message.parts }],
-        );
+      );
       onHistoryChanged?.(snapshot);
       send({ type: "history.changed", sessionId, messages });
     },
@@ -222,8 +219,8 @@ export const ChatRuntimeProvider = ({
       Effect.runSync(
         Effect.logWarning("chat.browser.reconnect.failure").pipe(
           Effect.annotateLogs({
-          sessionId,
-          error: error instanceof Error ? error.message : String(error),
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
           }),
         ),
       );
