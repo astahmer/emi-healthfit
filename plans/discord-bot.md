@@ -1,98 +1,103 @@
 # Discord bot on Cloudflare Workers plan
 
-## Context
+## Current architecture
 
-- Existing backend: Cloudflare Worker in `apps/api`, Effect, D1.
-- Existing data: workouts, sets, sleep, activity, body metrics.
-- Goal: a Discord bot that can answer quick fitness questions and surface recent data via slash commands.
-
-## Reference repositories
-
-- `.references/discord-cloudflare-sample-app` — https://github.com/discord/cloudflare-sample-app
-- `.references/effect-discord-bot` — https://github.com/Effect-TS/discord-bot
+- The API Worker already owns Effect-based database operations for analytics, workouts, notes,
+  memories, conversation threads, and durable generations.
+- The monorepo uses pnpm workspaces/catalogs, TypeScript 7, Alchemy, Oxlint, and Oxfmt.
+- Authentication and per-user ownership are planned but not implemented. A Discord identity must not
+  implicitly receive access to the current single-user dataset.
 
 ## Goal
 
-Host a Discord bot as a separate Cloudflare Worker that shares the same D1 database and exposes safe, read-only slash commands.
+Provide a separate Cloudflare Worker for fast, safe Discord slash commands, linked explicitly to an
+authenticated Emi HealthFit account. Start read-only; defer free-form assistant chat until identity,
+cost, and durable follow-up behavior are proven.
 
 ## Architecture
 
-Create a new worker app `apps/discord-bot` rather than bolting Discord routing onto `apps/api`. This isolates Discord-specific concerns (signature verification, command registration, interaction format) from the chat API.
+- Create `apps/discord-bot` with its own Alchemy Worker and least-privilege binding to the shared D1.
+- Extract provider-neutral data access and domain summaries from `apps/api` into a workspace package
+  before reuse. Do not import through another app’s source tree and do not duplicate SQL.
+- Keep Discord signature verification/interaction DTOs in the bot app. Keep health calculations and
+  owner-scoped queries in shared packages.
+- Link Discord users through a short-lived one-time code generated in authenticated Settings. Store
+  `discord_user_id -> application_user_id`; never infer ownership from a Discord email or guild.
 
-The bot reuses the same D1 binding and the same `db/operations.ts` helpers as the API.
+## MVP commands
 
-### Commands (MVP)
+| Command | Behavior |
+| --- | --- |
+| `/healthfit link code:<code>` | Links the invoking Discord identity to the signed-in app account. |
+| `/healthfit summary` | Returns recent activity, training, sleep, and sync freshness. |
+| `/healthfit last-workout` | Returns the latest Hevy session and concise exercise totals. |
+| `/healthfit recovery` | Returns the existing bounded recovery summary. |
+| `/healthfit unlink` | Removes the Discord identity mapping and active bot state. |
 
-| Command | What it does |
-|---------|--------------|
-| `/summary` | Data counts (workouts, sets, sleep, body metrics, last sync). |
-| `/lastworkout` | Latest Hevy session with exercises and top sets. |
-| `/recovery` | Recovery label, recent sleep, last workout, recent volume. |
-
-### Commands (later)
-
-| Command | What it does |
-|---------|--------------|
-| `/progress exercise:<name>` | Exercise progress + PR. |
-| `/ask question:<text>` | Async assistant answer via the chat handler (requires deferred response + webhook follow-up). |
-
-## Tech choices
-
-- **Worker framework:** same as API — `alchemy` + `Effect` + native `fetch`.
-- **Discord verification:** Ed25519 signature check. Use `tweetnacl` or a small WebCrypto implementation; avoid pulling in heavy Discord libraries.
-- **Command registration:** a one-shot script `scripts/register-commands.ts` that pushes commands to Discord’s REST API.
-- **Database:** reuse existing D1 binding; share code via a new `packages/db` package or by importing `apps/api/src/db/operations.ts` if the monorepo setup allows it.
+Use ephemeral responses by default because health data is sensitive. A user may explicitly opt into
+visible responses per command later.
 
 ## Implementation steps
 
-1. **Add reference repos** (done).
-2. **Create `apps/discord-bot/`**:
-   - `package.json` with deps: `alchemy`, `effect`, `zod`, `tweetnacl`, `@cloudflare/workers-types`.
-   - `src/bot.worker.ts` entry point.
-   - `wrangler.toml` or alchemy config with D1 binding.
-   - `tsconfig.json` aligned with `apps/api`.
-3. **Implement request verification**:
-   - Read `X-Signature-Ed25519` and `X-Signature-Timestamp` headers.
-   - Verify with `DISCORD_PUBLIC_KEY`.
-   - Reject with `401` on failure.
-4. **Implement interaction dispatcher**:
-   - Parse `type` (`1` = Ping, `2` = ApplicationCommand).
-   - Reply to Ping with `{ type: 1 }`.
-   - Route command names to handlers.
-5. **Implement command handlers** using Effect:
-   - `/summary` → `getDataSummary`.
-   - `/lastworkout` → `getWorkouts` (limit 1) + `getWorkoutDetails` (join sets).
-   - `/recovery` → existing recovery logic or a new `getRecovery` operation.
-6. **Create `scripts/register-commands.ts`**:
-   - POST command definitions to `https://discord.com/api/v10/applications/{id}/commands`.
-   - Read `DISCORD_APPLICATION_ID` and `DISCORD_BOT_TOKEN` from env.
-7. **Add root scripts**:
-   - `discord:dev`, `discord:deploy`, `discord:register`.
-8. **Set secrets** (via `wrangler secret` or alchemy):
-   - `DISCORD_PUBLIC_KEY`
-   - `DISCORD_APPLICATION_ID`
-   - `DISCORD_BOT_TOKEN`
-   - D1 database binding.
-9. **Deploy and wire the interactions endpoint** in the Discord developer portal to `https://<discord-bot-worker>/`.
-10. **Add tests**:
-   - Signature verification with known good/bad payloads.
-   - Handler output shape.
-11. **Run checks**: `pnpm typecheck`, `pnpm lint`, `pnpm fmt`.
+1. Land auth/user ownership first.
+2. Extract `packages/data-access` with owner-scoped Effect operations and schemas; keep Worker/R2/AI
+   bindings in their apps.
+3. Add `discord_account_links` and single-use `discord_link_codes` migrations with hashed codes,
+   expiry, consumed timestamp, and user indexes.
+4. Scaffold `apps/discord-bot` using catalog dependencies and the existing Nix/pnpm toolchain.
+5. Verify `X-Signature-Ed25519` and `X-Signature-Timestamp` against the exact raw body before JSON
+   parsing. Reject stale timestamps and invalid signatures with `401`.
+6. Decode interactions with Effect Schema, handle Ping, and dispatch only registered commands.
+7. Resolve the Discord user link before every data command and pass the application user id into
+   shared operations.
+8. Add an Effect-based registration script for guild commands in preview and global commands in
+   production. Use `Effect.log*`; redact tokens and interaction payload fields containing user data.
+9. Add Settings UI to create/revoke link codes and show linked Discord identities.
+10. Add per-user command rate limits and response-size limits.
 
-## Shared code question
+## Deferred `/ask`
 
-The cleanest path is to extract DB schema and operations into `packages/db` so both `apps/api` and `apps/discord-bot` depend on it. If that is too big a refactor for this feature, temporarily duplicate the small helpers needed by the bot and create a follow-up ticket to extract `packages/db`.
+Do not call the current chat handler directly in MVP. `/ask` needs:
 
-## Open questions
+- deferred interaction acknowledgement within Discord’s deadline;
+- a dedicated Discord conversation or explicit target conversation, never accidental reuse of the
+  last web session;
+- the same durable-generation ownership and stale-lease recovery as web chat;
+- per-user model/token budgets and a maximum cost per command;
+- webhook follow-up handling that survives Worker termination;
+- content controls for public guild channels.
 
-- Do we want guild-specific commands for faster updates or global commands? Start global; guild commands can be added for a test server.
-- Should `/ask` call the chat handler directly or proxy through `apps/api`? Direct call is simpler but couples the bot to the chat pipeline; proxying avoids duplication. Defer `/ask` until the simple commands work.
-- Should the bot be rate-limited? Yes, apply the same IP-based rate limiter used in `apps/api` once it exists.
+Proxy through a stable authenticated internal API or shared generation service when those contracts
+exist. Do not duplicate the chat pipeline in the bot.
+
+## Secrets and deployment
+
+- Worker secrets: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`.
+- Bind the existing D1 with least privilege available in the deployment model; do not bind R2 or AI
+  Gateway for the read-only MVP.
+- Add `discord:dev`, `discord:deploy`, and `discord:register` root scripts.
+- Start with guild commands for immediate test iteration; promote the reviewed definitions globally.
+
+## Tests
+
+- Known valid/invalid signatures, modified bodies, missing headers, and stale timestamps.
+- Interaction schema and Ping response.
+- Link-code expiry, one-time consumption, collision resistance, unlink, and cross-user isolation.
+- Every data command returns ephemeral output and uses the linked owner id.
+- Registration snapshot and response-length limits.
+- `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm fmt`, and Knip.
 
 ## Acceptance criteria
 
-- `/summary` returns an embed with data counts and last-sync times.
-- `/lastworkout` returns the latest Hevy session with exercises and sets.
-- Invalid request signatures return `401`.
-- Commands are registered and visible in Discord.
-- Deployed worker responds to interactions within Discord’s 3-second window.
+- Invalid or replayed interaction requests return `401` before parsing or database access.
+- Unlinked Discord users cannot query any health data.
+- MVP responses are ephemeral and owner-scoped.
+- The bot shares tested domain/data-access code without importing from `apps/api/src`.
+- The bot Worker has no R2, provider-key, or AI Gateway access in MVP.
+- `/ask` remains unavailable until durable, budgeted follow-ups meet the deferred checklist.
+
+## Decisions log
+
+- 2026-07-15: auth and ownership are prerequisites.
+- 2026-07-15: account linking uses one-time codes from authenticated Settings.
+- 2026-07-15: read-only commands ship before assistant chat; responses default to ephemeral.
