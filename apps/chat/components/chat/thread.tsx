@@ -473,7 +473,7 @@ const ChatMessage = ({
               <RefreshCwIcon className="size-3.5" />
             </TooltipIconButton>
           )}
-          {onFork !== undefined && !isStreaming && (
+          {onFork !== undefined && message.id !== "" && !isStreaming && (
             <TooltipIconButton
               tooltip="Fork from this message"
               side="top"
@@ -580,7 +580,7 @@ export const Thread = ({
           ) : (
             runtime.messages.map((message, index) => (
               <ChatMessage
-                key={message.id}
+                key={message.id === "" ? `${message.role}-${index}` : message.id}
                 message={message}
                 isStreaming={
                   runtime.isStreaming &&

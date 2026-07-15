@@ -52,7 +52,7 @@ const conversationPayloadSchema = z.object({
   threads: z.array(threadSchema),
 });
 
-type ConversationSnapshot = {
+export type ConversationSnapshot = {
   conversation: Conversation;
   messages: MessageNode[];
   threads: ThreadView[];

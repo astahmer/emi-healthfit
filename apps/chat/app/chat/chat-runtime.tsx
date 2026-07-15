@@ -22,8 +22,13 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "../settings-store";
 import { createConversation } from "../sessions";
+import {
+  fetchConversationMessages,
+  type ConversationSnapshot,
+} from "../conversations";
 import { buildNotesContext } from "../notes";
 import { useNotes } from "../notes-context";
+import { getConversationViewMessages } from "./conversation-tree";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 
 export interface ChatRuntimeConfig {
@@ -113,10 +118,12 @@ const consumeAssistantStream = async ({
 export const ChatRuntimeProvider = ({
   config,
   onSessionCreated,
+  onHistoryChanged,
   children,
 }: {
   config: ChatRuntimeConfig;
   onSessionCreated?: (id: string) => void;
+  onHistoryChanged?: (snapshot: ConversationSnapshot) => void;
   children: ReactNode;
 }) => {
   const settings = useSettings((state) => state.settings);
@@ -137,6 +144,22 @@ export const ChatRuntimeProvider = ({
   const historySignature = `${config.sessionId ?? "new"}:${config.threadId ?? "root"}:${config.initialMessages
     .map((message) => message.id)
     .join(",")}`;
+
+  const synchronizePersistedHistory = useCallback(
+    async (sessionId: string) => {
+      const snapshot = await fetchConversationMessages(sessionId);
+      const thread = snapshot.threads.find((candidate) => candidate.id === config.threadId);
+      const messages = getConversationViewMessages({ messages: snapshot.messages, thread })
+        .flatMap((message) =>
+          message.role === "summary"
+            ? []
+            : [{ id: message.id, role: message.role, parts: message.parts }],
+        );
+      onHistoryChanged?.(snapshot);
+      send({ type: "history.changed", sessionId, messages });
+    },
+    [config.threadId, onHistoryChanged, send],
+  );
 
   useEffect(() => {
     if (historySignatureRef.current === historySignature) return;
@@ -178,6 +201,7 @@ export const ChatRuntimeProvider = ({
       const stream = await transport.reconnectToStream({ chatId: sessionId });
       if (stream === null) {
         if (operationRef.current === operation) send({ type: "stream.completed" });
+        await synchronizePersistedHistory(sessionId);
         await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
         return;
       }
@@ -192,6 +216,7 @@ export const ChatRuntimeProvider = ({
       });
       if (operationRef.current !== operation) return;
       send({ type: "stream.completed" });
+      await synchronizePersistedHistory(sessionId);
       await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
     };
     void resume().catch((error) => {
@@ -208,7 +233,15 @@ export const ChatRuntimeProvider = ({
         error: error instanceof Error ? error : new Error(String(error)),
       });
     });
-  }, [config.historyReady, config.sessionId, config.temporary, queryClient, send, transport]);
+  }, [
+    config.historyReady,
+    config.sessionId,
+    config.temporary,
+    queryClient,
+    send,
+    synchronizePersistedHistory,
+    transport,
+  ]);
 
   const submitMessage = useCallback(
     async ({
@@ -287,6 +320,7 @@ export const ChatRuntimeProvider = ({
         });
         if (operationRef.current !== operation) return;
         send({ type: "stream.completed" });
+        await synchronizePersistedHistory(sessionId);
         await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
         await queryClient.invalidateQueries({ queryKey: ["threads"] });
       } catch (error) {
@@ -318,6 +352,7 @@ export const ChatRuntimeProvider = ({
       settings.baseUrl,
       settings.provider,
       settings.systemPrompt,
+      synchronizePersistedHistory,
       transport,
     ],
   );

@@ -143,6 +143,14 @@ function ChatPageInner() {
               sendConversation({ type: "session.created", conversationId: id });
               window.history.replaceState(null, "", `/chat/${encodeURIComponent(id)}`);
             }}
+            onHistoryChanged={(snapshot) =>
+              sendConversation({
+                type: "load.succeeded",
+                conversation: snapshot.conversation,
+                messages: snapshot.messages,
+                threads: snapshot.threads,
+              })
+            }
           >
             <div className="relative flex h-full flex-1 flex-col">
               <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">

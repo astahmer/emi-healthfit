@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { UIMessage } from "ai";
 import { NotesProvider } from "./notes-context";
 import { ChatRuntimeProvider } from "./chat/chat-runtime";
+import type { ConversationSnapshot } from "./conversations";
 
 export interface ChatSessionConfig {
   model: string;
@@ -19,10 +20,12 @@ export interface ChatSessionConfig {
 export const ChatProviders = ({
   sessionConfig,
   onSessionCreated,
+  onHistoryChanged,
   children,
 }: {
   sessionConfig: ChatSessionConfig;
   onSessionCreated?: (id: string) => void;
+  onHistoryChanged?: (snapshot: ConversationSnapshot) => void;
   children: ReactNode;
 }) => (
   <NotesProvider>
@@ -38,6 +41,7 @@ export const ChatProviders = ({
         initialMessages: sessionConfig.initialMessages ?? [],
       }}
       onSessionCreated={onSessionCreated}
+      onHistoryChanged={onHistoryChanged}
     >
       {children}
     </ChatRuntimeProvider>

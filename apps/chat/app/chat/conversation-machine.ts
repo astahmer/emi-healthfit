@@ -573,6 +573,19 @@ export const conversationMachine = setup({
         },
       },
       on: {
+        "load.succeeded": {
+          actions: assign({
+            conversation: ({ event }) => event.conversation,
+            messages: ({ event }) => event.messages,
+            threads: ({ event }) => event.threads,
+            focusedThreadId: ({ context, event }) =>
+              context.focusedThreadId !== null &&
+              event.threads.some((thread) => thread.id === context.focusedThreadId)
+                ? context.focusedThreadId
+                : null,
+            error: () => null,
+          }),
+        },
         "conversationId.changed": [
           { guard: "isCurrentConversation" },
           {
