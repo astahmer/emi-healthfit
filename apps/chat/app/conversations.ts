@@ -121,8 +121,9 @@ export const getCachedConversationMessages = async (
 
 export const fetchConversationMessages = async (
   conversationId: string,
+  signal?: AbortSignal,
 ): Promise<ConversationSnapshot> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`);
+  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`, { signal });
   if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
   const data: unknown = await res.json();
   const snapshot = decodeConversationSnapshot({ data, conversationId });
@@ -133,10 +134,11 @@ export const fetchConversationMessages = async (
 
 export const loadConversationMessages = async (
   conversationId: string,
+  signal?: AbortSignal,
 ): Promise<ConversationSnapshot & { source: "cache" | "network" }> => {
   const cached = await getCachedConversationMessages(conversationId);
   if (cached !== undefined) return { ...cached, source: "cache" };
-  return { ...(await fetchConversationMessages(conversationId)), source: "network" };
+  return { ...(await fetchConversationMessages(conversationId, signal)), source: "network" };
 };
 
 export const forkThread = async (

@@ -390,6 +390,54 @@ describe("conversationMachine", () => {
     expect(actor.getSnapshot().context.conversation?.title).toBe("Second");
   });
 
+  it("cancels intermediate loads when navigation changes rapidly", async () => {
+    const pending = new Map<
+      string,
+      (result: {
+        conversation: Conversation;
+        messages: MessageNode[];
+        threads: ThreadView[];
+      }) => void
+    >();
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(
+          ({ input }) =>
+            new Promise((resolve) => {
+              if (input.conversationId !== undefined) pending.set(input.conversationId, resolve);
+            }),
+        ),
+      },
+    });
+    const actor = createActor(machine, { input: { conversationId: "conv-1" } });
+    actor.start();
+
+    await vi.waitFor(() => expect(pending.has("conv-1")).toBe(true));
+    actor.send({ type: "conversationId.changed", conversationId: "conv-2" });
+    actor.send({ type: "conversationId.changed", conversationId: "conv-3" });
+    await vi.waitFor(() => expect(pending.has("conv-3")).toBe(true));
+
+    pending.get("conv-1")?.({
+      conversation: makeConversation({ id: "conv-1", title: "First" }),
+      messages: [],
+      threads: [],
+    });
+    pending.get("conv-2")?.({
+      conversation: makeConversation({ id: "conv-2", title: "Second" }),
+      messages: [],
+      threads: [],
+    });
+    expect(actor.getSnapshot().context.conversation).toBeNull();
+
+    pending.get("conv-3")?.({
+      conversation: makeConversation({ id: "conv-3", title: "Last" }),
+      messages: [],
+      threads: [],
+    });
+    await vi.waitFor(() => expect(actor.getSnapshot().context.conversation?.id).toBe("conv-3"));
+    expect(actor.getSnapshot().context.conversation?.title).toBe("Last");
+  });
+
   it("clears data when conversation id is removed", async () => {
     const machine = conversationMachine.provide({
       actors: {

@@ -156,8 +156,10 @@ export const conversationMachine = setup({
     loadConversation: fromPromise(
       async ({
         input,
+        signal,
       }: {
         input: { conversationId: string | undefined };
+        signal: AbortSignal;
       }): Promise<{
         conversation: Conversation;
         messages: MessageNode[];
@@ -165,7 +167,7 @@ export const conversationMachine = setup({
         source?: "cache" | "network";
       }> => {
         if (input.conversationId === undefined) throw new Error("conversationId is required");
-        return loadConversationMessages(input.conversationId);
+        return loadConversationMessages(input.conversationId, signal);
       },
     ),
     refreshConversation: fromPromise(
@@ -289,6 +291,18 @@ export const conversationMachine = setup({
     },
     loading: {
       entry: assign({ error: () => null }),
+      on: {
+        "conversationId.changed": [
+          { guard: "isCurrentConversation" },
+          {
+            target: "loading",
+            reenter: true,
+            guard: "eventHasConversationId",
+            actions: assign({ conversationId: ({ event }) => event.conversationId }),
+          },
+          { target: "ready", actions: "clearConversation" },
+        ],
+      },
       invoke: {
         src: "loadConversation",
         input: ({ context }) => ({ conversationId: context.conversationId }),
