@@ -2,25 +2,23 @@
 
 This is the lightweight backlog for improvements that are useful but not part of the current implementation. Detailed threading concepts remain in [`plans/chat-threading-followups.md`](plans/chat-threading-followups.md).
 
-## Near term
+## Delivered
 
-- Finish sidebar actions: pin, archive/restore, and clone a conversation while preserving message ancestry.
-- Add an import/restore flow for the versioned Health + Hevy JSON export, including dry-run validation and duplicate reporting.
-- Add attachment limits, compression progress, and clearer errors for unsupported clipboard images.
-- Add export summaries and per-source date ranges before downloading large datasets.
-- add more stats, charts and graphs in a Summary page (e.g., daily activity, body metrics, sleep, and exercise progress, etc etc. anything useful that you can think of).
+- [x] Sidebar pin, archive/restore, and ancestry-preserving conversation cloning.
+- [x] Versioned Health + Hevy JSON restore with validation, dry-run counts, and duplicate reporting.
+- [x] Attachment limits, image compression, preparation progress, and clipboard errors.
+- [x] Export record summaries and per-source date ranges.
+- [x] Unified activity, body, sleep, training, and exercise Trends page.
+- [x] Per-conversation token usage, configurable budgets, and model cost estimates.
+- [x] Raw-upload retention plus selective Apple Health or Hevy deletion.
 
 ## Threading UX
 
 Core persistence, branching, restoring, context selection, and model tools work today. The larger presentation system is still future product work:
 
-- Prototype and user-test the six-layout matrix: inline accordion, tree sidebar, desktop columns, mobile drill-down, mobile swipe columns, and a mobile bottom-sheet picker.
+- [x] Prototype the six-layout matrix with fake data at `/gen-ui/thread-layouts`.
+- [ ] User-test the prototypes before promoting any layout into real chat.
 - Prefer inline branches on desktop and drill-down/bottom-sheet navigation on mobile until testing shows a stronger option.
-
-## Product and operations
-
-- Add model cost estimates, token budgets, and per-conversation usage history.
-- Add privacy controls for raw uploads, retention windows, and selective deletion by data source.
 
 ## Not sure what that means; clarify before doing anything:
 
