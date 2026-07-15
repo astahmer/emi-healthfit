@@ -646,6 +646,15 @@ export const Thread = ({
           <textarea
             value={runtime.draft}
             onChange={(event) => runtime.setDraft(event.target.value)}
+            onPaste={(event) => {
+              if (
+                Array.from(event.clipboardData.files).some((file) =>
+                  file.type.startsWith("image/"),
+                )
+              ) {
+                void runtime.addFiles(event.clipboardData.files);
+              }
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsageProvider } from "@/app/usage-context";
@@ -130,6 +130,23 @@ describe("Thread", () => {
 
     expect(screen.getByText("chart.png")).toBeInTheDocument();
     expect(view.container.querySelector('img[src="data:image/png;base64,AA=="]')).not.toBeNull();
+  });
+
+  it("adds images pasted into the message input", () => {
+    const addFiles = vi.fn();
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      addFiles,
+    });
+    renderThread([]);
+    const image = new File(["image"], "clipboard.png", { type: "image/png" });
+    const files = [image];
+
+    fireEvent.paste(screen.getByLabelText("Message input"), {
+      clipboardData: { files },
+    });
+
+    expect(addFiles).toHaveBeenCalledWith(files);
   });
 
   it("edits a user turn through the XState-owned editor", async () => {
