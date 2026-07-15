@@ -8,6 +8,7 @@ import { useSettings } from "./settings-store";
 import { settingsSyncMachine } from "./settings-sync-machine";
 import { DataImport } from "./data-import";
 import { DataExport } from "./data-export";
+import { PrivacyControls } from "./privacy-controls";
 
 export function SettingsPanel() {
   const { settings, update } = useSettings();
@@ -143,6 +144,8 @@ export function SettingsPanel() {
         <DataExport />
 
         <DataImport />
+
+        <PrivacyControls />
 
         <Button
           onClick={() =>

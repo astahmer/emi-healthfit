@@ -21,6 +21,7 @@ import {
   createThread,
   type DataSummary,
   deleteConversation,
+  deleteIngestedSource,
   deleteMemory,
   deleteNote,
   discardThread,
@@ -28,6 +29,7 @@ import {
   getConversationMessages,
   getConversations,
   getDataSummary,
+  getRawUploadRetentionDays,
   getAnalyticsOverview,
   getIngestedDataExport,
   getIngestedDataExportSummary,
@@ -56,6 +58,7 @@ import {
   searchNotes,
   summarizeThread,
   updateConversationState,
+  updateRawUploadRetentionDays,
   updateNote,
   updateSyncCursor,
   upsertBodyMetrics,
@@ -104,6 +107,45 @@ const AiGateway = Cloudflare.AI.Gateway("AiGateway");
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
+
+const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
+  bucket,
+  prefix,
+  olderThan,
+}: {
+  bucket: ReadWriteBucketClient;
+  prefix?: string;
+  olderThan?: Date;
+}) {
+  let cursor: string | undefined;
+  let deleted = 0;
+  do {
+    const page = yield* bucket.list({ prefix, cursor });
+    const keys = page.objects
+      .filter((object) => olderThan === undefined || object.uploaded < olderThan)
+      .map((object) => object.key);
+    if (keys.length > 0) {
+      yield* bucket.delete(keys);
+      deleted += keys.length;
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor !== undefined);
+  return deleted;
+});
+
+const applyRawUploadRetention = Effect.fn("privacy.applyRetention")(function* ({
+  db,
+  bucket,
+}: {
+  db: QueryDatabaseClient;
+  bucket: ReadWriteBucketClient;
+}) {
+  const days = yield* getRawUploadRetentionDays({ db });
+  return yield* deleteRawUploads({
+    bucket,
+    olderThan: new Date(Date.now() - days * 86_400_000),
+  });
+});
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
@@ -166,6 +208,15 @@ export default class Api extends Cloudflare.Worker<Api>()(
       );
       yield* router.add("POST", "/api/import/ingested-data", (request) =>
         cors(request, handleIngestedDataImport(db, request)),
+      );
+      yield* router.add("GET", "/api/privacy", (request) =>
+        cors(request, handlePrivacyRead(db)),
+      );
+      yield* router.add("PATCH", "/api/privacy", (request) =>
+        cors(request, handlePrivacyUpdate(db, bucket, request)),
+      );
+      yield* router.add("DELETE", "/api/privacy/data/:source", (request) =>
+        cors(request, handleSourceDelete(db, bucket, request)),
       );
       yield* router.add("GET", "/api/workouts", (request) => cors(request, handleWorkouts(db)));
       yield* router.add("GET", "/api/conversations", (request) =>
@@ -373,6 +424,8 @@ const handleIngest = (
       yield* updateSyncCursor(db, "hevy", timestamp);
     }
 
+    yield* applyRawUploadRetention({ db, bucket });
+
     return yield* HttpServerResponse.json({
       health: healthSummary,
       hevy: hevySummary,
@@ -561,6 +614,62 @@ const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRe
       summaryCache.clear();
     }
     return yield* HttpServerResponse.json({ preview, applied: apply });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handlePrivacyRead = (db: QueryDatabaseClient) =>
+  Effect.gen(function* () {
+    const rawUploadRetentionDays = yield* getRawUploadRetentionDays({ db });
+    return yield* HttpServerResponse.json({ rawUploadRetentionDays });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handlePrivacyUpdate = (
+  db: QueryDatabaseClient,
+  bucket: ReadWriteBucketClient,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const raw = JSON.parse((yield* request.text) || "{}") as unknown;
+    const parsed = Schema.decodeUnknownOption(
+      Schema.Struct({
+        rawUploadRetentionDays: Schema.Int.check(
+          Schema.isBetween({ minimum: 0, maximum: 3650 }),
+        ),
+      }),
+    )(raw);
+    if (Option.isNone(parsed)) {
+      return yield* HttpServerResponse.json(
+        { error: "Retention must be between 0 and 3650 days" },
+        { status: 400 },
+      );
+    }
+    yield* updateRawUploadRetentionDays({ db, days: parsed.value.rawUploadRetentionDays });
+    const deletedRawUploads = yield* applyRawUploadRetention({ db, bucket });
+    return yield* HttpServerResponse.json({
+      rawUploadRetentionDays: parsed.value.rawUploadRetentionDays,
+      deletedRawUploads,
+    });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleSourceDelete = (
+  db: QueryDatabaseClient,
+  bucket: ReadWriteBucketClient,
+  request: HttpServerRequest,
+) =>
+  Effect.gen(function* () {
+    const source = new URL(request.url).pathname.match(/\/api\/privacy\/data\/(health|hevy)$/)?.[1];
+    if (source !== "health" && source !== "hevy") {
+      return yield* HttpServerResponse.json({ error: "Unknown data source" }, { status: 400 });
+    }
+    yield* deleteIngestedSource({ db, source });
+    const deletedRawUploads = yield* deleteRawUploads({ bucket, prefix: `${source}/` });
+    summaryCache.clear();
+    return yield* HttpServerResponse.json({ source, deletedRawUploads });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );

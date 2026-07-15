@@ -261,6 +261,54 @@ export const updateSyncCursor = (db: QueryDatabaseClient, source: string, lastSy
       .run();
   });
 
+export const getRawUploadRetentionDays = Effect.fn("privacy.readRetention")(function* ({
+  db,
+}: {
+  db: QueryDatabaseClient;
+}) {
+  const row = yield* db
+    .prepare("SELECT raw_upload_retention_days days FROM privacy_preferences WHERE id = 1")
+    .first<{ days: number }>();
+  return row?.days ?? 30;
+});
+
+export const updateRawUploadRetentionDays = Effect.fn("privacy.updateRetention")(function* ({
+  db,
+  days,
+}: {
+  db: QueryDatabaseClient;
+  days: number;
+}) {
+  yield* db
+    .prepare(`
+      INSERT INTO privacy_preferences (id, raw_upload_retention_days, updated_at)
+      VALUES (1, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        raw_upload_retention_days = excluded.raw_upload_retention_days,
+        updated_at = CURRENT_TIMESTAMP
+    `)
+    .bind(days)
+    .run();
+});
+
+export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* ({
+  db,
+  source,
+}: {
+  db: QueryDatabaseClient;
+  source: "health" | "hevy";
+}) {
+  const tables =
+    source === "health"
+      ? ["daily_activity", "health_workouts", "sleep_sessions", "body_metrics"]
+      : ["hevy_sets", "hevy_sessions"];
+  for (const table of tables) yield* db.prepare(`DELETE FROM ${table}`).run();
+  yield* db
+    .prepare("DELETE FROM sync_cursors WHERE source = ?")
+    .bind(source === "health" ? "apple_health" : "hevy")
+    .run();
+});
+
 export interface WorkoutHistoryItem {
   session_id: string;
   title: string | null;

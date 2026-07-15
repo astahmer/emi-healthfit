@@ -249,6 +249,12 @@ export const chatGenerationChunks = sqliteTable(
   ],
 );
 
+export const privacyPreferences = sqliteTable("privacy_preferences", {
+  id: integer().primaryKey(),
+  rawUploadRetentionDays: integer("raw_upload_retention_days").notNull().default(30),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export type DailyActivityRow = typeof dailyActivity.$inferSelect;
 export type HealthWorkoutRow = Omit<typeof healthWorkouts.$inferSelect, "id"> & { id?: number };
 export type HevySessionRow = typeof hevySessions.$inferSelect;
