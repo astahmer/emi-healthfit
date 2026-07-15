@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { chatModels, defaultModel } from "./models";
 import { useSettings } from "./settings-store";
 import { settingsSyncMachine } from "./settings-sync-machine";
+import { DataImport } from "./data-import";
 
 export function SettingsPanel() {
   const { settings, update } = useSettings();
@@ -178,6 +179,8 @@ export function SettingsPanel() {
             <p className="mt-2 text-center text-xs text-destructive">{exportError}</p>
           )}
         </div>
+
+        <DataImport />
 
         <Button
           onClick={() =>

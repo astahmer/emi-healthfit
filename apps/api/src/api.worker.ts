@@ -65,6 +65,11 @@ import {
 import { parseHealthExport } from "./ingest/health.ts";
 import { parseHevyCsv } from "./ingest/hevy.ts";
 import {
+  importIngestedData,
+  ingestedDataExportSchema,
+  previewIngestedDataImport,
+} from "./ingest/data-transfer.ts";
+import {
   createChatStream,
   extractMemories,
   generateSuggestions,
@@ -150,6 +155,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("GET", "/api/summary", (request) => cors(request, handleSummary(db)));
       yield* router.add("GET", "/api/export/ingested-data", (request) =>
         cors(request, handleIngestedDataExport(db)),
+      );
+      yield* router.add("POST", "/api/import/ingested-data", (request) =>
+        cors(request, handleIngestedDataImport(db, request)),
       );
       yield* router.add("GET", "/api/workouts", (request) => cors(request, handleWorkouts(db)));
       yield* router.add("GET", "/api/conversations", (request) =>
@@ -506,6 +514,27 @@ const handleSummary = (db: QueryDatabaseClient) =>
 const handleIngestedDataExport = (db: QueryDatabaseClient) =>
   getIngestedDataExport({ db }).pipe(
     Effect.flatMap((data) => HttpServerResponse.json(data)),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const raw = JSON.parse((yield* request.text) || "{}") as unknown;
+    const parsed = ingestedDataExportSchema.safeParse(raw);
+    if (!parsed.success) {
+      return yield* HttpServerResponse.json(
+        { error: "Invalid HealthFit export", issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    const preview = yield* previewIngestedDataImport({ db, data: parsed.data });
+    const apply = new URL(request.url, "http://localhost").searchParams.get("apply") === "true";
+    if (apply) {
+      yield* importIngestedData({ db, data: parsed.data });
+      summaryCache.clear();
+    }
+    return yield* HttpServerResponse.json({ preview, applied: apply });
+  }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
