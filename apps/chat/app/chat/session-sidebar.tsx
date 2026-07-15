@@ -238,11 +238,11 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
               </DropdownMenuTrigger>
             </SidebarMenuAction>
             <DropdownMenuContent align="start" side="right">
-              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+              <DropdownMenuItem onClick={() => send({ type: "share" })}>
                 <ShareIcon />
                 <span>Partager</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+              <DropdownMenuItem onClick={() => send({ type: "download" })}>
                 <DownloadIcon />
                 <span>Télécharger</span>
               </DropdownMenuItem>
