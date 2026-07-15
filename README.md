@@ -12,7 +12,7 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 - **Frontend:** Next.js static export, XState chat runtime, Vercel AI SDK transport, shadcn UI
 - **Database:** Cloudflare D1
 - **Raw export storage:** Cloudflare R2
-- **LLM:** OpenAI (`gpt-4o-mini` by default) via BYOK or CF Worker proxy
+- **LLM:** OpenAI (`gpt-5.2-chat-latest` by default) via BYOK through the Worker
 
 ## Prerequisites
 
@@ -83,19 +83,20 @@ The command prints the deployed Worker URL. Open that URL in a browser to use th
 
 ## Using the assistant
 
-The web UI is served directly from the Worker at the root URL after deploying. It has four tabs:
+The web UI is served directly from the Worker at the root URL after deploying. Its main areas are:
 
-- **Chat** — GPT-like chat with tool calling
+- **Chat** — streaming, resumable chat with tools, attachments, conversation history, and branches
 - **Upload** — import HealthExportKit JSON and/or Hevy CSV
-- **Summary** — imported data counts and last sync times
-- **Settings** — provider, model, base URL, API key, system prompt
+- **Workouts** — browse and filter imported Hevy sessions
+- **Notes** — a gym journal that can be included in assistant context
+- **Memory** — saved assistant snippets and extracted memories
+- **Settings** — model, endpoint, API key, system prompt, syncing, and JSON data export
 
-In **Settings** you can choose:
+The development-only **Sandbox** exercises generative UI components.
 
-- **Proxy via CF Worker** — chat requests go to `POST /api/chat`; the Worker calls OpenAI with your API key and can execute tools.
-- **Direct to provider** — the browser calls OpenAI directly with your key. Tools still run against the Worker.
+Chat requests go to `POST /api/chat`. The Worker calls the configured GPT-compatible endpoint, executes fitness and conversation tools, and persists the conversation in D1. Images can be attached with the paperclip or pasted directly into the composer.
 
-Add new tools remotely by updating the Worker; the frontend discovers them from `GET /api/tools`.
+Conversations support rename, search, message editing/regeneration, Markdown copy/download, share links, and side-thread creation from any persisted message. Branch controls stay hidden until a conversation actually has a branch.
 
 ## API
 
@@ -151,6 +152,10 @@ curl https://<worker-url>/api/recovery
 
 Get imported data counts and last sync times.
 
+### `GET /api/export/ingested-data`
+
+Download a versioned JSON document containing all ingested Apple Health records, Hevy sessions and sets, and sync cursors. The same export is available from **Settings**. Chat messages, notes, memories, and generation checkpoints are intentionally excluded.
+
 ## Ingestion flow from iPhone
 
 The recommended flow is a single iOS Shortcut:
@@ -186,6 +191,8 @@ No dedicated app needed.
 │       ├── app/                # Pages, runtime machine, providers, settings
 │       └── components/         # UI components
 ├── data/                       # Your export files (gitignored)
+├── plans/                      # Detailed implementation and UX plans
+├── ideas.md                    # Product and engineering backlog
 └── .references/                # Cloned reference repositories
 ```
 
@@ -205,13 +212,18 @@ It returns one of:
 
 ## Testing
 
-Tests run against the real export files in `data/` and assert parser correctness.
+The API uses Node's test runner; the chat app uses Vitest and Testing Library. Parser tests exercise real export files in `data/` when available.
 
 ```bash
 pnpm test
 ```
 
-To add a new test, create a `.test.ts` file under `apps/api/test/` and run it with `node --test --experimental-strip-types`.
+For focused checks, run the relevant package directly:
+
+```bash
+cd apps/api && pnpm typecheck && pnpm test
+cd apps/chat && pnpm typecheck && pnpm test
+```
 
 ## Contributing
 
@@ -227,7 +239,7 @@ To add a new test, create a `.test.ts` file under `apps/api/test/` and run it wi
 
 Code style:
 
-- Use Effect generators (`Effect.gen`) for async/effectful code
+- Name effectful operations with `Effect.fn`, compose with `Effect.gen`, and log with `Effect.log*`
 - Prefer Alchemy bindings over raw `fetch`
 - Keep parsers tolerant of missing/optional fields
 - Add tests for new parsers or endpoints
