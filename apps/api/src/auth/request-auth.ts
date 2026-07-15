@@ -80,7 +80,13 @@ export const handleAuthRequest = Effect.fn("auth.handler")(function* ({
   const response = yield* Effect.tryPromise({
     try: () => requestAuth.auth.handler(requestAuth.webRequest),
     catch: (error) => new Error(`Authentication request failed: ${String(error)}`),
-  });
+  }).pipe(
+    Effect.tapError((error) =>
+      Effect.logError("Auth handler error").pipe(
+        Effect.annotateLogs({ path: request.url, error: String(error) }),
+      ),
+    ),
+  );
   return HttpServerResponse.fromWeb(response);
 });
 

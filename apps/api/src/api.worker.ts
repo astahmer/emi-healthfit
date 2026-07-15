@@ -319,8 +319,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
         return yield* router.asHttpEffect();
       }).pipe(
         Effect.scoped,
-        Effect.catch(() =>
-          Effect.succeed(HttpServerResponse.text("Internal Server Error", { status: 500 })),
+        Effect.catch((error) =>
+          Effect.logError("Unhandled fetch error").pipe(
+            Effect.annotateLogs({ error: String(error) }),
+            Effect.as(HttpServerResponse.text("Internal Server Error", { status: 500 })),
+          ),
         ),
       ),
     };
