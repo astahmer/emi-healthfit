@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import type { FC, ReactNode } from "react";
 import {
   BrainIcon,
@@ -13,10 +15,22 @@ import {
   NotebookPenIcon,
   SettingsIcon,
   UploadIcon,
+  LogOutIcon,
+  UserRoundIcon,
 } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { authClient } from "./auth-client";
+import { clearSessionCache } from "./session-cache";
 
 const tabs = [
   { href: "/chat", label: "Chat", icon: MessageSquareIcon, description: "Ask your coach" },
@@ -38,6 +52,7 @@ const tabs = [
 
 export const NavHeader: FC = () => {
   const pathname = usePathname();
+  if (pathname === "/auth" || pathname.startsWith("/auth/")) return null;
 
   return (
     <header className="relative z-50 flex h-14 items-center justify-between border-b bg-background px-4">
@@ -84,8 +99,47 @@ export const NavHeader: FC = () => {
             </SheetContent>
           </Sheet>
         </div>
+        <AccountMenu />
       </div>
     </header>
+  );
+};
+
+const AccountMenu = () => {
+  const session = authClient.useSession();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  const signOut = async () => {
+    await authClient.signOut();
+    queryClient.clear();
+    await clearSessionCache();
+    router.replace("/auth");
+  };
+
+  if (session.data === null) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Open account menu">
+          <UserRoundIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="space-y-0.5">
+          <span className="block truncate">{session.data.user.name}</span>
+          <span className="block truncate text-xs font-normal text-muted-foreground">
+            {session.data.user.email}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => void signOut()}>
+          <LogOutIcon className="size-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

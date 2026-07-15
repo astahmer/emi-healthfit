@@ -31,6 +31,12 @@ pnpm 11, Playwright browsers, Python, and the deployment utilities used by the r
 pnpm install
 ```
 
+Copy `.env.example` to `.env` and configure Better Auth plus a Google OAuth web client. Register
+`<BETTER_AUTH_URL>/api/auth/callback/google` as an authorized redirect URI. `ALLOWED_EMAILS` is the
+enrollment and active-session allowlist; it currently requires exactly one address until the
+per-row ownership migration is complete. Removing that email blocks its existing sessions on the
+next request. Calendar scopes are intentionally not requested during sign-in.
+
 With Nix and direnv installed, approve the repository once and the complete Node 26, pnpm 11,
 Playwright, Python, and utility toolchain loads automatically on entry:
 

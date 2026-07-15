@@ -6,6 +6,7 @@ catalog:
   "@types/json-schema": "^7.0.15"
   "@typescript/native-preview": "7.0.0-dev.20260707.2"
   ai: "^6.0.209"
+  better-auth: "^1.6.23"
   effect: "4.0.0-beta.88"
   knip: "^6.26.0"
   oxfmt: "^0.56.0"

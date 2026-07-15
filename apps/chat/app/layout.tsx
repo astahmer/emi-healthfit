@@ -6,6 +6,7 @@ import { NavHeader } from "./nav-header";
 import { ThemeProvider } from "./theme-provider";
 import { QueryProvider } from "./query-provider";
 import { ServiceWorkerReload } from "./service-worker-reload";
+import { AuthBoundary } from "./auth-boundary";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -50,12 +51,14 @@ export default function RootLayout({
         <QueryProvider>
           <ThemeProvider>
             <TooltipProvider>
-              <div className="flex h-dvh flex-col bg-background text-foreground">
-                <Suspense>
-                  <NavHeader />
-                </Suspense>
-                <div className="flex-1 overflow-hidden">{children}</div>
-              </div>
+              <Suspense>
+                <AuthBoundary>
+                  <div className="flex h-dvh flex-col bg-background text-foreground">
+                    <NavHeader />
+                    <div className="flex-1 overflow-hidden">{children}</div>
+                  </div>
+                </AuthBoundary>
+              </Suspense>
             </TooltipProvider>
           </ThemeProvider>
         </QueryProvider>

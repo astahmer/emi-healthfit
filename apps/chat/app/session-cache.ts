@@ -49,6 +49,12 @@ const getDb = (): SessionCacheDatabase => {
   return db;
 };
 
+export const clearSessionCache = async (): Promise<void> => {
+  if (db === null) return;
+  await db.delete();
+  db = null;
+};
+
 const safeDb = async <T>(run: (database: SessionCacheDatabase) => Promise<T>): Promise<T> => {
   try {
     return await run(getDb());

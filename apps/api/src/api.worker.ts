@@ -1,5 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -93,6 +94,7 @@ import {
 import { createGenerationReplayStream } from "./chat/generation-replay.ts";
 import { createChatStreamResponse } from "./chat/ui-message-stream-response.ts";
 import { registerHttpApi } from "./http-api.ts";
+import { authenticateRequest, handleAuthRequest, isProtectedPath } from "./auth/request-auth.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -145,6 +147,14 @@ export default class Api extends Cloudflare.Worker<Api>()(
   {
     main: import.meta.url,
     assets: "./assets",
+    compatibility: { flags: ["nodejs_compat"] },
+    env: {
+      BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
+      BETTER_AUTH_URL: Config.redacted("BETTER_AUTH_URL"),
+      GOOGLE_CLIENT_ID: Config.redacted("GOOGLE_CLIENT_ID"),
+      GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET"),
+      ALLOWED_EMAILS: Config.redacted("ALLOWED_EMAILS"),
+    },
     observability: {
       enabled: true,
     },
@@ -280,6 +290,21 @@ export default class Api extends Cloudflare.Worker<Api>()(
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const pathname = new URL(request.url, "http://localhost").pathname;
+        if (pathname.startsWith("/api/auth/")) {
+          return yield* handleAuthRequest({ db, environment: env, request });
+        }
+        if (isProtectedPath(pathname)) {
+          const principal = yield* authenticateRequest({ db, environment: env, request });
+          if (principal === null) {
+            return yield* HttpServerResponse.json(
+              { error: "Authentication required" },
+              { status: 401 },
+            );
+          }
+          yield* Effect.logDebug("auth.request.authorized").pipe(
+            Effect.annotateLogs({ userId: principal.id, pathname }),
+          );
+        }
         if (
           pathname === "/api/openapi.json" ||
           pathname === "/api/notes" ||

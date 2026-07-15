@@ -17,6 +17,15 @@ Allow only configured Google accounts to sign in, isolate every personal row by 
 unauthenticated access to all personal-data, chat, import/export, privacy, memory, note, analytics,
 and generation endpoints.
 
+## Implementation status
+
+The Google OAuth/session foundation is implemented: checked-in Better Auth tables, verified-email
+allowlist enrollment, active-session allowlist checks, protected-by-default personal endpoints, a
+frontend auth gate, account sign-out, and private browser-cache clearing. The remaining rollout gate
+is the row-ownership migration below. Until that migration and its two-user isolation tests land,
+production must configure a single allowed account; enabling multiple accounts would expose the
+same legacy dataset to each authenticated user.
+
 ## Decisions
 
 - Use `better-auth` with the existing D1 database and Google as the initial identity provider.
