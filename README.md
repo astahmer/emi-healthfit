@@ -155,12 +155,28 @@ pnpm build
 
 ## Deployment
 
-Build the frontend and deploy the worker:
+Alchemy stages are isolated environments. The default stage is your local username; use an explicit
+`prod` stage for production. Create `.env.prod` with production values for every variable in
+`.env.example`:
+
+- `BETTER_AUTH_URL` is the exact public HTTPS Worker origin, without a trailing slash.
+- The Google production web client must authorize
+  `<BETTER_AUTH_URL>/api/auth/callback/google` exactly.
+- Use a different `BETTER_AUTH_SECRET` and Google client from local development.
+- `ALLOWED_EMAILS` remains limited to one address until the ownership migration in
+  `plans/auth.md` is complete.
+
+Build the frontend and deploy the production stage:
 
 ```bash
 pnpm build
-pnpm deploy
+pnpm deploy -- --stage prod --env-file ../../.env.prod
 ```
+
+The filtered `api` script runs from `apps/api`, so `../../.env.prod` points to the repository root.
+`Config.redacted` reads these values at deploy time and Alchemy binds them as encrypted Worker
+secrets; the `.env.prod` file itself is not uploaded. A redeploy updates the bindings. In CI, pass
+the same names through the job environment instead of creating a file.
 
 Alchemy will create/update:
 
