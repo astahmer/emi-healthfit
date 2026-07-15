@@ -3,6 +3,22 @@ import { describe, expect, it } from "vitest";
 import { ToolResultContent } from "./tool-result-content";
 
 describe("ToolResultContent", () => {
+  it("renders a safe empty state when workout history is missing", () => {
+    render(
+      <ToolResultContent
+        toolName="render_component"
+        result={{
+          spec: {
+            root: "root",
+            elements: { root: { type: "WorkoutTable", props: {} } },
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("No workouts found.")).toBeInTheDocument();
+  });
+
   it("renders a compact empty state instead of an empty progress chart", () => {
     const view = render(
       <ToolResultContent

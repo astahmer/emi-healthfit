@@ -147,7 +147,11 @@ const Table: FC<{ headers: string[]; rows: React.ReactNode[][] }> = ({ headers, 
   );
 };
 
-export const WorkoutHistoryTable: FC<{ items: WorkoutHistoryItem[] }> = ({ items }) => {
+export const WorkoutHistoryTable: FC<{ items?: WorkoutHistoryItem[] }> = ({ items = [] }) => {
+  if (items.length === 0) {
+    return <p className="text-sm text-muted-foreground">No workouts found.</p>;
+  }
+
   return (
     <Table
       headers={["Date", "Workout", "Volume", "Exercises", "Sets"]}
