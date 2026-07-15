@@ -3,11 +3,28 @@ import { describe, it } from "node:test";
 import { executeTool, tools } from "../src/tools/api.ts";
 import * as Effect from "effect/Effect";
 
-const fakeDb = {} as never;
+const fakeDb = {
+  prepare: () => ({
+    all: () => Effect.succeed({ results: [] }),
+  }),
+} as never;
 
 const run = <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect);
 
 describe("query_database tool", () => {
+  it("accepts one SELECT with an optional trailing semicolon", async () => {
+    await run(
+      executeTool({
+        db: fakeDb,
+        name: "query_database",
+        args: {
+          query:
+            "SELECT exercise_title, SUM(weight_kg * reps) FROM hevy_sets GROUP BY exercise_title;",
+        },
+      }),
+    );
+  });
+
   it("rejects write commands", async () => {
     await assert.rejects(
       run(
@@ -17,7 +34,7 @@ describe("query_database tool", () => {
           args: { query: "DELETE FROM users" },
         }),
       ),
-      /Only one SELECT query/,
+      /Only one read-only SELECT statement/,
     );
 
     await assert.rejects(
@@ -28,7 +45,7 @@ describe("query_database tool", () => {
           args: { query: "INSERT INTO users VALUES (1)" },
         }),
       ),
-      /Only one SELECT query/,
+      /Only one read-only SELECT statement/,
     );
   });
 

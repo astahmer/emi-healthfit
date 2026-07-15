@@ -49,7 +49,8 @@ const GetRecovery = Tool.make("get_recovery", {
 });
 
 const QueryDatabase = Tool.make("query_database", {
-  description: "Run a read-only SQL SELECT query against the gym data D1 database.",
+  description:
+    "Run one read-only SQL SELECT against the gym data D1 database. Joins, subqueries, filters, GROUP BY, and aggregate functions are supported.",
   parameters: Schema.Struct({
     query: Schema.String.annotate({ description: "A single read-only SELECT query." }),
   }),
@@ -299,10 +300,13 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       ),
     ),
     query_database: Effect.fn("FitnessToolkit.queryDatabase")(function* ({ query }) {
-      const normalized = query.trim();
+      const normalized = query.trim().replace(/;\s*$/, "");
       if (!/^select\b/i.test(normalized) || normalized.includes(";")) {
         return yield* Effect.fail(
-          toolError({ tool: "query_database", message: "Only one SELECT query is allowed." }),
+          toolError({
+            tool: "query_database",
+            message: "Only one read-only SELECT statement is allowed.",
+          }),
         );
       }
       const result = yield* db

@@ -1,5 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
+import * as Cause from "effect/Cause";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -1571,7 +1572,16 @@ const handleAiSdkChat = (
                 );
                 yield* saveSuggestions(db, key, suggestions);
               }
-            }).pipe(Effect.catch(() => Effect.void)),
+            }).pipe(
+              Effect.catchCause((cause) =>
+                Effect.logError("chat.generation.onFinish.failure").pipe(
+                  Effect.annotateLogs({
+                    sessionId,
+                    error: Cause.pretty(cause),
+                  }),
+                ),
+              ),
+            ),
           );
         },
       }),

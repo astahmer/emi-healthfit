@@ -4,6 +4,7 @@ import {
   generateText,
   isLoopFinished,
   jsonSchema,
+  stepCountIs,
   type LanguageModelUsage,
   type StreamTextOnChunkCallback,
   type ToolSet,
@@ -94,7 +95,7 @@ export const createChatStream = async ({
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
-    stopWhen: isLoopFinished(),
+    stopWhen: [isLoopFinished(), stepCountIs(8)],
     onChunk,
     onError: ({ error }) =>
       Effect.runSync(
