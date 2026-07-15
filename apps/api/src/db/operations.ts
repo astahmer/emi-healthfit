@@ -618,6 +618,88 @@ export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(
   };
 });
 
+export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
+  db,
+  days = 90,
+}: {
+  db: QueryDatabaseClient;
+  days?: number;
+}) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const [activity, sleep, body, training, exercises] = yield* Effect.all([
+    db
+      .prepare(
+        "SELECT date, steps, active_kcal, exercise_min FROM daily_activity WHERE date >= ? ORDER BY date",
+      )
+      .bind(since)
+      .all<{
+        date: string;
+        steps: number | null;
+        active_kcal: number | null;
+        exercise_min: number | null;
+      }>(),
+    db
+      .prepare(
+        "SELECT date, SUM(asleep_min) asleep_min, SUM(in_bed_min) in_bed_min FROM sleep_sessions WHERE date >= ? GROUP BY date ORDER BY date",
+      )
+      .bind(since)
+      .all<{ date: string; asleep_min: number | null; in_bed_min: number | null }>(),
+    db
+      .prepare(
+        "SELECT date, weight_kg, body_fat_pct, lean_mass_kg FROM body_metrics WHERE date >= ? ORDER BY date",
+      )
+      .bind(since)
+      .all<{
+        date: string;
+        weight_kg: number | null;
+        body_fat_pct: number | null;
+        lean_mass_kg: number | null;
+      }>(),
+    db
+      .prepare(
+        "SELECT substr(start_time, 1, 10) date, COUNT(*) workouts, SUM(total_volume_kg) volume_kg, SUM(duration_sec) duration_sec FROM hevy_sessions WHERE start_time >= ? GROUP BY substr(start_time, 1, 10) ORDER BY date",
+      )
+      .bind(since)
+      .all<{
+        date: string;
+        workouts: number;
+        volume_kg: number | null;
+        duration_sec: number | null;
+      }>(),
+    db
+      .prepare(
+        "SELECT s.exercise_title, COUNT(*) sets, SUM(COALESCE(s.weight_kg, 0) * COALESCE(s.reps, 0)) volume_kg FROM hevy_sets s JOIN hevy_sessions h ON h.session_id = s.session_id WHERE h.start_time >= ? GROUP BY s.exercise_title ORDER BY sets DESC LIMIT 8",
+      )
+      .bind(since)
+      .all<{ exercise_title: string; sets: number; volume_kg: number }>(),
+  ]);
+  const average = (values: number[]) =>
+    values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / values.length;
+  const weights = body.results.flatMap((row) => (row.weight_kg === null ? [] : [row.weight_kg]));
+  return {
+    days,
+    activity: activity.results,
+    sleep: sleep.results,
+    body: body.results,
+    training: training.results,
+    exercises: exercises.results,
+    highlights: {
+      averageSteps: average(
+        activity.results.flatMap((row) => (row.steps === null ? [] : [row.steps])),
+      ),
+      averageSleepMinutes: average(
+        sleep.results.flatMap((row) => {
+          const minutes = row.asleep_min ?? row.in_bed_min;
+          return minutes === null ? [] : [minutes];
+        }),
+      ),
+      workouts: training.results.reduce((total, row) => total + row.workouts, 0),
+      trainingVolumeKg: training.results.reduce((total, row) => total + (row.volume_kg ?? 0), 0),
+      weightChangeKg: weights.length < 2 ? null : (weights.at(-1) ?? 0) - (weights.at(0) ?? 0),
+    },
+  };
+});
+
 export interface WorkoutSession {
   session_id: string;
   title: string | null;

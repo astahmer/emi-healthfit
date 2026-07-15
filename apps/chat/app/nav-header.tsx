@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { FC, ReactNode } from "react";
 import {
   BrainIcon,
+  ChartNoAxesCombinedIcon,
   DumbbellIcon,
   FlaskConicalIcon,
   MenuIcon,
@@ -21,6 +22,12 @@ const tabs = [
   { href: "/chat", label: "Chat", icon: MessageSquareIcon, description: "Ask your coach" },
   { href: "/upload", label: "Upload", icon: UploadIcon, description: "Import health data" },
   { href: "/workouts", label: "Workouts", icon: DumbbellIcon, description: "Browse sessions" },
+  {
+    href: "/summary",
+    label: "Trends",
+    icon: ChartNoAxesCombinedIcon,
+    description: "Health analytics",
+  },
   { href: "/notes", label: "Notes", icon: NotebookPenIcon, description: "Gym journal" },
   { href: "/memory", label: "Memory", icon: BrainIcon, description: "Saved snippets" },
   ...(process.env.NODE_ENV === "development"

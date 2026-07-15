@@ -28,6 +28,7 @@ import {
   getConversationMessages,
   getConversations,
   getDataSummary,
+  getAnalyticsOverview,
   getIngestedDataExport,
   getIngestedDataExportSummary,
   getMemories,
@@ -154,6 +155,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
       );
       yield* router.add("GET", "/api/recovery", (request) => cors(request, handleRecovery(db)));
       yield* router.add("GET", "/api/summary", (request) => cors(request, handleSummary(db)));
+      yield* router.add("GET", "/api/analytics/overview", (request) =>
+        cors(request, handleAnalyticsOverview(db, request)),
+      );
       yield* router.add("GET", "/api/export/ingested-data", (request) =>
         cors(request, handleIngestedDataExport(db)),
       );
@@ -511,6 +515,19 @@ const handleSummary = (db: QueryDatabaseClient) =>
     const summary = yield* getDataSummary(db);
     summaryCache.set("summary", summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleAnalyticsOverview = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const requestedDays = Number(new URL(request.url, "http://localhost").searchParams.get("days"));
+    const days =
+      Number.isInteger(requestedDays) && requestedDays >= 7 && requestedDays <= 365
+        ? requestedDays
+        : 90;
+    const overview = yield* getAnalyticsOverview({ db, days });
+    return yield* HttpServerResponse.json(overview);
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
