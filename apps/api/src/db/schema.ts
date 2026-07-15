@@ -99,13 +99,21 @@ export const conversations = sqliteTable(
   {
     id: text().primaryKey(),
     title: text(),
-    status: text({ enum: ["regular", "temporary"] })
+    status: text({ enum: ["regular", "archived", "temporary"] })
       .notNull()
       .default("regular"),
+    pinned: integer({ mode: "boolean" }).notNull().default(false),
     created_at: text().notNull(),
     updated_at: text().notNull(),
   },
-  (table) => [index("idx_conversations_updated_at").on(table.updated_at)],
+  (table) => [
+    index("idx_conversations_updated_at").on(table.updated_at),
+    index("idx_conversations_status_pinned_updated").on(
+      table.status,
+      table.pinned,
+      table.updated_at,
+    ),
+  ],
 );
 
 export const messages = sqliteTable(

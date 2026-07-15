@@ -7,6 +7,7 @@ const makeThread = (overrides?: Partial<Thread>): Thread => ({
   id: "thread-1",
   title: "Squat Session",
   status: "regular",
+  pinned: false,
   created_at: "2026-07-14T11:37:55.245Z",
   updated_at: "2026-07-14T11:42:25.844Z",
   ...overrides,
@@ -131,5 +132,44 @@ describe("sidebarItemMachine", () => {
     expect(actor.getSnapshot().context.copiedId).toBeNull();
 
     vi.useRealTimers();
+  });
+
+  it("pins and archives conversations through persisted state updates", async () => {
+    const thread = makeThread();
+    const onChanged = vi.fn();
+    const machine = sidebarItemMachine.provide({
+      actors: {
+        updateState: fromPromise(async ({ input }) => ({
+          ...thread,
+          status: input.status ?? thread.status,
+          pinned: input.pinned ?? thread.pinned,
+        })),
+      },
+    });
+    const actor = createActor(machine, { input: { thread, onChanged } });
+    actor.start();
+
+    actor.send({ type: "pin.toggle" });
+    await vi.waitFor(() => expect(actor.getSnapshot().context.thread.pinned).toBe(true));
+    actor.send({ type: "archive" });
+    await vi.waitFor(() => expect(actor.getSnapshot().context.thread.status).toBe("archived"));
+
+    expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens a cloned conversation after its ancestry is copied", async () => {
+    const thread = makeThread();
+    const cloned = makeThread({ id: "thread-copy", title: "Squat Session copy" });
+    const onCloned = vi.fn();
+    const machine = sidebarItemMachine.provide({
+      actors: { clone: fromPromise(async () => cloned) },
+    });
+    const actor = createActor(machine, { input: { thread, onCloned } });
+    actor.start();
+
+    actor.send({ type: "clone" });
+    await vi.waitFor(() => expect(actor.getSnapshot().matches("idle")).toBe(true));
+
+    expect(onCloned).toHaveBeenCalledWith("thread-copy");
   });
 });

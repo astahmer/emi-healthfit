@@ -107,7 +107,7 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
     return group;
   };
 
-  for (const thread of threads) {
+  for (const thread of threads.filter((candidate) => candidate.status === "regular")) {
     const daysAgo = getDaysAgo(thread.updated_at);
     if (daysAgo <= 0) {
       ensureGroup("today", "Today").threads.push(thread);
@@ -122,6 +122,10 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
     }
   }
 
+  const archived = threads.filter((thread) => thread.status === "archived");
+  if (archived.length > 0)
+    groups.set("archived", { key: "archived", label: "Archived", threads: archived });
+
   return Array.from(groups.values());
 };
 
@@ -129,9 +133,11 @@ interface SidebarItemProps {
   thread: Thread;
   isActive: boolean;
   onDeleted: () => void;
+  onChanged: () => void;
+  onCloned: (threadId: string) => void;
 }
 
-const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
+const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: SidebarItemProps) => {
   const queryClient = useQueryClient();
   const { setOpenMobile } = useSidebar();
   const [state, send] = useMachine(sidebarItemMachine, {
@@ -142,6 +148,8 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
         void queryClient.invalidateQueries({ queryKey: ["thread", thread.id] });
       },
       onDeleted,
+      onChanged,
+      onCloned,
     },
   });
 
@@ -208,6 +216,7 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
               }
             >
               <MessageSquareIcon />
+              {thread.pinned && <PinIcon className="size-3 fill-current" aria-label="Pinned" />}
               <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
                 <span className="flex-1 truncate">{title}</span>
                 <Tooltip>
@@ -254,17 +263,19 @@ const SidebarItem = ({ thread, isActive, onDeleted }: SidebarItemProps) => {
                 <PencilIcon />
                 <span>Renommer</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+              <DropdownMenuItem onClick={() => send({ type: "pin.toggle" })}>
                 <PinIcon />
-                <span>Épingler</span>
+                <span>{thread.pinned ? "Désépingler" : "Épingler"}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+              <DropdownMenuItem onClick={() => send({ type: "clone" })}>
                 <CopyIcon />
                 <span>Cloner</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => alert("Coming soon")}>
+              <DropdownMenuItem
+                onClick={() => send({ type: thread.status === "archived" ? "restore" : "archive" })}
+              >
                 <ArchiveIcon />
-                <span>Archiver</span>
+                <span>{thread.status === "archived" ? "Restaurer" : "Archiver"}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -389,6 +400,13 @@ export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
                       onDeleted={() => {
                         if (activeId === thread.id) router.push("/chat");
                         void queryClient.invalidateQueries({ queryKey: ["threads"] });
+                      }}
+                      onChanged={() =>
+                        void queryClient.invalidateQueries({ queryKey: ["threads"] })
+                      }
+                      onCloned={(threadId) => {
+                        void queryClient.invalidateQueries({ queryKey: ["threads"] });
+                        router.push(`/chat/${encodeURIComponent(threadId)}`);
                       }}
                     />
                   ))}

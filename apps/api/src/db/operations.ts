@@ -44,6 +44,12 @@ const arrayBufferToHex = (buffer: ArrayBuffer): string => {
     .join("");
 };
 
+const requireMappedId = (ids: Map<string, string>, originalId: string): string => {
+  const id = ids.get(originalId);
+  if (id === undefined) throw new Error(`Missing cloned id for ${originalId}`);
+  return id;
+};
+
 export const hashSuggestionsKey = (
   lastAssistantText: string,
   lastUserText?: string,
@@ -668,6 +674,7 @@ export interface Conversation {
   id: string;
   title: string | null;
   status: "regular" | "archived";
+  pinned: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -727,8 +734,8 @@ export const getConversations = (db: QueryDatabaseClient, search?: string) =>
         SELECT DISTINCT c.*
         FROM conversations c
         LEFT JOIN messages m ON m.conversation_id = c.id
-        WHERE c.status = 'regular' AND (c.title LIKE ? OR m.parts LIKE ?)
-        ORDER BY c.updated_at DESC
+        WHERE c.status IN ('regular', 'archived') AND (c.title LIKE ? OR m.parts LIKE ?)
+        ORDER BY c.status = 'archived', c.pinned DESC, c.updated_at DESC
         LIMIT 100
       `)
         .bind(term, term)
@@ -739,8 +746,8 @@ export const getConversations = (db: QueryDatabaseClient, search?: string) =>
     const result = yield* db
       .prepare(`
       SELECT * FROM conversations
-      WHERE status = 'regular'
-      ORDER BY updated_at DESC
+      WHERE status IN ('regular', 'archived')
+      ORDER BY status = 'archived', pinned DESC, updated_at DESC
       LIMIT 100
     `)
       .all<Conversation>();
@@ -762,6 +769,117 @@ export const deleteConversation = (db: QueryDatabaseClient, conversationId: stri
   Effect.gen(function* () {
     yield* db.prepare(`DELETE FROM conversations WHERE id = ?`).bind(conversationId).run();
   });
+
+export const updateConversationState = Effect.fn("conversation.updateState")(function* ({
+  db,
+  conversationId,
+  status,
+  pinned,
+}: {
+  db: QueryDatabaseClient;
+  conversationId: string;
+  status?: "regular" | "archived";
+  pinned?: boolean;
+}) {
+  if (status !== undefined) {
+    yield* db
+      .prepare("UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?")
+      .bind(status, nowIso(), conversationId)
+      .run();
+  }
+  if (pinned !== undefined) {
+    yield* db
+      .prepare("UPDATE conversations SET pinned = ?, updated_at = ? WHERE id = ?")
+      .bind(pinned ? 1 : 0, nowIso(), conversationId)
+      .run();
+  }
+});
+
+export const cloneConversation = Effect.fn("conversation.clone")(function* ({
+  db,
+  conversationId,
+}: {
+  db: QueryDatabaseClient;
+  conversationId: string;
+}) {
+  const conversation = yield* getConversation(db, conversationId);
+  if (conversation === null) return null;
+  const originalMessages = yield* getConversationMessages(db, conversationId);
+  const originalThreads = yield* getThreadsIncludingDiscarded(db, conversationId);
+  const threadMessageRows = yield* db
+    .prepare(
+      "SELECT tm.thread_id, tm.message_id, tm.included_at FROM thread_messages tm JOIN threads t ON t.id = tm.thread_id WHERE t.conversation_id = ?",
+    )
+    .bind(conversationId)
+    .all<{ thread_id: string; message_id: string; included_at: string }>();
+  const clonedConversationId = crypto.randomUUID();
+  const timestamp = nowIso();
+  const messageIds = new Map(originalMessages.map((message) => [message.id, crypto.randomUUID()]));
+  const threadIds = new Map(originalThreads.map((thread) => [thread.id, crypto.randomUUID()]));
+
+  yield* db
+    .prepare(
+      "INSERT INTO conversations (id, title, status, pinned, created_at, updated_at) VALUES (?, ?, 'regular', 0, ?, ?)",
+    )
+    .bind(clonedConversationId, `${conversation.title ?? "New chat"} copy`, timestamp, timestamp)
+    .run();
+  yield* runBatches(
+    db,
+    originalMessages.map((message) =>
+      db
+        .prepare(
+          "INSERT INTO messages (id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+          requireMappedId(messageIds, message.id),
+          clonedConversationId,
+          message.parent_id === null ? null : (messageIds.get(message.parent_id) ?? null),
+          message.role,
+          message.parts,
+          message.prompt_tokens,
+          message.completion_tokens,
+          message.total_tokens,
+          message.model,
+          message.created_at,
+        ),
+    ),
+  );
+  yield* runBatches(
+    db,
+    originalThreads.map((thread) =>
+      db
+        .prepare(
+          "INSERT INTO threads (id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+          requireMappedId(threadIds, thread.id),
+          clonedConversationId,
+          requireMappedId(messageIds, thread.anchor_message_id),
+          thread.title,
+          thread.status,
+          thread.pinned ? 1 : 0,
+          thread.created_at,
+          thread.updated_at,
+        ),
+    ),
+  );
+  yield* runBatches(
+    db,
+    threadMessageRows.results.flatMap((row) => {
+      const threadId = threadIds.get(row.thread_id);
+      const messageId = messageIds.get(row.message_id);
+      if (threadId === undefined || messageId === undefined) return [];
+      return [
+        db
+          .prepare(
+            "INSERT INTO thread_messages (thread_id, message_id, included_at) VALUES (?, ?, ?)",
+          )
+          .bind(threadId, messageId, row.included_at),
+      ];
+    }),
+  );
+  return yield* getConversation(db, clonedConversationId);
+});
 
 export const renameConversation = (
   db: QueryDatabaseClient,

@@ -14,6 +14,7 @@ const thread: Thread = {
   id: "conversation-1",
   title: "Cached workout",
   status: "regular",
+  pinned: false,
   created_at: "2026-07-15T00:00:00.000Z",
   updated_at: "2026-07-15T01:00:00.000Z",
 };

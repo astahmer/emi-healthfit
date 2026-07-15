@@ -77,6 +77,7 @@ describe("SessionSidebar", () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         `${window.location.origin}/api/conversations/thread-1/messages`,
+        { signal: undefined },
       );
     });
   });

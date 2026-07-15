@@ -16,6 +16,7 @@ import { handleChat } from "./chat/handler.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
   addThreadMessage,
+  cloneConversation,
   createConversation,
   createThread,
   type DataSummary,
@@ -52,6 +53,7 @@ import {
   searchMemories,
   searchNotes,
   summarizeThread,
+  updateConversationState,
   updateNote,
   updateSyncCursor,
   upsertBodyMetrics,
@@ -158,6 +160,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
       );
       yield* router.add("DELETE", "/api/conversations/:conversationId", (request) =>
         cors(request, handleConversationDelete(db, request)),
+      );
+      yield* router.add("PATCH", "/api/conversations/:conversationId", (request) =>
+        cors(request, handleConversationStateUpdate(db, request)),
+      );
+      yield* router.add("POST", "/api/conversations/:conversationId/clone", (request) =>
+        cors(request, handleConversationClone(db, request)),
       );
       yield* router.add("GET", "/api/conversations/:conversationId/messages", (request) =>
         cors(request, handleConversationMessages(db, request)),
@@ -536,6 +544,47 @@ const handleConversationDelete = (db: QueryDatabaseClient, request: HttpServerRe
 
     yield* deleteConversation(db, conversationId);
     return yield* HttpServerResponse.json({ success: true });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleConversationStateUpdate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const conversationId = getConversationIdFromPath(request.url);
+    if (conversationId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
+    }
+    const raw = JSON.parse((yield* request.text) || "{}") as unknown;
+    const parsed = Schema.decodeUnknownOption(
+      Schema.Struct({
+        status: Schema.optional(Schema.Literals(["regular", "archived"])),
+        pinned: Schema.optional(Schema.Boolean),
+      }),
+    )(raw);
+    if (Option.isNone(parsed)) {
+      return yield* HttpServerResponse.json(
+        { error: "Invalid conversation state" },
+        { status: 400 },
+      );
+    }
+    yield* updateConversationState({ db, conversationId, ...parsed.value });
+    const conversation = yield* getConversation(db, conversationId);
+    return yield* HttpServerResponse.json({ conversation });
+  }).pipe(
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleConversationClone = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const conversationId = getConversationIdFromPath(request.url);
+    if (conversationId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
+    }
+    const conversation = yield* cloneConversation({ db, conversationId });
+    if (conversation === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json({ conversation }, { status: 201 });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );

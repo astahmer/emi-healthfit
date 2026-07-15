@@ -1,8 +1,10 @@
 import { assign, fromPromise, setup } from "xstate";
 import {
+  cloneConversation,
   deleteConversation,
   fetchConversationMessages,
   renameConversation,
+  updateConversationState,
   type Thread,
 } from "../sessions";
 
@@ -13,6 +15,8 @@ export interface SidebarItemContext {
   error: string | null;
   onRenamed?: () => void;
   onDeleted?: () => void;
+  onChanged?: () => void;
+  onCloned?: (threadId: string) => void;
 }
 
 export type SidebarItemEvent =
@@ -26,7 +30,11 @@ export type SidebarItemEvent =
   | { type: "delete.cancel" }
   | { type: "copy.markdown" }
   | { type: "share" }
-  | { type: "download" };
+  | { type: "download" }
+  | { type: "pin.toggle" }
+  | { type: "archive" }
+  | { type: "restore" }
+  | { type: "clone" };
 
 const getMarkdown = async (threadId: string): Promise<string> => {
   const { messages } = await fetchConversationMessages(threadId);
@@ -76,6 +84,8 @@ export interface SidebarItemInput {
   thread: Thread;
   onRenamed?: () => void;
   onDeleted?: () => void;
+  onChanged?: () => void;
+  onCloned?: (threadId: string) => void;
 }
 
 export const sidebarItemMachine = setup({
@@ -100,10 +110,18 @@ export const sidebarItemMachine = setup({
     download: fromPromise(({ input }: { input: { threadId: string; title: string } }) =>
       downloadConversation(input),
     ),
+    updateState: fromPromise(
+      ({ input }: { input: { threadId: string; status?: Thread["status"]; pinned?: boolean } }) =>
+        updateConversationState({ conversationId: input.threadId, ...input }),
+    ),
+    clone: fromPromise(({ input }: { input: { threadId: string } }) =>
+      cloneConversation(input.threadId),
+    ),
   },
   actions: {
     notifyRenamed: ({ context }) => context.onRenamed?.(),
     notifyDeleted: ({ context }) => context.onDeleted?.(),
+    notifyChanged: ({ context }) => context.onChanged?.(),
   },
 }).createMachine({
   id: "sidebarItem",
@@ -115,6 +133,8 @@ export const sidebarItemMachine = setup({
     error: null,
     onRenamed: input.onRenamed,
     onDeleted: input.onDeleted,
+    onChanged: input.onChanged,
+    onCloned: input.onCloned,
   }),
   on: {
     "thread.changed": {
@@ -144,6 +164,10 @@ export const sidebarItemMachine = setup({
         },
         share: { target: "sharing", actions: assign({ error: () => null }) },
         download: { target: "downloading", actions: assign({ error: () => null }) },
+        "pin.toggle": { target: "pinning", actions: assign({ error: () => null }) },
+        archive: { target: "archiving", actions: assign({ error: () => null }) },
+        restore: { target: "restoring", actions: assign({ error: () => null }) },
+        clone: { target: "cloning", actions: assign({ error: () => null }) },
       },
       after: {
         2000: {
@@ -258,6 +282,66 @@ export const sidebarItemMachine = setup({
             error: ({ event }) =>
               event.error instanceof Error ? event.error.message : "Download failed.",
           }),
+        },
+      },
+    },
+    pinning: {
+      invoke: {
+        src: "updateState",
+        input: ({ context }) => ({
+          threadId: context.thread.id,
+          pinned: !context.thread.pinned,
+        }),
+        onDone: {
+          target: "idle",
+          actions: [assign({ thread: ({ event }) => event.output }), "notifyChanged"],
+        },
+        onError: {
+          target: "idle",
+          actions: assign({ error: () => "Could not update pin." }),
+        },
+      },
+    },
+    archiving: {
+      invoke: {
+        src: "updateState",
+        input: ({ context }) => ({ threadId: context.thread.id, status: "archived" }),
+        onDone: {
+          target: "idle",
+          actions: [assign({ thread: ({ event }) => event.output }), "notifyChanged"],
+        },
+        onError: {
+          target: "idle",
+          actions: assign({ error: () => "Could not archive conversation." }),
+        },
+      },
+    },
+    restoring: {
+      invoke: {
+        src: "updateState",
+        input: ({ context }) => ({ threadId: context.thread.id, status: "regular" }),
+        onDone: {
+          target: "idle",
+          actions: [assign({ thread: ({ event }) => event.output }), "notifyChanged"],
+        },
+        onError: {
+          target: "idle",
+          actions: assign({ error: () => "Could not restore conversation." }),
+        },
+      },
+    },
+    cloning: {
+      invoke: {
+        id: "cloning",
+        src: "clone",
+        input: ({ context }) => ({ threadId: context.thread.id }),
+        onDone: {
+          target: "idle",
+          actions: ["notifyChanged", ({ context, event }) => context.onCloned?.(event.output.id)],
+        },
+        onError: {
+          target: "idle",
+          actions: assign({ error: () => "Could not clone conversation." }),
         },
       },
     },

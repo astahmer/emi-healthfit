@@ -13,6 +13,7 @@ export interface Thread {
   id: string;
   title: string | null;
   status: "regular" | "archived";
+  pinned: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -70,6 +71,7 @@ export const createConversation = async (): Promise<string> => {
       id: data.id,
       title: null,
       status: "regular",
+      pinned: false,
       created_at: now,
       updated_at: now,
     }),
@@ -115,10 +117,41 @@ export const renameConversation = async (conversationId: string, title: string):
       id: conversationId,
       title,
       status: existing?.status ?? "regular",
+      pinned: existing?.pinned ?? false,
       created_at: existing?.created_at ?? now,
       updated_at: now,
     }),
   );
+};
+
+export const updateConversationState = async ({
+  conversationId,
+  status,
+  pinned,
+}: {
+  conversationId: string;
+  status?: Thread["status"];
+  pinned?: boolean;
+}): Promise<Thread> => {
+  const response = await fetch(`${apiBase()}/api/conversations/${conversationId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ status, pinned }),
+  });
+  if (!response.ok) throw new Error(`Failed to update conversation: ${response.status}`);
+  const data = (await response.json()) as { conversation: Thread };
+  ignoreCacheError(updateCachedThread(data.conversation));
+  return data.conversation;
+};
+
+export const cloneConversation = async (conversationId: string): Promise<Thread> => {
+  const response = await fetch(`${apiBase()}/api/conversations/${conversationId}/clone`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error(`Failed to clone conversation: ${response.status}`);
+  const data = (await response.json()) as { conversation: Thread };
+  ignoreCacheError(updateCachedThread(data.conversation));
+  return data.conversation;
 };
 
 export const deleteConversation = async (conversationId: string): Promise<void> => {
