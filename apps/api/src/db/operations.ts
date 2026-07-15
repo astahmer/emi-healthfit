@@ -560,6 +560,64 @@ export const getIngestedDataExport = Effect.fn("dataExport.readIngested")(functi
   };
 });
 
+interface ExportRange {
+  count: number;
+  first: string | null;
+  last: string | null;
+}
+
+export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(function* ({
+  db,
+}: {
+  db: QueryDatabaseClient;
+}) {
+  const [activity, workouts, sleep, body, hevySessions, hevySets] = yield* Effect.all([
+    db
+      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM daily_activity")
+      .first<ExportRange>(),
+    db
+      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM health_workouts")
+      .first<ExportRange>(),
+    db
+      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM sleep_sessions")
+      .first<ExportRange>(),
+    db
+      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM body_metrics")
+      .first<ExportRange>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) count, MIN(start_time) first, MAX(start_time) last FROM hevy_sessions",
+      )
+      .first<ExportRange>(),
+    db.prepare("SELECT COUNT(*) count FROM hevy_sets").first<{ count: number }>(),
+  ]);
+  const emptyRange: ExportRange = { count: 0, first: null, last: null };
+  const sources = {
+    dailyActivity: activity ?? emptyRange,
+    healthWorkouts: workouts ?? emptyRange,
+    sleepSessions: sleep ?? emptyRange,
+    bodyMetrics: body ?? emptyRange,
+    hevySessions: hevySessions ?? emptyRange,
+    hevySets: { count: hevySets?.count ?? 0, first: null, last: null },
+  };
+  return {
+    sources,
+    totalRecords: Object.values(sources).reduce((total, source) => total + source.count, 0),
+    healthRange: {
+      first:
+        [sources.dailyActivity.first, sources.healthWorkouts.first, sources.sleepSessions.first]
+          .filter((value) => value !== null)
+          .toSorted()[0] ?? null,
+      last:
+        [sources.dailyActivity.last, sources.healthWorkouts.last, sources.sleepSessions.last]
+          .filter((value) => value !== null)
+          .toSorted()
+          .at(-1) ?? null,
+    },
+    hevyRange: { first: sources.hevySessions.first, last: sources.hevySessions.last },
+  };
+});
+
 export interface WorkoutSession {
   session_id: string;
   title: string | null;

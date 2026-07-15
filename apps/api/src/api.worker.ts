@@ -29,6 +29,7 @@ import {
   getConversations,
   getDataSummary,
   getIngestedDataExport,
+  getIngestedDataExportSummary,
   getMemories,
   getMessage,
   getNotes,
@@ -155,6 +156,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("GET", "/api/summary", (request) => cors(request, handleSummary(db)));
       yield* router.add("GET", "/api/export/ingested-data", (request) =>
         cors(request, handleIngestedDataExport(db)),
+      );
+      yield* router.add("GET", "/api/export/ingested-data/summary", (request) =>
+        cors(request, handleIngestedDataExportSummary(db)),
       );
       yield* router.add("POST", "/api/import/ingested-data", (request) =>
         cors(request, handleIngestedDataImport(db, request)),
@@ -514,6 +518,12 @@ const handleSummary = (db: QueryDatabaseClient) =>
 const handleIngestedDataExport = (db: QueryDatabaseClient) =>
   getIngestedDataExport({ db }).pipe(
     Effect.flatMap((data) => HttpServerResponse.json(data)),
+    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+  );
+
+const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
+  getIngestedDataExportSummary({ db }).pipe(
+    Effect.flatMap((summary) => HttpServerResponse.json({ summary })),
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
