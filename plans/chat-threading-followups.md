@@ -8,19 +8,18 @@ This plan contains only the remaining product work from the original threading p
 
 ## Remaining work
 
-1. Replace the compact focused-thread selectors with richer navigation:
-   - Desktop inline accordion view.
-   - Desktop tree sidebar view.
-   - Desktop column view.
-   - Mobile drill-down and bottom-sheet navigation.
-2. Add a view switcher and persist its selection.
-3. Add a read-only zoomed-out tree map after the navigation views are proven useful.
-4. Render message-reference markup as clickable quote chips.
-5. Add pinned-thread shelf affordances.
-6. Add breadcrumbs and jump-to-context for conversation search results.
-7. Add automatic thread titles from the first user message.
-8. Decide whether model-created threads require approval after a configurable threshold.
-9. Design merge semantics only after real usage demonstrates a need. Do not add schema or UI speculatively.
+1. Evaluate the six fake-data prototypes at `/gen-ui/thread-layouts` before integrating any layout
+   into the real chat. The sandbox includes all three desktop and all three mobile proposals.
+2. After keyboard, narrow-screen, and realistic-depth testing, promote only the layouts that make
+   branch location and switching clearer than the current compact navigation.
+3. Add a view switcher and persist its selection only if testing supports multiple production views.
+4. Add a read-only zoomed-out tree map after the navigation views are proven useful.
+5. Render message-reference markup as clickable quote chips.
+6. Add pinned-thread shelf affordances.
+7. Add breadcrumbs and jump-to-context for conversation search results.
+8. Add automatic thread titles from the first user message.
+9. Decide whether model-created threads require approval after a configurable threshold.
+10. Design merge semantics only after real usage demonstrates a need. Do not add schema or UI speculatively.
 
 ## Acceptance criteria
 
@@ -221,7 +220,9 @@ Pros: keeps main chat readable; quick access. Cons: less visual hierarchy than t
 
 ### Recommendation
 
-**Decision:** implement all three desktop views and all three mobile views, and let the user switch the current view from a preference menu.
+**Prototype decision:** keep all six options in the fake-data sandbox. Do not ship all six into the
+real chat by default. Use the prototypes to select the smallest production set that proves clearer
+than the compact navigation.
 
 - **Desktop views:**
   1. Inline accordion (default).
@@ -232,7 +233,9 @@ Pros: keeps main chat readable; quick access. Cons: less visual hierarchy than t
   2. Swipe columns.
   3. Bottom sheet thread picker.
 
-The preference is persisted per-device (e.g., `localStorage`). Defaults are chosen to minimize cognitive load: inline accordion on desktop, drill-down stack on mobile. The React Flow tree map is available on both as a separate "map" button, not part of the three view switch.
+The current candidates are inline accordion on desktop and drill-down stack or bottom sheet on
+mobile. If testing retains multiple views, persist the preference per device. The React Flow map
+remains later work and must not be added until ordinary branch navigation is validated.
 
 ### Common interactions
 
