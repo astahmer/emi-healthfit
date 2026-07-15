@@ -3,6 +3,23 @@ import { describe, expect, it } from "vitest";
 import { ToolResultContent } from "./tool-result-content";
 
 describe("ToolResultContent", () => {
+  it("renders a compact empty state instead of an empty progress chart", () => {
+    const view = render(
+      <ToolResultContent
+        toolName="get_exercise_progress"
+        result={{
+          exercise_title: "Bench Press",
+          weeks: 8,
+          workouts: [],
+          personalRecord: { weight_kg: null, reps: null, volume_kg: null },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("No workouts logged in this period.")).toBeInTheDocument();
+    expect(view.container.querySelector(".recharts-responsive-container")).toBeNull();
+  });
+
   it("renders a generative UI component for render_component tool results", () => {
     render(
       <div className="h-96 w-96">

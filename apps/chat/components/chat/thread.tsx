@@ -103,7 +103,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 type MessagePartValue = UIMessage["parts"][number];
 
-const ToolPart = ({ part }: { part: MessagePartValue }) => {
+const ToolPart = ({ part, isStreaming }: { part: MessagePartValue; isStreaming: boolean }) => {
   if (!isRecord(part)) return null;
   const type = Reflect.get(part, "type");
   if (typeof type !== "string") return null;
@@ -121,27 +121,33 @@ const ToolPart = ({ part }: { part: MessagePartValue }) => {
     Reflect.get(part, "input") ?? Reflect.get(part, "args") ?? Reflect.get(part, "argsText");
   const output = Reflect.get(part, "output") ?? Reflect.get(part, "result");
   const hasOutput = output !== undefined || Reflect.get(part, "state") === "output-available";
+  const isRunning = isStreaming && !hasOutput;
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-3">
-      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        {hasOutput ? (
-          <WrenchIcon className="size-3.5" />
-        ) : (
+    <details className="group/tool rounded-lg border bg-muted/15" open={isRunning}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground marker:content-none">
+        {isRunning ? (
           <LoaderIcon className="size-3.5 animate-spin" />
+        ) : (
+          <WrenchIcon className="size-3.5" />
         )}
-        {toolName.replaceAll("_", " ")}
+        <span>{toolName.replaceAll("_", " ")}</span>
+        <span className="ms-auto font-normal opacity-70">
+          {isRunning ? "Running" : "Completed"}
+        </span>
+      </summary>
+      <div className="border-t px-3 py-2">
+        {input !== undefined && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">Input</summary>
+            <pre className="mt-1 overflow-auto whitespace-pre-wrap">
+              {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
+            </pre>
+          </details>
+        )}
+        {hasOutput && <ToolResultContent toolName={toolName} result={output} className="mt-2" />}
       </div>
-      {input !== undefined && (
-        <details className="mt-2 text-xs">
-          <summary className="cursor-pointer text-muted-foreground">Input</summary>
-          <pre className="mt-1 overflow-auto whitespace-pre-wrap">
-            {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
-          </pre>
-        </details>
-      )}
-      {hasOutput && <ToolResultContent toolName={toolName} result={output} className="mt-2" />}
-    </div>
+    </details>
   );
 };
 
@@ -152,80 +158,85 @@ const MarkdownText = ({
   text: string;
   onReferenceMessage?: (messageId: string) => void;
 }) => (
-  <ReactMarkdown
-    remarkPlugins={[remarkGfm]}
-    components={{
-      a: ({ children, href, ...props }) => {
-        if (href?.startsWith("message:") === true) {
-          const messageId = href.slice("message:".length);
+  <div className="max-w-3xl text-[15px] leading-7 text-foreground/95">
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a: ({ children, href, ...props }) => {
+          if (href?.startsWith("message:") === true) {
+            const messageId = href.slice("message:".length);
+            return (
+              <button
+                type="button"
+                onClick={() => onReferenceMessage?.(messageId)}
+                className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
+              >
+                <GitBranchIcon className="size-3" /> {children}
+              </button>
+            );
+          }
           return (
-            <button
-              type="button"
-              onClick={() => onReferenceMessage?.(messageId)}
-              className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
+            <a
+              {...props}
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline underline-offset-4"
             >
-              <GitBranchIcon className="size-3" /> {children}
-            </button>
+              {children}
+            </a>
           );
-        }
-        return (
-          <a
+        },
+        code: ({ className, children, ...props }) => (
+          <code
             {...props}
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary underline underline-offset-4"
+            className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]", className)}
           >
             {children}
-          </a>
-        );
-      },
-      code: ({ className, children, ...props }) => (
-        <code
-          {...props}
-          className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]", className)}
-        >
-          {children}
-        </code>
-      ),
-      pre: ({ children }) => (
-        <pre className="my-4 overflow-x-auto rounded-xl border bg-muted/60 p-4 text-sm shadow-inner">
-          {children}
-        </pre>
-      ),
-      table: ({ children }) => (
-        <div className="my-2 overflow-x-auto">
-          <table className="w-full border-collapse text-sm">{children}</table>
-        </div>
-      ),
-      th: ({ children }) => <th className="border bg-muted px-2 py-1 text-left">{children}</th>,
-      td: ({ children }) => <td className="border px-2 py-1 align-top">{children}</td>,
-      h1: ({ children }) => <h1 className="mt-7 mb-3 text-xl font-semibold">{children}</h1>,
-      h2: ({ children }) => <h2 className="mt-6 mb-2 text-lg font-semibold">{children}</h2>,
-      h3: ({ children }) => <h3 className="mt-5 mb-2 font-semibold">{children}</h3>,
-      blockquote: ({ children }) => (
-        <blockquote className="my-4 border-l-2 border-primary/30 pl-4 text-muted-foreground">
-          {children}
-        </blockquote>
-      ),
-      ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-5">{children}</ul>,
-      ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-5">{children}</ol>,
-      p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
-    }}
-  >
-    {text.replace(
-      /<message\s+id=["']([^"']+)["']\s*\/?\s*>/g,
-      (_, messageId: string) => `[Referenced message](message:${messageId})`,
-    )}
-  </ReactMarkdown>
+          </code>
+        ),
+        pre: ({ children }) => (
+          <pre className="my-3 overflow-x-auto rounded-lg border bg-muted/50 p-3 text-sm leading-6">
+            {children}
+          </pre>
+        ),
+        table: ({ children }) => (
+          <div className="my-2 overflow-x-auto">
+            <table className="w-full border-collapse text-sm">{children}</table>
+          </div>
+        ),
+        th: ({ children }) => <th className="border bg-muted px-2 py-1 text-left">{children}</th>,
+        td: ({ children }) => <td className="border px-2 py-1 align-top">{children}</td>,
+        h1: ({ children }) => <h1 className="mt-6 mb-2 text-xl font-semibold">{children}</h1>,
+        h2: ({ children }) => <h2 className="mt-5 mb-2 text-lg font-semibold">{children}</h2>,
+        h3: ({ children }) => <h3 className="mt-4 mb-1.5 font-semibold">{children}</h3>,
+        blockquote: ({ children }) => (
+          <blockquote className="my-4 border-l-2 border-primary/30 pl-4 text-muted-foreground">
+            {children}
+          </blockquote>
+        ),
+        ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+        ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+        p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
+        hr: () => <hr className="my-5 border-border/70" />,
+      }}
+    >
+      {text.replace(
+        /<message\s+id=["']([^"']+)["']\s*\/?\s*>/g,
+        (_, messageId: string) => `[Referenced message](message:${messageId})`,
+      )}
+    </ReactMarkdown>
+  </div>
 );
 
 const MessagePart = ({
   part,
   onReferenceMessage,
+  isStreaming,
 }: {
   part: MessagePartValue;
   onReferenceMessage?: (messageId: string) => void;
+  isStreaming: boolean;
 }) => {
   if (part.type === "text") {
     return <MarkdownText text={part.text} onReferenceMessage={onReferenceMessage} />;
@@ -258,7 +269,7 @@ const MessagePart = ({
       </details>
     );
   }
-  return <ToolPart part={part} />;
+  return <ToolPart part={part} isStreaming={isStreaming} />;
 };
 
 const getText = (message: UIMessage | undefined): string =>
@@ -368,18 +379,15 @@ const ChatMessage = ({
           <Bubble
             align={isUser ? "end" : "start"}
             variant={isUser ? "muted" : "ghost"}
-            className={cn(
-              isUser
-                ? "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md"
-                : "w-full rounded-2xl border border-border/70 bg-card/60 p-4 shadow-xs",
-            )}
+            className={cn(isUser ? "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md" : "w-full")}
           >
-            <BubbleContent className={cn(!isUser && "w-full")}>
+            <BubbleContent className={cn(!isUser && "w-full space-y-3")}>
               {message.parts.map((part, index) => (
                 <MessagePart
                   key={`${message.id}-${index}`}
                   part={part}
                   onReferenceMessage={onReferenceMessage}
+                  isStreaming={isStreaming}
                 />
               ))}
               {isStreaming && message.parts.length === 0 && (
@@ -547,7 +555,7 @@ export const Thread = ({
         role="log"
         aria-relevant="additions"
       >
-        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-8 px-4 py-8 sm:px-6">
+        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
           {runtime.messages.length === 0 ? (
             <div className="my-auto space-y-6 text-center">
               <div>

@@ -37,7 +37,7 @@ export const BubbleContent = ({ className, ...props }: React.ComponentProps<"div
   <div
     data-slot="bubble-content"
     className={cn(
-      "w-fit max-w-full min-w-0 overflow-hidden rounded-xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap wrap-break-word",
+      "w-fit max-w-full min-w-0 overflow-hidden rounded-xl px-3 py-2 text-sm leading-relaxed wrap-break-word",
       className,
     )}
     {...props}

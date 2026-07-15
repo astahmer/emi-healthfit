@@ -66,6 +66,32 @@ describe("Thread", () => {
     expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
   });
 
+  it("does not animate an unfinished tool after message streaming has ended", () => {
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [
+        {
+          type: "dynamic-tool",
+          toolName: "query_database",
+          toolCallId: "tool-1",
+          state: "input-available",
+          input: {},
+        },
+      ],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: false,
+    });
+
+    const view = renderThread([message]);
+
+    expect(screen.getByText("query database")).toBeInTheDocument();
+    expect(view.container.querySelector(".animate-spin")).toBeNull();
+  });
+
   it("restores persisted timestamp, model, and token metadata", () => {
     const message: MessageWithUsage = {
       id: "assistant-1",
