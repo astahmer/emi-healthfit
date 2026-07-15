@@ -15,7 +15,7 @@ import type { UIMessage } from "ai";
 import type { MessageWithUsage, Thread as SessionThread } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
-import { UsageProvider } from "../usage-context";
+import { ConversationUsage, UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
 import { useConversationMachine } from "./use-conversation-machine";
@@ -215,6 +215,9 @@ function ChatPageInner() {
                   </>
                 )}
                 <div className="ms-auto flex items-center gap-1">
+                  {activeConversationId !== undefined && (
+                    <ConversationUsage conversationId={activeConversationId} />
+                  )}
                   <NewChatButton
                     onNewChat={() =>
                       sendConversation({

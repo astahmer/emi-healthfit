@@ -76,6 +76,7 @@ vi.mock("@/app/settings-store", () => ({
 
 vi.mock("@/app/usage-context", () => ({
   UsageProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ConversationUsage: () => null,
 }));
 
 vi.mock("@/components/error-boundary", () => ({
