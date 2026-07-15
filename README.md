@@ -13,6 +13,7 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 - **Database:** Cloudflare D1
 - **Raw export storage:** Cloudflare R2
 - **LLM:** OpenAI (`gpt-5.2-chat-latest` by default) via BYOK through the Worker
+- **Quality:** Oxlint, Oxfmt, Knip, Vitest, Node test runner, and Playwright
 
 ## Prerequisites
 
@@ -20,6 +21,9 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 - Node 26+ (for `--experimental-strip-types`)
 - A Cloudflare account
 - [Alchemy CLI login](https://alchemy.run/docs/getting-started) (`alchemy login`)
+
+Alternatively, install Nix + direnv and run `direnv allow`. The checked-in flake provides Node 26,
+pnpm 11, Playwright browsers, Python, and the deployment utilities used by the repository.
 
 ## Setup
 
@@ -71,6 +75,15 @@ To quickly verify parsing without a server:
 pnpm verify
 ```
 
+Quality and production checks:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm knip
+pnpm build
+```
+
 ## Deployment
 
 Build the frontend and deploy the worker:
@@ -96,11 +109,14 @@ The web UI is served directly from the Worker at the root URL after deploying. I
 - **Chat** — streaming, resumable chat with tools, attachments, conversation history, and branches
 - **Upload** — import HealthExportKit JSON and/or Hevy CSV
 - **Workouts** — browse and filter imported Hevy sessions
+- **Trends** — activity, body, sleep, training-load, and exercise analytics
 - **Notes** — a gym journal that can be included in assistant context
 - **Memory** — saved assistant snippets and extracted memories
-- **Settings** — model, endpoint, API key, system prompt, syncing, and JSON data export
+- **Settings** — model/provider options, JSON export/restore, raw-upload retention, and selective
+  Apple Health or Hevy deletion
 
-The development-only **Sandbox** exercises generative UI components.
+The development-only **Sandbox** exercises generative UI components and six fake-data threading
+layouts at `/gen-ui/thread-layouts`. Those layouts are prototypes, not production chat modes.
 
 Chat requests go to `POST /api/chat`. The Worker calls the configured GPT-compatible endpoint, executes fitness and conversation tools, and persists the conversation in D1. Images can be attached with the paperclip or pasted directly into the composer.
 
@@ -164,6 +180,21 @@ Get imported data counts and last sync times.
 
 Download a versioned JSON document containing all ingested Apple Health records, Hevy sessions and sets, and sync cursors. The same export is available from **Settings**. Chat messages, notes, memories, and generation checkpoints are intentionally excluded.
 
+`GET /api/export/ingested-data/summary` returns record counts and Health/Hevy date ranges before a
+large download. `POST /api/import/ingested-data` previews duplicate/new counts by default; add
+`?apply=true` only after the preview is confirmed.
+
+### `GET /api/analytics/overview`
+
+Returns the normalized activity, recovery, body, training-load, and exercise series used by the
+Trends page. Use `?days=<n>` to bound the window.
+
+### `GET/PATCH /api/privacy`
+
+Reads or updates raw-upload retention. Updating the policy immediately removes expired R2 objects,
+and future ingestion enforces the same policy. `DELETE /api/privacy/data/health` and
+`DELETE /api/privacy/data/hevy` selectively remove parsed records, sync cursors, and raw uploads.
+
 ## Ingestion flow from iPhone
 
 The recommended flow is a single iOS Shortcut:
@@ -199,8 +230,11 @@ No dedicated app needed.
 │       ├── app/                # Pages, runtime machine, providers, settings
 │       └── components/         # UI components
 ├── data/                       # Your export files (gitignored)
+├── flake.nix / .envrc          # Reproducible Nix + direnv development shell
+├── knip.json                   # Monorepo dead-code/dependency analysis
 ├── plans/                      # Detailed implementation and UX plans
 ├── ideas.md                    # Product and engineering backlog
+├── improvements.md             # Prioritized post-audit improvement ideas
 └── .references/                # Cloned reference repositories
 ```
 
@@ -224,6 +258,10 @@ The API uses Node's test runner; the chat app uses Vitest and Testing Library. P
 
 ```bash
 pnpm test
+pnpm lint
+pnpm typecheck
+pnpm fmt
+pnpm knip
 ```
 
 For focused checks, run the relevant package directly:
@@ -241,6 +279,9 @@ cd apps/chat && pnpm typecheck && pnpm test
    ```bash
    pnpm typecheck
    pnpm test
+   pnpm lint
+   pnpm fmt
+   pnpm knip
    pnpm dry        # alchemy deploy --dry-run
    ```
 4. Open a PR or push to your jj repo
