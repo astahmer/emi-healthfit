@@ -458,9 +458,7 @@ const handleSuggestions = Effect.fn("handleSuggestions")(
   Effect.catch(
     Effect.fn("handleSuggestions.catch")(function* (error) {
       const message = error instanceof Error ? error.message : String(error);
-      yield* Effect.logError("chat.request.failure").pipe(
-        Effect.annotateLogs({ error: message }),
-      );
+      yield* Effect.logError("chat.request.failure").pipe(Effect.annotateLogs({ error: message }));
       return yield* HttpServerResponse.json({ error: message }, { status: 500 });
     }),
   ),
@@ -1358,15 +1356,15 @@ const handleAiSdkChat = (
           Effect.runSync(
             Effect.logDebug("chat.provider.chunk").pipe(
               Effect.annotateLogs({
-              sessionId,
-              chunkType: chunk.type,
-              chunkIndex: providerChunkCount,
-              timeToFirstChunkMilliseconds:
-                providerChunkCount === 0 ? Math.round(timestamp - requestStartedAt) : undefined,
-              interChunkLatencyMilliseconds:
-                providerChunkCount === 0
-                  ? undefined
-                  : Math.round(timestamp - previousProviderChunkAt),
+                sessionId,
+                chunkType: chunk.type,
+                chunkIndex: providerChunkCount,
+                timeToFirstChunkMilliseconds:
+                  providerChunkCount === 0 ? Math.round(timestamp - requestStartedAt) : undefined,
+                interChunkLatencyMilliseconds:
+                  providerChunkCount === 0
+                    ? undefined
+                    : Math.round(timestamp - previousProviderChunkAt),
               }),
             ),
           );

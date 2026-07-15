@@ -108,10 +108,10 @@ export const createChatStream = async ({
       Effect.runSync(
         Effect.logDebug("chat.step.finished").pipe(
           Effect.annotateLogs({
-          finishReason: event.finishReason,
-          toolCalls: event.toolCalls.length,
-          toolResults: event.toolResults.length,
-          textLength: event.text.length,
+            finishReason: event.finishReason,
+            toolCalls: event.toolCalls.length,
+            toolResults: event.toolResults.length,
+            textLength: event.text.length,
           }),
         ),
       );

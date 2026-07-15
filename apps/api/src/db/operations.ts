@@ -515,20 +515,27 @@ export const getIngestedDataExport = Effect.fn("dataExport.readIngested")(functi
 }: {
   db: QueryDatabaseClient;
 }) {
-  const [dailyActivity, healthWorkouts, hevySessions, hevySets, sleepSessions, bodyMetrics, cursors] =
-    yield* Effect.all([
-      db.prepare("SELECT * FROM daily_activity ORDER BY date").all<DailyActivityRow>(),
-      db.prepare("SELECT * FROM health_workouts ORDER BY date, id").all<HealthWorkoutRow>(),
-      db.prepare("SELECT * FROM hevy_sessions ORDER BY start_time, session_id").all<HevySessionRow>(),
-      db
-        .prepare("SELECT * FROM hevy_sets ORDER BY session_id, exercise_title, set_index")
-        .all<HevySetRow>(),
-      db.prepare("SELECT * FROM sleep_sessions ORDER BY date, start").all<SleepSessionRow>(),
-      db.prepare("SELECT * FROM body_metrics ORDER BY date").all<BodyMetricRow>(),
-      db
-        .prepare("SELECT source, last_sync FROM sync_cursors ORDER BY source")
-        .all<{ source: string; last_sync: string | null }>(),
-    ]);
+  const [
+    dailyActivity,
+    healthWorkouts,
+    hevySessions,
+    hevySets,
+    sleepSessions,
+    bodyMetrics,
+    cursors,
+  ] = yield* Effect.all([
+    db.prepare("SELECT * FROM daily_activity ORDER BY date").all<DailyActivityRow>(),
+    db.prepare("SELECT * FROM health_workouts ORDER BY date, id").all<HealthWorkoutRow>(),
+    db.prepare("SELECT * FROM hevy_sessions ORDER BY start_time, session_id").all<HevySessionRow>(),
+    db
+      .prepare("SELECT * FROM hevy_sets ORDER BY session_id, exercise_title, set_index")
+      .all<HevySetRow>(),
+    db.prepare("SELECT * FROM sleep_sessions ORDER BY date, start").all<SleepSessionRow>(),
+    db.prepare("SELECT * FROM body_metrics ORDER BY date").all<BodyMetricRow>(),
+    db
+      .prepare("SELECT source, last_sync FROM sync_cursors ORDER BY source")
+      .all<{ source: string; last_sync: string | null }>(),
+  ]);
 
   return {
     version: 1,

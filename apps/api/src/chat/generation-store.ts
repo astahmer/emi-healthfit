@@ -18,10 +18,7 @@ interface ChatGenerationChunkRow {
 
 const nowIso = (): string => new Date().toISOString();
 
-export const isGenerationStale = (
-  generation: ChatGeneration,
-  now = Date.now(),
-): boolean =>
+export const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
   generation.status === "running" && now - new Date(generation.updated_at).getTime() >= 120_000;
 
 export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
@@ -96,17 +93,17 @@ export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(fu
   return result.meta.changes;
 });
 
-export const reconcileFinishedGenerations = Effect.fn(
-  "chatGeneration.reconcileFinished",
-)(function* ({ db }: { db: QueryDatabaseClient }) {
-  const result = yield* db
-    .prepare(
-      "UPDATE chat_generations SET status = 'completed', error = NULL, updated_at = ? WHERE status = 'running' AND EXISTS (SELECT 1 FROM chat_generation_chunks WHERE generation_id = chat_generations.id AND json_extract(chunk, '$.type') = 'finish')",
-    )
-    .bind(nowIso())
-    .run();
-  return result.meta.changes;
-});
+export const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished")(
+  function* ({ db }: { db: QueryDatabaseClient }) {
+    const result = yield* db
+      .prepare(
+        "UPDATE chat_generations SET status = 'completed', error = NULL, updated_at = ? WHERE status = 'running' AND EXISTS (SELECT 1 FROM chat_generation_chunks WHERE generation_id = chat_generations.id AND json_extract(chunk, '$.type') = 'finish')",
+      )
+      .bind(nowIso())
+      .run();
+    return result.meta.changes;
+  },
+);
 
 export const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(function* ({
   db,
