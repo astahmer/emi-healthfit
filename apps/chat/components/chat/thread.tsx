@@ -543,7 +543,7 @@ export const Thread = ({
   };
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-background">
       {runtime.isStreaming && (
         <div className="sr-only" role="status" aria-live="polite">
           Assistant is responding
@@ -555,7 +555,7 @@ export const Thread = ({
         role="log"
         aria-relevant="additions"
       >
-        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
+        <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
           {runtime.messages.length === 0 ? (
             <div className="my-auto space-y-6 text-center">
               <div>
@@ -578,48 +578,69 @@ export const Thread = ({
               </div>
             </div>
           ) : (
-            runtime.messages.map((message, index) => (
-              <ChatMessage
-                key={message.id === "" ? `${message.role}-${index}` : message.id}
-                message={message}
-                isStreaming={
-                  runtime.isStreaming &&
-                  index === runtime.messages.length - 1 &&
-                  message.role === "assistant"
-                }
-                onFork={onForkMessage}
-                onRemember={rememberMessage}
-                editingDraft={
-                  editorState.context.messageId === message.id
-                    ? editorState.context.draft
-                    : undefined
-                }
-                onEditStart={(selectedMessage) =>
-                  sendEditor({
-                    type: "edit.start",
-                    messageId: selectedMessage.id,
-                    draft: getText(selectedMessage),
-                  })
-                }
-                onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
-                onEditCancel={() => sendEditor({ type: "edit.cancel" })}
-                onEditSubmit={() => {
-                  void runtime.revise({ messageId: message.id, text: editorState.context.draft });
-                  sendEditor({ type: "edit.cancel" });
-                }}
-                onRegenerate={(messageId) => void runtime.revise({ messageId })}
-                onReferenceMessage={onReferenceMessage}
-              />
-            ))
+            <>
+              {runtime.messages.map((message, index) => (
+                <ChatMessage
+                  key={message.id === "" ? `${message.role}-${index}` : message.id}
+                  message={message}
+                  isStreaming={
+                    runtime.isStreaming &&
+                    index === runtime.messages.length - 1 &&
+                    message.role === "assistant"
+                  }
+                  onFork={onForkMessage}
+                  onRemember={rememberMessage}
+                  editingDraft={
+                    editorState.context.messageId === message.id
+                      ? editorState.context.draft
+                      : undefined
+                  }
+                  onEditStart={(selectedMessage) =>
+                    sendEditor({
+                      type: "edit.start",
+                      messageId: selectedMessage.id,
+                      draft: getText(selectedMessage),
+                    })
+                  }
+                  onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
+                  onEditCancel={() => sendEditor({ type: "edit.cancel" })}
+                  onEditSubmit={() => {
+                    void runtime.revise({ messageId: message.id, text: editorState.context.draft });
+                    sendEditor({ type: "edit.cancel" });
+                  }}
+                  onRegenerate={(messageId) => void runtime.revise({ messageId })}
+                  onReferenceMessage={onReferenceMessage}
+                />
+              ))}
+              {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
+                <Message align="start" aria-live="polite" className="py-1">
+                  <MessageContent>
+                    <Bubble align="start" variant="ghost">
+                      <BubbleContent>
+                        <span
+                          className="typing-dots text-muted-foreground"
+                          role="status"
+                          aria-label="Assistant is working"
+                        >
+                          <span />
+                          <span />
+                          <span />
+                        </span>
+                      </BubbleContent>
+                    </Bubble>
+                  </MessageContent>
+                </Message>
+              )}
+            </>
           )}
           <FollowUpSuggestions />
         </div>
       </div>
 
-      <div className="bg-gradient-to-t from-background via-background to-transparent px-3 pt-5 pb-3">
+      <div className="min-w-0 bg-gradient-to-t from-background via-background to-transparent px-2 pt-3 pb-[calc(.5rem+env(safe-area-inset-bottom))] sm:px-3 sm:pt-5 sm:pb-3">
         <form
           onSubmit={submit}
-          className="mx-auto max-w-4xl rounded-[1.35rem] border bg-background/95 p-2 shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--foreground)_28%,transparent)] backdrop-blur-xl focus-within:border-ring/50 focus-within:ring-4 focus-within:ring-ring/10"
+          className="mx-auto w-full min-w-0 max-w-4xl rounded-[1.2rem] border bg-background/95 p-1.5 shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--foreground)_28%,transparent)] backdrop-blur-xl focus-within:border-ring/50 focus-within:ring-4 focus-within:ring-ring/10 sm:rounded-[1.35rem] sm:p-2"
         >
           {runtime.files.length > 0 && (
             <div className="flex flex-wrap gap-2 px-2 pb-2">
@@ -667,8 +688,8 @@ export const Thread = ({
             }}
             placeholder="Send a message..."
             aria-label="Message input"
-            rows={2}
-            className="max-h-48 min-h-14 w-full resize-none bg-transparent px-3 py-2 text-base leading-relaxed outline-none"
+            rows={1}
+            className="max-h-48 min-h-11 w-full min-w-0 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none sm:min-h-14 sm:px-3"
           />
           {runtime.error !== null && (
             <div className="mx-2 mb-2 flex items-center justify-between rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -678,7 +699,7 @@ export const Thread = ({
               </button>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex min-w-0 items-center gap-0.5 sm:flex-wrap sm:gap-1">
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -702,7 +723,7 @@ export const Thread = ({
               </Tooltip>
             </TooltipProvider>
             <Select value={composerControls.model} onValueChange={composerControls.onModelChange}>
-              <SelectTrigger className="h-8 w-auto border-0 bg-transparent text-xs shadow-none">
+              <SelectTrigger className="h-8 min-w-0 max-w-32 border-0 bg-transparent px-2 text-xs shadow-none sm:max-w-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -717,14 +738,16 @@ export const Thread = ({
               type="button"
               size="sm"
               variant={composerControls.coachMode ? "secondary" : "ghost"}
+              className="shrink-0 px-2 sm:px-3"
               onClick={composerControls.onCoachModeChange}
             >
-              <BrainIcon className="size-4" /> Coach
+              <BrainIcon className="size-4" /> <span className="hidden sm:inline">Coach</span>
             </Button>
             <Button
               type="button"
               size="sm"
               variant={composerControls.webSearch ? "secondary" : "ghost"}
+              className="hidden shrink-0 sm:inline-flex"
               disabled={!composerControls.canWebSearch}
               onClick={() => composerControls.onWebSearchChange(!composerControls.webSearch)}
             >
@@ -734,17 +757,18 @@ export const Thread = ({
               type="button"
               size="sm"
               variant={composerControls.temporary ? "secondary" : "ghost"}
+              className="shrink-0 px-2 sm:px-3"
               disabled={runtime.isStreaming}
               onClick={() => composerControls.onTemporaryChange(!composerControls.temporary)}
             >
-              <GhostIcon className="size-4" /> Temporary
+              <GhostIcon className="size-4" /> <span className="hidden sm:inline">Temporary</span>
             </Button>
             <TooltipIconButton
               tooltip={runtime.isStreaming ? "Stop generating" : "Send message"}
               side="top"
               type={runtime.isStreaming ? "button" : "submit"}
               variant="default"
-              className="ms-auto size-9 rounded-full"
+              className="ms-auto size-9 shrink-0 rounded-full"
               onClick={runtime.isStreaming ? runtime.stop : undefined}
               aria-label={runtime.isStreaming ? "Stop generating" : "Send message"}
             >

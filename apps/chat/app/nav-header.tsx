@@ -55,7 +55,7 @@ export const NavHeader: FC = () => {
   if (pathname === "/auth" || pathname.startsWith("/auth/")) return null;
 
   return (
-    <header className="relative z-50 flex h-14 items-center justify-between border-b bg-background px-4">
+    <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b bg-background/70 px-3 backdrop-blur-xl md:bg-background md:px-4">
       <div className="flex items-center gap-2">
         <h1 className="text-lg font-semibold">Emi HealthFit</h1>
         <p className="text-muted-foreground hidden text-xs sm:inline">Personal gym assistant</p>

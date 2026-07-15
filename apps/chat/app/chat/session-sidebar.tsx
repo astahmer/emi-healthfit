@@ -107,7 +107,13 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
     return group;
   };
 
-  for (const thread of threads.filter((candidate) => candidate.status === "regular")) {
+  const regular = threads.filter((candidate) => candidate.status === "regular");
+  const pinned = regular.filter((thread) => thread.pinned);
+  if (pinned.length > 0) {
+    groups.set("pinned", { key: "pinned", label: "Pinned", threads: pinned });
+  }
+
+  for (const thread of regular.filter((candidate) => !candidate.pinned)) {
     const daysAgo = getDaysAgo(thread.updated_at);
     if (daysAgo <= 0) {
       ensureGroup("today", "Today").threads.push(thread);
@@ -216,7 +222,9 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
               }
             >
               <MessageSquareIcon />
-              {Boolean(thread.pinned) && <PinIcon className="size-3 fill-current" aria-label="Pinned" />}
+              {Boolean(thread.pinned) && (
+                <PinIcon className="size-3 fill-current" aria-label="Pinned" />
+              )}
               <div className="flex flex-1 flex-wrap items-baseline gap-x-2 overflow-hidden">
                 <span className="flex-1 truncate">{title}</span>
                 <Tooltip>

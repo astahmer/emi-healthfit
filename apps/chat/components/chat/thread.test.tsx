@@ -68,6 +68,23 @@ describe("Thread", () => {
     expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
   });
 
+  it("shows the typing indicator before the first assistant chunk arrives", () => {
+    const message: MessageWithUsage = {
+      id: "user-1",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: true,
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
+  });
+
   it("does not animate an unfinished tool after message streaming has ended", () => {
     const message: MessageWithUsage = {
       id: "assistant-1",

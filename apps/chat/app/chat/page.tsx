@@ -110,7 +110,7 @@ function ChatPageInner() {
 
   return (
     <SidebarProvider
-      className="flex h-full"
+      className="flex h-full min-w-0 overflow-hidden"
       defaultWidth={conversationState.context.sidebarWidth}
       onWidthChange={(width) => sendConversation({ type: "sidebar.widthChanged", width })}
       style={sidebarStyle}
@@ -152,7 +152,7 @@ function ChatPageInner() {
               })
             }
           >
-            <div className="relative flex h-full flex-1 flex-col">
+            <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
               <div className="flex items-center gap-2 border-b px-2 py-1.5 md:px-4 md:py-2">
                 <SidebarTrigger />
                 {activeConversationId && conversation !== null && (
@@ -260,7 +260,7 @@ function ChatPageInner() {
                   }
                 />
               )}
-              <div className="flex-1 overflow-hidden">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 <Thread
                   onForkMessage={(messageId) =>
                     sendConversation({ type: "thread.fork", anchorMessageId: messageId })
