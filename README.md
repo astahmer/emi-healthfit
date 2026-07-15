@@ -31,11 +31,74 @@ pnpm 11, Playwright browsers, Python, and the deployment utilities used by the r
 pnpm install
 ```
 
-Copy `.env.example` to `.env` and configure Better Auth plus a Google OAuth web client. Register
-`<BETTER_AUTH_URL>/api/auth/callback/google` as an authorized redirect URI. `ALLOWED_EMAILS` is the
-enrollment and active-session allowlist; it currently requires exactly one address until the
-per-row ownership migration is complete. Removing that email blocks its existing sessions on the
-next request. Calendar scopes are intentionally not requested during sign-in.
+### Google sign-in
+
+Google requires the OAuth app and web client to be created in Google Cloud Console. Client creation
+for consumer Sign in with Google is not exposed by the regular `gcloud` CLI, but the repository can
+turn the downloaded client JSON into a complete local `.env`.
+
+1. [Create a Google Cloud project](https://console.cloud.google.com/projectcreate), or select a
+   dedicated existing project. Keep development and production in separate projects if this app
+   will eventually serve users beyond you.
+2. Open [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding), click
+   **Get started** if prompted, and enter:
+   - **App name:** `Emi HealthFit`
+   - **User support email:** an address you monitor
+   - **Developer contact information:** an address you monitor
+3. Open [Audience](https://console.cloud.google.com/auth/audience):
+   - Choose **Internal** only when every allowed account belongs to your Google Workspace
+     organization. Otherwise choose **External** and leave the app in **Testing** for personal use.
+   - Under **Test users**, add the same Google address that you will put in `ALLOWED_EMAILS` if the
+     console offers this section. Google currently exempts basic `openid`, `email`, and `profile`
+     sign-in from the test-user restriction, but keeping both allowlists aligned avoids surprises if
+     scopes change later.
+4. Open [Clients](https://console.cloud.google.com/auth/clients), click **Create client**, choose
+   **Web application**, and name it `Emi HealthFit local`.
+5. Leave **Authorized JavaScript origins** empty. Under **Authorized redirect URIs**, add exactly:
+
+   ```text
+   http://localhost:1337/api/auth/callback/google
+   ```
+
+   Scheme, host, port, path, case, and trailing slash must match exactly. Google permits HTTP only
+   for localhost; deployed callbacks must use HTTPS.
+
+6. Click **Create**, open the new client, and click **Download JSON**. Do not commit or share this
+   file; it contains the client secret.
+7. From the repository root, create `.env` from that download. Replace the path and email:
+
+   ```bash
+   pnpm setup:google -- ~/Downloads/client_secret_....json you@example.com
+   ```
+
+   The command checks the callback URI, imports the client ID and secret, generates a random
+   256-bit `BETTER_AUTH_SECRET`, lowercases the allowed email, and creates `.env` with owner-only
+   permissions. It refuses to overwrite an existing `.env`.
+
+8. Run `pnpm dev`, open the printed local URL, select **Continue with Google**, and verify that the
+   allowed account reaches the app. A different account must be denied.
+
+The callback is handled server-side by Better Auth, so no JavaScript origin is needed. Sign-in asks
+only for basic identity (`openid`, `email`, and `profile`); Calendar scopes are intentionally not
+requested. `ALLOWED_EMAILS` is a second, application-level enrollment and active-session allowlist.
+It currently requires exactly one address until the per-row ownership migration is complete.
+Removing that email blocks its existing sessions on the next request.
+
+For a manual setup instead, copy `.env.example` to `.env`, generate at least 32 random bytes for
+`BETTER_AUTH_SECRET`, then fill in the client ID, client secret, base URL, and allowed email.
+
+For preview or production, create a separate web client in that environment's Google Cloud project,
+register `https://<your-worker-host>/api/auth/callback/google`, download its JSON, back up or remove
+the local `.env`, and run with the real deployed origin, for example:
+
+```bash
+pnpm setup:google -- path/to/client.json you@example.com https://emi-healthfit.example.workers.dev
+```
+
+Use the same origin for `BETTER_AUTH_URL`; do not include a trailing slash. See Google's official
+[web OAuth client setup](https://developers.google.com/workspace/guides/create-credentials#web-client),
+[OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect#settingup),
+and [redirect URI rules](https://developers.google.com/identity/protocols/oauth2/web-server#uri-validation).
 
 With Nix and direnv installed, approve the repository once and the complete Node 26, pnpm 11,
 Playwright, Python, and utility toolchain loads automatically on entry:

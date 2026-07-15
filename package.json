@@ -17,6 +17,7 @@
     "format:fix": "pnpm -r format:fix",
     "verify": "pnpm --filter api verify",
     "build": "pnpm -r build",
+    "setup:google": "pnpm --filter api setup:google",
     "chat:dev": "pnpm --filter chat dev",
     "chat:build": "pnpm --filter chat build"
   },
