@@ -10,3 +10,4 @@ apps/chat/public/swe-worker*.js
 apps/chat/playwright-report
 apps/chat/test-results
 .cachebro
+.direnv/

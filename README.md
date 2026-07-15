@@ -27,6 +27,14 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 pnpm install
 ```
 
+With Nix and direnv installed, approve the repository once and the complete Node 26, pnpm 11,
+Playwright, Python, and utility toolchain loads automatically on entry:
+
+```bash
+direnv allow
+pnpm install
+```
+
 On first install pnpm may ask you to approve native builds for `workerd` and `msgpackr-extract`. Approve them — they are used by Alchemy for local dev.
 
 ## Local development
