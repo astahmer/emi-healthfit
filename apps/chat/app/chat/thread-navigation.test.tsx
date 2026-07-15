@@ -9,8 +9,6 @@ const message: MessageNode = {
   parentId: null,
   role: "user",
   parts: [{ type: "text", text: "How should I improve my squat?" }],
-  usage: null,
-  model: null,
   createdAt: "2026-07-14T10:00:00.000Z",
 };
 
@@ -27,6 +25,26 @@ const thread: ThreadView = {
 };
 
 describe("ThreadNavigation", () => {
+  it("stays hidden until the conversation has a branch", () => {
+    const view = render(
+      <ThreadNavigation
+        threads={[]}
+        focusedThreadId={null}
+        searchQuery=""
+        searchResults={[]}
+        onFocus={vi.fn()}
+        onSearch={vi.fn()}
+        onRename={vi.fn()}
+        onPin={vi.fn()}
+        onDiscard={vi.fn()}
+        onRestore={vi.fn()}
+        onSummarize={vi.fn()}
+      />,
+    );
+
+    expect(view.container).toBeEmptyDOMElement();
+  });
+
   it("shows pinned branches and jumps from search results to branch context", () => {
     const onFocus = vi.fn();
     const onSearch = vi.fn();
@@ -34,7 +52,6 @@ describe("ThreadNavigation", () => {
     render(
       <ThreadNavigation
         threads={[thread]}
-        messages={[message]}
         focusedThreadId={null}
         searchQuery="squat"
         searchResults={[message]}
@@ -48,7 +65,7 @@ describe("ThreadNavigation", () => {
       />,
     );
 
-    expect(screen.getAllByText("Squat progression")).toHaveLength(2);
+    expect(screen.getByText("Squat progression")).toBeInTheDocument();
     expect(screen.getByText("Main › Squat progression")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("How should I improve my squat?"));

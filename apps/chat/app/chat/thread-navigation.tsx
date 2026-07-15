@@ -29,7 +29,6 @@ import { getMessageText } from "./conversation-tree";
 
 interface ThreadNavigationProps {
   threads: ThreadView[];
-  messages: MessageNode[];
   focusedThreadId: string | null;
   searchQuery: string;
   searchResults: MessageNode[];
@@ -98,7 +97,6 @@ const ThreadMenu = ({
 
 export const ThreadNavigation = ({
   threads,
-  messages,
   focusedThreadId,
   searchQuery,
   searchResults,
@@ -112,9 +110,9 @@ export const ThreadNavigation = ({
 }: ThreadNavigationProps) => {
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const visibleThreads = threads.filter((thread) => thread.status !== "discarded");
   const discardedThreads = threads.filter((thread) => thread.status === "discarded");
-  const pinnedThreads = visibleThreads.filter((thread) => thread.pinned);
 
   const beginRename = ({ thread, title }: { thread: ThreadView; title: string }) => {
     setRenamingThreadId(thread.id);
@@ -127,10 +125,12 @@ export const ThreadNavigation = ({
     setRenamingThreadId(null);
   };
 
+  if (threads.length === 0) return null;
+
   return (
-    <div className="border-b bg-background/80 px-3 py-2 backdrop-blur-xl md:px-5">
-      <div className="mx-auto flex max-w-5xl flex-col gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5">
+    <div className="relative border-b bg-background/80 px-3 py-1.5 backdrop-blur-xl md:px-5">
+      <div className="mx-auto max-w-4xl">
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
           <Button
             type="button"
             size="sm"
@@ -206,35 +206,39 @@ export const ThreadNavigation = ({
               </div>
             );
           })}
-        </div>
-
-        {(threads.length > 0 || messages.length > 0) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {pinnedThreads.length > 0 && (
-              <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                <PinIcon className="size-3.5 fill-current" />
-                {pinnedThreads.map((thread, index) => (
-                  <button
-                    key={thread.id}
-                    type="button"
-                    className="max-w-36 truncate rounded-full bg-muted px-2 py-1 hover:text-foreground"
-                    onClick={() => onFocus(thread.id)}
-                  >
-                    {threadTitle({ thread, index })}
-                  </button>
-                ))}
-              </div>
+          <div className="ms-auto flex shrink-0 items-center gap-1 ps-2">
+            {searchOpen ? (
+              <label className="relative w-56 sm:w-64">
+                <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={searchQuery}
+                  onChange={(event) => onSearch(event.target.value)}
+                  placeholder="Search this conversation"
+                  aria-label="Search this conversation"
+                  className="h-8 w-full rounded-full border bg-muted/30 ps-8 pe-8 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchOpen(false);
+                    onSearch("");
+                  }}
+                  aria-label="Close conversation search"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <XIcon className="size-3.5" />
+                </button>
+              </label>
+            ) : (
+              <TooltipIconButton
+                tooltip="Search conversation"
+                side="bottom"
+                onClick={() => setSearchOpen(true)}
+              >
+                <SearchIcon className="size-4" />
+              </TooltipIconButton>
             )}
-            <label className="relative ms-auto min-w-48 flex-1 sm:max-w-72">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={searchQuery}
-                onChange={(event) => onSearch(event.target.value)}
-                placeholder="Search this conversation"
-                aria-label="Search this conversation"
-                className="h-8 w-full rounded-full border bg-muted/30 ps-8 pe-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              />
-            </label>
             {discardedThreads.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -252,10 +256,10 @@ export const ThreadNavigation = ({
               </DropdownMenu>
             )}
           </div>
-        )}
+        </div>
 
         {searchQuery.trim() !== "" && (
-          <div className="max-h-52 overflow-y-auto rounded-xl border bg-popover p-1 shadow-lg">
+          <div className="absolute top-full right-3 z-30 mt-1 max-h-64 w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border bg-popover p-1 shadow-xl md:right-5">
             {searchResults.length === 0 ? (
               <p className="px-3 py-2 text-sm text-muted-foreground">No matching messages.</p>
             ) : (
