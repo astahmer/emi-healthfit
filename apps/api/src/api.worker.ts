@@ -95,7 +95,13 @@ import {
 import { createGenerationReplayStream } from "./chat/generation-replay.ts";
 import { createChatStreamResponse } from "./chat/ui-message-stream-response.ts";
 import { registerHttpApi } from "./http-api.ts";
-import { authenticateRequest, handleAuthRequest, isProtectedPath } from "./auth/request-auth.ts";
+import {
+  authenticateRequest,
+  CurrentUser,
+  handleAuthRequest,
+  isProtectedPath,
+  withCurrentUser,
+} from "./auth/request-auth.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -132,13 +138,16 @@ const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
 const applyRawUploadRetention = Effect.fn("privacy.applyRetention")(function* ({
   db,
   bucket,
+  userId,
 }: {
   db: QueryDatabaseClient;
   bucket: ReadWriteBucketClient;
+  userId: string;
 }) {
-  const days = yield* getRawUploadRetentionDays({ db });
+  const days = yield* getRawUploadRetentionDays({ db, userId });
   return yield* deleteRawUploads({
     bucket,
+    prefix: `${userId}/`,
     olderThan: new Date(Date.now() - days * 86_400_000),
   });
 });
@@ -294,8 +303,11 @@ export default class Api extends Cloudflare.Worker<Api>()(
         if (pathname.startsWith("/api/auth/")) {
           return yield* handleAuthRequest({ db, environment: env, request });
         }
-        if (isProtectedPath(pathname)) {
-          const principal = yield* authenticateRequest({ db, environment: env, request });
+        const protectedPath = isProtectedPath(pathname);
+        const principal = protectedPath
+          ? yield* authenticateRequest({ db, environment: env, request })
+          : null;
+        if (protectedPath) {
           if (principal === null) {
             return yield* HttpServerResponse.json(
               { error: "Authentication required" },
@@ -313,9 +325,18 @@ export default class Api extends Cloudflare.Worker<Api>()(
           pathname === "/api/memories" ||
           (pathname.startsWith("/api/memories/") && pathname !== "/api/memories/extract")
         ) {
+          if (principal === null) {
+            return yield* HttpServerResponse.json(
+              { error: "Authentication required" },
+              { status: 401 },
+            );
+          }
           const httpApiRouter = yield* HttpRouter.make;
           yield* registerHttpApi({ db, router: httpApiRouter });
-          return yield* httpApiRouter.asHttpEffect();
+          return yield* withCurrentUser({ effect: httpApiRouter.asHttpEffect(), principal });
+        }
+        if (principal !== null) {
+          return yield* withCurrentUser({ effect: router.asHttpEffect(), principal });
         }
         return yield* router.asHttpEffect();
       }).pipe(
@@ -367,6 +388,7 @@ const handleIngest = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const nativeRequest = yield* requestToWeb(request);
     const formData = yield* Effect.tryPromise({
       try: () => nativeRequest.formData(),
@@ -395,7 +417,7 @@ const handleIngest = (
         catch: (error) => new Error(`Failed to read health file: ${error}`),
       });
 
-      yield* bucket.put(`health/${timestamp}_${healthFile.name}`, healthText, {
+      yield* bucket.put(`${user.id}/health/${timestamp}_${healthFile.name}`, healthText, {
         httpMetadata: { contentType: healthFile.type || "application/json" },
       });
 
@@ -409,11 +431,11 @@ const handleIngest = (
         body: parsed.body.length,
       };
 
-      yield* upsertDailyActivity(db, parsed.daily);
-      yield* insertHealthWorkouts(db, parsed.workouts);
-      yield* upsertSleepSessions(db, parsed.sleep);
-      yield* upsertBodyMetrics(db, parsed.body);
-      yield* updateSyncCursor(db, "apple_health", timestamp);
+      yield* upsertDailyActivity(db, user.id, parsed.daily);
+      yield* insertHealthWorkouts(db, user.id, parsed.workouts);
+      yield* upsertSleepSessions(db, user.id, parsed.sleep);
+      yield* upsertBodyMetrics(db, user.id, parsed.body);
+      yield* updateSyncCursor(db, user.id, "apple_health", timestamp);
     }
 
     if (hevyFile !== null) {
@@ -422,7 +444,7 @@ const handleIngest = (
         catch: (error) => new Error(`Failed to read hevy file: ${error}`),
       });
 
-      yield* bucket.put(`hevy/${timestamp}_${hevyFile.name}`, hevyText, {
+      yield* bucket.put(`${user.id}/hevy/${timestamp}_${hevyFile.name}`, hevyText, {
         httpMetadata: { contentType: hevyFile.type || "text/csv" },
       });
 
@@ -433,12 +455,12 @@ const handleIngest = (
         sets: parsed.sets.length,
       };
 
-      yield* upsertHevySessions(db, parsed.sessions);
-      yield* upsertHevySets(db, parsed.sets);
-      yield* updateSyncCursor(db, "hevy", timestamp);
+      yield* upsertHevySessions(db, user.id, parsed.sessions);
+      yield* upsertHevySets(db, user.id, parsed.sets);
+      yield* updateSyncCursor(db, user.id, "hevy", timestamp);
     }
 
-    yield* applyRawUploadRetention({ db, bucket });
+    yield* applyRawUploadRetention({ db, bucket, userId: user.id });
 
     return yield* HttpServerResponse.json({
       health: healthSummary,
@@ -455,6 +477,7 @@ const handleChatRoute = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const text = yield* request.text;
     const body = JSON.parse(text || "{}") as {
       message?: string;
@@ -466,7 +489,7 @@ const handleChatRoute = (
       return yield* HttpServerResponse.json({ error: "message is required" }, { status: 400 });
     }
 
-    const result = yield* handleChat(db, aiGateway, env, {
+    const result = yield* handleChat(db, user.id, aiGateway, env, {
       message,
       systemPrompt: body.coachMode ? fitnessCoachV1 : undefined,
     });
@@ -500,6 +523,7 @@ const resolveSuggestionsApiKey = (
 
 const handleSuggestions = Effect.fn("handleSuggestions")(
   function* (db: QueryDatabaseClient, env: Record<string, unknown>, request: HttpServerRequest) {
+    const user = yield* CurrentUser;
     const text = yield* request.text;
     const body = JSON.parse(text || "{}") as SuggestionsRequestBody;
 
@@ -512,7 +536,7 @@ const handleSuggestions = Effect.fn("handleSuggestions")(
     }
 
     const key = yield* hashSuggestionsKey(lastAssistantText, body.lastUserText);
-    const cached = yield* getSuggestionsById(db, key);
+    const cached = yield* getSuggestionsById(db, user.id, key);
     if (cached !== null) {
       return yield* HttpServerResponse.json({
         suggestions: JSON.parse(cached.suggestions) as string[],
@@ -540,7 +564,7 @@ const handleSuggestions = Effect.fn("handleSuggestions")(
       }),
     );
 
-    yield* saveSuggestions(db, key, suggestions);
+    yield* saveSuggestions(db, user.id, key, suggestions);
 
     return yield* HttpServerResponse.json({ suggestions });
   },
@@ -555,7 +579,8 @@ const handleSuggestions = Effect.fn("handleSuggestions")(
 
 const handleRecovery = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const ctx = yield* buildChatContext(db);
+    const user = yield* CurrentUser;
+    const ctx = yield* buildChatContext(db, user.id);
     return yield* HttpServerResponse.json({
       today: ctx.today,
       label: ctx.recoveryLabel,
@@ -574,13 +599,14 @@ const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const handleSummary = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const cached = summaryCache.get("summary");
+    const user = yield* CurrentUser;
+    const cached = summaryCache.get(user.id);
     if (cached !== undefined) {
       return yield* HttpServerResponse.json(cached);
     }
 
-    const summary = yield* getDataSummary(db);
-    summaryCache.set("summary", summary, SUMMARY_CACHE_TTL_MS);
+    const summary = yield* getDataSummary(db, user.id);
+    summaryCache.set(user.id, summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -588,31 +614,39 @@ const handleSummary = (db: QueryDatabaseClient) =>
 
 const handleAnalyticsOverview = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const requestedDays = Number(new URL(request.url, "http://localhost").searchParams.get("days"));
     const days =
       Number.isInteger(requestedDays) && requestedDays >= 7 && requestedDays <= 365
         ? requestedDays
         : 90;
-    const overview = yield* getAnalyticsOverview({ db, days });
+    const overview = yield* getAnalyticsOverview({ db, userId: user.id, days });
     return yield* HttpServerResponse.json(overview);
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleIngestedDataExport = (db: QueryDatabaseClient) =>
-  getIngestedDataExport({ db }).pipe(
-    Effect.flatMap((data) => HttpServerResponse.json(data)),
+  Effect.gen(function* () {
+    const user = yield* CurrentUser;
+    const data = yield* getIngestedDataExport({ db, userId: user.id });
+    return yield* HttpServerResponse.json(data);
+  }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
-  getIngestedDataExportSummary({ db }).pipe(
-    Effect.flatMap((summary) => HttpServerResponse.json({ summary })),
+  Effect.gen(function* () {
+    const user = yield* CurrentUser;
+    const summary = yield* getIngestedDataExportSummary({ db, userId: user.id });
+    return yield* HttpServerResponse.json({ summary });
+  }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
 const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const raw = JSON.parse((yield* request.text) || "{}") as unknown;
     const parsed = ingestedDataExportSchema.safeParse(raw);
     if (!parsed.success) {
@@ -621,10 +655,10 @@ const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRe
         { status: 400 },
       );
     }
-    const preview = yield* previewIngestedDataImport({ db, data: parsed.data });
+    const preview = yield* previewIngestedDataImport({ db, userId: user.id, data: parsed.data });
     const apply = new URL(request.url, "http://localhost").searchParams.get("apply") === "true";
     if (apply) {
-      yield* importIngestedData({ db, data: parsed.data });
+      yield* importIngestedData({ db, userId: user.id, data: parsed.data });
       summaryCache.clear();
     }
     return yield* HttpServerResponse.json({ preview, applied: apply });
@@ -634,7 +668,8 @@ const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRe
 
 const handlePrivacyRead = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const rawUploadRetentionDays = yield* getRawUploadRetentionDays({ db });
+    const user = yield* CurrentUser;
+    const rawUploadRetentionDays = yield* getRawUploadRetentionDays({ db, userId: user.id });
     return yield* HttpServerResponse.json({ rawUploadRetentionDays });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -646,6 +681,7 @@ const handlePrivacyUpdate = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const raw = JSON.parse((yield* request.text) || "{}") as unknown;
     const parsed = Schema.decodeUnknownOption(
       Schema.Struct({
@@ -658,8 +694,12 @@ const handlePrivacyUpdate = (
         { status: 400 },
       );
     }
-    yield* updateRawUploadRetentionDays({ db, days: parsed.value.rawUploadRetentionDays });
-    const deletedRawUploads = yield* applyRawUploadRetention({ db, bucket });
+    yield* updateRawUploadRetentionDays({
+      db,
+      userId: user.id,
+      days: parsed.value.rawUploadRetentionDays,
+    });
+    const deletedRawUploads = yield* applyRawUploadRetention({ db, bucket, userId: user.id });
     return yield* HttpServerResponse.json({
       rawUploadRetentionDays: parsed.value.rawUploadRetentionDays,
       deletedRawUploads,
@@ -674,13 +714,13 @@ const handleSourceDelete = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const source = new URL(request.url).pathname.match(/\/api\/privacy\/data\/(health|hevy)$/)?.[1];
     if (source !== "health" && source !== "hevy") {
       return yield* HttpServerResponse.json({ error: "Unknown data source" }, { status: 400 });
     }
-    yield* deleteIngestedSource({ db, source });
-    const deletedRawUploads = yield* deleteRawUploads({ bucket, prefix: `${source}/` });
-    summaryCache.clear();
+    yield* deleteIngestedSource({ db, userId: user.id, source });
+    const deletedRawUploads = yield* deleteRawUploads({ bucket, prefix: `${user.id}/${source}/` });
     return yield* HttpServerResponse.json({ source, deletedRawUploads });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -688,7 +728,8 @@ const handleSourceDelete = (
 
 const handleWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const workouts = yield* getWorkouts(db);
+    const user = yield* CurrentUser;
+    const workouts = yield* getWorkouts(db, user.id);
     return yield* HttpServerResponse.json({ workouts });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -696,9 +737,10 @@ const handleWorkouts = (db: QueryDatabaseClient) =>
 
 const handleConversationsList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const url = new URL(request.url, "http://localhost");
     const search = url.searchParams.get("search") ?? undefined;
-    const conversations = yield* getConversations(db, search);
+    const conversations = yield* getConversations(db, user.id, search);
     return yield* HttpServerResponse.json({ conversations });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -706,7 +748,8 @@ const handleConversationsList = (db: QueryDatabaseClient, request: HttpServerReq
 
 const handleConversationsCreate = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const id = yield* createConversation(db);
+    const user = yield* CurrentUser;
+    const id = yield* createConversation(db, user.id);
     return yield* HttpServerResponse.json({ id }, { status: 201 });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -714,12 +757,13 @@ const handleConversationsCreate = (db: QueryDatabaseClient) =>
 
 const handleConversationDelete = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
     }
 
-    yield* deleteConversation(db, conversationId);
+    yield* deleteConversation(db, user.id, conversationId);
     return yield* HttpServerResponse.json({ success: true });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -727,6 +771,7 @@ const handleConversationDelete = (db: QueryDatabaseClient, request: HttpServerRe
 
 const handleConversationStateUpdate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
@@ -744,8 +789,8 @@ const handleConversationStateUpdate = (db: QueryDatabaseClient, request: HttpSer
         { status: 400 },
       );
     }
-    yield* updateConversationState({ db, conversationId, ...parsed.value });
-    const conversation = yield* getConversation(db, conversationId);
+    yield* updateConversationState({ db, userId: user.id, conversationId, ...parsed.value });
+    const conversation = yield* getConversation(db, user.id, conversationId);
     return yield* HttpServerResponse.json({ conversation });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -753,11 +798,12 @@ const handleConversationStateUpdate = (db: QueryDatabaseClient, request: HttpSer
 
 const handleConversationClone = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
     }
-    const conversation = yield* cloneConversation({ db, conversationId });
+    const conversation = yield* cloneConversation({ db, userId: user.id, conversationId });
     if (conversation === null) {
       return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
@@ -812,20 +858,21 @@ const rowToMessage = (row: {
 
 const handleConversationMessages = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
     }
 
-    const conversation = yield* getConversation(db, conversationId);
+    const conversation = yield* getConversation(db, user.id, conversationId);
     if (conversation === null) {
       return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    const rows = yield* getConversationMessages(db, conversationId);
-    const threads = yield* getThreadsIncludingDiscarded(db, conversationId);
+    const rows = yield* getConversationMessages(db, user.id, conversationId);
+    const threads = yield* getThreadsIncludingDiscarded(db, user.id, conversationId);
     const threadsWithMessages = yield* Effect.forEach(threads, (thread) =>
-      getThreadMessages(db, thread.id).pipe(
+      getThreadMessages(db, user.id, thread.id).pipe(
         Effect.map((messages) => ({
           ...thread,
           message_ids: messages.map((message) => message.id),
@@ -840,6 +887,7 @@ const handleConversationMessages = (db: QueryDatabaseClient, request: HttpServer
 
 const handleConversationRename = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
@@ -851,7 +899,7 @@ const handleConversationRename = (db: QueryDatabaseClient, request: HttpServerRe
       return yield* HttpServerResponse.json({ error: "title is required" }, { status: 400 });
     }
 
-    yield* renameConversation(db, conversationId, body.title.trim());
+    yield* renameConversation(db, user.id, conversationId, body.title.trim());
     return yield* HttpServerResponse.json({ success: true });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -859,12 +907,13 @@ const handleConversationRename = (db: QueryDatabaseClient, request: HttpServerRe
 
 const handleConversationThreadsList = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
     }
 
-    const threads = yield* getThreads(db, conversationId);
+    const threads = yield* getThreads(db, user.id, conversationId);
     return yield* HttpServerResponse.json({ threads });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -872,6 +921,7 @@ const handleConversationThreadsList = (db: QueryDatabaseClient, request: HttpSer
 
 const handleConversationThreadsCreate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const conversationId = getConversationIdFromPath(request.url);
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid conversation id" }, { status: 400 });
@@ -886,18 +936,19 @@ const handleConversationThreadsCreate = (db: QueryDatabaseClient, request: HttpS
       );
     }
 
-    const anchor = yield* getMessage(db, body.anchorMessageId.trim());
+    const anchor = yield* getMessage(db, user.id, body.anchorMessageId.trim());
     if (anchor === null || anchor.conversation_id !== conversationId) {
       return yield* HttpServerResponse.json({ error: "Anchor message not found" }, { status: 404 });
     }
 
     const id = yield* createThread(
       db,
+      user.id,
       conversationId,
       body.anchorMessageId.trim(),
       body.title?.trim(),
     );
-    const thread = yield* getThread(db, id);
+    const thread = yield* getThread(db, user.id, id);
     return yield* HttpServerResponse.json(
       thread === null ? null : { ...thread, message_ids: [thread.anchor_message_id] },
       { status: 201 },
@@ -908,17 +959,18 @@ const handleConversationThreadsCreate = (db: QueryDatabaseClient, request: HttpS
 
 const handleThreadRead = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const threadId = getThreadIdFromPath(request.url);
     if (threadId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid thread id" }, { status: 400 });
     }
 
-    const thread = yield* getThread(db, threadId);
+    const thread = yield* getThread(db, user.id, threadId);
     if (thread === null) {
       return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
-    const rows = yield* getThreadMessages(db, threadId);
+    const rows = yield* getThreadMessages(db, user.id, threadId);
     const messages = rows.map(rowToMessage);
     return yield* HttpServerResponse.json({ thread, messages });
   }).pipe(
@@ -927,6 +979,7 @@ const handleThreadRead = (db: QueryDatabaseClient, request: HttpServerRequest) =
 
 const handleThreadUpdate = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const threadId = getThreadIdFromPath(request.url);
     if (threadId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid thread id" }, { status: 400 });
@@ -940,19 +993,19 @@ const handleThreadUpdate = (db: QueryDatabaseClient, request: HttpServerRequest)
     };
 
     if (body.title !== undefined && body.title.trim() !== "") {
-      yield* renameThread(db, threadId, body.title.trim());
+      yield* renameThread(db, user.id, threadId, body.title.trim());
     }
 
     if (body.pinned !== undefined) {
-      yield* pinThread(db, threadId, body.pinned);
+      yield* pinThread(db, user.id, threadId, body.pinned);
     }
 
     if (body.status === "discarded") {
-      yield* discardThread(db, threadId);
+      yield* discardThread(db, user.id, threadId);
     }
 
     if (body.status === "regular") {
-      yield* restoreThread(db, threadId);
+      yield* restoreThread(db, user.id, threadId);
     }
 
     return yield* HttpServerResponse.json({ success: true });
@@ -966,17 +1019,18 @@ const handleThreadSummarize = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const threadId = getThreadIdFromPath(request.url);
     if (threadId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid thread id" }, { status: 400 });
     }
 
-    const thread = yield* getThread(db, threadId);
+    const thread = yield* getThread(db, user.id, threadId);
     if (thread === null) {
       return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
-    const rows = yield* getThreadMessages(db, threadId);
+    const rows = yield* getThreadMessages(db, user.id, threadId);
     const messages = rows
       .filter((row) => row.role !== "summary")
       .map((row) => ({
@@ -994,7 +1048,7 @@ const handleThreadSummarize = (
         ? "No summary available."
         : yield* Effect.promise(() => generateThreadSummary(apiKey, undefined, messages));
 
-    const summaryId = yield* summarizeThread(db, threadId, summaryText);
+    const summaryId = yield* summarizeThread(db, user.id, threadId, summaryText);
     return yield* HttpServerResponse.json({ id: summaryId, summary: summaryText });
   }).pipe(
     Effect.catch((error) =>
@@ -1007,12 +1061,13 @@ const handleThreadSummarize = (
 
 const handleMessageRead = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const messageId = getMessageIdFromPath(request.url);
     if (messageId === undefined) {
       return yield* HttpServerResponse.json({ error: "Invalid message id" }, { status: 400 });
     }
 
-    const message = yield* getMessage(db, messageId);
+    const message = yield* getMessage(db, user.id, messageId);
     if (message === null) {
       return yield* HttpServerResponse.json({ error: "Message not found" }, { status: 404 });
     }
@@ -1028,6 +1083,7 @@ const handleMemoryExtract = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const requestText = yield* request.text;
     const body = JSON.parse(requestText || "{}") as { text?: string; threadId?: string };
     if (body.text === undefined || body.text.trim() === "") {
@@ -1047,7 +1103,7 @@ const handleMemoryExtract = (
     const snippets = yield* Effect.promise(() => extractMemories(apiKey, baseUrl, text));
     const ids: string[] = [];
     for (const snippet of snippets) {
-      const id = yield* insertMemory(db, snippet, "assistant", body.threadId);
+      const id = yield* insertMemory(db, user.id, snippet, "assistant", body.threadId);
       if (id !== null) ids.push(id);
     }
     return yield* HttpServerResponse.json({ ids, count: ids.length });
@@ -1133,6 +1189,7 @@ const handleMessageRevision = ({
   messageId: string;
 }) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const body = yield* request.json;
     const decoded = Schema.decodeUnknownOption(MessageRevisionSchema)(body);
     if (Option.isNone(decoded)) {
@@ -1148,6 +1205,7 @@ const handleMessageRevision = ({
     }
     const revised = yield* reviseConversationMessage({
       db,
+      userId: user.id,
       conversationId,
       messageId,
       parts: validated.data[0]?.parts ?? [],
@@ -1247,6 +1305,7 @@ const handleAiSdkChat = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
+    const user = yield* CurrentUser;
     const requestStartedAt = performance.now();
     const text = yield* request.text;
     const raw = JSON.parse(text || "{}") as unknown;
@@ -1296,22 +1355,26 @@ const handleAiSdkChat = (
         ? chatRequest.sessionId
         : isTemporary
           ? `temp_${crypto.randomUUID()}`
-          : yield* createConversation(db);
+          : yield* createConversation(db, user.id);
 
     if (!isTemporary) {
-      const reconciledGenerations = yield* reconcileFinishedGenerations({ db });
-      const abandonedGenerations = yield* expireStaleGenerations({ db });
-      const deletedGenerations = yield* cleanupGenerationHistory({ db });
+      const reconciledGenerations = yield* reconcileFinishedGenerations({ db, userId: user.id });
+      const abandonedGenerations = yield* expireStaleGenerations({ db, userId: user.id });
+      const deletedGenerations = yield* cleanupGenerationHistory({ db, userId: user.id });
       if (reconciledGenerations > 0 || abandonedGenerations > 0 || deletedGenerations > 0) {
         yield* Effect.logInfo("chat.generation.maintenance").pipe(
           Effect.annotateLogs({ reconciledGenerations, abandonedGenerations, deletedGenerations }),
         );
       }
-      const conversation = yield* getConversation(db, sessionId);
+      const conversation = yield* getConversation(db, user.id, sessionId);
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
-      const runningGeneration = yield* getRunningGeneration({ db, conversationId: sessionId });
+      const runningGeneration = yield* getRunningGeneration({
+        db,
+        userId: user.id,
+        conversationId: sessionId,
+      });
       if (runningGeneration !== null) {
         return yield* HttpServerResponse.json(
           { error: "A generation is already running", generationId: runningGeneration.id },
@@ -1323,7 +1386,7 @@ const handleAiSdkChat = (
     const thread =
       isTemporary || chatRequest.threadId === undefined
         ? null
-        : yield* getThread(db, chatRequest.threadId);
+        : yield* getThread(db, user.id, chatRequest.threadId);
     if (
       chatRequest.threadId !== undefined &&
       (thread === null || thread.conversation_id !== sessionId || thread.status !== "regular")
@@ -1331,12 +1394,14 @@ const handleAiSdkChat = (
       return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
-    const conversationRows = isTemporary ? [] : yield* getConversationMessages(db, sessionId);
+    const conversationRows = isTemporary
+      ? []
+      : yield* getConversationMessages(db, user.id, sessionId);
     const existingRows =
       thread === null
         ? conversationRows
         : yield* Effect.gen(function* () {
-            const branchRows = yield* getThreadMessages(db, thread.id);
+            const branchRows = yield* getThreadMessages(db, user.id, thread.id);
             const anchor = conversationRows.find((row) => row.id === thread.anchor_message_id);
             const contextRows =
               anchor === undefined
@@ -1399,6 +1464,7 @@ const handleAiSdkChat = (
         chatRequest.replaceMessageId === undefined
           ? yield* saveConversationMessages(
               db,
+              user.id,
               sessionId,
               branchParentId,
               incomingMessages as Array<{ role: string; parts: unknown[] }>,
@@ -1410,7 +1476,7 @@ const handleAiSdkChat = (
       if (thread !== null) {
         yield* Effect.forEach(
           incomingIds,
-          (messageId) => addThreadMessage(db, thread.id, messageId),
+          (messageId) => addThreadMessage(db, user.id, thread.id, messageId),
           {
             discard: true,
           },
@@ -1425,6 +1491,7 @@ const handleAiSdkChat = (
       return Effect.runPromiseWith(services)(
         executeTool({
           db,
+          userId: user.id,
           name,
           args,
           ...(isTemporary ? {} : { conversationId: sessionId }),
@@ -1503,6 +1570,7 @@ const handleAiSdkChat = (
               if (!isTemporary && assistantParts.length > 0) {
                 const assistantIds = yield* saveConversationMessages(
                   db,
+                  user.id,
                   sessionId,
                   thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
                   [
@@ -1521,7 +1589,7 @@ const handleAiSdkChat = (
                 if (thread !== null) {
                   yield* Effect.forEach(
                     assistantIds,
-                    (messageId) => addThreadMessage(db, thread.id, messageId),
+                    (messageId) => addThreadMessage(db, user.id, thread.id, messageId),
                     { discard: true },
                   );
                 }
@@ -1529,7 +1597,7 @@ const handleAiSdkChat = (
 
               if (!isTemporary) {
                 const firstUserText = getFirstUserText(incomingMessages);
-                const conversation = yield* getConversation(db, sessionId);
+                const conversation = yield* getConversation(db, user.id, sessionId);
                 const needsTitle =
                   conversation !== null &&
                   (conversation.title === null || conversation.title === "");
@@ -1538,7 +1606,7 @@ const handleAiSdkChat = (
                   const title = yield* Effect.promise(() =>
                     generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
                   );
-                  yield* renameConversation(db, sessionId, title);
+                  yield* renameConversation(db, user.id, sessionId, title);
                 }
 
                 const lastUserText = getLastUserText(requestWithHistory.messages);
@@ -1559,7 +1627,7 @@ const handleAiSdkChat = (
                         .join("\n");
                 if (finalAssistantText === "") return;
                 const key = yield* hashSuggestionsKey(finalAssistantText, lastUserText);
-                const cached = yield* getSuggestionsById(db, key);
+                const cached = yield* getSuggestionsById(db, user.id, key);
                 if (cached !== null) return;
 
                 const suggestions = yield* Effect.promise(() =>
@@ -1570,7 +1638,7 @@ const handleAiSdkChat = (
                     lastUserText,
                   }),
                 );
-                yield* saveSuggestions(db, key, suggestions);
+                yield* saveSuggestions(db, user.id, key, suggestions);
               }
             }).pipe(
               Effect.catchCause((cause) =>
@@ -1596,13 +1664,13 @@ const handleAiSdkChat = (
     let responseStream = uiMessageStream;
 
     if (!isTemporary) {
-      yield* createGeneration({ db, generationId, conversationId: sessionId });
+      yield* createGeneration({ db, userId: user.id, generationId, conversationId: sessionId });
       const streams = uiMessageStream.tee();
       responseStream = streams[0];
       const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
       executionContext.waitUntil(
         Effect.runPromiseWith(services)(
-          persistGenerationStream({ db, generationId, stream: streams[1] }),
+          persistGenerationStream({ db, userId: user.id, generationId, stream: streams[1] }),
         ),
       );
     }
@@ -1630,10 +1698,12 @@ const handleAiSdkChat = (
 
 const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(function* ({
   db,
+  userId,
   generationId,
   stream,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   generationId: string;
   stream: ReadableStream<UIMessageChunk>;
 }) {
@@ -1649,7 +1719,7 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
       Effect.gen(function* () {
         const timestamp = performance.now();
         const previous = yield* Ref.get(previousChunkAt);
-        yield* appendGenerationChunk({ db, generationId, sequence, chunk });
+        yield* appendGenerationChunk({ db, userId, generationId, sequence, chunk });
         yield* Effect.logDebug("chat.persistence.chunk").pipe(
           Effect.annotateLogs({
             generationId,
@@ -1676,6 +1746,7 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
           );
           yield* finishGeneration({
             db,
+            userId,
             generationId,
             status: "failed",
             error: message,
@@ -1686,6 +1757,7 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
           Effect.flatMap((error) =>
             finishGeneration({
               db,
+              userId,
               generationId,
               status: error === undefined ? "completed" : "failed",
               error,
@@ -1702,9 +1774,10 @@ const handleChatResume = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const reconciledGenerations = yield* reconcileFinishedGenerations({ db });
-    const abandonedGenerations = yield* expireStaleGenerations({ db });
-    const deletedGenerations = yield* cleanupGenerationHistory({ db });
+    const user = yield* CurrentUser;
+    const reconciledGenerations = yield* reconcileFinishedGenerations({ db, userId: user.id });
+    const abandonedGenerations = yield* expireStaleGenerations({ db, userId: user.id });
+    const deletedGenerations = yield* cleanupGenerationHistory({ db, userId: user.id });
     yield* Effect.logInfo("chat.generation.reconnect").pipe(
       Effect.annotateLogs({
         conversationId,
@@ -1714,7 +1787,7 @@ const handleChatResume = (
         deletedGenerations,
       }),
     );
-    const generation = yield* getResumableGeneration({ db, conversationId });
+    const generation = yield* getResumableGeneration({ db, userId: user.id, conversationId });
     if (generation === null) {
       return HttpServerResponse.empty({ status: 204, headers: corsHeaders(request) });
     }
@@ -1725,13 +1798,14 @@ const handleChatResume = (
         createGenerationReplayStream({
           generationId: generation.id,
           getChunks: ({ generationId, afterSequence }) =>
-            getGenerationChunks({ db, generationId, afterSequence }),
+            getGenerationChunks({ db, userId: user.id, generationId, afterSequence }),
           getGeneration: (generationId) =>
             Effect.gen(function* () {
-              const current = yield* getGeneration({ db, generationId });
+              const current = yield* getGeneration({ db, userId: user.id, generationId });
               if (current === null || !isGenerationStale(current)) return current;
               yield* finishGeneration({
                 db,
+                userId: user.id,
                 generationId,
                 status: "failed",
                 error: "Generation timed out",

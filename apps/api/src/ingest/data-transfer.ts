@@ -125,23 +125,37 @@ const combinedKey = (...parts: Array<string | number | null>): string => parts.j
 
 export const previewIngestedDataImport = Effect.fn("dataImport.preview")(function* ({
   db,
+  userId,
   data,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   data: IngestedDataExport;
 }) {
   const [daily, workouts, sleep, body, sessions, sets] = yield* Effect.all([
-    db.prepare("SELECT date FROM daily_activity").all<{ date: string }>(),
     db
-      .prepare("SELECT date, type, start_raw FROM health_workouts")
+      .prepare("SELECT date FROM daily_activity WHERE user_id = ?")
+      .bind(userId)
+      .all<{ date: string }>(),
+    db
+      .prepare("SELECT date, type, start_raw FROM health_workouts WHERE user_id = ?")
+      .bind(userId)
       .all<{ date: string; type: string; start_raw: string | null }>(),
     db
-      .prepare("SELECT date, start FROM sleep_sessions")
+      .prepare("SELECT date, start FROM sleep_sessions WHERE user_id = ?")
+      .bind(userId)
       .all<{ date: string | null; start: string | null }>(),
-    db.prepare("SELECT date FROM body_metrics").all<{ date: string }>(),
-    db.prepare("SELECT session_id FROM hevy_sessions").all<{ session_id: string }>(),
     db
-      .prepare("SELECT session_id, exercise_title, set_index FROM hevy_sets")
+      .prepare("SELECT date FROM body_metrics WHERE user_id = ?")
+      .bind(userId)
+      .all<{ date: string }>(),
+    db
+      .prepare("SELECT session_id FROM hevy_sessions WHERE user_id = ?")
+      .bind(userId)
+      .all<{ session_id: string }>(),
+    db
+      .prepare("SELECT session_id, exercise_title, set_index FROM hevy_sets WHERE user_id = ?")
+      .bind(userId)
       .all<{ session_id: string; exercise_title: string; set_index: number }>(),
   ]);
   const keys = {
@@ -199,17 +213,19 @@ export const previewIngestedDataImport = Effect.fn("dataImport.preview")(functio
 
 export const importIngestedData = Effect.fn("dataImport.apply")(function* ({
   db,
+  userId,
   data,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   data: IngestedDataExport;
 }) {
-  yield* upsertHevySessions(db, data.hevy.sessions);
+  yield* upsertHevySessions(db, userId, data.hevy.sessions);
   yield* Effect.all([
-    upsertDailyActivity(db, data.health.dailyActivity),
-    insertHealthWorkouts(db, data.health.workouts),
-    upsertSleepSessions(db, data.health.sleepSessions),
-    upsertBodyMetrics(db, data.health.bodyMetrics),
-    upsertHevySets(db, data.hevy.sets),
+    upsertDailyActivity(db, userId, data.health.dailyActivity),
+    insertHealthWorkouts(db, userId, data.health.workouts),
+    upsertSleepSessions(db, userId, data.health.sleepSessions),
+    upsertBodyMetrics(db, userId, data.health.bodyMetrics),
+    upsertHevySets(db, userId, data.hevy.sets),
   ]);
 });

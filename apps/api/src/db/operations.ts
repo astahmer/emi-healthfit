@@ -14,6 +14,12 @@ import type {
 } from "./schema.ts";
 
 export type QueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
+type OwnedDailyActivityRow = Omit<DailyActivityRow, "user_id">;
+type OwnedHealthWorkoutRow = Omit<HealthWorkoutRow, "user_id">;
+type OwnedHevySessionRow = Omit<HevySessionRow, "user_id">;
+type OwnedHevySetRow = Omit<HevySetRow, "user_id">;
+type OwnedSleepSessionRow = Omit<SleepSessionRow, "user_id">;
+type OwnedBodyMetricRow = Omit<BodyMetricRow, "user_id">;
 
 const BATCH_SIZE = 100;
 
@@ -62,16 +68,20 @@ export const hashSuggestionsKey = (
     return arrayBufferToHex(buffer);
   });
 
-export const upsertDailyActivity = (db: QueryDatabaseClient, rows: DailyActivityRow[]) =>
+export const upsertDailyActivity = (
+  db: QueryDatabaseClient,
+  userId: string,
+  rows: OwnedDailyActivityRow[],
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db
         .prepare(`
-        INSERT INTO daily_activity (date, active_kcal, steps, distance_km, exercise_min, flights_climbed)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(date) DO UPDATE SET
+        INSERT INTO daily_activity (user_id, date, active_kcal, steps, distance_km, exercise_min, flights_climbed)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET
           active_kcal = excluded.active_kcal,
           steps = excluded.steps,
           distance_km = excluded.distance_km,
@@ -79,6 +89,7 @@ export const upsertDailyActivity = (db: QueryDatabaseClient, rows: DailyActivity
           flights_climbed = excluded.flights_climbed
       `)
         .bind(
+          userId,
           row.date,
           row.active_kcal,
           row.steps,
@@ -92,16 +103,20 @@ export const upsertDailyActivity = (db: QueryDatabaseClient, rows: DailyActivity
     return rows.length;
   });
 
-export const insertHealthWorkouts = (db: QueryDatabaseClient, rows: HealthWorkoutRow[]) =>
+export const insertHealthWorkouts = (
+  db: QueryDatabaseClient,
+  userId: string,
+  rows: OwnedHealthWorkoutRow[],
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db
         .prepare(`
-        INSERT INTO health_workouts (date, type, start_raw, duration_sec, active_kcal, avg_hr, max_hr, min_hr, distance_km, source, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(date, type, start_raw) DO UPDATE SET
+        INSERT INTO health_workouts (user_id, date, type, start_raw, duration_sec, active_kcal, avg_hr, max_hr, min_hr, distance_km, source, raw_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date, type, start_raw) DO UPDATE SET
           duration_sec = excluded.duration_sec,
           active_kcal = excluded.active_kcal,
           avg_hr = excluded.avg_hr,
@@ -112,6 +127,7 @@ export const insertHealthWorkouts = (db: QueryDatabaseClient, rows: HealthWorkou
           raw_json = excluded.raw_json
       `)
         .bind(
+          userId,
           row.date,
           row.type,
           row.start_raw,
@@ -130,22 +146,27 @@ export const insertHealthWorkouts = (db: QueryDatabaseClient, rows: HealthWorkou
     return rows.length;
   });
 
-export const upsertHevySessions = (db: QueryDatabaseClient, rows: HevySessionRow[]) =>
+export const upsertHevySessions = (
+  db: QueryDatabaseClient,
+  userId: string,
+  rows: OwnedHevySessionRow[],
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db
         .prepare(`
-        INSERT INTO hevy_sessions (session_id, title, start_time, end_time, duration_sec, total_volume_kg)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(session_id) DO UPDATE SET
+        INSERT INTO hevy_sessions (user_id, session_id, title, start_time, end_time, duration_sec, total_volume_kg)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, session_id) DO UPDATE SET
           title = excluded.title,
           end_time = excluded.end_time,
           duration_sec = excluded.duration_sec,
           total_volume_kg = excluded.total_volume_kg
       `)
         .bind(
+          userId,
           row.session_id,
           row.title,
           row.start_time,
@@ -159,16 +180,16 @@ export const upsertHevySessions = (db: QueryDatabaseClient, rows: HevySessionRow
     return rows.length;
   });
 
-export const upsertHevySets = (db: QueryDatabaseClient, rows: HevySetRow[]) =>
+export const upsertHevySets = (db: QueryDatabaseClient, userId: string, rows: OwnedHevySetRow[]) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db
         .prepare(`
-        INSERT INTO hevy_sets (session_id, exercise_title, set_index, set_type, weight_kg, reps, rpe, distance_km, duration_seconds, exercise_notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(session_id, exercise_title, set_index) DO UPDATE SET
+        INSERT INTO hevy_sets (user_id, session_id, exercise_title, set_index, set_type, weight_kg, reps, rpe, distance_km, duration_seconds, exercise_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, session_id, exercise_title, set_index) DO UPDATE SET
           set_type = excluded.set_type,
           weight_kg = excluded.weight_kg,
           reps = excluded.reps,
@@ -178,6 +199,7 @@ export const upsertHevySets = (db: QueryDatabaseClient, rows: HevySetRow[]) =>
           exercise_notes = excluded.exercise_notes
       `)
         .bind(
+          userId,
           row.session_id,
           row.exercise_title,
           row.set_index,
@@ -195,16 +217,20 @@ export const upsertHevySets = (db: QueryDatabaseClient, rows: HevySetRow[]) =>
     return rows.length;
   });
 
-export const upsertSleepSessions = (db: QueryDatabaseClient, rows: SleepSessionRow[]) =>
+export const upsertSleepSessions = (
+  db: QueryDatabaseClient,
+  userId: string,
+  rows: OwnedSleepSessionRow[],
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db
         .prepare(`
-        INSERT INTO sleep_sessions (date, start, end, in_bed_min, asleep_min, awake_min, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(date, start) DO UPDATE SET
+        INSERT INTO sleep_sessions (user_id, date, start, end, in_bed_min, asleep_min, awake_min, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date, start) DO UPDATE SET
           end = excluded.end,
           in_bed_min = excluded.in_bed_min,
           asleep_min = excluded.asleep_min,
@@ -212,6 +238,7 @@ export const upsertSleepSessions = (db: QueryDatabaseClient, rows: SleepSessionR
           source = excluded.source
       `)
         .bind(
+          userId,
           row.date,
           row.start,
           row.end,
@@ -226,86 +253,103 @@ export const upsertSleepSessions = (db: QueryDatabaseClient, rows: SleepSessionR
     return rows.length;
   });
 
-export const upsertBodyMetrics = (db: QueryDatabaseClient, rows: BodyMetricRow[]) =>
+export const upsertBodyMetrics = (
+  db: QueryDatabaseClient,
+  userId: string,
+  rows: OwnedBodyMetricRow[],
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
     const statements = rows.map((row) =>
       db
         .prepare(`
-        INSERT INTO body_metrics (date, weight_kg, body_fat_pct, lean_mass_kg, source)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(date) DO UPDATE SET
+        INSERT INTO body_metrics (user_id, date, weight_kg, body_fat_pct, lean_mass_kg, source)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET
           weight_kg = excluded.weight_kg,
           body_fat_pct = excluded.body_fat_pct,
           lean_mass_kg = excluded.lean_mass_kg,
           source = excluded.source
       `)
-        .bind(row.date, row.weight_kg, row.body_fat_pct, row.lean_mass_kg, row.source),
+        .bind(userId, row.date, row.weight_kg, row.body_fat_pct, row.lean_mass_kg, row.source),
     );
 
     yield* runBatches(db, statements);
     return rows.length;
   });
 
-export const updateSyncCursor = (db: QueryDatabaseClient, source: string, lastSync: string) =>
+export const updateSyncCursor = (
+  db: QueryDatabaseClient,
+  userId: string,
+  source: string,
+  lastSync: string,
+) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      INSERT INTO sync_cursors (source, last_sync)
-      VALUES (?, ?)
-      ON CONFLICT(source) DO UPDATE SET
+      INSERT INTO sync_cursors (user_id, source, last_sync)
+      VALUES (?, ?, ?)
+      ON CONFLICT(user_id, source) DO UPDATE SET
         last_sync = excluded.last_sync
     `)
-      .bind(source, lastSync)
+      .bind(userId, source, lastSync)
       .run();
   });
 
 export const getRawUploadRetentionDays = Effect.fn("privacy.readRetention")(function* ({
   db,
+  userId,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
 }) {
   const row = yield* db
-    .prepare("SELECT raw_upload_retention_days days FROM privacy_preferences WHERE id = 1")
+    .prepare("SELECT raw_upload_retention_days days FROM privacy_preferences WHERE user_id = ?")
+    .bind(userId)
     .first<{ days: number }>();
   return row?.days ?? 30;
 });
 
 export const updateRawUploadRetentionDays = Effect.fn("privacy.updateRetention")(function* ({
   db,
+  userId,
   days,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   days: number;
 }) {
   yield* db
     .prepare(`
-      INSERT INTO privacy_preferences (id, raw_upload_retention_days, updated_at)
-      VALUES (1, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(id) DO UPDATE SET
+      INSERT INTO privacy_preferences (user_id, raw_upload_retention_days, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id) DO UPDATE SET
         raw_upload_retention_days = excluded.raw_upload_retention_days,
         updated_at = CURRENT_TIMESTAMP
     `)
-    .bind(days)
+    .bind(userId, days)
     .run();
 });
 
 export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* ({
   db,
+  userId,
   source,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   source: "health" | "hevy";
 }) {
   const tables =
     source === "health"
       ? ["daily_activity", "health_workouts", "sleep_sessions", "body_metrics"]
       : ["hevy_sets", "hevy_sessions"];
-  for (const table of tables) yield* db.prepare(`DELETE FROM ${table}`).run();
+  for (const table of tables)
+    yield* db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId).run();
   yield* db
-    .prepare("DELETE FROM sync_cursors WHERE source = ?")
-    .bind(source === "health" ? "apple_health" : "hevy")
+    .prepare("DELETE FROM sync_cursors WHERE user_id = ? AND source = ?")
+    .bind(userId, source === "health" ? "apple_health" : "hevy")
     .run();
 });
 
@@ -318,7 +362,7 @@ export interface WorkoutHistoryItem {
   set_count: number;
 }
 
-export const getWorkoutHistory = (db: QueryDatabaseClient, limit = 10) =>
+export const getWorkoutHistory = (db: QueryDatabaseClient, userId: string, limit = 10) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
@@ -330,12 +374,13 @@ export const getWorkoutHistory = (db: QueryDatabaseClient, limit = 10) =>
         COUNT(DISTINCT st.exercise_title) as exercise_count,
         COUNT(st.set_index) as set_count
       FROM hevy_sessions s
-      LEFT JOIN hevy_sets st ON st.session_id = s.session_id
+      LEFT JOIN hevy_sets st ON st.user_id = s.user_id AND st.session_id = s.session_id
+      WHERE s.user_id = ?
       GROUP BY s.session_id
       ORDER BY s.start_time DESC
       LIMIT ?
     `)
-      .bind(limit)
+      .bind(userId, limit)
       .all<WorkoutHistoryItem>();
 
     return result.results;
@@ -369,7 +414,12 @@ const isoDateDaysAgo = (days: number): string => {
   return date.toISOString().slice(0, 10);
 };
 
-export const getExerciseProgress = (db: QueryDatabaseClient, exerciseTitle: string, weeks = 8) =>
+export const getExerciseProgress = (
+  db: QueryDatabaseClient,
+  userId: string,
+  exerciseTitle: string,
+  weeks = 8,
+) =>
   Effect.gen(function* () {
     const since = isoDateDaysAgo(weeks * 7);
 
@@ -385,12 +435,12 @@ export const getExerciseProgress = (db: QueryDatabaseClient, exerciseTitle: stri
         SUM(st.reps) as total_reps,
         COUNT(*) as sets
       FROM hevy_sets st
-      JOIN hevy_sessions s ON s.session_id = st.session_id
-      WHERE st.exercise_title = ? AND s.start_time >= ?
+      JOIN hevy_sessions s ON s.user_id = st.user_id AND s.session_id = st.session_id
+      WHERE st.user_id = ? AND st.exercise_title = ? AND s.start_time >= ?
       GROUP BY s.session_id
       ORDER BY s.start_time ASC
     `)
-      .bind(exerciseTitle, since)
+      .bind(userId, exerciseTitle, since)
       .all<ExerciseProgressSet>();
 
     const prRow = yield* db
@@ -399,20 +449,20 @@ export const getExerciseProgress = (db: QueryDatabaseClient, exerciseTitle: stri
         MAX(weight_kg) as pr_weight_kg,
         MAX(weight_kg * reps) as pr_volume_kg
       FROM hevy_sets
-      WHERE exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
+      WHERE user_id = ? AND exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
     `)
-      .bind(exerciseTitle)
+      .bind(userId, exerciseTitle)
       .first<{ pr_weight_kg: number | null; pr_volume_kg: number | null }>();
 
     const prSet = yield* db
       .prepare(`
       SELECT weight_kg, reps
       FROM hevy_sets
-      WHERE exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
+      WHERE user_id = ? AND exercise_title = ? AND weight_kg IS NOT NULL AND reps IS NOT NULL
       ORDER BY weight_kg * reps DESC
       LIMIT 1
     `)
-      .bind(exerciseTitle)
+      .bind(userId, exerciseTitle)
       .first<{ weight_kg: number | null; reps: number | null }>();
 
     return {
@@ -435,7 +485,7 @@ interface SleepTrend {
   avg_sleep_hours: number | null;
 }
 
-export const getSleepTrend = (db: QueryDatabaseClient, days = 7) =>
+export const getSleepTrend = (db: QueryDatabaseClient, userId: string, days = 7) =>
   Effect.gen(function* () {
     const since = isoDateDaysAgo(days);
     const row = yield* db
@@ -446,9 +496,9 @@ export const getSleepTrend = (db: QueryDatabaseClient, days = 7) =>
         AVG(asleep_min) as avg_asleep_min,
         AVG(awake_min) as avg_awake_min
       FROM sleep_sessions
-      WHERE date >= ?
+      WHERE user_id = ? AND date >= ?
     `)
-      .bind(since)
+      .bind(userId, since)
       .first<{
         days: number;
         avg_in_bed_min: number | null;
@@ -506,14 +556,16 @@ const computeStreaks = (
   return { current: currentStreak, longest, last };
 };
 
-export const getWorkoutStreak = (db: QueryDatabaseClient) =>
+export const getWorkoutStreak = (db: QueryDatabaseClient, userId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT DISTINCT date(start_time) as workout_date
       FROM hevy_sessions
+      WHERE user_id = ?
       ORDER BY workout_date ASC
     `)
+      .bind(userId)
       .all<{ workout_date: string }>();
 
     const streaks = computeStreaks(result.results.map((row) => row.workout_date));
@@ -536,17 +588,36 @@ export interface DataSummary {
   lastHevySync: string | null;
 }
 
-export const getDataSummary = (db: QueryDatabaseClient) =>
+export const getDataSummary = (db: QueryDatabaseClient, userId: string) =>
   Effect.gen(function* () {
     const [daily, workouts, sessions, sets, sleep, body, cursors] = yield* Effect.all([
-      db.prepare("SELECT COUNT(*) as c FROM daily_activity").first<{ c: number }>(),
-      db.prepare("SELECT COUNT(*) as c FROM health_workouts").first<{ c: number }>(),
-      db.prepare("SELECT COUNT(*) as c FROM hevy_sessions").first<{ c: number }>(),
-      db.prepare("SELECT COUNT(*) as c FROM hevy_sets").first<{ c: number }>(),
-      db.prepare("SELECT COUNT(*) as c FROM sleep_sessions").first<{ c: number }>(),
-      db.prepare("SELECT COUNT(*) as c FROM body_metrics").first<{ c: number }>(),
       db
-        .prepare("SELECT source, last_sync FROM sync_cursors")
+        .prepare("SELECT COUNT(*) as c FROM daily_activity WHERE user_id = ?")
+        .bind(userId)
+        .first<{ c: number }>(),
+      db
+        .prepare("SELECT COUNT(*) as c FROM health_workouts WHERE user_id = ?")
+        .bind(userId)
+        .first<{ c: number }>(),
+      db
+        .prepare("SELECT COUNT(*) as c FROM hevy_sessions WHERE user_id = ?")
+        .bind(userId)
+        .first<{ c: number }>(),
+      db
+        .prepare("SELECT COUNT(*) as c FROM hevy_sets WHERE user_id = ?")
+        .bind(userId)
+        .first<{ c: number }>(),
+      db
+        .prepare("SELECT COUNT(*) as c FROM sleep_sessions WHERE user_id = ?")
+        .bind(userId)
+        .first<{ c: number }>(),
+      db
+        .prepare("SELECT COUNT(*) as c FROM body_metrics WHERE user_id = ?")
+        .bind(userId)
+        .first<{ c: number }>(),
+      db
+        .prepare("SELECT source, last_sync FROM sync_cursors WHERE user_id = ?")
+        .bind(userId)
         .all<{ source: string; last_sync: string }>(),
     ]);
 
@@ -566,8 +637,10 @@ export const getDataSummary = (db: QueryDatabaseClient) =>
 
 export const getIngestedDataExport = Effect.fn("dataExport.readIngested")(function* ({
   db,
+  userId,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
 }) {
   const [
     dailyActivity,
@@ -578,16 +651,35 @@ export const getIngestedDataExport = Effect.fn("dataExport.readIngested")(functi
     bodyMetrics,
     cursors,
   ] = yield* Effect.all([
-    db.prepare("SELECT * FROM daily_activity ORDER BY date").all<DailyActivityRow>(),
-    db.prepare("SELECT * FROM health_workouts ORDER BY date, id").all<HealthWorkoutRow>(),
-    db.prepare("SELECT * FROM hevy_sessions ORDER BY start_time, session_id").all<HevySessionRow>(),
     db
-      .prepare("SELECT * FROM hevy_sets ORDER BY session_id, exercise_title, set_index")
+      .prepare("SELECT * FROM daily_activity WHERE user_id = ? ORDER BY date")
+      .bind(userId)
+      .all<DailyActivityRow>(),
+    db
+      .prepare("SELECT * FROM health_workouts WHERE user_id = ? ORDER BY date, id")
+      .bind(userId)
+      .all<HealthWorkoutRow>(),
+    db
+      .prepare("SELECT * FROM hevy_sessions WHERE user_id = ? ORDER BY start_time, session_id")
+      .bind(userId)
+      .all<HevySessionRow>(),
+    db
+      .prepare(
+        "SELECT * FROM hevy_sets WHERE user_id = ? ORDER BY session_id, exercise_title, set_index",
+      )
+      .bind(userId)
       .all<HevySetRow>(),
-    db.prepare("SELECT * FROM sleep_sessions ORDER BY date, start").all<SleepSessionRow>(),
-    db.prepare("SELECT * FROM body_metrics ORDER BY date").all<BodyMetricRow>(),
     db
-      .prepare("SELECT source, last_sync FROM sync_cursors ORDER BY source")
+      .prepare("SELECT * FROM sleep_sessions WHERE user_id = ? ORDER BY date, start")
+      .bind(userId)
+      .all<SleepSessionRow>(),
+    db
+      .prepare("SELECT * FROM body_metrics WHERE user_id = ? ORDER BY date")
+      .bind(userId)
+      .all<BodyMetricRow>(),
+    db
+      .prepare("SELECT source, last_sync FROM sync_cursors WHERE user_id = ? ORDER BY source")
+      .bind(userId)
       .all<{ source: string; last_sync: string | null }>(),
   ]);
 
@@ -616,28 +708,46 @@ interface ExportRange {
 
 export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(function* ({
   db,
+  userId,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
 }) {
   const [activity, workouts, sleep, body, hevySessions, hevySets] = yield* Effect.all([
     db
-      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM daily_activity")
-      .first<ExportRange>(),
-    db
-      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM health_workouts")
-      .first<ExportRange>(),
-    db
-      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM sleep_sessions")
-      .first<ExportRange>(),
-    db
-      .prepare("SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM body_metrics")
+      .prepare(
+        "SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM daily_activity WHERE user_id = ?",
+      )
+      .bind(userId)
       .first<ExportRange>(),
     db
       .prepare(
-        "SELECT COUNT(*) count, MIN(start_time) first, MAX(start_time) last FROM hevy_sessions",
+        "SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM health_workouts WHERE user_id = ?",
       )
+      .bind(userId)
       .first<ExportRange>(),
-    db.prepare("SELECT COUNT(*) count FROM hevy_sets").first<{ count: number }>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM sleep_sessions WHERE user_id = ?",
+      )
+      .bind(userId)
+      .first<ExportRange>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) count, MIN(date) first, MAX(date) last FROM body_metrics WHERE user_id = ?",
+      )
+      .bind(userId)
+      .first<ExportRange>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) count, MIN(start_time) first, MAX(start_time) last FROM hevy_sessions WHERE user_id = ?",
+      )
+      .bind(userId)
+      .first<ExportRange>(),
+    db
+      .prepare("SELECT COUNT(*) count FROM hevy_sets WHERE user_id = ?")
+      .bind(userId)
+      .first<{ count: number }>(),
   ]);
   const emptyRange: ExportRange = { count: 0, first: null, last: null };
   const sources = {
@@ -668,18 +778,20 @@ export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(
 
 export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
   db,
+  userId,
   days = 90,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   days?: number;
 }) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const [activity, sleep, body, training, exercises] = yield* Effect.all([
     db
       .prepare(
-        "SELECT date, steps, active_kcal, exercise_min FROM daily_activity WHERE date >= ? ORDER BY date",
+        "SELECT date, steps, active_kcal, exercise_min FROM daily_activity WHERE user_id = ? AND date >= ? ORDER BY date",
       )
-      .bind(since)
+      .bind(userId, since)
       .all<{
         date: string;
         steps: number | null;
@@ -688,15 +800,15 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
       }>(),
     db
       .prepare(
-        "SELECT date, SUM(asleep_min) asleep_min, SUM(in_bed_min) in_bed_min FROM sleep_sessions WHERE date >= ? GROUP BY date ORDER BY date",
+        "SELECT date, SUM(asleep_min) asleep_min, SUM(in_bed_min) in_bed_min FROM sleep_sessions WHERE user_id = ? AND date >= ? GROUP BY date ORDER BY date",
       )
-      .bind(since)
+      .bind(userId, since)
       .all<{ date: string; asleep_min: number | null; in_bed_min: number | null }>(),
     db
       .prepare(
-        "SELECT date, weight_kg, body_fat_pct, lean_mass_kg FROM body_metrics WHERE date >= ? ORDER BY date",
+        "SELECT date, weight_kg, body_fat_pct, lean_mass_kg FROM body_metrics WHERE user_id = ? AND date >= ? ORDER BY date",
       )
-      .bind(since)
+      .bind(userId, since)
       .all<{
         date: string;
         weight_kg: number | null;
@@ -705,9 +817,9 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
       }>(),
     db
       .prepare(
-        "SELECT substr(start_time, 1, 10) date, COUNT(*) workouts, SUM(total_volume_kg) volume_kg, SUM(duration_sec) duration_sec FROM hevy_sessions WHERE start_time >= ? GROUP BY substr(start_time, 1, 10) ORDER BY date",
+        "SELECT substr(start_time, 1, 10) date, COUNT(*) workouts, SUM(total_volume_kg) volume_kg, SUM(duration_sec) duration_sec FROM hevy_sessions WHERE user_id = ? AND start_time >= ? GROUP BY substr(start_time, 1, 10) ORDER BY date",
       )
-      .bind(since)
+      .bind(userId, since)
       .all<{
         date: string;
         workouts: number;
@@ -716,9 +828,9 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
       }>(),
     db
       .prepare(
-        "SELECT s.exercise_title, COUNT(*) sets, SUM(COALESCE(s.weight_kg, 0) * COALESCE(s.reps, 0)) volume_kg FROM hevy_sets s JOIN hevy_sessions h ON h.session_id = s.session_id WHERE h.start_time >= ? GROUP BY s.exercise_title ORDER BY sets DESC LIMIT 8",
+        "SELECT s.exercise_title, COUNT(*) sets, SUM(COALESCE(s.weight_kg, 0) * COALESCE(s.reps, 0)) volume_kg FROM hevy_sets s JOIN hevy_sessions h ON h.user_id = s.user_id AND h.session_id = s.session_id WHERE s.user_id = ? AND h.start_time >= ? GROUP BY s.exercise_title ORDER BY sets DESC LIMIT 8",
       )
-      .bind(since)
+      .bind(userId, since)
       .all<{ exercise_title: string; sets: number; volume_kg: number }>(),
   ]);
   const average = (values: number[]) =>
@@ -779,7 +891,7 @@ interface WorkoutSessionDetail extends WorkoutSession {
   exerciseDetails: WorkoutExercise[];
 }
 
-export const getWorkouts = (db: QueryDatabaseClient) =>
+export const getWorkouts = (db: QueryDatabaseClient, userId: string) =>
   Effect.gen(function* () {
     const sessions = yield* db
       .prepare(`
@@ -793,10 +905,12 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
         COUNT(st.id) as sets,
         COUNT(DISTINCT st.exercise_title) as exercises
       FROM hevy_sessions s
-      LEFT JOIN hevy_sets st ON st.session_id = s.session_id
+      LEFT JOIN hevy_sets st ON st.user_id = s.user_id AND st.session_id = s.session_id
+      WHERE s.user_id = ?
       GROUP BY s.session_id
       ORDER BY s.start_time DESC
     `)
+      .bind(userId)
       .all<WorkoutSession>();
 
     const sets = yield* db
@@ -813,8 +927,10 @@ export const getWorkouts = (db: QueryDatabaseClient) =>
         duration_seconds,
         exercise_notes
       FROM hevy_sets
+      WHERE user_id = ?
       ORDER BY session_id, exercise_title, set_index
     `)
+      .bind(userId)
       .all<HevySetRow>();
 
     const setsBySession = new Map<string, HevySetRow[]>();
@@ -899,21 +1015,21 @@ export interface Thread {
 
 const nowIso = (): string => new Date().toISOString();
 
-export const createConversation = (db: QueryDatabaseClient, title?: string) =>
+export const createConversation = (db: QueryDatabaseClient, userId: string, title?: string) =>
   Effect.gen(function* () {
     const id = crypto.randomUUID();
     const createdAt = nowIso();
     yield* db
       .prepare(`
-      INSERT INTO conversations (id, title, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO conversations (id, user_id, title, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
-      .bind(id, title ?? null, "regular", createdAt, createdAt)
+      .bind(id, userId, title ?? null, "regular", createdAt, createdAt)
       .run();
     return id;
   });
 
-export const getConversations = (db: QueryDatabaseClient, search?: string) =>
+export const getConversations = (db: QueryDatabaseClient, userId: string, search?: string) =>
   Effect.gen(function* () {
     if (search !== undefined && search.trim() !== "") {
       const term = `%${search.trim()}%`;
@@ -921,12 +1037,12 @@ export const getConversations = (db: QueryDatabaseClient, search?: string) =>
         .prepare(`
         SELECT DISTINCT c.*
         FROM conversations c
-        LEFT JOIN messages m ON m.conversation_id = c.id
-        WHERE c.status IN ('regular', 'archived') AND (c.title LIKE ? OR m.parts LIKE ?)
+        LEFT JOIN messages m ON m.user_id = c.user_id AND m.conversation_id = c.id
+        WHERE c.user_id = ? AND c.status IN ('regular', 'archived') AND (c.title LIKE ? OR m.parts LIKE ?)
         ORDER BY c.status = 'archived', c.pinned DESC, c.updated_at DESC
         LIMIT 100
       `)
-        .bind(term, term)
+        .bind(userId, term, term)
         .all<Conversation>();
       return result.results;
     }
@@ -934,71 +1050,83 @@ export const getConversations = (db: QueryDatabaseClient, search?: string) =>
     const result = yield* db
       .prepare(`
       SELECT * FROM conversations
-      WHERE status IN ('regular', 'archived')
+      WHERE user_id = ? AND status IN ('regular', 'archived')
       ORDER BY status = 'archived', pinned DESC, updated_at DESC
       LIMIT 100
     `)
+      .bind(userId)
       .all<Conversation>();
     return result.results;
   });
 
-export const getConversation = (db: QueryDatabaseClient, conversationId: string) =>
+export const getConversation = (db: QueryDatabaseClient, userId: string, conversationId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
-      SELECT * FROM conversations WHERE id = ?
+      SELECT * FROM conversations WHERE user_id = ? AND id = ?
     `)
-      .bind(conversationId)
+      .bind(userId, conversationId)
       .first<Conversation>();
     return result ?? null;
   });
 
-export const deleteConversation = (db: QueryDatabaseClient, conversationId: string) =>
+export const deleteConversation = (
+  db: QueryDatabaseClient,
+  userId: string,
+  conversationId: string,
+) =>
   Effect.gen(function* () {
-    yield* db.prepare(`DELETE FROM conversations WHERE id = ?`).bind(conversationId).run();
+    yield* db
+      .prepare(`DELETE FROM conversations WHERE user_id = ? AND id = ?`)
+      .bind(userId, conversationId)
+      .run();
   });
 
 export const updateConversationState = Effect.fn("conversation.updateState")(function* ({
   db,
+  userId,
   conversationId,
   status,
   pinned,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   conversationId: string;
   status?: "regular" | "archived";
   pinned?: boolean;
 }) {
   if (status !== undefined) {
     yield* db
-      .prepare("UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?")
-      .bind(status, nowIso(), conversationId)
+      .prepare("UPDATE conversations SET status = ?, updated_at = ? WHERE user_id = ? AND id = ?")
+      .bind(status, nowIso(), userId, conversationId)
       .run();
   }
   if (pinned !== undefined) {
     yield* db
-      .prepare("UPDATE conversations SET pinned = ?, updated_at = ? WHERE id = ?")
-      .bind(pinned ? 1 : 0, nowIso(), conversationId)
+      .prepare("UPDATE conversations SET pinned = ?, updated_at = ? WHERE user_id = ? AND id = ?")
+      .bind(pinned ? 1 : 0, nowIso(), userId, conversationId)
       .run();
   }
 });
 
 export const cloneConversation = Effect.fn("conversation.clone")(function* ({
   db,
+  userId,
   conversationId,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   conversationId: string;
 }) {
-  const conversation = yield* getConversation(db, conversationId);
+  const conversation = yield* getConversation(db, userId, conversationId);
   if (conversation === null) return null;
-  const originalMessages = yield* getConversationMessages(db, conversationId);
-  const originalThreads = yield* getThreadsIncludingDiscarded(db, conversationId);
+  const originalMessages = yield* getConversationMessages(db, userId, conversationId);
+  const originalThreads = yield* getThreadsIncludingDiscarded(db, userId, conversationId);
   const threadMessageRows = yield* db
     .prepare(
-      "SELECT tm.thread_id, tm.message_id, tm.included_at FROM thread_messages tm JOIN threads t ON t.id = tm.thread_id WHERE t.conversation_id = ?",
+      "SELECT tm.thread_id, tm.message_id, tm.included_at FROM thread_messages tm JOIN threads t ON t.user_id = tm.user_id AND t.id = tm.thread_id WHERE tm.user_id = ? AND t.conversation_id = ?",
     )
-    .bind(conversationId)
+    .bind(userId, conversationId)
     .all<{ thread_id: string; message_id: string; included_at: string }>();
   const clonedConversationId = crypto.randomUUID();
   const timestamp = nowIso();
@@ -1007,19 +1135,26 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
 
   yield* db
     .prepare(
-      "INSERT INTO conversations (id, title, status, pinned, created_at, updated_at) VALUES (?, ?, 'regular', 0, ?, ?)",
+      "INSERT INTO conversations (id, user_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, 'regular', 0, ?, ?)",
     )
-    .bind(clonedConversationId, `${conversation.title ?? "New chat"} copy`, timestamp, timestamp)
+    .bind(
+      clonedConversationId,
+      userId,
+      `${conversation.title ?? "New chat"} copy`,
+      timestamp,
+      timestamp,
+    )
     .run();
   yield* runBatches(
     db,
     originalMessages.map((message) =>
       db
         .prepare(
-          "INSERT INTO messages (id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO messages (id, user_id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(
           requireMappedId(messageIds, message.id),
+          userId,
           clonedConversationId,
           message.parent_id === null ? null : (messageIds.get(message.parent_id) ?? null),
           message.role,
@@ -1037,10 +1172,11 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
     originalThreads.map((thread) =>
       db
         .prepare(
-          "INSERT INTO threads (id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO threads (id, user_id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(
           requireMappedId(threadIds, thread.id),
+          userId,
           clonedConversationId,
           requireMappedId(messageIds, thread.anchor_message_id),
           thread.title,
@@ -1060,74 +1196,85 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
       return [
         db
           .prepare(
-            "INSERT INTO thread_messages (thread_id, message_id, included_at) VALUES (?, ?, ?)",
+            "INSERT INTO thread_messages (user_id, thread_id, message_id, included_at) VALUES (?, ?, ?, ?)",
           )
-          .bind(threadId, messageId, row.included_at),
+          .bind(userId, threadId, messageId, row.included_at),
       ];
     }),
   );
-  return yield* getConversation(db, clonedConversationId);
+  return yield* getConversation(db, userId, clonedConversationId);
 });
 
 export const renameConversation = (
   db: QueryDatabaseClient,
+  userId: string,
   conversationId: string,
   title: string,
 ) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?
+      UPDATE conversations SET title = ?, updated_at = ? WHERE user_id = ? AND id = ?
     `)
-      .bind(title, nowIso(), conversationId)
+      .bind(title, nowIso(), userId, conversationId)
       .run();
   });
 
-const updateConversationTimestamp = (db: QueryDatabaseClient, conversationId: string) =>
+const updateConversationTimestamp = (
+  db: QueryDatabaseClient,
+  userId: string,
+  conversationId: string,
+) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      UPDATE conversations SET updated_at = ? WHERE id = ?
+      UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?
     `)
-      .bind(nowIso(), conversationId)
+      .bind(nowIso(), userId, conversationId)
       .run();
   });
 
-export const getConversationMessages = (db: QueryDatabaseClient, conversationId: string) =>
+export const getConversationMessages = (
+  db: QueryDatabaseClient,
+  userId: string,
+  conversationId: string,
+) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at
       FROM messages
-      WHERE conversation_id = ?
+      WHERE user_id = ? AND conversation_id = ?
       ORDER BY created_at ASC
     `)
-      .bind(conversationId)
+      .bind(userId, conversationId)
       .all<Message>();
     return result.results;
   });
 
 export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(function* ({
   db,
+  userId,
   conversationId,
   messageId,
   parts,
   threadId,
 }: {
   db: QueryDatabaseClient;
+  userId: string;
   conversationId: string;
   messageId: string;
   parts: unknown[];
   threadId?: string;
 }) {
-  const conversationRows = yield* getConversationMessages(db, conversationId);
+  const conversationRows = yield* getConversationMessages(db, userId, conversationId);
   const message = conversationRows.find((row) => row.id === messageId);
   if (message === undefined || message.role !== "user") return false;
 
   const scopedRows =
     threadId === undefined
       ? conversationRows.filter((row) => row.parent_id === null)
-      : yield* getThreadMessages(db, threadId);
+      : yield* getThreadMessages(db, userId, threadId);
   const messageIndex = scopedRows.findIndex((row) => row.id === messageId);
   if (messageIndex < 0) return false;
 
@@ -1141,20 +1288,23 @@ export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")
   const statements = [
     db
       .prepare(
-        "UPDATE messages SET parts = ?, prompt_tokens = NULL, completion_tokens = NULL, total_tokens = NULL, model = NULL WHERE id = ? AND conversation_id = ?",
+        "UPDATE messages SET parts = ?, prompt_tokens = NULL, completion_tokens = NULL, total_tokens = NULL, model = NULL WHERE user_id = ? AND id = ? AND conversation_id = ?",
       )
-      .bind(JSON.stringify(parts), messageId, conversationId),
+      .bind(JSON.stringify(parts), userId, messageId, conversationId),
     ...deletedMessageIds.map((deletedMessageId) =>
-      db.prepare("DELETE FROM messages WHERE id = ?").bind(deletedMessageId),
+      db
+        .prepare("DELETE FROM messages WHERE user_id = ? AND id = ?")
+        .bind(userId, deletedMessageId),
     ),
   ];
   yield* runBatches(db, statements);
-  yield* updateConversationTimestamp(db, conversationId);
+  yield* updateConversationTimestamp(db, userId, conversationId);
   return true;
 });
 
 export const saveConversationMessages = (
   db: QueryDatabaseClient,
+  userId: string,
   conversationId: string,
   parentId: string | null,
   messages: Array<{ role: string; parts: unknown[]; usage?: MessageUsage; model?: string }>,
@@ -1169,11 +1319,12 @@ export const saveConversationMessages = (
       ids.push(id);
       return db
         .prepare(`
-        INSERT INTO messages (id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (id, user_id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
         .bind(
           id,
+          userId,
           conversationId,
           parentId,
           message.role,
@@ -1187,12 +1338,13 @@ export const saveConversationMessages = (
     });
 
     yield* runBatches(db, statements);
-    yield* updateConversationTimestamp(db, conversationId);
+    yield* updateConversationTimestamp(db, userId, conversationId);
     return ids;
   });
 
 export const createThread = (
   db: QueryDatabaseClient,
+  userId: string,
   conversationId: string,
   anchorMessageId: string,
   title?: string,
@@ -1202,12 +1354,22 @@ export const createThread = (
     const createdAt = nowIso();
     yield* db
       .prepare(`
-      INSERT INTO threads (id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO threads (id, user_id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-      .bind(id, conversationId, anchorMessageId, title ?? null, "regular", 0, createdAt, createdAt)
+      .bind(
+        id,
+        userId,
+        conversationId,
+        anchorMessageId,
+        title ?? null,
+        "regular",
+        0,
+        createdAt,
+        createdAt,
+      )
       .run();
-    yield* addThreadMessage(db, id, anchorMessageId);
+    yield* addThreadMessage(db, userId, id, anchorMessageId);
     return id;
   });
 
@@ -1233,139 +1395,160 @@ const mapThreadRow = (row: ThreadRow): Thread => ({
   updated_at: row.updated_at,
 });
 
-export const getThreads = (db: QueryDatabaseClient, conversationId: string) =>
+export const getThreads = (db: QueryDatabaseClient, userId: string, conversationId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT * FROM threads
-      WHERE conversation_id = ? AND status != 'discarded'
+      WHERE user_id = ? AND conversation_id = ? AND status != 'discarded'
       ORDER BY pinned DESC, updated_at DESC
     `)
-      .bind(conversationId)
+      .bind(userId, conversationId)
       .all<ThreadRow>();
     return result.results.map(mapThreadRow);
   });
 
-export const getThreadsIncludingDiscarded = (db: QueryDatabaseClient, conversationId: string) =>
+export const getThreadsIncludingDiscarded = (
+  db: QueryDatabaseClient,
+  userId: string,
+  conversationId: string,
+) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT * FROM threads
-      WHERE conversation_id = ?
+      WHERE user_id = ? AND conversation_id = ?
       ORDER BY pinned DESC, updated_at DESC
     `)
-      .bind(conversationId)
+      .bind(userId, conversationId)
       .all<ThreadRow>();
     return result.results.map(mapThreadRow);
   });
 
-export const getThread = (db: QueryDatabaseClient, threadId: string) =>
+export const getThread = (db: QueryDatabaseClient, userId: string, threadId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
-      SELECT * FROM threads WHERE id = ?
+      SELECT * FROM threads WHERE user_id = ? AND id = ?
     `)
-      .bind(threadId)
+      .bind(userId, threadId)
       .first<ThreadRow>();
     return result === null ? null : mapThreadRow(result);
   });
 
-export const renameThread = (db: QueryDatabaseClient, threadId: string, title: string) =>
+export const renameThread = (
+  db: QueryDatabaseClient,
+  userId: string,
+  threadId: string,
+  title: string,
+) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      UPDATE threads SET title = ?, updated_at = ? WHERE id = ?
+      UPDATE threads SET title = ?, updated_at = ? WHERE user_id = ? AND id = ?
     `)
-      .bind(title, nowIso(), threadId)
+      .bind(title, nowIso(), userId, threadId)
       .run();
   });
 
-export const pinThread = (db: QueryDatabaseClient, threadId: string, pinned: boolean) =>
+export const pinThread = (
+  db: QueryDatabaseClient,
+  userId: string,
+  threadId: string,
+  pinned: boolean,
+) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      UPDATE threads SET pinned = ?, updated_at = ? WHERE id = ?
+      UPDATE threads SET pinned = ?, updated_at = ? WHERE user_id = ? AND id = ?
     `)
-      .bind(pinned ? 1 : 0, nowIso(), threadId)
+      .bind(pinned ? 1 : 0, nowIso(), userId, threadId)
       .run();
   });
 
-export const discardThread = (db: QueryDatabaseClient, threadId: string) =>
+export const discardThread = (db: QueryDatabaseClient, userId: string, threadId: string) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      UPDATE threads SET status = 'discarded', updated_at = ? WHERE id = ?
+      UPDATE threads SET status = 'discarded', updated_at = ? WHERE user_id = ? AND id = ?
     `)
-      .bind(nowIso(), threadId)
+      .bind(nowIso(), userId, threadId)
       .run();
   });
 
-export const restoreThread = (db: QueryDatabaseClient, threadId: string) =>
+export const restoreThread = (db: QueryDatabaseClient, userId: string, threadId: string) =>
   Effect.gen(function* () {
     yield* db
-      .prepare("UPDATE threads SET status = 'regular', updated_at = ? WHERE id = ?")
-      .bind(nowIso(), threadId)
+      .prepare("UPDATE threads SET status = 'regular', updated_at = ? WHERE user_id = ? AND id = ?")
+      .bind(nowIso(), userId, threadId)
       .run();
   });
 
-export const addThreadMessage = (db: QueryDatabaseClient, threadId: string, messageId: string) =>
+export const addThreadMessage = (
+  db: QueryDatabaseClient,
+  userId: string,
+  threadId: string,
+  messageId: string,
+) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      INSERT INTO thread_messages (thread_id, message_id, included_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(thread_id, message_id) DO NOTHING
+      INSERT INTO thread_messages (user_id, thread_id, message_id, included_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, thread_id, message_id) DO NOTHING
     `)
-      .bind(threadId, messageId, nowIso())
+      .bind(userId, threadId, messageId, nowIso())
       .run();
   });
 
-export const getThreadMessages = (db: QueryDatabaseClient, threadId: string) =>
+export const getThreadMessages = (db: QueryDatabaseClient, userId: string, threadId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT m.id, m.conversation_id, m.parent_id, m.role, m.parts, m.prompt_tokens, m.completion_tokens, m.total_tokens, m.model, m.created_at
       FROM messages m
-      JOIN thread_messages tm ON tm.message_id = m.id
-      WHERE tm.thread_id = ?
+      JOIN thread_messages tm ON tm.user_id = m.user_id AND tm.message_id = m.id
+      WHERE tm.user_id = ? AND tm.thread_id = ?
       ORDER BY m.created_at ASC
     `)
-      .bind(threadId)
+      .bind(userId, threadId)
       .all<Message>();
     return result.results;
   });
 
-export const getMessage = (db: QueryDatabaseClient, messageId: string) =>
+export const getMessage = (db: QueryDatabaseClient, userId: string, messageId: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at
-      FROM messages WHERE id = ?
+      FROM messages WHERE user_id = ? AND id = ?
     `)
-      .bind(messageId)
+      .bind(userId, messageId)
       .first<Message>();
     return result ?? null;
   });
 
 export const summarizeThread = (
   db: QueryDatabaseClient,
+  userId: string,
   threadId: string,
   summaryText: string,
   targetMessageId?: string,
 ) =>
   Effect.gen(function* () {
-    const thread = yield* getThread(db, threadId);
+    const thread = yield* getThread(db, userId, threadId);
     if (thread === null) return null;
 
     const id = crypto.randomUUID();
     const createdAt = nowIso();
     yield* db
       .prepare(`
-      INSERT INTO messages (id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO messages (id, user_id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .bind(
         id,
+        userId,
         thread.conversation_id,
         targetMessageId ?? thread.anchor_message_id,
         "summary",
@@ -1377,38 +1560,44 @@ export const summarizeThread = (
         createdAt,
       )
       .run();
-    yield* addThreadMessage(db, threadId, id);
-    yield* updateConversationTimestamp(db, thread.conversation_id);
+    yield* addThreadMessage(db, userId, threadId, id);
+    yield* updateConversationTimestamp(db, userId, thread.conversation_id);
     return id;
   });
 
-export const getSuggestionsById = (db: QueryDatabaseClient, id: string) =>
+export const getSuggestionsById = (db: QueryDatabaseClient, userId: string, id: string) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT id, suggestions, created_at
       FROM suggestions
-      WHERE id = ?
+      WHERE user_id = ? AND id = ?
     `)
-      .bind(id)
+      .bind(userId, id)
       .first<SuggestionsRow>();
     return result ?? null;
   });
 
-export const saveSuggestions = (db: QueryDatabaseClient, id: string, suggestions: string[]) =>
+export const saveSuggestions = (
+  db: QueryDatabaseClient,
+  userId: string,
+  id: string,
+  suggestions: string[],
+) =>
   Effect.gen(function* () {
     yield* db
       .prepare(`
-      INSERT INTO suggestions (id, suggestions, created_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(id) DO NOTHING
+      INSERT INTO suggestions (user_id, id, suggestions, created_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, id) DO NOTHING
     `)
-      .bind(id, JSON.stringify(suggestions), nowIso())
+      .bind(userId, id, JSON.stringify(suggestions), nowIso())
       .run();
   });
 
 export const insertMemory = (
   db: QueryDatabaseClient,
+  userId: string,
   content: string,
   source?: string,
   threadId?: string,
@@ -1420,10 +1609,10 @@ export const insertMemory = (
     const id = crypto.randomUUID();
     yield* db
       .prepare(`
-      INSERT INTO memories (id, content, source, thread_id, created_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO memories (id, user_id, content, source, thread_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
-      .bind(id, trimmed, source ?? null, threadId ?? null, nowIso())
+      .bind(id, userId, trimmed, source ?? null, threadId ?? null, nowIso())
       .run();
 
     return id;
@@ -1438,7 +1627,12 @@ export interface MemorySearchResult {
   rank: number;
 }
 
-export const searchMemories = (db: QueryDatabaseClient, query: string, limit = 10) =>
+export const searchMemories = (
+  db: QueryDatabaseClient,
+  userId: string,
+  query: string,
+  limit = 10,
+) =>
   Effect.gen(function* () {
     const term = query.trim();
     if (term === "") {
@@ -1446,10 +1640,11 @@ export const searchMemories = (db: QueryDatabaseClient, query: string, limit = 1
         .prepare(`
         SELECT id, content, source, thread_id, created_at
         FROM memories
+        WHERE user_id = ?
         ORDER BY created_at DESC
         LIMIT ?
       `)
-        .bind(limit)
+        .bind(userId, limit)
         .all<Omit<MemorySearchResult, "rank">>();
       return result.results.map((row) => ({ ...row, rank: 0 }));
     }
@@ -1465,36 +1660,37 @@ export const searchMemories = (db: QueryDatabaseClient, query: string, limit = 1
           ELSE 0
         END as rank
       FROM memories
-      WHERE LOWER(content) LIKE ?
+      WHERE user_id = ? AND LOWER(content) LIKE ?
       ORDER BY rank DESC, created_at DESC
       LIMIT ?
     `)
-      .bind(term.toLowerCase(), `${term.toLowerCase()} %`, pattern, pattern, limit)
+      .bind(term.toLowerCase(), `${term.toLowerCase()} %`, pattern, userId, pattern, limit)
       .all<MemorySearchResult>();
 
     return result.results;
   });
 
-export const getMemories = (db: QueryDatabaseClient, limit = 100) =>
+export const getMemories = (db: QueryDatabaseClient, userId: string, limit = 100) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT id, content, source, thread_id, created_at
       FROM memories
+      WHERE user_id = ?
       ORDER BY created_at DESC
       LIMIT ?
     `)
-      .bind(limit)
+      .bind(userId, limit)
       .all<MemoryRow>();
     return result.results;
   });
 
-export const deleteMemory = (db: QueryDatabaseClient, id: string) =>
+export const deleteMemory = (db: QueryDatabaseClient, userId: string, id: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`DELETE FROM memories WHERE id = ?`).bind(id).run();
+    yield* db.prepare(`DELETE FROM memories WHERE user_id = ? AND id = ?`).bind(userId, id).run();
   });
 
-export const insertNote = (db: QueryDatabaseClient, content: string) =>
+export const insertNote = (db: QueryDatabaseClient, userId: string, content: string) =>
   Effect.gen(function* () {
     const trimmed = content.trim();
     if (trimmed === "") return null;
@@ -1503,62 +1699,63 @@ export const insertNote = (db: QueryDatabaseClient, content: string) =>
     const createdAt = nowIso();
     yield* db
       .prepare(`
-      INSERT INTO notes (id, content, created_at, updated_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO notes (id, user_id, content, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
     `)
-      .bind(id, trimmed, createdAt, createdAt)
+      .bind(id, userId, trimmed, createdAt, createdAt)
       .run();
 
     return id;
   });
 
-export const updateNote = (db: QueryDatabaseClient, id: string, content: string) =>
+export const updateNote = (db: QueryDatabaseClient, userId: string, id: string, content: string) =>
   Effect.gen(function* () {
     const trimmed = content.trim();
     if (trimmed === "") return;
 
     yield* db
       .prepare(`
-      UPDATE notes SET content = ?, updated_at = ? WHERE id = ?
+      UPDATE notes SET content = ?, updated_at = ? WHERE user_id = ? AND id = ?
     `)
-      .bind(trimmed, nowIso(), id)
+      .bind(trimmed, nowIso(), userId, id)
       .run();
   });
 
-export const deleteNote = (db: QueryDatabaseClient, id: string) =>
+export const deleteNote = (db: QueryDatabaseClient, userId: string, id: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`DELETE FROM notes WHERE id = ?`).bind(id).run();
+    yield* db.prepare(`DELETE FROM notes WHERE user_id = ? AND id = ?`).bind(userId, id).run();
   });
 
-export const getNotes = (db: QueryDatabaseClient, limit = 100) =>
+export const getNotes = (db: QueryDatabaseClient, userId: string, limit = 100) =>
   Effect.gen(function* () {
     const result = yield* db
       .prepare(`
       SELECT id, content, created_at, updated_at
       FROM notes
+      WHERE user_id = ?
       ORDER BY updated_at DESC
       LIMIT ?
     `)
-      .bind(limit)
+      .bind(userId, limit)
       .all<NoteRow>();
     return result.results;
   });
 
-export const searchNotes = (db: QueryDatabaseClient, query: string, limit = 10) =>
+export const searchNotes = (db: QueryDatabaseClient, userId: string, query: string, limit = 10) =>
   Effect.gen(function* () {
     const term = query.trim();
-    if (term === "") return yield* getNotes(db, limit);
+    if (term === "") return yield* getNotes(db, userId, limit);
 
     const pattern = `%${term.toLowerCase()}%`;
     const result = yield* db
       .prepare(`
       SELECT id, content, created_at, updated_at
       FROM notes
-      WHERE LOWER(content) LIKE ?
+      WHERE user_id = ? AND LOWER(content) LIKE ?
       ORDER BY updated_at DESC
       LIMIT ?
     `)
-      .bind(pattern, limit)
+      .bind(userId, pattern, limit)
       .all<NoteRow>();
     return result.results;
   });

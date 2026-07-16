@@ -42,7 +42,7 @@ const minutesToHours = (minutes: number | null): string => {
   return `${hours}h ${mins}m`;
 };
 
-export const buildChatContext = (db: QueryDatabaseClient) =>
+export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
   Effect.gen(function* () {
     const today = formatDate(now());
     const sevenDaysAgo = daysAgo(7);
@@ -52,19 +52,23 @@ export const buildChatContext = (db: QueryDatabaseClient) =>
       .prepare(`
       SELECT s.*, ses.start_time as session_start
       FROM hevy_sets s
-      JOIN hevy_sessions ses ON s.session_id = ses.session_id
+      JOIN hevy_sessions ses ON s.user_id = ses.user_id AND s.session_id = ses.session_id
+      WHERE s.user_id = ?
       ORDER BY ses.start_time DESC
       LIMIT 30
     `)
+      .bind(userId)
       .all<HevySetRow & { session_start: string }>();
 
     const lastSessions = yield* db
       .prepare(`
       SELECT *
       FROM hevy_sessions
+      WHERE user_id = ?
       ORDER BY start_time DESC
       LIMIT 3
     `)
+      .bind(userId)
       .all<{
         session_id: string;
         title: string;
@@ -76,30 +80,30 @@ export const buildChatContext = (db: QueryDatabaseClient) =>
       .prepare(`
       SELECT s.*
       FROM hevy_sets s
-      JOIN hevy_sessions ses ON s.session_id = ses.session_id
-      WHERE ses.start_time >= ?
+      JOIN hevy_sessions ses ON s.user_id = ses.user_id AND s.session_id = ses.session_id
+      WHERE s.user_id = ? AND ses.start_time >= ?
     `)
-      .bind(sevenDaysAgo)
+      .bind(userId, sevenDaysAgo)
       .all<HevySetRow>();
 
     const sleepRows = yield* db
       .prepare(`
       SELECT *
       FROM sleep_sessions
-      WHERE date >= ?
+      WHERE user_id = ? AND date >= ?
       ORDER BY date DESC
     `)
-      .bind(sevenDaysAgo)
+      .bind(userId, sevenDaysAgo)
       .all<SleepSessionRow>();
 
     const dailyActivity = yield* db
       .prepare(`
       SELECT *
       FROM daily_activity
-      WHERE date >= ?
+      WHERE user_id = ? AND date >= ?
       ORDER BY date DESC
     `)
-      .bind(sevenDaysAgo)
+      .bind(userId, sevenDaysAgo)
       .all<{
         date: string;
         active_kcal: number;

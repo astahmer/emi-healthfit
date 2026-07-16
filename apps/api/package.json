@@ -9,6 +9,7 @@
     "dev": "alchemy dev",
     "db:check": "drizzle-kit check",
     "db:generate": "drizzle-kit generate",
+    "db:ownership:review": "node --experimental-strip-types scripts/review-owner-migration.ts",
     "dry": "alchemy deploy --dry-run",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
     "typecheck": "tsc --noEmit",

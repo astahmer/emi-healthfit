@@ -42,12 +42,13 @@ const getLlmProvider = (
 
 export const handleChat = (
   db: QueryDatabaseClient,
+  userId: string,
   aiGateway: QueryGatewayClient,
   env: Record<string, unknown>,
   request: ChatRequest,
 ) =>
   Effect.gen(function* () {
-    const ctx = yield* buildChatContext(db);
+    const ctx = yield* buildChatContext(db, userId);
     const prompt = renderContextPrompt(ctx, request.message);
     const { provider, model, openaiApiKey } = getLlmProvider(env);
     const messages = buildMessages(prompt, request.systemPrompt);

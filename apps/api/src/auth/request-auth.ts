@@ -1,3 +1,4 @@
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
@@ -14,12 +15,24 @@ const AuthEnvironment = Schema.Struct({
   ALLOWED_EMAILS: Schema.String.check(Schema.isPattern(/\S+@\S+/)),
 });
 
-interface AuthPrincipal {
+export interface AuthPrincipal {
   id: string;
   email: string;
   name: string;
   image: string | null;
 }
+
+export const CurrentUser = Context.Reference<AuthPrincipal>("CurrentUser", {
+  defaultValue: () => ({ id: "", email: "", name: "", image: null }),
+});
+
+export const withCurrentUser = <A, E, R>({
+  effect,
+  principal,
+}: {
+  effect: Effect.Effect<A, E, R>;
+  principal: AuthPrincipal;
+}) => Effect.provideService(effect, CurrentUser, principal);
 
 export const isProtectedPath = (pathname: string): boolean =>
   pathname === "/ingest" || pathname === "/chat" || pathname.startsWith("/api/");
@@ -31,12 +44,8 @@ const getConfiguration = Effect.fn("auth.configuration")(function* ({
 }) {
   const decoded = yield* Schema.decodeUnknownEffect(AuthEnvironment)(environment);
   const allowedEmails = parseAllowedEmails(decoded.ALLOWED_EMAILS);
-  if (allowedEmails.size !== 1) {
-    return yield* Effect.fail(
-      new Error(
-        "Configure exactly one allowed email until per-row ownership migration is complete",
-      ),
-    );
+  if (allowedEmails.size === 0) {
+    return yield* Effect.fail(new Error("Configure at least one allowed email"));
   }
   const configuration: AuthConfiguration = {
     baseUrl: decoded.BETTER_AUTH_URL,
