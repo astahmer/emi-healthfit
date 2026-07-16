@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "./auth-client";
+import { isAnonymousAccountEmail } from "./anonymous-auth";
 import { clearSessionCache } from "./session-cache";
 
 const tabs = [
@@ -118,6 +119,7 @@ const AccountMenu = () => {
   };
 
   if (session.data === null) return null;
+  const isAnonymous = isAnonymousAccountEmail(session.data.user.email);
 
   return (
     <DropdownMenu>
@@ -130,7 +132,7 @@ const AccountMenu = () => {
         <DropdownMenuLabel className="space-y-0.5">
           <span className="block truncate">{session.data.user.name}</span>
           <span className="block truncate text-xs font-normal text-muted-foreground">
-            {session.data.user.email}
+            {isAnonymous ? "Anonymous session" : session.data.user.email}
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
