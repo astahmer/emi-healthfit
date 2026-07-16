@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { loadEnvFile } from "node:process";
 import { z } from "zod";
 import {
   diagnosticBundleSchema,
@@ -12,6 +13,7 @@ import { analyzeDiagnosticBundle, renderDiagnosticMarkdown } from "../src/diagno
 const optionsSchema = z.object({
   url: z.string().min(1),
   env: z.string().min(1),
+  envFile: z.string().min(1).optional(),
   output: z.string().min(1).default(".diagnostics"),
   includeSensitive: z.boolean().default(false),
 });
@@ -24,13 +26,27 @@ const parseOptions = () => {
       values.includeSensitive = true;
       continue;
     }
-    if (argument !== "--url" && argument !== "--env" && argument !== "--output") continue;
+    if (
+      argument !== "--url" &&
+      argument !== "--env" &&
+      argument !== "--env-file" &&
+      argument !== "--output"
+    )
+      continue;
     const value = process.argv[index + 1];
     if (value === undefined) throw new Error(`${argument} requires a value.`);
     values[argument.slice(2)] = value;
     index += 1;
   }
   return optionsSchema.parse(values);
+};
+
+const workspaceRoot = resolve(import.meta.dirname, "../../..");
+
+const loadEnvironment = ({ env, envFile }: { env: string; envFile?: string }) => {
+  const environmentPath = resolve(workspaceRoot, envFile ?? `.env.${env}`);
+  if (envFile === undefined && !existsSync(environmentPath)) return;
+  loadEnvFile(environmentPath);
 };
 
 const conversationIdFrom = (value: string): string => {
@@ -50,7 +66,7 @@ const wrangler = (arguments_: string[]): unknown => {
       "pnpm",
       ["--filter", "@emi/api", "exec", "wrangler", ...arguments_],
       {
-        cwd: resolve(import.meta.dirname, "../../.."),
+        cwd: workspaceRoot,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
       },
@@ -62,7 +78,7 @@ const wrangler = (arguments_: string[]): unknown => {
         ? String(Reflect.get(error, "stderr"))
         : String(error);
     throw new Error(
-      `Wrangler D1 access failed. Run 'pnpm --filter @emi/api exec wrangler login' and verify the requested environment. ${stderr.trim()}`,
+      `Wrangler D1 access failed. Verify the requested environment and its credentials, or run 'pnpm --filter @emi/api exec wrangler login'. ${stderr.trim()}`,
       { cause: error },
     );
   }
@@ -203,12 +219,13 @@ const buildBundle = ({
 
 const main = () => {
   const options = parseOptions();
+  loadEnvironment(options);
   const conversationId = conversationIdFrom(options.url);
   const database = selectDatabase(options.env);
   const rawBundle = buildBundle({ database, conversationId });
   const bundle = options.includeSensitive ? rawBundle : redactDiagnosticBundle(rawBundle);
   const analysis = analyzeDiagnosticBundle(bundle);
-  const directory = resolve(options.output, conversationId);
+  const directory = resolve(workspaceRoot, options.output, conversationId);
   mkdirSync(directory, { recursive: true });
   const bundlePath = resolve(directory, "bundle.json");
   const findingsPath = resolve(directory, "findings.json");

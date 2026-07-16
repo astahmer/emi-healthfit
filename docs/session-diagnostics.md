@@ -6,10 +6,12 @@ Generate a deterministic, owner-scoped postmortem from a conversation URL withou
 pnpm diagnose:session --url https://example.com/chat/<conversation-id> --env dev
 ```
 
-The command uses the developer's existing Wrangler login, finds the remote `GymData` D1 database for
-the environment, and writes `bundle.json`, `findings.json`, and `report.md` under the ignored
-`.diagnostics/<conversation-id>/` directory. Run
-`pnpm --filter @emi/api exec wrangler login` if Wrangler authentication is unavailable.
+The command loads `.env.<stage>` from the workspace root when present, otherwise it uses the
+developer's existing Wrangler login. `--env-file <path>` selects another environment file. It finds
+the remote `GymData` D1 database for the environment and writes `bundle.json`, `findings.json`, and
+`report.md` under the workspace-root `.diagnostics/<conversation-id>/` directory. Run
+`pnpm --filter @emi/api exec wrangler login` if neither environment credentials nor a Wrangler login
+is available.
 
 Exports redact tool inputs, outputs, health payloads, cookies, authorization values, OAuth material,
 headers, and API keys by default. `--include-sensitive` is an explicit local-only opt-in; generated
