@@ -48,16 +48,16 @@ DROP TABLE chat_generations;
 ALTER TABLE chat_generations_diagnostics RENAME TO chat_generations;
 ALTER TABLE chat_generation_chunks_diagnostics RENAME TO chat_generation_chunks;
 
-CREATE INDEX idx_chat_generations_conversation_status
+CREATE INDEX IF NOT EXISTS idx_chat_generations_conversation_status
   ON chat_generations(conversation_id, status, created_at);
-CREATE INDEX idx_chat_generations_retention
+CREATE INDEX IF NOT EXISTS idx_chat_generations_retention
   ON chat_generations(status, updated_at);
-CREATE INDEX idx_chat_generations_user_conversation_status
+CREATE INDEX IF NOT EXISTS idx_chat_generations_user_conversation_status
   ON chat_generations(user_id, conversation_id, status, created_at DESC);
-CREATE UNIQUE INDEX idx_chat_generations_one_active
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_generations_one_active
   ON chat_generations(conversation_id)
   WHERE status IN ('pending', 'streaming');
-CREATE INDEX idx_chat_generation_chunks_generation
+CREATE INDEX IF NOT EXISTS idx_chat_generation_chunks_generation
   ON chat_generation_chunks(generation_id, sequence);
 
 CREATE TABLE chat_events (
@@ -73,8 +73,8 @@ CREATE TABLE chat_events (
   created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_chat_events_generation_created
+CREATE INDEX IF NOT EXISTS idx_chat_events_generation_created
   ON chat_events(generation_id, created_at);
-CREATE INDEX idx_chat_events_retention ON chat_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_events_retention ON chat_events(created_at);
 
 PRAGMA foreign_keys = ON;

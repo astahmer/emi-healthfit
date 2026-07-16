@@ -44,7 +44,7 @@ describe("ownership migration", () => {
       INSERT INTO notes (id, content, created_at, updated_at) VALUES ('note-1', 'Private', 'now', 'now');
     `);
 
-    executeMigration({ database, name: "20260716193921_absent_joystick.sql" });
+    executeMigration({ database, name: "0013_ownership.sql" });
 
     for (const table of ["daily_activity", "conversations", "messages", "notes"]) {
       const row = database.prepare(`SELECT user_id FROM ${table} LIMIT 1`).get();
@@ -69,14 +69,14 @@ describe("ownership migration", () => {
       INSERT INTO notes (id, content, created_at, updated_at) VALUES ('note-1', 'Private', 'now', 'now');
     `);
     assert.throws(
-      () => executeMigration({ database, name: "20260716193921_absent_joystick.sql" }),
+      () => executeMigration({ database, name: "0013_ownership.sql" }),
       /CHECK constraint failed/,
     );
   });
 
   it("supports a fresh database before its first user enrolls", () => {
     const database = makeLegacyDatabase();
-    executeMigration({ database, name: "20260716193921_absent_joystick.sql" });
+    executeMigration({ database, name: "0013_ownership.sql" });
     const columns = database.prepare("PRAGMA table_info(daily_activity)").all();
     assert.ok(columns.some((column) => Reflect.get(column, "name") === "user_id"));
   });

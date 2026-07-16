@@ -1,4 +1,5 @@
 import {
+  foreignKey,
   index,
   integer,
   primaryKey,
@@ -74,7 +75,13 @@ export const hevySets = sqliteTable(
     duration_seconds: real(),
     exercise_notes: text(),
   },
-  (table) => [unique().on(table.user_id, table.session_id, table.exercise_title, table.set_index)],
+  (table) => [
+    foreignKey({
+      columns: [table.user_id, table.session_id],
+      foreignColumns: [hevySessions.user_id, hevySessions.session_id],
+    }),
+    unique().on(table.user_id, table.session_id, table.exercise_title, table.set_index),
+  ],
 );
 
 export const sleepSessions = sqliteTable(
