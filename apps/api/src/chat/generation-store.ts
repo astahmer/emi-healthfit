@@ -5,8 +5,17 @@ import type { QueryDatabaseClient } from "../db/operations.ts";
 export interface ChatGeneration {
   id: string;
   conversation_id: string;
-  status: "running" | "completed" | "failed";
+  request_id: string;
+  trace_id: string;
+  status: "pending" | "streaming" | "completed" | "failed" | "timed_out" | "cancelled";
   error: string | null;
+  finish_reason: string | null;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  retry_count: number;
+  started_at: string;
+  finished_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,25 +28,82 @@ interface ChatGenerationChunkRow {
 const nowIso = (): string => new Date().toISOString();
 
 export const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
-  generation.status === "running" && now - new Date(generation.updated_at).getTime() >= 120_000;
+  (generation.status === "pending" || generation.status === "streaming") &&
+  now - new Date(generation.updated_at).getTime() >= 120_000;
 
 export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
   db,
   userId,
   generationId,
   conversationId,
+  requestId = generationId,
+  traceId = requestId,
+  model,
 }: {
   db: QueryDatabaseClient;
   userId: string;
   generationId: string;
   conversationId: string;
+  requestId?: string;
+  traceId?: string;
+  model?: string;
 }) {
   const timestamp = nowIso();
   yield* db
     .prepare(
-      "INSERT INTO chat_generations (id, user_id, conversation_id, status, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?)",
+      "INSERT INTO chat_generations (id, user_id, conversation_id, request_id, trace_id, status, model, started_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)",
     )
-    .bind(generationId, userId, conversationId, timestamp, timestamp)
+    .bind(
+      generationId,
+      userId,
+      conversationId,
+      requestId,
+      traceId,
+      model ?? null,
+      timestamp,
+      timestamp,
+      timestamp,
+    )
+    .run();
+});
+
+export const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* ({
+  db,
+  userId,
+  generationId,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  generationId: string;
+}) {
+  yield* db
+    .prepare(
+      "UPDATE chat_generations SET status = 'streaming', updated_at = ? WHERE user_id = ? AND id = ? AND status = 'pending'",
+    )
+    .bind(nowIso(), userId, generationId)
+    .run();
+});
+
+export const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(function* ({
+  db,
+  userId,
+  generationId,
+  finishReason,
+  inputTokens,
+  outputTokens,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  generationId: string;
+  finishReason: string;
+  inputTokens: number;
+  outputTokens: number;
+}) {
+  yield* db
+    .prepare(
+      "UPDATE chat_generations SET finish_reason = ?, input_tokens = ?, output_tokens = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+    )
+    .bind(finishReason, inputTokens, outputTokens, nowIso(), userId, generationId)
     .run();
 });
 
@@ -72,18 +138,72 @@ export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({
   generationId,
   status,
   error,
+  finishReason,
+  inputTokens,
+  outputTokens,
 }: {
   db: QueryDatabaseClient;
   userId: string;
   generationId: string;
-  status: "completed" | "failed";
+  status: "completed" | "failed" | "timed_out" | "cancelled";
   error?: string;
+  finishReason?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+}) {
+  const timestamp = nowIso();
+  yield* db
+    .prepare(
+      "UPDATE chat_generations SET status = ?, error = ?, finish_reason = COALESCE(?, finish_reason), input_tokens = COALESCE(?, input_tokens), output_tokens = COALESCE(?, output_tokens), finished_at = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+    )
+    .bind(
+      status,
+      error ?? null,
+      finishReason ?? null,
+      inputTokens ?? null,
+      outputTokens ?? null,
+      timestamp,
+      timestamp,
+      userId,
+      generationId,
+    )
+    .run();
+});
+
+export const recordChatEvent = Effect.fn("chatEvent.record")(function* ({
+  db,
+  userId,
+  conversationId,
+  generationId,
+  requestId,
+  traceId,
+  type,
+  payload = {},
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  conversationId: string;
+  generationId: string;
+  requestId: string;
+  traceId: string;
+  type: string;
+  payload?: Record<string, unknown>;
 }) {
   yield* db
     .prepare(
-      "UPDATE chat_generations SET status = ?, error = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+      "INSERT INTO chat_events (id, user_id, conversation_id, generation_id, request_id, trace_id, type, schema_version, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
     )
-    .bind(status, error ?? null, nowIso(), userId, generationId)
+    .bind(
+      crypto.randomUUID(),
+      userId,
+      conversationId,
+      generationId,
+      requestId,
+      traceId,
+      type,
+      JSON.stringify(payload),
+      nowIso(),
+    )
     .run();
 });
 
@@ -96,9 +216,9 @@ export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(fu
 }) {
   const result = yield* db
     .prepare(
-      "UPDATE chat_generations SET status = 'failed', error = 'Generation timed out', updated_at = ? WHERE user_id = ? AND status = 'running' AND datetime(updated_at) < datetime('now', '-2 minutes')",
+      "UPDATE chat_generations SET status = 'timed_out', error = 'Generation timed out', finish_reason = 'timeout', finished_at = ?, updated_at = ? WHERE user_id = ? AND status IN ('pending', 'streaming') AND datetime(updated_at) < datetime('now', '-2 minutes')",
     )
-    .bind(nowIso(), userId)
+    .bind(nowIso(), nowIso(), userId)
     .run();
   return result.meta.changes;
 });
@@ -107,9 +227,9 @@ export const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileF
   function* ({ db, userId }: { db: QueryDatabaseClient; userId: string }) {
     const result = yield* db
       .prepare(
-        "UPDATE chat_generations SET status = 'completed', error = NULL, updated_at = ? WHERE user_id = ? AND status = 'running' AND EXISTS (SELECT 1 FROM chat_generation_chunks WHERE user_id = chat_generations.user_id AND generation_id = chat_generations.id AND json_extract(chunk, '$.type') = 'finish')",
+        "UPDATE chat_generations SET status = 'completed', error = NULL, finish_reason = COALESCE(finish_reason, 'stop'), finished_at = ?, updated_at = ? WHERE user_id = ? AND status IN ('pending', 'streaming') AND EXISTS (SELECT 1 FROM chat_generation_chunks WHERE user_id = chat_generations.user_id AND generation_id = chat_generations.id AND json_extract(chunk, '$.type') = 'finish')",
       )
-      .bind(nowIso(), userId)
+      .bind(nowIso(), nowIso(), userId)
       .run();
     return result.meta.changes;
   },
@@ -127,7 +247,7 @@ export const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1_000).toISOString();
   const result = yield* db
     .prepare(
-      "DELETE FROM chat_generations WHERE user_id = ? AND status IN ('completed', 'failed') AND updated_at < ?",
+      "DELETE FROM chat_generations WHERE user_id = ? AND status NOT IN ('pending', 'streaming') AND updated_at < ?",
     )
     .bind(userId, cutoff)
     .run();
@@ -145,7 +265,7 @@ export const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(funct
 }) {
   const result = yield* db
     .prepare(
-      "SELECT id, conversation_id, status, error, created_at, updated_at FROM chat_generations WHERE user_id = ? AND conversation_id = ? AND status = 'running' ORDER BY created_at DESC LIMIT 1",
+      "SELECT * FROM chat_generations WHERE user_id = ? AND conversation_id = ? AND status IN ('pending', 'streaming') ORDER BY created_at DESC LIMIT 1",
     )
     .bind(userId, conversationId)
     .first<ChatGeneration>();
@@ -163,11 +283,12 @@ export const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(f
 }) {
   const result = yield* db
     .prepare(
-      "SELECT id, conversation_id, status, error, created_at, updated_at FROM chat_generations WHERE user_id = ? AND conversation_id = ? ORDER BY created_at DESC LIMIT 1",
+      "SELECT * FROM chat_generations WHERE user_id = ? AND conversation_id = ? ORDER BY created_at DESC LIMIT 1",
     )
     .bind(userId, conversationId)
     .first<ChatGeneration>();
-  if (result === null || result.status === "completed") return null;
+  if (result === null || result.status === "completed" || result.status === "cancelled")
+    return null;
   return result;
 });
 
@@ -181,9 +302,7 @@ export const getGeneration = Effect.fn("chatGeneration.get")(function* ({
   generationId: string;
 }) {
   const result = yield* db
-    .prepare(
-      "SELECT id, conversation_id, status, error, created_at, updated_at FROM chat_generations WHERE user_id = ? AND id = ?",
-    )
+    .prepare("SELECT * FROM chat_generations WHERE user_id = ? AND id = ?")
     .bind(userId, generationId)
     .first<ChatGeneration>();
   return result ?? null;

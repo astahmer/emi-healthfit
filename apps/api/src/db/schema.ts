@@ -249,8 +249,19 @@ export const chatGenerations = sqliteTable(
     conversation_id: text()
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
-    status: text({ enum: ["running", "completed", "failed"] }).notNull(),
+    request_id: text().notNull(),
+    trace_id: text().notNull(),
+    status: text({
+      enum: ["pending", "streaming", "completed", "failed", "timed_out", "cancelled"],
+    }).notNull(),
     error: text(),
+    finish_reason: text(),
+    model: text(),
+    input_tokens: integer(),
+    output_tokens: integer(),
+    retry_count: integer().notNull().default(0),
+    started_at: text().notNull(),
+    finished_at: text(),
     created_at: text().notNull(),
     updated_at: text().notNull(),
   },
@@ -261,9 +272,9 @@ export const chatGenerations = sqliteTable(
       table.created_at,
     ),
     index("idx_chat_generations_retention").on(table.status, table.updated_at),
-    uniqueIndex("idx_chat_generations_one_running")
+    uniqueIndex("idx_chat_generations_one_active")
       .on(table.conversation_id)
-      .where(sql`status = 'running'`),
+      .where(sql`status IN ('pending', 'streaming')`),
   ],
 );
 
@@ -281,6 +292,30 @@ export const chatGenerationChunks = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.user_id, table.generation_id, table.sequence] }),
     index("idx_chat_generation_chunks_generation").on(table.generation_id, table.sequence),
+  ],
+);
+
+export const chatEvents = sqliteTable(
+  "chat_events",
+  {
+    id: text().primaryKey(),
+    user_id: text().notNull(),
+    conversation_id: text()
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    generation_id: text()
+      .notNull()
+      .references(() => chatGenerations.id, { onDelete: "cascade" }),
+    request_id: text().notNull(),
+    trace_id: text().notNull(),
+    type: text().notNull(),
+    schema_version: integer().notNull().default(1),
+    payload: text().notNull(),
+    created_at: text().notNull(),
+  },
+  (table) => [
+    index("idx_chat_events_generation_created").on(table.generation_id, table.created_at),
+    index("idx_chat_events_retention").on(table.created_at),
   ],
 );
 

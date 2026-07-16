@@ -41,7 +41,11 @@ export const createGenerationReplayStream = <E, R>({
       if (generation === null || generation.status === "completed") {
         return [[], Option.none<ReplayState>()];
       }
-      if (generation.status === "failed") {
+      if (
+        generation.status === "failed" ||
+        generation.status === "timed_out" ||
+        generation.status === "cancelled"
+      ) {
         return [
           [{ type: "error", errorText: generation.error ?? "Generation failed" }],
           Option.none<ReplayState>(),
