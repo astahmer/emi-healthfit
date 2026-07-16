@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
-import { Identifier, StandardErrors } from "./common";
+import { Identifier, StandardErrors } from "./common.ts";
 
 const NullableNumber = Schema.NullOr(Schema.Number);
 

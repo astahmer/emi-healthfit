@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
-import { Content, Created, Deleted, Identifier, Limit } from "./common";
+import { Content, Created, Deleted, Identifier, Limit } from "./common.ts";
 
 export class Note extends Schema.Class<Note>("Note")({
   id: Schema.String,

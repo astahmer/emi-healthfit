@@ -1,5 +1,5 @@
 import { HttpApi } from "effect/unstable/httpapi";
-import { ConversationsApi, MessagesApi, ThreadsApi } from "./conversations";
+import { ConversationsApi, MessagesApi, ThreadsApi } from "./conversations.ts";
 import {
   AnalyticsApi,
   DataApi,
@@ -7,13 +7,13 @@ import {
   PrivacyApi,
   SuggestionsApi,
   WorkoutsApi,
-} from "./data";
-import { MemoriesApi, NotesApi } from "./notes-and-memories";
+} from "./data.ts";
+import { MemoriesApi, NotesApi } from "./notes-and-memories.ts";
 
-export * from "./common";
-export * from "./conversations";
-export * from "./data";
-export * from "./notes-and-memories";
+export * from "./common.ts";
+export * from "./conversations.ts";
+export * from "./data.ts";
+export * from "./notes-and-memories.ts";
 
 export class EmiApi extends HttpApi.make("emi-api")
   .add(NotesApi)

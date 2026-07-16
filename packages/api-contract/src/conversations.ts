@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
-import { Created, Deleted, Identifier, StandardErrors } from "./common";
+import { Created, Deleted, Identifier, StandardErrors } from "./common.ts";
 
 export class Conversation extends Schema.Class<Conversation>("Conversation")({
   id: Schema.String,
