@@ -56,8 +56,12 @@ import {
 import type { QueryDatabaseClient } from "../db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { executeTool, tools as staticToolDefinitions } from "../tools/api.ts";
-import { getConversationIdFromPath } from "./conversations.ts";
 import { corsHeaders } from "./http.ts";
+
+const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
+  const pathname = urlOrPath.startsWith("http") ? new URL(urlOrPath).pathname : urlOrPath;
+  return pathname.match(/\/api\/conversations\/([^/]+)/)?.[1];
+};
 
 const ChatStreamRequestSchema = Schema.Struct({
   messages: Schema.mutable(Schema.Array(Schema.Unknown)),

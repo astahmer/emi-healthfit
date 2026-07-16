@@ -1,5 +1,6 @@
 import { EmiApi } from "@emi/api-contract";
 import { RuntimeContext } from "alchemy";
+import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -19,6 +20,21 @@ import {
   searchNotes,
   updateNote,
 } from "./db/memories.ts";
+import {
+  conversationsHandlers,
+  memoryExtractionHandlers,
+  messagesHandlers,
+  threadsHandlers,
+} from "./http-api-conversations.ts";
+import {
+  analyticsHandlers,
+  dataHandlers,
+  privacyHandlers,
+  suggestionsHandlers,
+  workoutsHandlers,
+} from "./http-api-data.ts";
+
+type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
 const requireIdentifier = (identifier: string | null): string => {
   if (identifier === null) throw new Error("Database did not return an identifier");
@@ -118,15 +134,31 @@ const memoriesHandlers = ({
   );
 
 export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
+  bucket,
   db,
+  env,
   router,
 }: {
+  bucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
+  env: Record<string, unknown>;
   router: HttpRouter.HttpRouter;
 }) {
   const runtimeContext = yield* Effect.context<RuntimeContext>();
   const handlerContext = yield* Layer.build(
-    Layer.mergeAll(notesHandlers({ db, runtimeContext }), memoriesHandlers({ db, runtimeContext })),
+    Layer.mergeAll(
+      notesHandlers({ db, runtimeContext }),
+      memoriesHandlers({ db, runtimeContext }),
+      conversationsHandlers({ db, runtimeContext }),
+      threadsHandlers({ db, env, runtimeContext }),
+      messagesHandlers({ db, runtimeContext }),
+      memoryExtractionHandlers({ db, env, runtimeContext }),
+      suggestionsHandlers({ db, env, runtimeContext }),
+      analyticsHandlers({ db, runtimeContext }),
+      dataHandlers({ db, runtimeContext }),
+      privacyHandlers({ bucket, db, runtimeContext }),
+      workoutsHandlers({ db, runtimeContext }),
+    ),
   ).pipe(Effect.scoped);
   const routes = Object.values(EmiApi.groups).flatMap((group) => {
     const service = handlerContext.mapUnsafe.get(group.key);
