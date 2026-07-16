@@ -12,10 +12,22 @@ describe("authentication boundaries", () => {
   });
 
   it("protects personal endpoints while leaving assets public", () => {
-    assert.equal(isProtectedPath("/api/chat"), true);
-    assert.equal(isProtectedPath("/api/chat/id/stream"), true);
-    assert.equal(isProtectedPath("/ingest"), true);
-    assert.equal(isProtectedPath("/chat"), true);
+    for (const path of [
+      "/api/chat",
+      "/api/chat/id/stream",
+      "/api/analytics/overview",
+      "/api/export/ingested-data",
+      "/api/import/ingested-data",
+      "/api/privacy",
+      "/api/workouts",
+      "/api/conversations",
+      "/api/notes",
+      "/api/memories",
+      "/ingest",
+      "/chat",
+    ]) {
+      assert.equal(isProtectedPath(path), true, path);
+    }
     assert.equal(isProtectedPath("/chat/session-id"), false);
     assert.equal(isProtectedPath("/icon.svg"), false);
   });

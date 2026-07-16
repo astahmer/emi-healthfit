@@ -19,12 +19,12 @@ and generation endpoints.
 
 ## Implementation status
 
-The Google OAuth/session foundation is implemented: checked-in Better Auth tables, verified-email
-allowlist enrollment, active-session allowlist checks, protected-by-default personal endpoints, a
-frontend auth gate, account sign-out, and private browser-cache clearing. The remaining rollout gate
-is the row-ownership migration below. Until that migration and its two-user isolation tests land,
-production must configure a single allowed account; enabling multiple accounts would expose the
-same legacy dataset to each authenticated user.
+Google OAuth/session and per-user ownership are implemented: checked-in Better Auth tables,
+verified-email allowlist enrollment, active-session allowlist checks, protected-by-default personal
+endpoints, stable user-id ownership across personal tables and R2 prefixes, a guarded legacy
+backfill, two-user isolation tests, a frontend auth gate, account sign-out, and private browser-cache
+clearing. Production must still complete the documented backup, count review, migration deploy, and
+two-account smoke test before adding a second allowlisted address.
 
 ## Decisions
 
@@ -113,3 +113,6 @@ same legacy dataset to each authenticated user.
 - 2026-07-15: user ownership migration is part of auth, not deferred cleanup.
 - 2026-07-15: protect routes by default and keep a small explicit public-route list.
 - 2026-07-15: reuse D1 and Alchemy; no separate auth Worker or auth database initially.
+- 2026-07-16: scope every personal repository operation and raw-upload prefix by Better Auth user id.
+- 2026-07-16: remove arbitrary SQL chat tooling because free-form SELECT cannot enforce ownership.
+- 2026-07-16: allow multiple configured emails only after guarded backfill and isolation tests.

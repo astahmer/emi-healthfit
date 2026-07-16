@@ -81,8 +81,8 @@ turn the downloaded client JSON into a complete local `.env`.
 The callback is handled server-side by Better Auth, so no JavaScript origin is needed. Sign-in asks
 only for basic identity (`openid`, `email`, and `profile`); Calendar scopes are intentionally not
 requested. `ALLOWED_EMAILS` is a second, application-level enrollment and active-session allowlist.
-It currently requires exactly one address until the per-row ownership migration is complete.
-Removing that email blocks its existing sessions on the next request.
+Rows are authorized by Better Auth user id, so multiple verified allowlisted accounts are supported
+after the ownership rollout below. Removing an email blocks its existing sessions on the next request.
 
 For a manual setup instead, copy `.env.example` to `.env`, generate at least 32 random bytes for
 `BETTER_AUTH_SECRET`, then fill in the client ID, client secret, base URL, and allowed email.
@@ -163,8 +163,8 @@ Alchemy stages are isolated environments. The default stage is your local userna
 - The Google production web client must authorize
   `<BETTER_AUTH_URL>/api/auth/callback/google` exactly.
 - Use a different `BETTER_AUTH_SECRET` and Google client from local development.
-- `ALLOWED_EMAILS` remains limited to one address until the ownership migration in
-  `plans/auth.md` is complete.
+- `ALLOWED_EMAILS` accepts a comma-separated list. Keep exactly one address through the legacy-data
+  migration, then add accounts only after the isolation smoke test passes.
 
 Build the frontend and deploy the production stage:
 
@@ -186,6 +186,25 @@ Alchemy will create/update:
 - `Api` Worker with bindings to the above and the built frontend assets
 
 The command prints the deployed Worker URL. Open that URL in a browser to use the chat UI.
+
+### Ownership migration rollout
+
+1. Back up production D1 and the `Exports` R2 bucket, then confirm the legacy owner has signed in,
+   creating exactly one `auth_user` row. Do not enroll a second account yet.
+2. Set `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `D1_DATABASE_ID`, then run
+   `pnpm --filter @emi/api db:ownership:review`. Review every printed count and type the displayed
+   owner id. This read-only command gates operator approval before deployment.
+3. Deploy the production stage. The migration aborts when personal rows exist without exactly one
+   auth user, backfills all legacy rows to that stable user id, rebuilds natural keys for per-user
+   data, and installs owner indexes and write guards.
+4. Confirm every personal table has zero null `user_id` values and reviewed row counts are
+   unchanged. Sign in as the legacy owner and verify chat, workouts, notes, memories, analytics,
+   resume, import, and export.
+5. In R2, move any legacy `health/` and `hevy/` objects under `<owner-id>/health/` and
+   `<owner-id>/hevy/`, or delete them after verifying the backup. Confirm no unscoped legacy prefix
+   remains; new uploads already use user-id prefixes.
+6. Add a second email to `ALLOWED_EMAILS`, redeploy, and confirm both users see separate datasets
+   and guessed conversation ids return not found. Keep the backups until both accounts pass.
 
 ## Using the assistant
 
