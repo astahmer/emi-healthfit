@@ -39,6 +39,7 @@ import { resolveGenerationTerminalState } from "../chat/generation-terminal-stat
 import { getOrphanUserMessageId } from "../chat/orphan-turn.ts";
 import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
 import { createChatStreamResponse } from "../chat/ui-message-stream-response.ts";
+import { validateStoredUIMessages } from "../chat/ui-messages.ts";
 import {
   addThreadMessage,
   createConversation,
@@ -388,10 +389,9 @@ export const handleAiSdkChat = (
         parts: [...decodeMessageParts(row.parts)],
       }));
     const validatedExistingMessages = yield* Effect.promise(() =>
-      safeValidateUIMessages<UIMessage>({ messages: storedMessages }),
+      validateStoredUIMessages(storedMessages),
     );
-    if (!validatedExistingMessages.success) throw validatedExistingMessages.error;
-    const existingMessages = validatedExistingMessages.data.map((message) => ({
+    const existingMessages = validatedExistingMessages.map((message) => ({
       role: message.role,
       parts: message.parts,
     }));
