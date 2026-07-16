@@ -9,8 +9,5 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "references": [
-    { "path": "./apps/api" },
-    { "path": "./apps/chat" }
-  ]
+  "files": ["workspace.d.ts"]
 }
