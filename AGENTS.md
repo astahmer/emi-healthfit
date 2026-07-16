@@ -169,6 +169,8 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Keep unrelated pre-existing changes in their original revision; do not absorb them into agent work.
 - Prefer non-interactive `jj` commands and pass revision descriptions explicitly so an editor cannot
   block automation.
+- When squashing selected paths, pass `--use-destination-message` so `jj squash` does not open an
+  editor to combine revision descriptions.
 
 ## Testing
 
