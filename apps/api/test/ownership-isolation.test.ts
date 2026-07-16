@@ -10,6 +10,7 @@ import {
   getConversation,
   getConversations,
   getThread,
+  pinThread,
   saveConversationMessages,
   updateConversationState,
 } from "../src/db/conversations.ts";
@@ -121,6 +122,9 @@ describe("per-user ownership", () => {
       ]),
     );
     const threadId = await run(createThread(db, alice, conversationId, messageId));
+    assert.strictEqual((await run(getThread(db, alice, threadId)))?.pinned, false);
+    await run(pinThread(db, alice, threadId, true));
+    assert.strictEqual((await run(getThread(db, alice, threadId)))?.pinned, true);
 
     assert.strictEqual(await run(getConversation(db, bob, conversationId)), null);
     assert.strictEqual(await run(getThread(db, bob, threadId)), null);
