@@ -155,14 +155,25 @@ pnpm build
 
 ## Deployment
 
-Alchemy stages are isolated environments. The default stage is your local username; use an explicit
-`prod` stage for production. Create `.env.prod` with production values for every variable in
-`.env.example`:
+Alchemy stages are isolated environments. A bare `alchemy deploy` uses the default personal stage
+(`dev_<username>`); it still creates real public Cloudflare resources, but it does not deploy the
+`prod` stage. Production must always be selected explicitly with `--stage prod`. Each stage owns a
+separate Worker, D1 database, R2 bucket, AI Gateway, secrets, and Alchemy state.
+
+Alchemy is the only deployment authority for this project. Do not use Wrangler to deploy or destroy
+the Worker, apply migrations, change bindings, or otherwise manage resources tracked by Alchemy.
+Wrangler is reserved for operational work such as log tailing, read-only D1/R2 inspection, exports,
+and documented diagnostics. Keep operational writes behind repository scripts or an explicit
+runbook so Alchemy state and Cloudflare state cannot drift.
+
+Create `.env.prod` with production values for every variable in `.env.example`:
 
 - `BETTER_AUTH_URL` is the exact public HTTPS Worker origin, without a trailing slash.
 - The Google production web client must authorize
   `<BETTER_AUTH_URL>/api/auth/callback/google` exactly.
-- Use a different `BETTER_AUTH_SECRET` and Google client from local development.
+- Use a different `BETTER_AUTH_SECRET` from local development. A separate Google client is preferred;
+  a personal deployment may reuse one client only when both local and production callback URIs are
+  registered explicitly.
 - `ALLOWED_EMAILS` accepts a comma-separated list. Keep exactly one address through the legacy-data
   migration, then add accounts only after the isolation smoke test passes.
 
@@ -186,6 +197,30 @@ Alchemy will create/update:
 - `Api` Worker with bindings to the above and the built frontend assets
 
 The command prints the deployed Worker URL. Open that URL in a browser to use the chat UI.
+
+On the first production deployment, the generated Worker origin does not exist until Alchemy creates
+the stage. After that bootstrap deploy:
+
+1. Copy the printed HTTPS Worker origin into `BETTER_AUTH_URL` in `.env.prod`, without a trailing slash.
+2. Register `<BETTER_AUTH_URL>/api/auth/callback/google` on the matching Google OAuth web client.
+3. Redeploy the same `prod` stage with `.env.prod` before testing sign-in.
+
+Never assume a successful bare deployment updated production. Confirm both the stage and env file in
+the command before approving an Alchemy plan.
+
+### Database migration workflow
+
+Drizzle schema files are the source of truth for database structure. Make schema changes there, then
+generate and validate migration artifacts:
+
+```bash
+pnpm --filter @emi/api db:generate
+pnpm --filter @emi/api db:check
+```
+
+Do not create, edit, rename, move, or delete migration SQL, journals, or snapshots manually. Generated
+SQL should be reviewed and tested but not hand-modified. If a required backfill does not fit the
+established Drizzle workflow, stop and design an explicit migration process before deployment.
 
 ### Ownership migration rollout
 
@@ -384,11 +419,12 @@ cd apps/chat && pnpm typecheck && pnpm test
    pnpm typecheck
    pnpm test
    pnpm lint
-   pnpm fmt
+   pnpm format
    pnpm knip
    pnpm dry        # alchemy deploy --dry-run
    ```
-4. Open a PR or push to your jj repo
+4. Use `jj status` and `jj diff` to review the result, split unrelated work into focused revisions,
+   and describe every revision before opening a PR or pushing to the jj repository.
 
 Code style:
 

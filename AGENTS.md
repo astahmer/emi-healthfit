@@ -148,6 +148,28 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Avoid unnecessary destructuring; use dot notation.
 - Avoid `else`; prefer early returns.
 
+## Database migrations
+
+- Drizzle schema files are the sole source of truth for database structure.
+- Never manually create, edit, rename, move, or delete SQL migration files.
+- Never manually edit Drizzle migration journals, snapshots, or other migration metadata.
+- Make structural changes in the Drizzle schema, then generate migrations with
+  `pnpm --filter @emi/api db:generate` and validate them with
+  `pnpm --filter @emi/api db:check`.
+- Generated SQL may be inspected and tested, but must not be hand-modified.
+- If a data backfill or migration cannot be expressed through the established Drizzle workflow,
+  stop and ask the user for direction. Do not improvise a custom SQL migration.
+
+## Version control
+
+- Jujutsu (`jj`) is the primary version-control interface for this repository.
+- Inspect `jj status`, `jj diff`, and the nearby revision log before rewriting history.
+- Split completed work into focused revisions by concern and give every revision a concise,
+  descriptive message. Do not leave finished work in an undescribed working-copy revision.
+- Keep unrelated pre-existing changes in their original revision; do not absorb them into agent work.
+- Prefer non-interactive `jj` commands and pass revision descriptions explicitly so an editor cannot
+  block automation.
+
 ## Testing
 
 - Avoid mocks; test actual implementation.
@@ -161,7 +183,7 @@ Run checks once before giving the final summary after a task (not after every ch
 pnpm test # prefer running a single file & with --run when debugging
 pnpm lint
 pnpm typecheck
-pnpm fmt
+pnpm format
 ```
 
 ## Unacceptable comments
