@@ -5,7 +5,13 @@ import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { QueryDatabaseClient } from "../db/client.ts";
-import { makeAuth, parseAllowedEmails, type AuthConfiguration } from "./auth.ts";
+import { anonymousSignInPath, createAnonymousSessionResponse } from "./anonymous-session.ts";
+import {
+  isAuthorizedAuthEmail,
+  makeAuth,
+  parseAllowedEmails,
+  type AuthConfiguration,
+} from "./auth.ts";
 
 const AuthEnvironment = Schema.Struct({
   BETTER_AUTH_SECRET: Schema.String.check(Schema.isMinLength(32)),
@@ -72,6 +78,7 @@ const getRequestAuth = Effect.fn("auth.request")(function* ({
   return {
     auth: makeAuth({ database, configuration }),
     configuration,
+    database,
     webRequest,
   };
 });
@@ -87,7 +94,15 @@ export const handleAuthRequest = Effect.fn("auth.handler")(function* ({
 }) {
   const requestAuth = yield* getRequestAuth({ db, environment, request });
   const response = yield* Effect.tryPromise({
-    try: () => requestAuth.auth.handler(requestAuth.webRequest),
+    try: () =>
+      new URL(requestAuth.webRequest.url).pathname === anonymousSignInPath
+        ? createAnonymousSessionResponse({
+            baseUrl: requestAuth.configuration.baseUrl,
+            database: requestAuth.database,
+            request: requestAuth.webRequest,
+            secret: requestAuth.configuration.secret,
+          })
+        : requestAuth.auth.handler(requestAuth.webRequest),
     catch: (error) => new Error(`Authentication request failed: ${String(error)}`),
   }).pipe(
     Effect.tapError((error) =>
@@ -115,7 +130,13 @@ export const authenticateRequest = Effect.fn("auth.session")(function* ({
   });
   if (session === null) return null;
   const email = session.user.email.trim().toLowerCase();
-  if (!session.user.emailVerified || !requestAuth.configuration.allowedEmails.has(email)) {
+  if (
+    !isAuthorizedAuthEmail({
+      allowedEmails: requestAuth.configuration.allowedEmails,
+      email,
+      emailVerified: session.user.emailVerified,
+    })
+  ) {
     yield* Effect.logWarning("auth.session.denied").pipe(
       Effect.annotateLogs({ userId: session.user.id }),
     );

@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/d1";
 import { authSchema } from "./schema.ts";
+import { isAnonymousEmail } from "./anonymous-session.ts";
 
 export interface AuthConfiguration {
   baseUrl: string;
@@ -19,6 +20,16 @@ export const parseAllowedEmails = (value: string): ReadonlySet<string> =>
       .map((email) => email.trim().toLowerCase())
       .filter((email) => email !== ""),
   );
+
+export const isAuthorizedAuthEmail = ({
+  allowedEmails,
+  email,
+  emailVerified,
+}: {
+  allowedEmails: ReadonlySet<string>;
+  email: string;
+  emailVerified: boolean;
+}): boolean => isAnonymousEmail(email) || (emailVerified && allowedEmails.has(email));
 
 export const makeAuth = ({
   database,

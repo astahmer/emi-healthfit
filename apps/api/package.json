@@ -36,6 +36,7 @@
     "@types/json-schema": "catalog:",
     "@types/node": "^26.0.0",
     "drizzle-kit": "0.31.10",
+    "miniflare": "4.20260710.0",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:",

@@ -3,7 +3,7 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 const now = sql`(cast(unixepoch('subsecond') * 1000 as integer))`;
 
-const authUser = sqliteTable("auth_user", {
+export const authUser = sqliteTable("auth_user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
@@ -13,7 +13,7 @@ const authUser = sqliteTable("auth_user", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(now).notNull(),
 });
 
-const authSession = sqliteTable(
+export const authSession = sqliteTable(
   "auth_session",
   {
     id: text("id").primaryKey(),
@@ -30,7 +30,7 @@ const authSession = sqliteTable(
   (table) => [index("auth_session_user_id_idx").on(table.userId)],
 );
 
-const authAccount = sqliteTable(
+export const authAccount = sqliteTable(
   "auth_account",
   {
     id: text("id").primaryKey(),
@@ -52,7 +52,7 @@ const authAccount = sqliteTable(
   (table) => [index("auth_account_user_id_idx").on(table.userId)],
 );
 
-const authVerification = sqliteTable(
+export const authVerification = sqliteTable(
   "auth_verification",
   {
     id: text("id").primaryKey(),
