@@ -1,0 +1,6 @@
+{
+  "scenario": "provider-failure",
+  "generationStatus": "failed",
+  "finishReason": "error",
+  "events": ["provider.failed", "generation.failed"]
+}

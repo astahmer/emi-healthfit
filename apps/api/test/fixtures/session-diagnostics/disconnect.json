@@ -1,0 +1,6 @@
+{
+  "scenario": "disconnect",
+  "generationStatus": "streaming",
+  "finishReason": null,
+  "events": ["client.disconnected"]
+}

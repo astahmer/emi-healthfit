@@ -1,0 +1,28 @@
+{
+  "conversationId": "9745e022-7b85-400c-83cb-db3ae60f8121",
+  "sevenSqlShapes": [
+    "SELECT * FROM hevy_sessions WHERE session_id = ?;",
+    "SELECT s.*, st.* FROM hevy_sessions s JOIN hevy_sets st ON st.session_id = s.session_id WHERE s.session_id = ?;",
+    "SELECT exercise_title, SUM(weight_kg * reps) FROM hevy_sets WHERE session_id = ? GROUP BY exercise_title;",
+    "SELECT * FROM hevy_sets WHERE session_id IN (SELECT session_id FROM hevy_sessions ORDER BY start_time DESC LIMIT 1);",
+    "SELECT exercise_title, weight_kg, reps FROM hevy_sets WHERE session_id = ? ORDER BY set_index;",
+    "SELECT * FROM hevy_sets WHERE session_id = ?;",
+    "SELECT session_id, exercise_title, set_index, weight_kg, reps FROM hevy_sets WHERE session_id = ?"
+  ],
+  "invalidComponent": {
+    "component": "WorkoutTable",
+    "props": { "sessions": [{ "id": "session-1" }] }
+  },
+  "expectedFindings": [
+    "orphan-user-turn",
+    "error-tool-persisted-as-success",
+    "missing-finish-reason",
+    "repeated-equivalent-tool-failure",
+    "unsupported-tool-capability-claim",
+    "owned-data-shifted-to-user",
+    "unfulfilled-tool-promise",
+    "invalid-component-props",
+    "abnormal-token-growth",
+    "missing-client-recovery-telemetry"
+  ]
+}

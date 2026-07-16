@@ -111,6 +111,34 @@ describe("Thread", () => {
     expect(view.container.querySelector(".animate-spin")).toBeNull();
   });
 
+  it("renders persisted error-text outcomes as Failed after refresh", () => {
+    const failedToolPart = JSON.parse(
+      JSON.stringify({
+        type: "dynamic-tool",
+        toolName: "query_database",
+        toolCallId: "tool-failed",
+        state: "output-error",
+        input: {},
+        output: { type: "error-text", value: "Only one SELECT query is allowed." },
+      }),
+    );
+    const message: MessageWithUsage = {
+      id: "assistant-failed",
+      role: "assistant",
+      parts: [failedToolPart],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: false,
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Only one SELECT query is allowed.")).toBeInTheDocument();
+  });
+
   it("restores persisted timestamp, model, and token metadata", () => {
     const message: MessageWithUsage = {
       id: "assistant-1",

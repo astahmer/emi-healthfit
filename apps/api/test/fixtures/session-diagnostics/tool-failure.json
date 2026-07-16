@@ -1,0 +1,6 @@
+{
+  "scenario": "tool-failure",
+  "generationStatus": "completed",
+  "finishReason": "tool-calls",
+  "events": ["tool.started", "tool.failed"]
+}

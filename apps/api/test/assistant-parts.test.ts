@@ -102,4 +102,35 @@ describe("buildAssistantParts", () => {
     assert.strictEqual(parts.length, 1);
     assert.deepStrictEqual((parts[0] as { output: unknown }).output, { score: 90 });
   });
+
+  it("persists error-text tool outcomes as failed", () => {
+    const parts = buildAssistantParts([
+      {
+        role: "assistant",
+        content: [
+          { type: "tool-call", toolCallId: "failed-1", toolName: "query_database", input: {} },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "failed-1",
+            output: { type: "error-text", value: "Only one SELECT query is allowed." },
+          },
+        ],
+      },
+    ]);
+
+    assert.deepStrictEqual(parts[0], {
+      type: "dynamic-tool",
+      toolName: "query_database",
+      toolCallId: "failed-1",
+      input: {},
+      output: { type: "error-text", value: "Only one SELECT query is allowed." },
+      outcome: "error",
+      state: "output-error",
+    });
+  });
 });

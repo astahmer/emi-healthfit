@@ -1,0 +1,6 @@
+{
+  "scenario": "persistence-failure",
+  "generationStatus": "failed",
+  "finishReason": "error",
+  "events": ["persistence.failed", "generation.failed"]
+}

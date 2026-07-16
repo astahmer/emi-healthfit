@@ -19,10 +19,10 @@ generations recover explicitly, and every visible tool/component state matches i
 ## Confirmed findings
 
 1. `query_database` was called seven times and all seven calls returned `Only one SELECT query is
-   allowed.` The final attempt was one plain filtered `SELECT`, proving the validator rejected a valid
+allowed.` The final attempt was one plain filtered `SELECT`, proving the validator rejected a valid
    shape rather than merely disallowing joins or subqueries.
 2. Every failed SQL tool card displayed `Completed`. The structured output contained `type:
-   error-text`, but the status treatment made failure look like success.
+error-text`, but the status treatment made failure look like success.
 3. The assistant inferred restrictions that the tool never reported: it claimed joins, `GROUP BY`,
    aggregates, and even filters were forbidden. The only observed error concerned the number of
    statements.
@@ -100,19 +100,20 @@ generations recover explicitly, and every visible tool/component state matches i
 
 ## Acceptance criteria
 
-- [ ] Failed tools display and persist as failed, including after refresh.
-- [ ] A timed-out generation has a durable reason and safe retry path.
+- [x] Failed tools display and persist as failed, including after refresh.
+- [x] A timed-out generation has a durable reason and safe retry path.
 - [ ] The seven SQL regression cases pass after deployment.
-- [ ] The workout-detail request completes without raw SQL or user-supplied screenshots.
-- [ ] The invalid `WorkoutTable` payload fails at the tool boundary instead of rendering empty data.
-- [ ] Identical failed tool calls cannot repeat within one generation.
+- [x] The workout-detail request completes without raw SQL or user-supplied screenshots.
+- [x] The invalid `WorkoutTable` payload fails at the tool boundary instead of rendering empty data.
+- [x] Identical failed tool calls cannot repeat within one generation.
 - [ ] The replay stays within the agreed per-turn tool and token budgets.
-- [ ] A new user prompt cannot silently absorb an orphaned prompt.
+- [x] A new user prompt cannot silently absorb an orphaned prompt.
 
 ## Decisions log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| 2026-07-16 | Prefer a domain workout-detail tool over model-authored SQL | It is safer, cheaper, and gives the model a stable contract. |
-| 2026-07-16 | Treat tool-error presentation as P0 | Showing failure as completed destroys debugging and user trust. |
-| 2026-07-16 | Keep confirmed evidence separate from inferred causes | Historical telemetry is incomplete. |
+| Date       | Decision                                                    | Rationale                                                                                       |
+| ---------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 2026-07-16 | Prefer a domain workout-detail tool over model-authored SQL | It is safer, cheaper, and gives the model a stable contract.                                    |
+| 2026-07-16 | Treat tool-error presentation as P0                         | Showing failure as completed destroys debugging and user trust.                                 |
+| 2026-07-16 | Keep confirmed evidence separate from inferred causes       | Historical telemetry is incomplete.                                                             |
+| 2026-07-16 | Keep deployment replay criteria open                        | Dev deployment and a live replay require environment coordination beyond source implementation. |

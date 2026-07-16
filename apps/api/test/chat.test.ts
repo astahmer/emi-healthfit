@@ -64,4 +64,20 @@ describe("render_component tool", () => {
       /component/,
     );
   });
+
+  it("rejects the session-9745 WorkoutTable.sessions mismatch at the tool boundary", async () => {
+    await assert.rejects(
+      run(
+        executeTool({
+          db: fakeDb,
+          name: "render_component",
+          args: {
+            component: "WorkoutTable",
+            props: { sessions: [{ id: "session-1" }] },
+          },
+        }),
+      ),
+      /Invalid WorkoutTable props/,
+    );
+  });
 });

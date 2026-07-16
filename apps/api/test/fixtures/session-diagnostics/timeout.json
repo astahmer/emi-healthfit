@@ -1,0 +1,6 @@
+{
+  "scenario": "timeout",
+  "generationStatus": "timed_out",
+  "finishReason": "timeout",
+  "events": ["client.refresh", "generation.timed_out"]
+}

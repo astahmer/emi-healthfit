@@ -1,0 +1,6 @@
+{
+  "scenario": "success",
+  "generationStatus": "completed",
+  "finishReason": "stop",
+  "events": ["generation.created", "provider.first_chunk", "generation.completed"]
+}

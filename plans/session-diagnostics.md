@@ -159,12 +159,12 @@ erDiagram
 
 ## Acceptance criteria
 
-- [ ] `pnpm diagnose:session --url <conversation-url> --env dev` creates a redacted JSON bundle and
+- [x] `pnpm diagnose:session --url <conversation-url> --env dev` creates a redacted JSON bundle and
       Markdown report without opening a browser.
-- [ ] The case-study report flags all findings in `session-9745-postmortem.md`.
-- [ ] Bundle authorization tests prove one owner cannot export another owner's conversation.
-- [ ] Default reports contain no cookies, OAuth data, provider keys, raw headers, or unrelated records.
-- [ ] Success, tool failure, disconnect, timeout, provider failure, and persistence failure fixtures are
+- [x] The case-study report flags all findings in `session-9745-postmortem.md`.
+- [x] Bundle authorization tests prove one owner cannot export another owner's conversation.
+- [x] Default reports contain no cookies, OAuth data, provider keys, raw headers, or unrelated records.
+- [x] Success, tool failure, disconnect, timeout, provider failure, and persistence failure fixtures are
       deterministic in CI.
 
 ## Open questions
@@ -175,9 +175,10 @@ erDiagram
 
 ## Decisions log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| 2026-07-16 | Use one shared versioned bundle for CLI and UI export | Prevents two diagnostic formats from drifting. |
-| 2026-07-16 | Use Wrangler auth for developer automation | Avoids scraping browser cookies or adding a long-lived app token. |
-| 2026-07-16 | Keep deterministic checks as the baseline | Makes reports reproducible and testable. |
-| 2026-07-16 | Keep browser inspection as an optional fallback | Visual state helps UX review but must not gate debugging. |
+| Date       | Decision                                                                           | Rationale                                                         |
+| ---------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 2026-07-16 | Use one shared versioned bundle for CLI and UI export                              | Prevents two diagnostic formats from drifting.                    |
+| 2026-07-16 | Use Wrangler auth for developer automation                                         | Avoids scraping browser cookies or adding a long-lived app token. |
+| 2026-07-16 | Keep deterministic checks as the baseline                                          | Makes reports reproducible and testable.                          |
+| 2026-07-16 | Keep browser inspection as an optional fallback                                    | Visual state helps UX review but must not gate debugging.         |
+| 2026-07-16 | Retain terminal diagnostics for seven days and cascade deletion with conversations | Bounds durable telemetry while keeping owner deletion complete.   |
