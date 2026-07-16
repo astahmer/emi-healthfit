@@ -160,6 +160,18 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - If a data backfill or migration cannot be expressed through the established Drizzle workflow,
   stop and ask the user for direction. Do not improvise a custom SQL migration.
 
+## API response boundaries
+
+- Use `Schema.Struct` for wire DTOs. Use `Schema.Class` only when runtime class identity is required,
+  and then construct that class before returning it.
+- Keep raw D1 row types separate from domain and API types. SQLite booleans are numeric at the raw
+  query boundary and must pass through an explicit mapper.
+- Never cast `JSON.parse` or a D1 result into its expected type. Decode persisted and external values
+  with Effect Schema, Zod, or the owning library's runtime schema.
+- Response mappers must enumerate public fields instead of spreading database rows.
+- Add contract-encoding tests and a real SQLite integration assertion when a persisted scalar,
+  enum, JSON payload, or response DTO changes.
+
 ## Version control
 
 - Jujutsu (`jj`) is the primary version-control interface for this repository.
