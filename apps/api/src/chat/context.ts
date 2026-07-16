@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { QueryDatabaseClient } from "../db/client.ts";
+import { estimateRecovery } from "./recovery-estimate.ts";
 import type { HevySetRow, SleepSessionRow } from "../db/schema.ts";
 
 interface WorkoutContext {
@@ -96,20 +97,6 @@ export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
       .bind(userId, sevenDaysAgo)
       .all<SleepSessionRow>();
 
-    const dailyActivity = yield* db
-      .prepare(`
-      SELECT *
-      FROM daily_activity
-      WHERE user_id = ? AND date >= ?
-      ORDER BY date DESC
-    `)
-      .bind(userId, sevenDaysAgo)
-      .all<{
-        date: string;
-        active_kcal: number;
-        steps: number;
-      }>();
-
     const recentVolume = recentSets.results.reduce((sum: number, set: HevySetRow) => {
       if (set.weight_kg !== null && set.reps !== null) {
         return sum + set.weight_kg * set.reps;
@@ -147,15 +134,10 @@ export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
         return sum;
       }, 0);
 
-    const activeKcalAvg =
-      dailyActivity.results.length > 0
-        ? dailyActivity.results.reduce(
-            (sum: number, d: { active_kcal: number }) => sum + (d.active_kcal ?? 0),
-            0,
-          ) / dailyActivity.results.length
-        : null;
-
-    const { label, explanation } = computeRecoveryLabel(sevenDaySleepAvg, strain48h, activeKcalAvg);
+    const { label, explanation } = estimateRecovery({
+      sleepAverageMinutes: sevenDaySleepAvg,
+      strain48Hours: strain48h,
+    });
 
     return {
       today,
@@ -176,37 +158,6 @@ export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
       recentWorkoutCount,
     };
   });
-
-const computeRecoveryLabel = (
-  sleepAvgMin: number | null,
-  strain48h: number,
-  activeKcalAvg: number | null,
-): { label: string; explanation: string } => {
-  const sleepScore = sleepAvgMin === null ? 0 : Math.min(sleepAvgMin / 480, 1);
-  const strainScore = Math.min(strain48h / 10000, 1);
-  const activityScore = activeKcalAvg === null ? 0.5 : Math.min(activeKcalAvg / 500, 1);
-
-  const recovery = sleepScore * 0.5 + activityScore * 0.2 - strainScore * 0.3;
-
-  if (recovery >= 0.6) {
-    return {
-      label: "Ready",
-      explanation: `Sleep avg ${minutesToHours(sleepAvgMin)} last 7 days, strain 48h ${Math.round(strain48h)} kg·reps.`,
-    };
-  }
-
-  if (recovery >= 0.3) {
-    return {
-      label: "Caution",
-      explanation: `Sleep avg ${minutesToHours(sleepAvgMin)} last 7 days, strain 48h ${Math.round(strain48h)} kg·reps. Consider lighter volume today.`,
-    };
-  }
-
-  return {
-    label: "Rest needed",
-    explanation: `Low recovery: sleep avg ${minutesToHours(sleepAvgMin)} last 7 days, high strain 48h ${Math.round(strain48h)} kg·reps. Prioritize rest.`,
-  };
-};
 
 export const renderContextPrompt = (ctx: ChatContext, userMessage: string): string => {
   const recentExercises =

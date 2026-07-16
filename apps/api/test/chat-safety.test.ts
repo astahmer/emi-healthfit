@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getOrphanUserMessageId } from "../src/chat/orphan-turn.ts";
+import { fitnessCoachV1 } from "../src/chat/prompts/fitness-coach-v1.ts";
 import { createToolCircuitBreaker } from "../src/chat/tool-circuit-breaker.ts";
 
 describe("chat generation safety", () => {
@@ -39,5 +40,13 @@ describe("chat generation safety", () => {
       ]),
       "user-orphan",
     );
+  });
+
+  it("does not turn recovery metrics or menstrual-cycle timing into deterministic prescriptions", () => {
+    assert.doesNotMatch(fitnessCoachV1, /7\+ hours: Full intensity/);
+    assert.doesNotMatch(fitnessCoachV1, /Every 4th week = DELOAD WEEK/);
+    assert.doesNotMatch(fitnessCoachV1, /half your body weight in oz/);
+    assert.match(fitnessCoachV1, /Do not claim a cycle phase reliably predicts strength/);
+    assert.match(fitnessCoachV1, /HRV or resting heart rate alone/);
   });
 });
