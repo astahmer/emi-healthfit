@@ -1,0 +1,246 @@
+import * as Effect from "effect/Effect";
+import { z } from "zod";
+import type { QueryDatabaseClient } from "../db/operations.ts";
+
+const generationStatusSchema = z.enum([
+  "pending",
+  "streaming",
+  "completed",
+  "failed",
+  "timed_out",
+  "cancelled",
+]);
+
+export const diagnosticBundleSchema = z.object({
+  schemaVersion: z.literal(1),
+  exportedAt: z.string(),
+  redacted: z.boolean(),
+  conversation: z.object({
+    id: z.string(),
+    title: z.string().nullable(),
+    status: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  }),
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      parentId: z.string().nullable(),
+      role: z.string(),
+      parts: z.array(z.unknown()),
+      promptTokens: z.number().nullable(),
+      completionTokens: z.number().nullable(),
+      totalTokens: z.number().nullable(),
+      model: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+  generations: z.array(
+    z.object({
+      id: z.string(),
+      requestId: z.string(),
+      traceId: z.string(),
+      status: generationStatusSchema,
+      error: z.string().nullable(),
+      finishReason: z.string().nullable(),
+      model: z.string().nullable(),
+      inputTokens: z.number().nullable(),
+      outputTokens: z.number().nullable(),
+      retryCount: z.number(),
+      startedAt: z.string(),
+      finishedAt: z.string().nullable(),
+      createdAt: z.string(),
+      updatedAt: z.string(),
+    }),
+  ),
+  events: z.array(
+    z.object({
+      id: z.string(),
+      generationId: z.string(),
+      requestId: z.string(),
+      traceId: z.string(),
+      type: z.string(),
+      schemaVersion: z.number(),
+      payload: z.unknown(),
+      createdAt: z.string(),
+    }),
+  ),
+});
+
+export type DiagnosticBundle = z.infer<typeof diagnosticBundleSchema>;
+
+interface ConversationRow {
+  id: string;
+  title: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface MessageRow {
+  id: string;
+  parent_id: string | null;
+  role: string;
+  parts: string;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  model: string | null;
+  created_at: string;
+}
+
+interface GenerationRow {
+  id: string;
+  request_id: string;
+  trace_id: string;
+  status: DiagnosticBundle["generations"][number]["status"];
+  error: string | null;
+  finish_reason: string | null;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  retry_count: number;
+  started_at: string;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface EventRow {
+  id: string;
+  generation_id: string;
+  request_id: string;
+  trace_id: string;
+  type: string;
+  schema_version: number;
+  payload: string;
+  created_at: string;
+}
+
+const sensitiveKey = /authorization|cookie|secret|token|api.?key|oauth|header/i;
+const healthPayloadKey = /^(input|output|args|result|props|payload|value)$/i;
+
+export const redactDiagnosticValue = (value: unknown, key = ""): unknown => {
+  if (sensitiveKey.test(key)) return "[REDACTED]";
+  if (healthPayloadKey.test(key) && value !== null && typeof value === "object") {
+    if ("type" in value && Reflect.get(value, "type") === "error-text") {
+      return { type: "error-text", value: String(Reflect.get(value, "value") ?? "Tool failed") };
+    }
+    return "[REDACTED]";
+  }
+  if (Array.isArray(value)) return value.map((item) => redactDiagnosticValue(item));
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([childKey, child]) => [
+      childKey,
+      redactDiagnosticValue(child, childKey),
+    ]),
+  );
+};
+
+export const redactDiagnosticBundle = (bundle: DiagnosticBundle): DiagnosticBundle =>
+  diagnosticBundleSchema.parse({
+    ...bundle,
+    redacted: true,
+    messages: bundle.messages.map((message) => ({
+      ...message,
+      parts: redactDiagnosticValue(message.parts),
+    })),
+    events: bundle.events.map((event) => ({
+      ...event,
+      payload: redactDiagnosticValue(event.payload),
+    })),
+  });
+
+export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function* ({
+  db,
+  userId,
+  conversationId,
+  includeSensitive = false,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  conversationId: string;
+  includeSensitive?: boolean;
+}) {
+  const conversation = yield* db
+    .prepare(
+      "SELECT id, title, status, created_at, updated_at FROM conversations WHERE user_id = ? AND id = ?",
+    )
+    .bind(userId, conversationId)
+    .first<ConversationRow>();
+  if (conversation === null) return null;
+
+  const [messageResult, generationResult, eventResult] = yield* Effect.all([
+    db
+      .prepare(
+        "SELECT id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at FROM messages WHERE user_id = ? AND conversation_id = ? ORDER BY created_at, id",
+      )
+      .bind(userId, conversationId)
+      .all<MessageRow>(),
+    db
+      .prepare(
+        "SELECT id, request_id, trace_id, status, error, finish_reason, model, input_tokens, output_tokens, retry_count, started_at, finished_at, created_at, updated_at FROM chat_generations WHERE user_id = ? AND conversation_id = ? ORDER BY created_at, id",
+      )
+      .bind(userId, conversationId)
+      .all<GenerationRow>(),
+    db
+      .prepare(
+        "SELECT id, generation_id, request_id, trace_id, type, schema_version, payload, created_at FROM chat_events WHERE user_id = ? AND conversation_id = ? ORDER BY created_at, id",
+      )
+      .bind(userId, conversationId)
+      .all<EventRow>(),
+  ]);
+
+  const redact = (value: unknown): unknown =>
+    includeSensitive ? value : redactDiagnosticValue(value);
+  return diagnosticBundleSchema.parse({
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    redacted: !includeSensitive,
+    conversation: {
+      id: conversation.id,
+      title: conversation.title,
+      status: conversation.status,
+      createdAt: conversation.created_at,
+      updatedAt: conversation.updated_at,
+    },
+    messages: messageResult.results.map((message) => ({
+      id: message.id,
+      parentId: message.parent_id,
+      role: message.role,
+      parts: redact(JSON.parse(message.parts)),
+      promptTokens: message.prompt_tokens,
+      completionTokens: message.completion_tokens,
+      totalTokens: message.total_tokens,
+      model: message.model,
+      createdAt: message.created_at,
+    })),
+    generations: generationResult.results.map((generation) => ({
+      id: generation.id,
+      requestId: generation.request_id,
+      traceId: generation.trace_id,
+      status: generation.status,
+      error: generation.error,
+      finishReason: generation.finish_reason,
+      model: generation.model,
+      inputTokens: generation.input_tokens,
+      outputTokens: generation.output_tokens,
+      retryCount: generation.retry_count,
+      startedAt: generation.started_at,
+      finishedAt: generation.finished_at,
+      createdAt: generation.created_at,
+      updatedAt: generation.updated_at,
+    })),
+    events: eventResult.results.map((event) => ({
+      id: event.id,
+      generationId: event.generation_id,
+      requestId: event.request_id,
+      traceId: event.trace_id,
+      type: event.type,
+      schemaVersion: event.schema_version,
+      payload: redact(JSON.parse(event.payload)),
+      createdAt: event.created_at,
+    })),
+  });
+});

@@ -15,3 +15,4 @@ apps/chat/playwright-report
 apps/chat/test-results
 .cachebro
 .direnv/
+.diagnostics/

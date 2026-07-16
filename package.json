@@ -19,7 +19,8 @@
     "build": "pnpm -r build",
     "setup:google": "pnpm --filter api setup:google",
     "chat:dev": "pnpm --filter chat dev",
-    "chat:build": "pnpm --filter chat build"
+    "chat:build": "pnpm --filter chat build",
+    "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"
   },
   "devDependencies": {
     "knip": "catalog:",

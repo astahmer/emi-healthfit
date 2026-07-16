@@ -37,6 +37,7 @@
     "drizzle-kit": "0.31.10",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "wrangler": "^4.111.0"
   }
 }
