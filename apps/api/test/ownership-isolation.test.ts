@@ -103,7 +103,16 @@ describe("per-user ownership", () => {
     const alice = "user-alice";
     const bob = "user-bob";
     const conversationId = await run(createConversation(db, alice, "Alice chat"));
-    assert.strictEqual((await run(getConversation(db, alice, conversationId)))?.pinned, false);
+    const conversation = await run(getConversation(db, alice, conversationId));
+    assert.strictEqual(conversation?.pinned, false);
+    assert.deepStrictEqual(Object.keys(conversation ?? {}).toSorted(), [
+      "created_at",
+      "id",
+      "pinned",
+      "status",
+      "title",
+      "updated_at",
+    ]);
     await run(updateConversationState({ db, userId: alice, conversationId, pinned: true }));
     assert.strictEqual((await run(getConversations(db, alice)))[0]?.pinned, true);
     const [messageId] = await run(

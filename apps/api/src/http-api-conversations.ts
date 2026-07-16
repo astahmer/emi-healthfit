@@ -1,4 +1,13 @@
-import { BadRequest, EmiApi, NotFound } from "@emi/api-contract";
+import {
+  BadRequest,
+  Conversation as ApiConversation,
+  EmiApi,
+  Message as ApiMessage,
+  MessageUsage as ApiMessageUsage,
+  NotFound,
+  Thread as ApiThread,
+  ThreadWithMessages as ApiThreadWithMessages,
+} from "@emi/api-contract";
 import type { RuntimeContext } from "alchemy";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -9,6 +18,7 @@ import { CurrentUser } from "./auth/request-auth.ts";
 import { extractMemories, generateThreadSummary } from "./chat/ai-sdk.ts";
 import { getGeneration, recordChatEvent } from "./chat/generation-store.ts";
 import {
+  type Conversation,
   cloneConversation,
   createConversation,
   createThread,
@@ -28,6 +38,7 @@ import {
   reviseConversationMessage,
   restoreThread,
   summarizeThread,
+  type Thread,
   updateConversationState,
 } from "./db/conversations.ts";
 import type { QueryDatabaseClient } from "./db/client.ts";
@@ -35,6 +46,23 @@ import { insertMemory } from "./db/memories.ts";
 import { withInternalError } from "./http-api-errors.ts";
 
 const MessageRole = Schema.Literals(["user", "assistant", "system", "summary"]);
+
+const toApiConversation = (conversation: Conversation): ApiConversation =>
+  new ApiConversation(conversation);
+
+const toApiThread = (thread: Thread): ApiThread => new ApiThread(thread);
+
+const toApiThreadWithMessages = ({
+  thread,
+  messageIds,
+}: {
+  thread: Thread;
+  messageIds: string[];
+}): ApiThreadWithMessages =>
+  new ApiThreadWithMessages({
+    ...thread,
+    message_ids: messageIds,
+  });
 
 const rowToMessage = (row: {
   id: string;
@@ -47,23 +75,24 @@ const rowToMessage = (row: {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   total_tokens: number | null;
-}) => ({
-  id: row.id,
-  conversationId: row.conversation_id,
-  parentId: row.parent_id,
-  role: Schema.decodeUnknownSync(MessageRole)(row.role),
-  parts: JSON.parse(row.parts) as unknown[],
-  createdAt: row.created_at,
-  model: row.model ?? undefined,
-  usage:
-    row.prompt_tokens !== null || row.completion_tokens !== null || row.total_tokens !== null
-      ? {
-          promptTokens: row.prompt_tokens,
-          completionTokens: row.completion_tokens,
-          totalTokens: row.total_tokens,
-        }
-      : undefined,
-});
+}) =>
+  new ApiMessage({
+    id: row.id,
+    conversationId: row.conversation_id,
+    parentId: row.parent_id,
+    role: Schema.decodeUnknownSync(MessageRole)(row.role),
+    parts: JSON.parse(row.parts) as unknown[],
+    createdAt: row.created_at,
+    model: row.model ?? undefined,
+    usage:
+      row.prompt_tokens !== null || row.completion_tokens !== null || row.total_tokens !== null
+        ? new ApiMessageUsage({
+            promptTokens: row.prompt_tokens,
+            completionTokens: row.completion_tokens,
+            totalTokens: row.total_tokens,
+          })
+        : undefined,
+  });
 
 export const conversationsHandlers = ({
   db,
@@ -80,7 +109,7 @@ export const conversationsHandlers = ({
           function* ({ query }) {
             const user = yield* CurrentUser;
             const conversations = yield* getConversations(db, user.id, query.search);
-            return { conversations };
+            return { conversations: conversations.map(toApiConversation) };
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -126,7 +155,7 @@ export const conversationsHandlers = ({
             if (conversation === null) {
               return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
             }
-            return { conversation };
+            return { conversation: toApiConversation(conversation) };
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -145,7 +174,7 @@ export const conversationsHandlers = ({
             if (conversation === null) {
               return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
             }
-            return { conversation };
+            return { conversation: toApiConversation(conversation) };
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -164,13 +193,19 @@ export const conversationsHandlers = ({
             const threads = yield* getThreadsIncludingDiscarded(db, user.id, params.id);
             const threadsWithMessages = yield* Effect.forEach(threads, (thread) =>
               getThreadMessages(db, user.id, thread.id).pipe(
-                Effect.map((messages) => ({
-                  ...thread,
-                  message_ids: messages.map((message) => message.id),
-                })),
+                Effect.map((messages) =>
+                  toApiThreadWithMessages({
+                    thread,
+                    messageIds: messages.map((message) => message.id),
+                  }),
+                ),
               ),
             );
-            return { conversation, messages: rows.map(rowToMessage), threads: threadsWithMessages };
+            return {
+              conversation: toApiConversation(conversation),
+              messages: rows.map(rowToMessage),
+              threads: threadsWithMessages,
+            };
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -198,7 +233,7 @@ export const conversationsHandlers = ({
           function* ({ params }) {
             const user = yield* CurrentUser;
             const threads = yield* getThreads(db, user.id, params.id);
-            return { threads };
+            return { threads: threads.map(toApiThread) };
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -224,7 +259,10 @@ export const conversationsHandlers = ({
             if (thread === null) {
               return yield* Effect.fail(new NotFound({ message: "Thread not found" }));
             }
-            return { ...thread, message_ids: [thread.anchor_message_id] };
+            return toApiThreadWithMessages({
+              thread,
+              messageIds: [thread.anchor_message_id],
+            });
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -312,7 +350,7 @@ export const threadsHandlers = ({
               return yield* Effect.fail(new NotFound({ message: "Thread not found" }));
             }
             const rows = yield* getThreadMessages(db, user.id, params.id);
-            return { thread, messages: rows.map(rowToMessage) };
+            return { thread: toApiThread(thread), messages: rows.map(rowToMessage) };
           },
           withInternalError,
           Effect.provide(runtimeContext),

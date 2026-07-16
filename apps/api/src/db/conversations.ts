@@ -49,8 +49,12 @@ interface ConversationRow {
 }
 
 const mapConversationRow = (row: ConversationRow): Conversation => ({
-  ...row,
+  id: row.id,
+  title: row.title,
+  status: row.status,
   pinned: row.pinned === 1,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
 });
 
 export interface MessageUsage {
