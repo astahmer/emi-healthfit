@@ -138,10 +138,39 @@ export const ChatRuntimeProvider = ({
   const historySignatureRef = useRef("");
   const resumeSessionRef = useRef<string | undefined>(undefined);
   const operationRef = useRef(0);
+  const generationIdRef = useRef<string | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const transport = useMemo(() => new DefaultChatTransport<UIMessage>({ api: "/api/chat" }), []);
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport<UIMessage>({
+        api: "/api/chat",
+        fetch: async (input, init) => {
+          const response = await fetch(input, init);
+          const generationId = response.headers.get("x-generation-id");
+          const conversationId = response.headers.get("x-thread-id");
+          if (!config.temporary && generationId !== null && conversationId !== null) {
+            generationIdRef.current = generationId;
+            const method = init?.method?.toUpperCase() ?? "GET";
+            const eventTypes =
+              method === "POST" ? ["client.submitted"] : ["client.refreshed", "client.reconnected"];
+            for (const type of eventTypes) {
+              void fetch(
+                `/api/conversations/${encodeURIComponent(conversationId)}/diagnostic-events`,
+                {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ generationId, type }),
+                },
+              );
+            }
+          }
+          return response;
+        },
+      }),
+    [config.temporary],
+  );
   const historySignature = `${config.sessionId ?? "new"}:${config.threadId ?? "root"}:${config.initialMessages
     .map((message) => message.id)
     .join(",")}`;
@@ -160,6 +189,20 @@ export const ChatRuntimeProvider = ({
       send({ type: "history.changed", sessionId, messages });
     },
     [config.threadId, onHistoryChanged, send],
+  );
+
+  const recordClientEvent = useCallback(
+    (type: "client.disconnected" | "client.stopped" | "client.retried") => {
+      const conversationId = stateRef.current.context.sessionId;
+      const generationId = generationIdRef.current;
+      if (config.temporary || conversationId === undefined || generationId === null) return;
+      void fetch(`/api/conversations/${encodeURIComponent(conversationId)}/diagnostic-events`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ generationId, type }),
+      });
+    },
+    [config.temporary],
   );
 
   useEffect(() => {
@@ -234,12 +277,14 @@ export const ChatRuntimeProvider = ({
         type: "stream.failed",
         error: error instanceof Error ? error : new Error(String(error)),
       });
+      recordClientEvent("client.disconnected");
     });
   }, [
     config.historyReady,
     config.sessionId,
     config.temporary,
     queryClient,
+    recordClientEvent,
     send,
     synchronizePersistedHistory,
     transport,
@@ -335,6 +380,7 @@ export const ChatRuntimeProvider = ({
           type: "stream.failed",
           error: error instanceof Error ? error : new Error(String(error)),
         });
+        recordClientEvent("client.disconnected");
       } finally {
         if (abortControllerRef.current === controller) abortControllerRef.current = null;
       }
@@ -349,6 +395,7 @@ export const ChatRuntimeProvider = ({
       notes,
       onSessionCreated,
       queryClient,
+      recordClientEvent,
       send,
       settings.apiKey,
       settings.baseUrl,
@@ -388,6 +435,7 @@ export const ChatRuntimeProvider = ({
           },
         );
         if (!response.ok) throw new Error(`Failed to revise message: ${response.status}`);
+        recordClientEvent("client.retried");
         await submitMessage({ parts, replaceMessageId: userMessage.id });
       } catch (error) {
         send({
@@ -396,7 +444,7 @@ export const ChatRuntimeProvider = ({
         });
       }
     },
-    [config.sessionId, config.temporary, config.threadId, send, submitMessage],
+    [config.sessionId, config.temporary, config.threadId, recordClientEvent, send, submitMessage],
   );
 
   const value = useMemo<ChatRuntimeValue>(() => {
@@ -438,6 +486,7 @@ export const ChatRuntimeProvider = ({
       submit,
       revise,
       stop: () => {
+        recordClientEvent("client.stopped");
         abortControllerRef.current?.abort();
         cancelStreamRef.current?.();
       },
@@ -449,6 +498,7 @@ export const ChatRuntimeProvider = ({
     config.sessionId,
     isPreparingAttachments,
     revise,
+    recordClientEvent,
     send,
     state,
     submit,

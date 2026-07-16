@@ -86,6 +86,20 @@ const formatRelativeTime = (value: string) => {
   return `${years} year${years === 1 ? "" : "s"} ago`;
 };
 
+const downloadDiagnostics = async ({ conversationId }: { conversationId: string }) => {
+  const response = await fetch(
+    `/api/conversations/${encodeURIComponent(conversationId)}/diagnostics`,
+  );
+  if (!response.ok) throw new Error(`Diagnostics export failed: ${response.status}`);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${conversationId}-diagnostics.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
 type HistoryGroup = { key: string; label: string; threads: Thread[] };
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -262,6 +276,12 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
               <DropdownMenuItem onClick={() => send({ type: "download" })}>
                 <DownloadIcon />
                 <span>Télécharger</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => void downloadDiagnostics({ conversationId: thread.id })}
+              >
+                <DownloadIcon />
+                <span>Exporter les diagnostics</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => send({ type: "copy.markdown" })}>
                 {state.context.copiedId === thread.id ? <CheckIcon /> : <FileTextIcon />}

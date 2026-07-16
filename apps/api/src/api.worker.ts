@@ -89,11 +89,17 @@ import {
   getResumableGeneration,
   getRunningGeneration,
   isGenerationStale,
+  markGenerationStreaming,
+  recordChatEvent,
   reconcileFinishedGenerations,
+  updateGenerationMetadata,
   type ChatGeneration,
 } from "./chat/generation-store.ts";
 import { createGenerationReplayStream } from "./chat/generation-replay.ts";
 import { createChatStreamResponse } from "./chat/ui-message-stream-response.ts";
+import { createToolCircuitBreaker } from "./chat/tool-circuit-breaker.ts";
+import { getOrphanUserMessageId } from "./chat/orphan-turn.ts";
+import { getDiagnosticBundle } from "./diagnostics/bundle.ts";
 import { registerHttpApi } from "./http-api.ts";
 import {
   authenticateRequest,
@@ -244,6 +250,12 @@ export default class Api extends Cloudflare.Worker<Api>()(
       );
       yield* router.add("POST", "/api/conversations/:conversationId/clone", (request) =>
         cors(request, handleConversationClone(db, request)),
+      );
+      yield* router.add("GET", "/api/conversations/:conversationId/diagnostics", (request) =>
+        cors(request, handleConversationDiagnostics(db, request)),
+      );
+      yield* router.add("POST", "/api/conversations/:conversationId/diagnostic-events", (request) =>
+        cors(request, handleConversationDiagnosticEvent(db, request)),
       );
       yield* router.add("GET", "/api/conversations/:conversationId/messages", (request) =>
         cors(request, handleConversationMessages(db, request)),
@@ -1122,9 +1134,9 @@ const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "access-control-allow-headers":
-      "authorization, content-type, mcp-session-id, last-event-id, mcp-protocol-version",
+      "authorization, content-type, mcp-session-id, last-event-id, mcp-protocol-version, x-request-id, x-trace-id",
     "access-control-expose-headers":
-      "mcp-session-id, mcp-protocol-version, x-thread-id, x-generation-id",
+      "mcp-session-id, mcp-protocol-version, x-thread-id, x-generation-id, x-request-id, x-trace-id",
   };
 };
 
@@ -1215,6 +1227,72 @@ const handleMessageRevision = ({
       return yield* HttpServerResponse.json({ error: "Message not found" }, { status: 404 });
     }
     return yield* HttpServerResponse.json({ ok: true });
+  });
+
+const handleConversationDiagnostics = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const user = yield* CurrentUser;
+    const conversationId = getConversationIdFromPath(request.url) ?? "";
+    const includeSensitive = new URL(request.url, "http://localhost").searchParams.get(
+      "includeSensitive",
+    );
+    const bundle = yield* getDiagnosticBundle({
+      db,
+      userId: user.id,
+      conversationId,
+      includeSensitive: includeSensitive === "true",
+    });
+    if (bundle === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json(bundle, {
+      headers: { "cache-control": "private, no-store" },
+    });
+  });
+
+const DiagnosticEventRequest = Schema.Struct({
+  generationId: Schema.String,
+  type: Schema.Literals([
+    "client.submitted",
+    "client.disconnected",
+    "client.reconnected",
+    "client.stopped",
+    "client.refreshed",
+    "client.retried",
+  ]),
+  payload: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+});
+
+const handleConversationDiagnosticEvent = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+  Effect.gen(function* () {
+    const user = yield* CurrentUser;
+    const conversationId = getConversationIdFromPath(request.url) ?? "";
+    const body = yield* request.json;
+    const decoded = yield* Schema.decodeUnknownEffect(DiagnosticEventRequest)(body).pipe(
+      Effect.option,
+    );
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json({ error: "Invalid diagnostic event" }, { status: 400 });
+    }
+    const generation = yield* getGeneration({
+      db,
+      userId: user.id,
+      generationId: decoded.value.generationId,
+    });
+    if (generation === null || generation.conversation_id !== conversationId) {
+      return yield* HttpServerResponse.json({ error: "Generation not found" }, { status: 404 });
+    }
+    yield* recordChatEvent({
+      db,
+      userId: user.id,
+      conversationId,
+      generationId: generation.id,
+      requestId: generation.request_id,
+      traceId: generation.trace_id,
+      type: decoded.value.type,
+      payload: decoded.value.payload ?? {},
+    });
+    return yield* HttpServerResponse.json({ recorded: true }, { status: 201 });
   });
 
 const getFirstUserText = (
@@ -1441,6 +1519,23 @@ const handleAiSdkChat = (
       );
     }
     const incomingMessages = chatRequest.replaceMessageId === undefined ? requestedMessages : [];
+    const orphanMessageId = getOrphanUserMessageId(existingRows);
+    if (
+      !isTemporary &&
+      chatRequest.replaceMessageId === undefined &&
+      incomingMessages.length > 0 &&
+      orphanMessageId !== null
+    ) {
+      return yield* HttpServerResponse.json(
+        {
+          error: "Previous user turn has no assistant response.",
+          code: "ORPHAN_USER_TURN",
+          orphanMessageId,
+          actions: ["retry", "discard", "send-as-new-turn"],
+        },
+        { status: 409, headers: corsHeaders(request) },
+      );
+    }
 
     const toolRecord = Object.fromEntries(
       staticToolDefinitions.map((definition) => [
@@ -1485,42 +1580,122 @@ const handleAiSdkChat = (
     }
 
     const services = yield* Effect.context<RuntimeContext>();
+    const generationId = crypto.randomUUID();
+    const requestId = request.headers["x-request-id"] ?? crypto.randomUUID();
+    const traceId = request.headers["x-trace-id"] ?? requestId;
+    const toolCircuitBreaker = createToolCircuitBreaker();
+    const recordEvent = (type: string, payload: Record<string, unknown> = {}) =>
+      isTemporary
+        ? Effect.void
+        : recordChatEvent({
+            db,
+            userId: user.id,
+            conversationId: sessionId,
+            generationId,
+            requestId,
+            traceId,
+            type,
+            payload,
+          });
+
+    if (!isTemporary) {
+      yield* createGeneration({
+        db,
+        userId: user.id,
+        generationId,
+        conversationId: sessionId,
+        requestId,
+        traceId,
+        model: chatRequest.config.model,
+      });
+      yield* recordEvent("generation.created", { threadId: chatRequest.threadId ?? null });
+    }
 
     const executeToolWithServices = (name: string, args: Record<string, unknown>) => {
       const toolStartedAt = performance.now();
+      if (toolCircuitBreaker.isBlocked({ name, args })) {
+        return Effect.runPromiseWith(services)(
+          recordEvent("tool.blocked", { tool: name, args, code: "REPEATED_FAILED_CALL" }).pipe(
+            Effect.andThen(
+              Effect.fail(
+                new Error(
+                  `Repeated failed ${name} call blocked. Use another tool or report the observed error.`,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       return Effect.runPromiseWith(services)(
-        executeTool({
-          db,
-          userId: user.id,
-          name,
-          args,
-          ...(isTemporary ? {} : { conversationId: sessionId }),
-          summarize: (messages) =>
-            Effect.promise(() =>
-              generateThreadSummary(apiKey, chatRequest.config.baseUrl, messages),
-            ),
-        }).pipe(
-          Effect.tap(() =>
-            Effect.logInfo("chat.tool.duration").pipe(
-              Effect.annotateLogs({
-                sessionId,
-                tool: name,
-                durationMilliseconds: Math.round(performance.now() - toolStartedAt),
-                status: "completed",
-              }),
+        recordEvent("tool.started", { tool: name, args }).pipe(
+          Effect.andThen(
+            executeTool({
+              db,
+              userId: user.id,
+              name,
+              args,
+              ...(isTemporary ? {} : { conversationId: sessionId }),
+              summarize: (messages) =>
+                Effect.promise(() =>
+                  generateThreadSummary(apiKey, chatRequest.config.baseUrl, messages),
+                ),
+            }),
+          ),
+          Effect.tap((output) =>
+            Effect.all(
+              [
+                recordEvent("tool.succeeded", {
+                  tool: name,
+                  args,
+                  output,
+                  durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                }),
+                Effect.logInfo("chat.tool.duration").pipe(
+                  Effect.annotateLogs({
+                    sessionId,
+                    generationId,
+                    requestId,
+                    traceId,
+                    tool: name,
+                    durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                    status: "completed",
+                  }),
+                ),
+              ],
+              { discard: true },
             ),
           ),
-          Effect.tapError((error) =>
-            Effect.logError("chat.tool.duration").pipe(
-              Effect.annotateLogs({
-                sessionId,
-                tool: name,
-                durationMilliseconds: Math.round(performance.now() - toolStartedAt),
-                status: "failed",
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            ),
-          ),
+          Effect.tapError((error) => {
+            toolCircuitBreaker.recordFailure({ name, args });
+            const message = error instanceof Error ? error.message : String(error);
+            return Effect.all(
+              [
+                recordEvent("tool.failed", {
+                  tool: name,
+                  args,
+                  code: error instanceof Error ? error.name : "TOOL_EXECUTION_ERROR",
+                  error: message,
+                  durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                }),
+                name === "render_component" && message.includes("Invalid")
+                  ? recordEvent("component.invalid", { tool: name, args, error: message })
+                  : Effect.void,
+                Effect.logError("chat.tool.duration").pipe(
+                  Effect.annotateLogs({
+                    sessionId,
+                    generationId,
+                    requestId,
+                    traceId,
+                    tool: name,
+                    durationMilliseconds: Math.round(performance.now() - toolStartedAt),
+                    status: "failed",
+                    error: message,
+                  }),
+                ),
+              ],
+              { discard: true },
+            );
+          }),
         ),
       );
     };
@@ -1538,6 +1713,9 @@ const handleAiSdkChat = (
             Effect.logDebug("chat.provider.chunk").pipe(
               Effect.annotateLogs({
                 sessionId,
+                generationId,
+                requestId,
+                traceId,
                 chunkType: chunk.type,
                 chunkIndex: providerChunkCount,
                 timeToFirstChunkMilliseconds:
@@ -1552,6 +1730,14 @@ const handleAiSdkChat = (
           providerChunkCount += 1;
           previousProviderChunkAt = timestamp;
         },
+        onError: async (error) => {
+          if (isTemporary) return;
+          await Effect.runPromiseWith(services)(
+            recordEvent("provider.failed", {
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        },
         onFinish: async (event) => {
           await Effect.runPromiseWith(services)(
             Effect.gen(function* () {
@@ -1564,6 +1750,7 @@ const handleAiSdkChat = (
                   textLength: event.text.length,
                   promptTokens: event.usage.inputTokens,
                   completionTokens: event.usage.outputTokens,
+                  finishReason: event.finishReason,
                 }),
               );
 
@@ -1593,6 +1780,22 @@ const handleAiSdkChat = (
                     { discard: true },
                   );
                 }
+              }
+
+              if (!isTemporary) {
+                yield* updateGenerationMetadata({
+                  db,
+                  userId: user.id,
+                  generationId,
+                  finishReason: event.finishReason,
+                  inputTokens: event.usage.inputTokens ?? 0,
+                  outputTokens: event.usage.outputTokens ?? 0,
+                });
+                yield* recordEvent("provider.finished", {
+                  finishReason: event.finishReason,
+                  inputTokens: event.usage.inputTokens,
+                  outputTokens: event.usage.outputTokens,
+                });
               }
 
               if (!isTemporary) {
@@ -1660,17 +1863,23 @@ const handleAiSdkChat = (
       onError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
     });
 
-    const generationId = crypto.randomUUID();
     let responseStream = uiMessageStream;
 
     if (!isTemporary) {
-      yield* createGeneration({ db, userId: user.id, generationId, conversationId: sessionId });
       const streams = uiMessageStream.tee();
       responseStream = streams[0];
       const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
       executionContext.waitUntil(
         Effect.runPromiseWith(services)(
-          persistGenerationStream({ db, userId: user.id, generationId, stream: streams[1] }),
+          persistGenerationStream({
+            db,
+            userId: user.id,
+            conversationId: sessionId,
+            generationId,
+            requestId,
+            traceId,
+            stream: streams[1],
+          }),
         ),
       );
     }
@@ -1680,6 +1889,8 @@ const handleAiSdkChat = (
       headers: {
         "x-thread-id": sessionId,
         "x-generation-id": generationId,
+        "x-request-id": requestId,
+        "x-trace-id": traceId,
       },
     });
 
@@ -1699,15 +1910,22 @@ const handleAiSdkChat = (
 const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(function* ({
   db,
   userId,
+  conversationId,
   generationId,
+  requestId,
+  traceId,
   stream,
 }: {
   db: QueryDatabaseClient;
   userId: string;
+  conversationId: string;
   generationId: string;
+  requestId: string;
+  traceId: string;
   stream: ReadableStream<UIMessageChunk>;
 }) {
   const streamError = yield* Ref.make<string | undefined>(undefined);
+  const finishReason = yield* Ref.make<string | undefined>(undefined);
   const persistenceStartedAt = performance.now();
   const previousChunkAt = yield* Ref.make(persistenceStartedAt);
   const persist = Stream.fromReadableStream({
@@ -1720,6 +1938,19 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
         const timestamp = performance.now();
         const previous = yield* Ref.get(previousChunkAt);
         yield* appendGenerationChunk({ db, userId, generationId, sequence, chunk });
+        if (sequence === 0) {
+          yield* markGenerationStreaming({ db, userId, generationId });
+          yield* recordChatEvent({
+            db,
+            userId,
+            conversationId,
+            generationId,
+            requestId,
+            traceId,
+            type: "provider.first_chunk",
+            payload: { timeToFirstChunkMilliseconds: Math.round(timestamp - persistenceStartedAt) },
+          });
+        }
         yield* Effect.logDebug("chat.persistence.chunk").pipe(
           Effect.annotateLogs({
             generationId,
@@ -1732,6 +1963,10 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
         );
         yield* Ref.set(previousChunkAt, timestamp);
         if (chunk.type === "error") yield* Ref.set(streamError, chunk.errorText);
+        if (chunk.type === "finish") {
+          const reason = Reflect.get(chunk, "finishReason");
+          if (typeof reason === "string") yield* Ref.set(finishReason, reason);
+        }
       }),
     ),
   );
@@ -1744,6 +1979,16 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
           yield* Effect.logError("chat.generation.failure").pipe(
             Effect.annotateLogs({ generationId, error: message }),
           );
+          yield* recordChatEvent({
+            db,
+            userId,
+            conversationId,
+            generationId,
+            requestId,
+            traceId,
+            type: "persistence.failed",
+            payload: { error: message },
+          });
           yield* finishGeneration({
             db,
             userId,
@@ -1753,15 +1998,31 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
           });
         }),
       onSuccess: () =>
-        Ref.get(streamError).pipe(
-          Effect.flatMap((error) =>
-            finishGeneration({
-              db,
-              userId,
-              generationId,
-              status: error === undefined ? "completed" : "failed",
-              error,
-            }),
+        Effect.all([Ref.get(streamError), Ref.get(finishReason)]).pipe(
+          Effect.flatMap(([error, reason]) =>
+            Effect.all(
+              [
+                finishGeneration({
+                  db,
+                  userId,
+                  generationId,
+                  status: error === undefined ? "completed" : "failed",
+                  error,
+                  finishReason: reason,
+                }),
+                recordChatEvent({
+                  db,
+                  userId,
+                  conversationId,
+                  generationId,
+                  requestId,
+                  traceId,
+                  type: error === undefined ? "generation.completed" : "generation.failed",
+                  payload: { error: error ?? null, finishReason: reason ?? null },
+                }),
+              ],
+              { discard: true },
+            ),
           ),
         ),
     }),

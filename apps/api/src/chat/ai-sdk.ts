@@ -69,15 +69,18 @@ export const createChatStream = async ({
   executeTool,
   onFinish,
   onChunk,
+  onError,
 }: {
   request: ChatStreamRequest;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   onFinish?: (event: {
     text: string;
     usage: LanguageModelUsage;
+    finishReason: string;
     response?: { messages: unknown[] };
   }) => void | Promise<void>;
   onChunk?: StreamTextOnChunkCallback<ToolSet>;
+  onError?: (error: unknown) => void | Promise<void>;
 }) => {
   const openai = createOpenAI({
     apiKey: request.config.apiKey,
@@ -95,16 +98,19 @@ export const createChatStream = async ({
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
     tools: buildToolSet(request.tools, request.webSearch ?? false, openai, executeTool),
+    maxOutputTokens: 4096,
     stopWhen: [isLoopFinished(), stepCountIs(8)],
     onChunk,
-    onError: ({ error }) =>
+    onError: ({ error }) => {
       Effect.runSync(
         Effect.logError("chat.provider.failure").pipe(
           Effect.annotateLogs({
             error: error instanceof Error ? error.message : String(error),
           }),
         ),
-      ),
+      );
+      return onError?.(error);
+    },
     onStepFinish: (event) => {
       Effect.runSync(
         Effect.logDebug("chat.step.finished").pipe(
@@ -121,6 +127,7 @@ export const createChatStream = async ({
       onFinish?.({
         text: event.text,
         usage: event.totalUsage,
+        finishReason: event.finishReason,
         response: {
           messages: event.steps.flatMap((step) => step.response.messages),
         },
