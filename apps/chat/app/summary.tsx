@@ -16,52 +16,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
-
-const nullableNumber = z.number().nullable();
-const overviewSchema = z.object({
-  days: z.number(),
-  activity: z.array(
-    z.object({
-      date: z.string(),
-      steps: nullableNumber,
-      active_kcal: nullableNumber,
-      exercise_min: nullableNumber,
-    }),
-  ),
-  sleep: z.array(
-    z.object({ date: z.string(), asleep_min: nullableNumber, in_bed_min: nullableNumber }),
-  ),
-  body: z.array(
-    z.object({
-      date: z.string(),
-      weight_kg: nullableNumber,
-      body_fat_pct: nullableNumber,
-      lean_mass_kg: nullableNumber,
-    }),
-  ),
-  training: z.array(
-    z.object({
-      date: z.string(),
-      workouts: z.number(),
-      volume_kg: nullableNumber,
-      duration_sec: nullableNumber,
-    }),
-  ),
-  exercises: z.array(
-    z.object({ exercise_title: z.string(), sets: z.number(), volume_kg: z.number() }),
-  ),
-  highlights: z.object({
-    averageSteps: nullableNumber,
-    averageSleepMinutes: nullableNumber,
-    workouts: z.number(),
-    trainingVolumeKg: z.number(),
-    weightChangeKg: nullableNumber,
-  }),
-});
-
-type Overview = z.infer<typeof overviewSchema>;
+import { runApi } from "./api-client";
 
 const compactDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -69,12 +25,8 @@ const compactDate = (value: string) =>
 const formatChartLabel = (value: ReactNode) =>
   typeof value === "string" ? compactDate(value) : value;
 
-const fetchOverview = async (days: number): Promise<Overview> => {
-  const response = await fetch(`/api/analytics/overview?days=${days}`);
-  const data: unknown = await response.json();
-  if (!response.ok) throw new Error("Failed to load analytics.");
-  return overviewSchema.parse(data);
-};
+const fetchOverview = (days: number) =>
+  runApi((client) => client.analytics.overview({ query: { days } }));
 
 const ChartCard = ({
   title,

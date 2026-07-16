@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ShieldCheckIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { runApi } from "./api-client";
 
 export const PrivacyControls = () => {
   const [retentionDays, setRetentionDays] = useState(30);
@@ -11,10 +12,8 @@ export const PrivacyControls = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/privacy", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load privacy settings");
-        const data = (await response.json()) as { rawUploadRetentionDays: number };
+    void runApi((client) => client.privacy.read(), { signal: controller.signal })
+      .then((data) => {
         setRetentionDays(data.rawUploadRetentionDays);
       })
       .catch((reason) => {
@@ -28,13 +27,9 @@ export const PrivacyControls = () => {
     setBusy("retention");
     setStatus(null);
     try {
-      const response = await fetch("/api/privacy", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rawUploadRetentionDays: retentionDays }),
-      });
-      if (!response.ok) throw new Error("Could not save retention policy");
-      const result = (await response.json()) as { deletedRawUploads: number };
+      const result = await runApi((client) =>
+        client.privacy.update({ payload: { rawUploadRetentionDays: retentionDays } }),
+      );
       setStatus(`Retention saved. Removed ${result.deletedRawUploads} expired raw upload(s).`);
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : "Could not save retention policy");
@@ -49,8 +44,7 @@ export const PrivacyControls = () => {
     setBusy(source);
     setStatus(null);
     try {
-      const response = await fetch(`/api/privacy/data/${source}`, { method: "DELETE" });
-      if (!response.ok) throw new Error(`Could not delete ${label} data`);
+      await runApi((client) => client.privacy.removeSource({ params: { source } }));
       setStatus(`${label} records and raw uploads deleted.`);
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : `Could not delete ${label} data`);

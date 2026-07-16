@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import { runApi } from "../api-client";
 
 interface WorkoutSet {
   set_index: number;
@@ -88,10 +89,14 @@ const buildSearchOptions = (sessions: WorkoutSession[]): string[] => {
 };
 
 const fetchWorkouts = async (): Promise<WorkoutSession[]> => {
-  const res = await fetch("/api/workouts");
-  if (!res.ok) throw new Error(`Failed to load workouts: ${res.status}`);
-  const data = (await res.json()) as { workouts: WorkoutSession[] };
-  return data.workouts;
+  const data = await runApi((client) => client.workouts.list());
+  return data.workouts.map((workout) => ({
+    ...workout,
+    exerciseDetails: workout.exerciseDetails.map((exercise) => ({
+      ...exercise,
+      sets: [...exercise.sets],
+    })),
+  }));
 };
 
 export default function WorkoutsPage() {

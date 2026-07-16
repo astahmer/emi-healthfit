@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { runApi } from "./api-client";
 
 interface ExportSummary {
   totalRecords: number;
@@ -22,10 +23,8 @@ export const DataExport = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/export/ingested-data/summary", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Could not summarize export (${response.status})`);
-        const data = (await response.json()) as { summary: ExportSummary };
+    void runApi((client) => client.data.exportSummary(), { signal: controller.signal })
+      .then((data) => {
         setSummary(data.summary);
       })
       .catch((reason) => {

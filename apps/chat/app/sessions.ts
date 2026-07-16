@@ -1,4 +1,5 @@
-import type { UIMessage } from "ai";
+import { safeValidateUIMessages, type UIMessage } from "ai";
+import { runApi } from "./api-client";
 import {
   deleteCachedThread,
   getCachedMessages,
@@ -35,18 +36,15 @@ export interface ThreadWithMessages {
   messages: MessageWithUsage[];
 }
 
-const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
-
 const ignoreCacheError = (promise: Promise<unknown>): void => {
   promise.catch(() => {});
 };
 
 const fetchConversations = async (search?: string): Promise<Thread[]> => {
-  const params = search ? `?search=${encodeURIComponent(search)}` : "";
-  const res = await fetch(`${apiBase()}/api/conversations${params}`);
-  if (!res.ok) throw new Error(`Failed to load conversations: ${res.status}`);
-  const data = (await res.json()) as { conversations: Thread[] };
-  return data.conversations;
+  const data = await runApi((client) =>
+    client.conversations.list({ query: { search: search === "" ? undefined : search } }),
+  );
+  return [...data.conversations];
 };
 
 export const syncConversations = async (search?: string): Promise<Thread[]> => {
@@ -62,9 +60,7 @@ export const syncConversations = async (search?: string): Promise<Thread[]> => {
 };
 
 export const createConversation = async (): Promise<string> => {
-  const res = await fetch(`${apiBase()}/api/conversations`, { method: "POST" });
-  if (!res.ok) throw new Error(`Failed to create conversation: ${res.status}`);
-  const data = (await res.json()) as { id: string };
+  const data = await runApi((client) => client.conversations.create());
   const now = new Date().toISOString();
   ignoreCacheError(
     updateCachedThread({
@@ -83,15 +79,27 @@ export const fetchConversationMessages = async (
   conversationId: string,
 ): Promise<ThreadWithMessages> => {
   try {
-    const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`);
-    if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
-    const data = (await res.json()) as {
-      conversation: Thread;
-      messages: MessageWithUsage[];
-      threads: unknown[];
-    };
-    ignoreCacheError(setCachedConversation({ thread: data.conversation, messages: data.messages }));
-    return { thread: data.conversation, messages: data.messages };
+    const data = await runApi((client) =>
+      client.conversations.messages({ params: { id: conversationId } }),
+    );
+    const sourceMessages = new Map(data.messages.map((message) => [message.id, message]));
+    const validated = await safeValidateUIMessages({
+      messages: data.messages
+        .filter((message) => message.role !== "summary")
+        .map((message) => ({ id: message.id, role: message.role, parts: message.parts })),
+    });
+    if (!validated.success) throw validated.error;
+    const messages = validated.data.map((message) => {
+      const source = sourceMessages.get(message.id);
+      return {
+        ...message,
+        usage: source?.usage,
+        model: source?.model,
+        createdAt: source?.createdAt,
+      };
+    });
+    ignoreCacheError(setCachedConversation({ thread: data.conversation, messages }));
+    return { thread: data.conversation, messages };
   } catch (error) {
     const cached = await getCachedMessages(conversationId);
     const thread = (await getCachedThreads()).find((item) => item.id === conversationId);
@@ -103,12 +111,9 @@ export const fetchConversationMessages = async (
 };
 
 export const renameConversation = async (conversationId: string, title: string): Promise<void> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/title`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ title }),
-  });
-  if (!res.ok) throw new Error(`Failed to rename conversation: ${res.status}`);
+  await runApi((client) =>
+    client.conversations.rename({ params: { id: conversationId }, payload: { title } }),
+  );
   const threads = await getCachedThreads();
   const existing = threads.find((t) => t.id === conversationId);
   const now = new Date().toISOString();
@@ -133,31 +138,25 @@ export const updateConversationState = async ({
   status?: Thread["status"];
   pinned?: boolean;
 }): Promise<Thread> => {
-  const response = await fetch(`${apiBase()}/api/conversations/${conversationId}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ status, pinned }),
-  });
-  if (!response.ok) throw new Error(`Failed to update conversation: ${response.status}`);
-  const data = (await response.json()) as { conversation: Thread };
+  const data = await runApi((client) =>
+    client.conversations.updateState({
+      params: { id: conversationId },
+      payload: { status, pinned },
+    }),
+  );
   ignoreCacheError(updateCachedThread(data.conversation));
   return data.conversation;
 };
 
 export const cloneConversation = async (conversationId: string): Promise<Thread> => {
-  const response = await fetch(`${apiBase()}/api/conversations/${conversationId}/clone`, {
-    method: "POST",
-  });
-  if (!response.ok) throw new Error(`Failed to clone conversation: ${response.status}`);
-  const data = (await response.json()) as { conversation: Thread };
+  const data = await runApi((client) =>
+    client.conversations.clone({ params: { id: conversationId } }),
+  );
   ignoreCacheError(updateCachedThread(data.conversation));
   return data.conversation;
 };
 
 export const deleteConversation = async (conversationId: string): Promise<void> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(`Failed to delete conversation: ${res.status}`);
+  await runApi((client) => client.conversations.remove({ params: { id: conversationId } }));
   ignoreCacheError(deleteCachedThread(conversationId));
 };

@@ -157,12 +157,15 @@ const conversationMessagesResponse = {
     id: "existing-id",
     title: "Existing chat",
     status: "regular",
+    pinned: false,
     created_at: "2026-07-14T10:00:00.000Z",
     updated_at: "2026-07-14T10:00:00.000Z",
   },
   messages: [
     {
       id: "m1",
+      conversationId: "existing-id",
+      parentId: null,
       role: "user",
       parts: [{ type: "text", text: "hello" }],
       createdAt: "2026-07-14T10:00:00.000Z",
@@ -183,28 +186,35 @@ describe("ChatPage", () => {
     });
     vi.stubGlobal(
       "fetch",
-      vi.fn((url: string) => {
-        if (url.includes("/api/conversations/existing-id/messages")) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => conversationMessagesResponse,
-          } as Response);
-        }
-        if (url.includes("/api/conversations/other-id/messages")) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              ...conversationMessagesResponse,
-              conversation: {
-                ...conversationMessagesResponse.conversation,
-                id: "other-id",
-                title: "Other chat",
-              },
-              messages: [],
+      vi.fn((url: RequestInfo | URL) => {
+        if (String(url).includes("/api/conversations/existing-id/messages")) {
+          return Promise.resolve(
+            new Response(JSON.stringify(conversationMessagesResponse), {
+              headers: { "content-type": "application/json" },
             }),
-          } as Response);
+          );
         }
-        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+        if (String(url).includes("/api/conversations/other-id/messages")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...conversationMessagesResponse,
+                conversation: {
+                  ...conversationMessagesResponse.conversation,
+                  id: "other-id",
+                  title: "Other chat",
+                },
+                messages: [],
+              }),
+              { headers: { "content-type": "application/json" } },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({}), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
       }),
     );
   });

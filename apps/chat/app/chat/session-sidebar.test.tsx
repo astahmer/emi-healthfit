@@ -43,26 +43,29 @@ describe("SessionSidebar", () => {
       id: "thread-1",
       title: "Squat Session Showdown",
       status: "regular",
+      pinned: false,
       created_at: "2026-07-14T11:37:55.245Z",
       updated_at: "2026-07-14T11:42:25.844Z",
     };
 
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url === `${window.location.origin}/api/conversations`) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ conversations: [thread] }),
-        });
+    global.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+      if (String(url) === `${window.location.origin}/api/conversations`) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ conversations: [thread] }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
       }
 
-      if (url === `${window.location.origin}/api/conversations/thread-1/messages`) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ conversation: thread, messages: [], threads: [] }),
-        });
+      if (String(url) === `${window.location.origin}/api/conversations/thread-1/messages`) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ conversation: thread, messages: [], threads: [] }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
       }
 
-      return Promise.resolve({ ok: false, status: 404 });
+      return Promise.resolve(new Response(null, { status: 404 }));
     });
 
     render(<SessionSidebar />, { wrapper: createWrapper() });
@@ -75,10 +78,14 @@ describe("SessionSidebar", () => {
     fireEvent.mouseEnter(link);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        `${window.location.origin}/api/conversations/thread-1/messages`,
-        { signal: undefined },
-      );
+      expect(
+        vi
+          .mocked(global.fetch)
+          .mock.calls.some(
+            ([url]) =>
+              String(url) === `${window.location.origin}/api/conversations/thread-1/messages`,
+          ),
+      ).toBe(true);
     });
   });
 });

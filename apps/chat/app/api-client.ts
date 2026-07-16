@@ -12,6 +12,7 @@ export const runApi = <A, E>(
   Effect.runPromise(
     Effect.flatMap(HttpApiClient.make(EmiApi, { baseUrl: apiBase() }), useClient).pipe(
       Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, globalThis.fetch),
     ),
     options,
   );

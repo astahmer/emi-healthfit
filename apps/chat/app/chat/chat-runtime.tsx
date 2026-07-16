@@ -29,6 +29,7 @@ import { useNotes } from "../notes-context";
 import { getConversationViewMessages } from "./conversation-tree";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import { prepareAttachments } from "./attachments";
+import { runApi } from "../api-client";
 
 export interface ChatRuntimeConfig {
   model: string;
@@ -153,17 +154,10 @@ export const ChatRuntimeProvider = ({
           if (!config.temporary && generationId !== null && conversationId !== null) {
             generationIdRef.current = generationId;
             const method = init?.method?.toUpperCase() ?? "GET";
-            const eventTypes =
+            const eventTypes: ReadonlyArray<DiagnosticEventType> =
               method === "POST" ? ["client.submitted"] : ["client.refreshed", "client.reconnected"];
             for (const type of eventTypes) {
-              void fetch(
-                `/api/conversations/${encodeURIComponent(conversationId)}/diagnostic-events`,
-                {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ generationId, type }),
-                },
-              );
+              void recordDiagnosticEvent({ conversationId, generationId, type });
             }
           }
           return response;
@@ -196,11 +190,7 @@ export const ChatRuntimeProvider = ({
       const conversationId = stateRef.current.context.sessionId;
       const generationId = generationIdRef.current;
       if (config.temporary || conversationId === undefined || generationId === null) return;
-      void fetch(`/api/conversations/${encodeURIComponent(conversationId)}/diagnostic-events`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ generationId, type }),
-      });
+      void recordDiagnosticEvent({ conversationId, generationId, type });
     },
     [config.temporary],
   );
@@ -426,15 +416,12 @@ export const ChatRuntimeProvider = ({
               ...userMessage.parts.filter((part) => part.type === "file"),
             ];
       try {
-        const response = await fetch(
-          `/api/conversations/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(userMessage.id)}`,
-          {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ parts, threadId: config.threadId }),
-          },
+        await runApi((client) =>
+          client.conversations.reviseMessage({
+            params: { id: sessionId, messageId: userMessage.id },
+            payload: { parts, threadId: config.threadId },
+          }),
         );
-        if (!response.ok) throw new Error(`Failed to revise message: ${response.status}`);
         recordClientEvent("client.retried");
         await submitMessage({ parts, replaceMessageId: userMessage.id });
       } catch (error) {
@@ -512,3 +499,26 @@ export const useChatRuntime = (): ChatRuntimeValue => {
   if (context === null) throw new Error("useChatRuntime must be used within ChatRuntimeProvider");
   return context;
 };
+type DiagnosticEventType =
+  | "client.submitted"
+  | "client.disconnected"
+  | "client.reconnected"
+  | "client.stopped"
+  | "client.refreshed"
+  | "client.retried";
+
+const recordDiagnosticEvent = ({
+  conversationId,
+  generationId,
+  type,
+}: {
+  conversationId: string;
+  generationId: string;
+  type: DiagnosticEventType;
+}) =>
+  runApi((client) =>
+    client.conversations.recordDiagnosticEvent({
+      params: { id: conversationId },
+      payload: { generationId, type },
+    }),
+  );

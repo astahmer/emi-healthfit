@@ -2,8 +2,7 @@ import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-
 import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./session-cache";
 import type { UIMessage } from "ai";
 import { z } from "zod";
-
-const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
+import { runApi } from "./api-client";
 
 const conversationSchema = z.object({
   id: z.string(),
@@ -123,9 +122,10 @@ export const fetchConversationMessages = async (
   conversationId: string,
   signal?: AbortSignal,
 ): Promise<ConversationSnapshot> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/messages`, { signal });
-  if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
-  const data: unknown = await res.json();
+  const data = await runApi(
+    (client) => client.conversations.messages({ params: { id: conversationId } }),
+    { signal },
+  );
   const snapshot = decodeConversationSnapshot({ data, conversationId });
   memorySnapshots.set(conversationId, snapshot);
   void setCachedConversationSnapshot({ conversationId, data }).catch(() => undefined);
@@ -146,25 +146,22 @@ export const forkThread = async (
   anchorMessageId: string,
   title?: string,
 ): Promise<ThreadView> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/threads`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ anchorMessageId, title }),
-  });
-  if (!res.ok) throw new Error(`Failed to fork thread: ${res.status}`);
-  return toThread(threadSchema.parse(await res.json()));
+  const thread = await runApi((client) =>
+    client.conversations.forkThread({
+      params: { id: conversationId },
+      payload: { anchorMessageId, title },
+    }),
+  );
+  return toThread(threadSchema.parse(thread));
 };
 
 export const renameConversation = async (
   conversationId: string,
   title: string,
 ): Promise<{ conversationId: string; title: string }> => {
-  const res = await fetch(`${apiBase()}/api/conversations/${conversationId}/title`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ title }),
-  });
-  if (!res.ok) throw new Error(`Failed to rename conversation: ${res.status}`);
+  await runApi((client) =>
+    client.conversations.rename({ params: { id: conversationId }, payload: { title } }),
+  );
   return { conversationId, title };
 };
 
@@ -172,12 +169,7 @@ export const renameThread = async (
   threadId: string,
   title: string,
 ): Promise<{ threadId: string; title: string }> => {
-  const res = await fetch(`${apiBase()}/api/threads/${threadId}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ title }),
-  });
-  if (!res.ok) throw new Error(`Failed to rename thread: ${res.status}`);
+  await runApi((client) => client.threads.update({ params: { id: threadId }, payload: { title } }));
   return { threadId, title };
 };
 
@@ -185,37 +177,32 @@ export const pinThread = async (
   threadId: string,
   pinned: boolean,
 ): Promise<{ threadId: string; pinned: boolean }> => {
-  const res = await fetch(`${apiBase()}/api/threads/${threadId}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ pinned }),
-  });
-  if (!res.ok) throw new Error(`Failed to pin thread: ${res.status}`);
+  await runApi((client) =>
+    client.threads.update({ params: { id: threadId }, payload: { pinned } }),
+  );
   return { threadId, pinned };
 };
 
 export const discardThread = async (threadId: string): Promise<{ threadId: string }> => {
-  const res = await fetch(`${apiBase()}/api/threads/${threadId}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ status: "discarded" }),
-  });
-  if (!res.ok) throw new Error(`Failed to discard thread: ${res.status}`);
+  await runApi((client) =>
+    client.threads.update({ params: { id: threadId }, payload: { status: "discarded" } }),
+  );
   return { threadId };
 };
 
 export const restoreThread = async (threadId: string): Promise<{ threadId: string }> => {
-  const res = await fetch(`${apiBase()}/api/threads/${threadId}`, {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ status: "regular" }),
-  });
-  if (!res.ok) throw new Error(`Failed to restore thread: ${res.status}`);
+  await runApi((client) =>
+    client.threads.update({ params: { id: threadId }, payload: { status: "regular" } }),
+  );
   return { threadId };
 };
 
 export const summarizeThread = async (threadId: string): Promise<{ message: MessageNode }> => {
-  const res = await fetch(`${apiBase()}/api/threads/${threadId}/summarize`, { method: "POST" });
-  if (!res.ok) throw new Error(`Failed to summarize thread: ${res.status}`);
-  return (await res.json()) as { message: MessageNode };
+  const data = await runApi((client) => client.threads.summarize({ params: { id: threadId } }));
+  return {
+    message: toMessage({
+      raw: messageSchema.parse(data.message),
+      conversationId: data.message.conversationId,
+    }),
+  };
 };
