@@ -39,6 +39,20 @@ export interface Conversation {
   updated_at: string;
 }
 
+interface ConversationRow {
+  id: string;
+  title: string | null;
+  status: Conversation["status"];
+  pinned: number;
+  created_at: string;
+  updated_at: string;
+}
+
+const mapConversationRow = (row: ConversationRow): Conversation => ({
+  ...row,
+  pinned: row.pinned === 1,
+});
+
 export interface MessageUsage {
   prompt_tokens?: number | undefined;
   completion_tokens?: number | undefined;
@@ -99,8 +113,8 @@ export const getConversations = (db: QueryDatabaseClient, userId: string, search
         LIMIT 100
       `)
         .bind(userId, term, term)
-        .all<Conversation>();
-      return result.results;
+        .all<ConversationRow>();
+      return result.results.map(mapConversationRow);
     }
 
     const result = yield* db
@@ -111,8 +125,8 @@ export const getConversations = (db: QueryDatabaseClient, userId: string, search
       LIMIT 100
     `)
       .bind(userId)
-      .all<Conversation>();
-    return result.results;
+      .all<ConversationRow>();
+    return result.results.map(mapConversationRow);
   });
 
 export const getConversation = (db: QueryDatabaseClient, userId: string, conversationId: string) =>
@@ -122,8 +136,8 @@ export const getConversation = (db: QueryDatabaseClient, userId: string, convers
       SELECT * FROM conversations WHERE user_id = ? AND id = ?
     `)
       .bind(userId, conversationId)
-      .first<Conversation>();
-    return result ?? null;
+      .first<ConversationRow>();
+    return result === null ? null : mapConversationRow(result);
   });
 
 export const deleteConversation = (

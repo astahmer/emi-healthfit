@@ -11,6 +11,7 @@ import {
   getConversations,
   getThread,
   saveConversationMessages,
+  updateConversationState,
 } from "../src/db/conversations.ts";
 import { getIngestedDataExport, getWorkoutDetails } from "../src/db/fitness.ts";
 import {
@@ -102,6 +103,9 @@ describe("per-user ownership", () => {
     const alice = "user-alice";
     const bob = "user-bob";
     const conversationId = await run(createConversation(db, alice, "Alice chat"));
+    assert.strictEqual((await run(getConversation(db, alice, conversationId)))?.pinned, false);
+    await run(updateConversationState({ db, userId: alice, conversationId, pinned: true }));
+    assert.strictEqual((await run(getConversations(db, alice)))[0]?.pinned, true);
     const [messageId] = await run(
       saveConversationMessages(db, alice, conversationId, null, [
         { role: "user", parts: [{ type: "text", text: "private" }] },
