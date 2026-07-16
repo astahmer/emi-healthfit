@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { UIMessageChunk } from "ai";
+import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import type { QueryDatabaseClient } from "../db/client.ts";
 
 export interface ChatGeneration {
@@ -28,6 +28,15 @@ interface ChatGenerationChunkRow {
 const nowIso = (): string => new Date().toISOString();
 const generationStaleMilliseconds = 5 * 60 * 1_000;
 const generationStaleSqlModifier = "-5 minutes";
+
+export const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => {
+  const parsed: unknown = JSON.parse(value);
+  const validate = uiMessageChunkSchema().validate;
+  if (validate === undefined) throw new Error("UI message chunk validator is unavailable");
+  const result = await validate(parsed);
+  if (!result.success) throw result.error;
+  return result.value;
+};
 
 export const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
   (generation.status === "pending" || generation.status === "streaming") &&
@@ -327,8 +336,10 @@ export const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(functio
     )
     .bind(userId, generationId, afterSequence)
     .all<ChatGenerationChunkRow>();
-  return result.results.map((row) => ({
-    sequence: row.sequence,
-    chunk: JSON.parse(row.chunk) as UIMessageChunk,
-  }));
+  return yield* Effect.forEach(result.results, (row) =>
+    Effect.promise(async () => ({
+      sequence: row.sequence,
+      chunk: await decodeGenerationChunk(row.chunk),
+    })),
+  );
 });

@@ -39,9 +39,27 @@ import {
 } from "../ingest/data-transfer.ts";
 import { parseHealthExport } from "../ingest/health.ts";
 import { parseHevyCsv } from "../ingest/hevy.ts";
+import { decodeSuggestions } from "../http-api-codecs.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
+const ChatRouteBody = Schema.Struct({
+  message: Schema.optional(Schema.String),
+  coachMode: Schema.optional(Schema.Boolean),
+});
+const SuggestionsConfig = Schema.Struct({
+  provider: Schema.optional(Schema.String),
+  apiKey: Schema.optional(Schema.String),
+  baseUrl: Schema.optional(Schema.String),
+  model: Schema.optional(Schema.String),
+});
+const SuggestionsRequest = Schema.Struct({
+  threadId: Schema.optional(Schema.String),
+  lastAssistantText: Schema.optional(Schema.String),
+  lastUserText: Schema.optional(Schema.String),
+  config: Schema.optional(SuggestionsConfig),
+});
+type SuggestionsConfigBody = typeof SuggestionsConfig.Type;
 
 const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
@@ -182,10 +200,8 @@ export const handleChatRoute = (
   Effect.gen(function* () {
     const user = yield* CurrentUser;
     const text = yield* request.text;
-    const body = JSON.parse(text || "{}") as {
-      message?: string;
-      coachMode?: boolean;
-    };
+    const raw: unknown = JSON.parse(text || "{}");
+    const body = Schema.decodeUnknownSync(ChatRouteBody)(raw);
     const message = body.message?.trim();
 
     if (message === undefined || message === "") {
@@ -201,20 +217,6 @@ export const handleChatRoute = (
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
   );
 
-interface SuggestionsConfigBody {
-  provider?: string;
-  apiKey?: string;
-  baseUrl?: string;
-  model?: string;
-}
-
-interface SuggestionsRequestBody {
-  threadId?: string;
-  lastAssistantText?: string;
-  lastUserText?: string;
-  config?: SuggestionsConfigBody;
-}
-
 const resolveSuggestionsApiKey = (
   env: Record<string, unknown>,
   config?: SuggestionsConfigBody,
@@ -228,7 +230,8 @@ export const handleSuggestions = Effect.fn("handleSuggestions")(
   function* (db: QueryDatabaseClient, env: Record<string, unknown>, request: HttpServerRequest) {
     const user = yield* CurrentUser;
     const text = yield* request.text;
-    const body = JSON.parse(text || "{}") as SuggestionsRequestBody;
+    const raw: unknown = JSON.parse(text || "{}");
+    const body = Schema.decodeUnknownSync(SuggestionsRequest)(raw);
 
     const lastAssistantText = body.lastAssistantText?.trim();
     if (lastAssistantText === undefined || lastAssistantText === "") {
@@ -242,7 +245,7 @@ export const handleSuggestions = Effect.fn("handleSuggestions")(
     const cached = yield* getSuggestionsById(db, user.id, key);
     if (cached !== null) {
       return yield* HttpServerResponse.json({
-        suggestions: JSON.parse(cached.suggestions) as string[],
+        suggestions: decodeSuggestions(cached.suggestions),
       });
     }
 
@@ -350,7 +353,7 @@ export const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
 export const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const raw = JSON.parse((yield* request.text) || "{}") as unknown;
+    const raw: unknown = JSON.parse((yield* request.text) || "{}");
     const parsed = ingestedDataExportSchema.safeParse(raw);
     if (!parsed.success) {
       return yield* HttpServerResponse.json(
@@ -385,7 +388,7 @@ export const handlePrivacyUpdate = (
 ) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const raw = JSON.parse((yield* request.text) || "{}") as unknown;
+    const raw: unknown = JSON.parse((yield* request.text) || "{}");
     const parsed = Schema.decodeUnknownOption(
       Schema.Struct({
         rawUploadRetentionDays: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 3650 })),

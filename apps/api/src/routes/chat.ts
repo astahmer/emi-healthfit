@@ -54,6 +54,7 @@ import type { QueryDatabaseClient } from "../db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { executeTool, tools as staticToolDefinitions } from "../tools/api.ts";
 import { corsHeaders } from "./http.ts";
+import { decodeMessageParts } from "../http-api-codecs.ts";
 
 const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
   const pathname = urlOrPath.startsWith("http") ? new URL(urlOrPath).pathname : urlOrPath;
@@ -273,7 +274,7 @@ export const handleAiSdkChat = (
     const user = yield* CurrentUser;
     const requestStartedAt = performance.now();
     const text = yield* request.text;
-    const raw = JSON.parse(text || "{}") as unknown;
+    const raw: unknown = JSON.parse(text || "{}");
     const parsed = Schema.decodeUnknownOption(ChatStreamRequestSchema)(raw);
 
     if (Option.isNone(parsed)) {
@@ -291,7 +292,7 @@ export const handleAiSdkChat = (
     }
 
     const chatRequest: ChatStreamRequest = {
-      ...(parsed.value as ChatStreamRequest),
+      ...parsed.value,
       messages: validatedMessages.data,
     };
     const apiKey =
@@ -378,9 +379,21 @@ export const handleAiSdkChat = (
               ...new Map([...contextRows, ...branchRows].map((row) => [row.id, row])).values(),
             ].sort((left, right) => left.created_at.localeCompare(right.created_at));
           });
-    const existingMessages = existingRows.map((row) => ({
-      role: row.role as "system" | "user" | "assistant",
-      parts: JSON.parse(row.parts) as unknown[],
+    const providerMessageRole = Schema.Literals(["system", "user", "assistant"]);
+    const storedMessages = existingRows
+      .filter((row) => row.role !== "summary")
+      .map((row) => ({
+        id: row.id,
+        role: Schema.decodeUnknownSync(providerMessageRole)(row.role),
+        parts: [...decodeMessageParts(row.parts)],
+      }));
+    const validatedExistingMessages = yield* Effect.promise(() =>
+      safeValidateUIMessages<UIMessage>({ messages: storedMessages }),
+    );
+    if (!validatedExistingMessages.success) throw validatedExistingMessages.error;
+    const existingMessages = validatedExistingMessages.data.map((message) => ({
+      role: message.role,
+      parts: message.parts,
     }));
 
     const requestedMessages = chatRequest.messages.map((message) => ({
@@ -433,7 +446,7 @@ export const handleAiSdkChat = (
 
     const requestWithHistory: ChatStreamRequest = {
       ...requestWithKey,
-      messages: [...existingMessages, ...incomingMessages] as ChatStreamRequest["messages"],
+      messages: [...existingMessages, ...incomingMessages],
       sessionId,
       tools: toolRecord,
     };
@@ -449,7 +462,7 @@ export const handleAiSdkChat = (
               user.id,
               sessionId,
               branchParentId,
-              incomingMessages as Array<{ role: string; parts: unknown[] }>,
+              incomingMessages,
             )
           : [];
       if (chatRequest.replaceMessageId === undefined) {
