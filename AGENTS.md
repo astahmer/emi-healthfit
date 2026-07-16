@@ -1,10 +1,11 @@
 ---
-applyTo: '**'
+applyTo: "**"
 alwaysApply: true
 description: Global agent instructions — caveman, ast-outline, rtk, code style
 ---
 
 <!-- ast-outline:start -->
+
 ## Code exploration — prefer `ast-outline` over full reads
 
 For `.cs`, `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp`, `.hh`, `.py`, `.pyi`,
@@ -109,6 +110,7 @@ N more dependencies live inside `if` / `try` / loop / function bodies
 
 Fall back to a full read only when you need context beyond the body
 `show` returned. `ast-outline help` for flags.
+
 <!-- ast-outline:end -->
 
 # Caveman
@@ -137,7 +139,9 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 
 ## Effect
 
-- Read the Effect reference repository under `.references/effect` for API examples.
+- Read the Effect reference repository under `.references/effect` for API examples when present. If
+  that clone is absent, inspect the pinned installed source under `apps/api/node_modules/effect` and
+  confirm the installed major version before choosing request-local or FiberRef APIs.
 - Use `Effect.fn` and `Effect.withSpan` for effectful functions.
 - Prefer Effect / @effect/platform APIs; fallback to `Effect.promise` when necessary.
 - Use qualified errors with `Schema.TaggedError`.
@@ -169,8 +173,8 @@ pnpm fmt
 
 Code should be self-documenting. If a comment is needed to explain WHAT the code does, refactor instead.
 
-
 <!-- rtk-instructions v2 -->
+
 # RTK — Token-Optimized CLI
 
 Always prefix shell commands with `rtk`:
@@ -182,4 +186,5 @@ cargo test                 rtk cargo test
 ```
 
 Meta: `rtk gain`, `rtk gain --history`, `rtk discover`, `rtk proxy <cmd>`
+
 <!-- /rtk-instructions -->
