@@ -305,6 +305,17 @@ export interface ToolResultContentProps {
 
 const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, className }) => {
   const parsed = parseResult(result);
+  if (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    Reflect.get(parsed, "type") === "error-text"
+  ) {
+    return (
+      <p className={cn("text-sm text-destructive", className)}>
+        {String(Reflect.get(parsed, "value") ?? "Tool failed")}
+      </p>
+    );
+  }
 
   if (toolName === "get_workout_history" && isWorkoutHistory(parsed)) {
     return <WorkoutHistoryTable items={parsed} />;

@@ -5,6 +5,7 @@ import * as Stream from "effect/Stream";
 import * as Tool from "effect/unstable/ai/Tool";
 import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
+import { z } from "zod";
 import { buildChatContext } from "../chat/context.ts";
 import {
   createThread,
@@ -16,6 +17,7 @@ import {
   getThreadMessages,
   getThreads,
   getWorkoutHistory,
+  getWorkoutDetails,
   getWorkoutStreak,
   searchMemories,
   summarizeThread,
@@ -57,6 +59,18 @@ const GetWorkoutHistory = Tool.make("get_workout_history", {
         description: "Maximum number of workouts to return (default 10).",
       }),
     ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetWorkoutDetails = Tool.make("get_workout_details", {
+  description:
+    "Get one owned workout by stable session id, including exercises, sets, reps, weights, RPE, and calculated volume.",
+  parameters: Schema.Struct({
+    sessionId: Schema.String.annotate({
+      description: "Stable session_id returned by get_workout_history.",
+    }),
   }),
   success: Schema.Unknown,
   failure: Schema.Unknown,
@@ -180,10 +194,58 @@ const RenderComponent = Tool.make("render_component", {
   failure: Schema.Unknown,
 });
 
+const componentSchemas: Record<string, z.ZodType> = {
+  WorkoutTable: z.strictObject({
+    workouts: z.array(
+      z.strictObject({
+        session_id: z.string(),
+        title: z.string().nullable(),
+        start_time: z.string(),
+        total_volume_kg: z.number().nullable(),
+        exercise_count: z.number(),
+        set_count: z.number(),
+      }),
+    ),
+  }),
+  ExerciseProgress: z.strictObject({
+    exercise_title: z.string(),
+    weeks: z.number(),
+    workouts: z.array(z.record(z.string(), z.unknown())),
+    personalRecord: z.record(z.string(), z.unknown()),
+  }),
+  RecoveryCard: z.strictObject({
+    today: z.string().optional(),
+    label: z.string().optional(),
+    explanation: z.string().optional(),
+    lastWorkout: z.string().nullable().optional(),
+    sleepAverageHours: z.number().nullable().optional(),
+    recentWorkoutCount: z.number().optional(),
+    recentVolume: z.number().nullable().optional(),
+  }),
+  MetricCard: z.strictObject({
+    label: z.string(),
+    value: z.union([z.string(), z.number()]),
+    unit: z.string().optional(),
+    trend: z.enum(["up", "down", "flat"]).optional(),
+  }),
+  SetList: z.strictObject({
+    sets: z.array(
+      z.strictObject({
+        exercise: z.string(),
+        weightKg: z.number().nullable(),
+        reps: z.number().nullable(),
+        rpe: z.number().nullable().optional(),
+        setType: z.string().nullable().optional(),
+      }),
+    ),
+  }),
+};
+
 const FitnessToolkit = Toolkit.make(
   GetSummary,
   GetRecovery,
   GetWorkoutHistory,
+  GetWorkoutDetails,
   GetExerciseProgress,
   GetSleepTrend,
   GetWorkoutStreak,
@@ -295,6 +357,17 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     get_workout_history: Effect.fn("FitnessToolkit.getWorkoutHistory")(({ limit }) =>
       getWorkoutHistory(db, userId, limit ?? 10).pipe(Effect.provideContext(services)),
     ),
+    get_workout_details: Effect.fn("FitnessToolkit.getWorkoutDetails")(function* ({ sessionId }) {
+      const details = yield* getWorkoutDetails({ db, userId, sessionId }).pipe(
+        Effect.provideContext(services),
+      );
+      if (details === null) {
+        return yield* Effect.fail(
+          toolError({ tool: "get_workout_details", message: "Workout session not found." }),
+        );
+      }
+      return details;
+    }),
     get_exercise_progress: Effect.fn("FitnessToolkit.getExerciseProgress")(
       ({ exercise_title, weeks }) =>
         getExerciseProgress(db, userId, exercise_title, weeks ?? 8).pipe(
@@ -372,16 +445,32 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
           tool: "summarize_to_message",
         }),
     ),
-    render_component: Effect.fn("FitnessToolkit.renderComponent")(({ component, props }) =>
-      Effect.succeed({
+    render_component: Effect.fn("FitnessToolkit.renderComponent")(function* ({ component, props }) {
+      const schema = componentSchemas[component];
+      if (schema === undefined) {
+        return yield* Effect.fail(
+          toolError({ tool: "render_component", message: `Unknown component: ${component}.` }),
+        );
+      }
+      const parsed = schema.safeParse(props);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        return yield* Effect.fail(
+          toolError({
+            tool: "render_component",
+            message: `Invalid ${component} props at ${issue?.path.join(".") || "root"}: ${issue?.message ?? "schema mismatch"}.`,
+          }),
+        );
+      }
+      return {
         spec: {
           root: "root",
           elements: {
-            root: { type: component, props },
+            root: { type: component, props: parsed.data },
           },
         },
-      }),
-    ),
+      };
+    }),
   });
 });
 

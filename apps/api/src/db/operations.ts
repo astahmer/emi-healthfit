@@ -386,6 +386,95 @@ export const getWorkoutHistory = (db: QueryDatabaseClient, userId: string, limit
     return result.results;
   });
 
+interface WorkoutDetailSetRow {
+  session_id: string;
+  session_title: string | null;
+  start_time: string;
+  end_time: string | null;
+  duration_sec: number | null;
+  session_volume_kg: number | null;
+  exercise_title: string;
+  set_index: number;
+  set_type: string | null;
+  weight_kg: number | null;
+  reps: number | null;
+  rpe: number | null;
+}
+
+export const getWorkoutDetails = Effect.fn("workout.details")(function* ({
+  db,
+  userId,
+  sessionId,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  sessionId: string;
+}) {
+  const result = yield* db
+    .prepare(`
+      SELECT
+        s.session_id,
+        s.title AS session_title,
+        s.start_time,
+        s.end_time,
+        s.duration_sec,
+        s.total_volume_kg AS session_volume_kg,
+        st.exercise_title,
+        st.set_index,
+        st.set_type,
+        st.weight_kg,
+        st.reps,
+        st.rpe
+      FROM hevy_sessions s
+      JOIN hevy_sets st ON st.user_id = s.user_id AND st.session_id = s.session_id
+      WHERE s.user_id = ? AND s.session_id = ?
+      ORDER BY st.exercise_title, st.set_index
+    `)
+    .bind(userId, sessionId)
+    .all<WorkoutDetailSetRow>();
+  const first = result.results[0];
+  if (first === undefined) return null;
+
+  const exerciseMap = new Map<
+    string,
+    { title: string; volumeKg: number; sets: Array<Omit<WorkoutDetailSetRow, "exercise_title">> }
+  >();
+  for (const row of result.results) {
+    const exercise = exerciseMap.get(row.exercise_title) ?? {
+      title: row.exercise_title,
+      volumeKg: 0,
+      sets: [],
+    };
+    exercise.sets.push({
+      session_id: row.session_id,
+      session_title: row.session_title,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      duration_sec: row.duration_sec,
+      session_volume_kg: row.session_volume_kg,
+      set_index: row.set_index,
+      set_type: row.set_type,
+      weight_kg: row.weight_kg,
+      reps: row.reps,
+      rpe: row.rpe,
+    });
+    exercise.volumeKg += (row.weight_kg ?? 0) * (row.reps ?? 0);
+    exerciseMap.set(row.exercise_title, exercise);
+  }
+
+  return {
+    sessionId: first.session_id,
+    title: first.session_title,
+    startTime: first.start_time,
+    endTime: first.end_time,
+    durationSeconds: first.duration_sec,
+    totalVolumeKg:
+      first.session_volume_kg ??
+      [...exerciseMap.values()].reduce((total, exercise) => total + exercise.volumeKg, 0),
+    exercises: [...exerciseMap.values()],
+  };
+});
+
 export interface ExerciseProgressSet {
   session_id: string;
   title: string | null;

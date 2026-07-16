@@ -120,7 +120,16 @@ const ToolPart = ({ part, isStreaming }: { part: MessagePartValue; isStreaming: 
   const input =
     Reflect.get(part, "input") ?? Reflect.get(part, "args") ?? Reflect.get(part, "argsText");
   const output = Reflect.get(part, "output") ?? Reflect.get(part, "result");
-  const hasOutput = output !== undefined || Reflect.get(part, "state") === "output-available";
+  const state = Reflect.get(part, "state");
+  const outcome = Reflect.get(part, "outcome");
+  const errorOutput =
+    isRecord(output) &&
+    ((Reflect.get(output, "type") === "error-text" &&
+      typeof Reflect.get(output, "value") === "string") ||
+      typeof Reflect.get(output, "error") === "string");
+  const isFailed = state === "output-error" || outcome === "error" || errorOutput;
+  const hasOutput =
+    output !== undefined || state === "output-available" || state === "output-error";
   const isRunning = isStreaming && !hasOutput;
 
   return (
@@ -133,7 +142,7 @@ const ToolPart = ({ part, isStreaming }: { part: MessagePartValue; isStreaming: 
         )}
         <span>{toolName.replaceAll("_", " ")}</span>
         <span className="ms-auto font-normal opacity-70">
-          {isRunning ? "Running" : "Completed"}
+          {isRunning ? "Running" : isFailed ? "Failed" : "Completed"}
         </span>
       </summary>
       <div className="border-t px-3 py-2">
@@ -692,9 +701,28 @@ export const Thread = ({
             className="max-h-48 min-h-11 w-full min-w-0 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none sm:min-h-14 sm:px-3"
           />
           {runtime.error !== null && (
-            <div className="mx-2 mb-2 flex items-center justify-between rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               <span>{runtime.error.message}</span>
-              <button type="button" onClick={runtime.clearError}>
+              {runtime.messages.some((message) => message.role === "user") && (
+                <button
+                  type="button"
+                  className="ms-auto font-medium underline"
+                  onClick={() => {
+                    const lastMessage = runtime.messages.at(-1);
+                    if (lastMessage !== undefined)
+                      void runtime.revise({ messageId: lastMessage.id });
+                  }}
+                >
+                  Retry last turn
+                </button>
+              )}
+              <button
+                type="button"
+                className={
+                  runtime.messages.some((message) => message.role === "user") ? "" : "ms-auto"
+                }
+                onClick={runtime.clearError}
+              >
                 Dismiss
               </button>
             </div>
