@@ -2,22 +2,24 @@ import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
 import { Created, Deleted, Identifier, StandardErrors } from "./common.ts";
 
-export class Conversation extends Schema.Class<Conversation>("Conversation")({
+export const Conversation = Schema.Struct({
   id: Schema.String,
   title: Schema.NullOr(Schema.String),
   status: Schema.Literals(["regular", "archived"]),
   pinned: Schema.Boolean,
   created_at: Schema.String,
   updated_at: Schema.String,
-}) {}
+});
+export type Conversation = typeof Conversation.Type;
 
-export class MessageUsage extends Schema.Class<MessageUsage>("MessageUsage")({
+export const MessageUsage = Schema.Struct({
   promptTokens: Schema.NullOr(Schema.Number),
   completionTokens: Schema.NullOr(Schema.Number),
   totalTokens: Schema.NullOr(Schema.Number),
-}) {}
+});
+export type MessageUsage = typeof MessageUsage.Type;
 
-export class Message extends Schema.Class<Message>("Message")({
+export const Message = Schema.Struct({
   id: Schema.String,
   conversationId: Schema.String,
   parentId: Schema.NullOr(Schema.String),
@@ -26,9 +28,10 @@ export class Message extends Schema.Class<Message>("Message")({
   createdAt: Schema.String,
   model: Schema.optional(Schema.String),
   usage: Schema.optional(MessageUsage),
-}) {}
+});
+export type Message = typeof Message.Type;
 
-export class Thread extends Schema.Class<Thread>("Thread")({
+const ThreadFields = {
   id: Schema.String,
   conversation_id: Schema.String,
   anchor_message_id: Schema.String,
@@ -37,11 +40,16 @@ export class Thread extends Schema.Class<Thread>("Thread")({
   pinned: Schema.Boolean,
   created_at: Schema.String,
   updated_at: Schema.String,
-}) {}
+};
 
-export class ThreadWithMessages extends Thread.extend<ThreadWithMessages>("ThreadWithMessages")({
+export const Thread = Schema.Struct(ThreadFields);
+export type Thread = typeof Thread.Type;
+
+export const ThreadWithMessages = Schema.Struct({
+  ...ThreadFields,
   message_ids: Schema.Array(Schema.String),
-}) {}
+});
+export type ThreadWithMessages = typeof ThreadWithMessages.Type;
 
 const ConversationResponse = Schema.Struct({ conversation: Conversation });
 const ConversationSnapshot = Schema.Struct({

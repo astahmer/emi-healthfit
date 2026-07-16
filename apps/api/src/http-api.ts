@@ -1,4 +1,4 @@
-import { EmiApi } from "@emi/api-contract";
+import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/api-contract";
 import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
@@ -41,6 +41,22 @@ const requireIdentifier = (identifier: string | null): string => {
   return identifier;
 };
 
+const toApiNote = (note: ApiNote): ApiNote => ({
+  id: note.id,
+  content: note.content,
+  created_at: note.created_at,
+  updated_at: note.updated_at,
+});
+
+const toApiMemory = (memory: ApiMemory): ApiMemory => ({
+  id: memory.id,
+  content: memory.content,
+  source: memory.source,
+  thread_id: memory.thread_id,
+  created_at: memory.created_at,
+  rank: memory.rank,
+});
+
 const notesHandlers = ({
   db,
   runtimeContext,
@@ -59,7 +75,7 @@ const notesHandlers = ({
             query.search === undefined
               ? yield* getNotes(db, user.id, limit)
               : yield* searchNotes(db, user.id, query.search, limit);
-          return { notes };
+          return { notes: notes.map(toApiNote) };
         }, Effect.provide(runtimeContext)),
       )
       .handle(
@@ -106,7 +122,7 @@ const memoriesHandlers = ({
             query.search === undefined
               ? yield* getMemories(db, user.id, limit)
               : yield* searchMemories(db, user.id, query.search, limit);
-          return { memories };
+          return { memories: memories.map(toApiMemory) };
         }, Effect.provide(runtimeContext)),
       )
       .handle(

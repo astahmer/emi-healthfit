@@ -15,6 +15,7 @@ import {
   updateRawUploadRetentionDays,
 } from "./db/ingested-data.ts";
 import { withInternalError } from "./http-api-errors.ts";
+import { decodeSuggestions } from "./http-api-codecs.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
@@ -77,7 +78,7 @@ export const suggestionsHandlers = ({
           const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
           const cached = yield* getSuggestionsById(db, user.id, key);
           if (cached !== null) {
-            return { suggestions: JSON.parse(cached.suggestions) as string[] };
+            return { suggestions: decodeSuggestions(cached.suggestions) };
           }
           const apiKey = resolveSuggestionsApiKey({ env, config: payload.config });
           if (apiKey === "") return { suggestions: [] };

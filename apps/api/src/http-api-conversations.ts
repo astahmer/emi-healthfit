@@ -1,12 +1,11 @@
 import {
   BadRequest,
-  Conversation as ApiConversation,
   EmiApi,
-  Message as ApiMessage,
-  MessageUsage as ApiMessageUsage,
   NotFound,
-  Thread as ApiThread,
-  ThreadWithMessages as ApiThreadWithMessages,
+  type Conversation as ApiConversation,
+  type Message as ApiMessage,
+  type Thread as ApiThread,
+  type ThreadWithMessages as ApiThreadWithMessages,
 } from "@emi/api-contract";
 import type { RuntimeContext } from "alchemy";
 import type * as Context from "effect/Context";
@@ -43,14 +42,30 @@ import {
 } from "./db/conversations.ts";
 import type { QueryDatabaseClient } from "./db/client.ts";
 import { insertMemory } from "./db/memories.ts";
+import { decodeMessageParts, textFromMessageParts } from "./http-api-codecs.ts";
 import { withInternalError } from "./http-api-errors.ts";
 
 const MessageRole = Schema.Literals(["user", "assistant", "system", "summary"]);
 
-const toApiConversation = (conversation: Conversation): ApiConversation =>
-  new ApiConversation(conversation);
+const toApiConversation = (conversation: Conversation): ApiConversation => ({
+  id: conversation.id,
+  title: conversation.title,
+  status: conversation.status,
+  pinned: conversation.pinned,
+  created_at: conversation.created_at,
+  updated_at: conversation.updated_at,
+});
 
-const toApiThread = (thread: Thread): ApiThread => new ApiThread(thread);
+const toApiThread = (thread: Thread): ApiThread => ({
+  id: thread.id,
+  conversation_id: thread.conversation_id,
+  anchor_message_id: thread.anchor_message_id,
+  title: thread.title,
+  status: thread.status,
+  pinned: thread.pinned,
+  created_at: thread.created_at,
+  updated_at: thread.updated_at,
+});
 
 const toApiThreadWithMessages = ({
   thread,
@@ -58,11 +73,10 @@ const toApiThreadWithMessages = ({
 }: {
   thread: Thread;
   messageIds: string[];
-}): ApiThreadWithMessages =>
-  new ApiThreadWithMessages({
-    ...thread,
-    message_ids: messageIds,
-  });
+}): ApiThreadWithMessages => ({
+  ...toApiThread(thread),
+  message_ids: messageIds,
+});
 
 const rowToMessage = (row: {
   id: string;
@@ -75,24 +89,25 @@ const rowToMessage = (row: {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   total_tokens: number | null;
-}) =>
-  new ApiMessage({
+}): ApiMessage => {
+  return {
     id: row.id,
     conversationId: row.conversation_id,
     parentId: row.parent_id,
     role: Schema.decodeUnknownSync(MessageRole)(row.role),
-    parts: JSON.parse(row.parts) as unknown[],
+    parts: decodeMessageParts(row.parts),
     createdAt: row.created_at,
     model: row.model ?? undefined,
     usage:
       row.prompt_tokens !== null || row.completion_tokens !== null || row.total_tokens !== null
-        ? new ApiMessageUsage({
+        ? {
             promptTokens: row.prompt_tokens,
             completionTokens: row.completion_tokens,
             totalTokens: row.total_tokens,
-          })
+          }
         : undefined,
-  });
+  };
+};
 
 export const conversationsHandlers = ({
   db,
@@ -390,13 +405,11 @@ export const threadsHandlers = ({
             }
             const rows = yield* getThreadMessages(db, user.id, params.id);
             const messages = rows
-              .filter((row) => row.role !== "summary")
-              .map((row) => ({
-                role: row.role,
-                text: (JSON.parse(row.parts) as Array<{ type?: string; text?: string }>)
-                  .filter((part) => part.type === "text" && typeof part.text === "string")
-                  .map((part) => part.text)
-                  .join("\n"),
+              .map(rowToMessage)
+              .filter((message) => message.role !== "summary")
+              .map((message) => ({
+                role: message.role,
+                text: textFromMessageParts(message.parts),
               }))
               .filter((message) => message.text.trim() !== "");
             const apiKey = env.OPENAI_API_KEY === undefined ? "" : String(env.OPENAI_API_KEY);

@@ -2,21 +2,23 @@ import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
 import { Content, Created, Deleted, Identifier, Limit } from "./common.ts";
 
-export class Note extends Schema.Class<Note>("Note")({
+export const Note = Schema.Struct({
   id: Schema.String,
   content: Schema.String,
   created_at: Schema.String,
   updated_at: Schema.String,
-}) {}
+});
+export type Note = typeof Note.Type;
 
-export class Memory extends Schema.Class<Memory>("Memory")({
+export const Memory = Schema.Struct({
   id: Schema.String,
   content: Schema.String,
   source: Schema.NullOr(Schema.String),
   thread_id: Schema.NullOr(Schema.String),
   created_at: Schema.String,
   rank: Schema.optional(Schema.Number),
-}) {}
+});
+export type Memory = typeof Memory.Type;
 
 export class NotesApi extends HttpApiGroup.make("notes")
   .add(
