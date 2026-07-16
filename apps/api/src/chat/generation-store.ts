@@ -26,10 +26,12 @@ interface ChatGenerationChunkRow {
 }
 
 const nowIso = (): string => new Date().toISOString();
+const generationStaleMilliseconds = 5 * 60 * 1_000;
+const generationStaleSqlModifier = "-5 minutes";
 
 export const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
   (generation.status === "pending" || generation.status === "streaming") &&
-  now - new Date(generation.updated_at).getTime() >= 120_000;
+  now - new Date(generation.updated_at).getTime() >= generationStaleMilliseconds;
 
 export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
   db,
@@ -216,9 +218,9 @@ export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(fu
 }) {
   const result = yield* db
     .prepare(
-      "UPDATE chat_generations SET status = 'timed_out', error = 'Generation timed out', finish_reason = 'timeout', finished_at = ?, updated_at = ? WHERE user_id = ? AND status IN ('pending', 'streaming') AND datetime(updated_at) < datetime('now', '-2 minutes')",
+      "UPDATE chat_generations SET status = 'timed_out', error = 'Generation timed out', finish_reason = 'timeout', finished_at = ?, updated_at = ? WHERE user_id = ? AND status IN ('pending', 'streaming') AND datetime(updated_at) < datetime('now', ?)",
     )
-    .bind(nowIso(), nowIso(), userId)
+    .bind(nowIso(), nowIso(), userId, generationStaleSqlModifier)
     .run();
   return result.meta.changes;
 });

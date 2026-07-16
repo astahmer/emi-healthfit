@@ -21,8 +21,14 @@ const generation = (updatedAt: string, status: ChatGeneration["status"] = "strea
 });
 
 describe("generation recovery", () => {
-  it("expires a streaming generation after two silent minutes", () => {
-    const now = Date.parse("2026-07-15T12:02:00.000Z");
+  it("keeps a streaming generation alive during a four-minute provider pause", () => {
+    const now = Date.parse("2026-07-15T12:04:00.000Z");
+
+    assert.strictEqual(isGenerationStale(generation("2026-07-15T12:00:00.000Z"), now), false);
+  });
+
+  it("expires a streaming generation after five silent minutes", () => {
+    const now = Date.parse("2026-07-15T12:05:00.000Z");
 
     assert.strictEqual(isGenerationStale(generation("2026-07-15T12:00:00.000Z"), now), true);
     assert.strictEqual(isGenerationStale(generation("2026-07-15T12:00:01.000Z"), now), false);

@@ -12,7 +12,6 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { CurrentUser } from "../auth/request-auth.ts";
 import {
   createChatStream,
-  generateSuggestions,
   generateThreadSummary,
   generateThreadTitle,
   type ChatStreamRequest,
@@ -36,6 +35,7 @@ import {
   type ChatGeneration,
 } from "../chat/generation-store.ts";
 import { createGenerationReplayStream } from "../chat/generation-replay.ts";
+import { resolveGenerationTerminalState } from "../chat/generation-terminal-state.ts";
 import { getOrphanUserMessageId } from "../chat/orphan-turn.ts";
 import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
 import { createChatStreamResponse } from "../chat/ui-message-stream-response.ts";
@@ -44,14 +44,11 @@ import {
   createConversation,
   getConversation,
   getConversationMessages,
-  getSuggestionsById,
   getThread,
   getThreadMessages,
-  hashSuggestionsKey,
   renameConversation,
   reviseConversationMessage,
   saveConversationMessages,
-  saveSuggestions,
 } from "../db/conversations.ts";
 import type { QueryDatabaseClient } from "../db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
@@ -212,28 +209,6 @@ const getFirstUserText = (
 ): string | undefined => {
   for (const message of messages) {
     if (message.role !== "user") continue;
-    for (const part of message.parts) {
-      if (
-        typeof part === "object" &&
-        part !== null &&
-        "type" in part &&
-        part.type === "text" &&
-        "text" in part
-      ) {
-        const text = part.text;
-        if (typeof text === "string" && text.trim() !== "") return text.trim();
-      }
-    }
-  }
-  return undefined;
-};
-
-const getLastUserText = (
-  messages: Array<{ role: string; parts: unknown[] }>,
-): string | undefined => {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message === undefined || message.role !== "user") continue;
     for (const part of message.parts) {
       if (
         typeof part === "object" &&
@@ -492,6 +467,9 @@ export const handleAiSdkChat = (
     }
 
     const services = yield* Effect.context<RuntimeContext>();
+    const executionContext = isTemporary
+      ? undefined
+      : yield* Cloudflare.Workers.WorkerExecutionContext;
     const generationId = crypto.randomUUID();
     const requestId = request.headers["x-request-id"] ?? crypto.randomUUID();
     const traceId = request.headers["x-trace-id"] ?? requestId;
@@ -710,51 +688,31 @@ export const handleAiSdkChat = (
                 });
               }
 
-              if (!isTemporary) {
-                const firstUserText = getFirstUserText(incomingMessages);
-                const conversation = yield* getConversation(db, user.id, sessionId);
-                const needsTitle =
-                  conversation !== null &&
-                  (conversation.title === null || conversation.title === "");
-
-                if (needsTitle && firstUserText !== undefined) {
-                  const title = yield* Effect.promise(() =>
-                    generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
-                  );
-                  yield* renameConversation(db, user.id, sessionId, title);
-                }
-
-                const lastUserText = getLastUserText(requestWithHistory.messages);
-                const finalAssistantText =
-                  event.text.trim() !== ""
-                    ? event.text
-                    : assistantParts
-                        .filter(
-                          (part): part is { type: "text"; text: string } =>
-                            typeof part === "object" &&
-                            part !== null &&
-                            "type" in part &&
-                            part.type === "text" &&
-                            "text" in part &&
-                            typeof part.text === "string",
-                        )
-                        .map((part) => part.text)
-                        .join("\n");
-                if (finalAssistantText === "") return;
-                const key = yield* hashSuggestionsKey(finalAssistantText, lastUserText);
-                const cached = yield* getSuggestionsById(db, user.id, key);
-                if (cached !== null) return;
-
-                const suggestions = yield* Effect.promise(() =>
-                  generateSuggestions({
-                    apiKey,
-                    baseUrl: chatRequest.config.baseUrl,
-                    lastAssistantText: finalAssistantText,
-                    lastUserText,
-                  }),
-                );
-                yield* saveSuggestions(db, user.id, key, suggestions);
-              }
+              if (executionContext === undefined) return;
+              const firstUserText = getFirstUserText(incomingMessages);
+              if (firstUserText === undefined) return;
+              executionContext.waitUntil(
+                Effect.runPromiseWith(services)(
+                  Effect.gen(function* () {
+                    const conversation = yield* getConversation(db, user.id, sessionId);
+                    if (
+                      conversation === null ||
+                      (conversation.title !== null && conversation.title !== "")
+                    )
+                      return;
+                    const title = yield* Effect.promise(() =>
+                      generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
+                    );
+                    yield* renameConversation(db, user.id, sessionId, title);
+                  }).pipe(
+                    Effect.catchCause((cause) =>
+                      Effect.logError("chat.generation.title.failure").pipe(
+                        Effect.annotateLogs({ sessionId, error: Cause.pretty(cause) }),
+                      ),
+                    ),
+                  ),
+                ),
+              );
             }).pipe(
               Effect.catchCause((cause) =>
                 Effect.logError("chat.generation.onFinish.failure").pipe(
@@ -777,10 +735,9 @@ export const handleAiSdkChat = (
 
     let responseStream = uiMessageStream;
 
-    if (!isTemporary) {
+    if (executionContext !== undefined) {
       const streams = uiMessageStream.tee();
       responseStream = streams[0];
-      const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
       executionContext.waitUntil(
         Effect.runPromiseWith(services)(
           persistGenerationStream({
@@ -838,6 +795,7 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
 }) {
   const streamError = yield* Ref.make<string | undefined>(undefined);
   const finishReason = yield* Ref.make<string | undefined>(undefined);
+  const sawFinish = yield* Ref.make(false);
   const persistenceStartedAt = performance.now();
   const previousChunkAt = yield* Ref.make(persistenceStartedAt);
   const persist = Stream.fromReadableStream({
@@ -876,6 +834,7 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
         yield* Ref.set(previousChunkAt, timestamp);
         if (chunk.type === "error") yield* Ref.set(streamError, chunk.errorText);
         if (chunk.type === "finish") {
+          yield* Ref.set(sawFinish, true);
           const reason = Reflect.get(chunk, "finishReason");
           if (typeof reason === "string") yield* Ref.set(finishReason, reason);
         }
@@ -910,16 +869,20 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
           });
         }),
       onSuccess: () =>
-        Effect.all([Ref.get(streamError), Ref.get(finishReason)]).pipe(
-          Effect.flatMap(([error, reason]) =>
-            Effect.all(
+        Effect.all([Ref.get(streamError), Ref.get(finishReason), Ref.get(sawFinish)]).pipe(
+          Effect.flatMap(([streamErrorValue, reason, finished]) => {
+            const terminal = resolveGenerationTerminalState({
+              streamError: streamErrorValue,
+              sawFinish: finished,
+            });
+            return Effect.all(
               [
                 finishGeneration({
                   db,
                   userId,
                   generationId,
-                  status: error === undefined ? "completed" : "failed",
-                  error,
+                  status: terminal.status,
+                  error: terminal.error,
                   finishReason: reason,
                 }),
                 recordChatEvent({
@@ -929,13 +892,14 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
                   generationId,
                   requestId,
                   traceId,
-                  type: error === undefined ? "generation.completed" : "generation.failed",
-                  payload: { error: error ?? null, finishReason: reason ?? null },
+                  type:
+                    terminal.status === "completed" ? "generation.completed" : "generation.failed",
+                  payload: { error: terminal.error ?? null, finishReason: reason ?? null },
                 }),
               ],
               { discard: true },
-            ),
-          ),
+            );
+          }),
         ),
     }),
   );
