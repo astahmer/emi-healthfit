@@ -101,7 +101,18 @@ export const analyzeDiagnosticBundle = (bundle: DiagnosticBundle): DiagnosticAna
         evidence: `Generation ${generation.id} remains ${generation.status}.`,
       });
     }
-    if (generation.finishReason === null) {
+    if (
+      generation.status === "failed" ||
+      generation.status === "timed_out" ||
+      generation.status === "cancelled"
+    ) {
+      findings.push({
+        code: "generation-failed",
+        severity: "error",
+        evidence: `Generation ${generation.id} ended as ${generation.status}: ${generation.error ?? "No error was recorded."}`,
+      });
+    }
+    if (generation.status === "completed" && generation.finishReason === null) {
       findings.push({
         code: "missing-finish-reason",
         severity: "warning",

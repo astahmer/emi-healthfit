@@ -91,62 +91,64 @@ const selectDatabase = (environment: string): string => {
 
 const escapeSql = (value: string): string => value.replaceAll("'", "''");
 
-const query = ({
-  database,
-  environment,
-  sql,
-}: {
-  database: string;
-  environment: string;
-  sql: string;
-}): Record<string, unknown>[] =>
+const query = ({ database, sql }: { database: string; sql: string }): Record<string, unknown>[] =>
   resultRows(
-    wrangler([
-      "d1",
-      "execute",
-      database,
-      "--remote",
-      "--env",
-      environment,
-      "--command",
-      sql,
-      "--json",
-      "--yes",
-    ]),
+    wrangler(["d1", "execute", database, "--remote", "--command", sql, "--json", "--yes"]),
   );
+
+const tableColumns = ({ database, table }: { database: string; table: string }): Set<string> =>
+  new Set(
+    query({ database, sql: `PRAGMA table_info('${table}')` })
+      .map((column) => column.name)
+      .filter((name): name is string => typeof name === "string"),
+  );
+
+const ownerPredicate = ({ columns, id }: { columns: Set<string>; id: string }): string =>
+  columns.has("user_id")
+    ? ` AND user_id = (SELECT user_id FROM conversations WHERE id = '${id}')`
+    : "";
+
+const selectedColumn = ({
+  columns,
+  name,
+  fallback,
+}: {
+  columns: Set<string>;
+  name: string;
+  fallback: string;
+}): string => (columns.has(name) ? name : `${fallback} AS ${name}`);
 
 const buildBundle = ({
   database,
-  environment,
   conversationId,
 }: {
   database: string;
-  environment: string;
   conversationId: string;
 }): DiagnosticBundle => {
   const id = escapeSql(conversationId);
-  const owner = `user_id = (SELECT user_id FROM conversations WHERE id = '${id}')`;
+  const messageColumns = tableColumns({ database, table: "messages" });
+  const generationColumns = tableColumns({ database, table: "chat_generations" });
+  const eventColumns = tableColumns({ database, table: "chat_events" });
   const conversation = query({
     database,
-    environment,
     sql: `SELECT id, title, status, created_at, updated_at FROM conversations WHERE id = '${id}' LIMIT 1`,
   })[0];
   if (conversation === undefined) throw new Error(`Conversation '${conversationId}' not found.`);
   const messages = query({
     database,
-    environment,
-    sql: `SELECT id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at FROM messages WHERE conversation_id = '${id}' AND ${owner} ORDER BY created_at, id`,
+    sql: `SELECT id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at FROM messages WHERE conversation_id = '${id}'${ownerPredicate({ columns: messageColumns, id })} ORDER BY created_at, id`,
   });
   const generations = query({
     database,
-    environment,
-    sql: `SELECT id, request_id, trace_id, status, error, finish_reason, model, input_tokens, output_tokens, retry_count, started_at, finished_at, created_at, updated_at FROM chat_generations WHERE conversation_id = '${id}' AND ${owner} ORDER BY created_at, id`,
+    sql: `SELECT id, ${selectedColumn({ columns: generationColumns, name: "request_id", fallback: "id" })}, ${selectedColumn({ columns: generationColumns, name: "trace_id", fallback: "id" })}, status, error, ${selectedColumn({ columns: generationColumns, name: "finish_reason", fallback: "CASE WHEN EXISTS (SELECT 1 FROM chat_generation_chunks chunk WHERE chunk.generation_id = chat_generations.id AND json_extract(chunk.chunk, '$.type') = 'finish') THEN 'stop' WHEN status = 'failed' THEN 'error' ELSE NULL END" })}, ${selectedColumn({ columns: generationColumns, name: "model", fallback: "NULL" })}, ${selectedColumn({ columns: generationColumns, name: "input_tokens", fallback: "NULL" })}, ${selectedColumn({ columns: generationColumns, name: "output_tokens", fallback: "NULL" })}, ${selectedColumn({ columns: generationColumns, name: "retry_count", fallback: "0" })}, ${selectedColumn({ columns: generationColumns, name: "started_at", fallback: "created_at" })}, ${selectedColumn({ columns: generationColumns, name: "finished_at", fallback: "CASE WHEN status = 'running' THEN NULL ELSE updated_at END" })}, created_at, updated_at FROM chat_generations WHERE conversation_id = '${id}'${ownerPredicate({ columns: generationColumns, id })} ORDER BY created_at, id`,
   });
-  const events = query({
-    database,
-    environment,
-    sql: `SELECT id, generation_id, request_id, trace_id, type, schema_version, payload, created_at FROM chat_events WHERE conversation_id = '${id}' AND ${owner} ORDER BY created_at, id`,
-  });
+  const events =
+    eventColumns.size === 0
+      ? []
+      : query({
+          database,
+          sql: `SELECT id, generation_id, request_id, trace_id, type, schema_version, payload, created_at FROM chat_events WHERE conversation_id = '${id}'${ownerPredicate({ columns: eventColumns, id })} ORDER BY created_at, id`,
+        });
 
   return diagnosticBundleSchema.parse({
     schemaVersion: 1,
@@ -174,7 +176,7 @@ const buildBundle = ({
       id: generation.id,
       requestId: generation.request_id,
       traceId: generation.trace_id,
-      status: generation.status,
+      status: generation.status === "running" ? "streaming" : generation.status,
       error: generation.error,
       finishReason: generation.finish_reason,
       model: generation.model,
@@ -203,7 +205,7 @@ const main = () => {
   const options = parseOptions();
   const conversationId = conversationIdFrom(options.url);
   const database = selectDatabase(options.env);
-  const rawBundle = buildBundle({ database, environment: options.env, conversationId });
+  const rawBundle = buildBundle({ database, conversationId });
   const bundle = options.includeSensitive ? rawBundle : redactDiagnosticBundle(rawBundle);
   const analysis = analyzeDiagnosticBundle(bundle);
   const directory = resolve(options.output, conversationId);

@@ -16,7 +16,7 @@
   "expectedFindings": [
     "orphan-user-turn",
     "error-tool-persisted-as-success",
-    "missing-finish-reason",
+    "generation-failed",
     "repeated-equivalent-tool-failure",
     "unsupported-tool-capability-claim",
     "owned-data-shifted-to-user",
