@@ -1,6 +1,7 @@
 import assert from "node:assert";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, it } from "node:test";
+import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import {
   cloneConversation,
@@ -37,28 +38,33 @@ import {
   getResumableGeneration,
 } from "../src/chat/generation-store.ts";
 import { getDiagnosticBundle } from "../src/diagnostics/bundle.ts";
+import type { QueryDatabaseClient } from "../src/db/client.ts";
 
 class Statement {
   readonly #database: DatabaseSync;
   readonly #sql: string;
-  readonly #values: unknown[];
+  readonly #values: SQLInputValue[];
 
-  constructor(database: DatabaseSync, sql: string, values: unknown[] = []) {
+  constructor(database: DatabaseSync, sql: string, values: SQLInputValue[] = []) {
     this.#database = database;
     this.#sql = sql;
     this.#values = values;
   }
 
-  bind(...values: unknown[]) {
+  bind(...values: SQLInputValue[]) {
     return new Statement(this.#database, this.#sql, values);
   }
 
-  all() {
-    return Effect.sync(() => ({ results: this.#database.prepare(this.#sql).all(...this.#values) }));
+  all<T>() {
+    return Effect.sync(() => ({
+      results: this.#database.prepare(this.#sql).all(...this.#values) as T[],
+    }));
   }
 
-  first() {
-    return Effect.sync(() => this.#database.prepare(this.#sql).get(...this.#values) ?? null);
+  first<T>() {
+    return Effect.sync(
+      () => (this.#database.prepare(this.#sql).get(...this.#values) as T | undefined) ?? null,
+    );
   }
 
   run() {
@@ -90,13 +96,15 @@ const makeDatabase = () => {
     CREATE TABLE chat_generation_chunks (user_id TEXT NOT NULL, generation_id TEXT NOT NULL, sequence INTEGER NOT NULL, chunk TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (user_id, generation_id, sequence));
     CREATE TABLE chat_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, conversation_id TEXT NOT NULL, generation_id TEXT NOT NULL, request_id TEXT NOT NULL, trace_id TEXT NOT NULL, type TEXT NOT NULL, schema_version INTEGER NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
   `);
-  return {
+  const database = {
     prepare: (sql: string) => new Statement(sqlite, sql),
     batch: (statements: Statement[]) => Effect.all(statements.map((statement) => statement.run())),
   };
+  return database as unknown as QueryDatabaseClient;
 };
 
-const run = <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect);
+const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(RuntimeContext.phantom)));
 
 describe("per-user ownership", () => {
   it("isolates guessed conversation, thread, note, memory, and generation ids", async () => {
@@ -134,6 +142,7 @@ describe("per-user ownership", () => {
     assert.deepStrictEqual(await run(getConversations(db, bob)), []);
 
     const noteId = await run(insertNote(db, alice, "Alice note"));
+    assert.ok(noteId);
     await run(updateNote(db, bob, noteId, "Bob overwrite"));
     assert.strictEqual((await run(getNotes(db, alice)))[0]?.content, "Alice note");
     assert.deepStrictEqual(await run(searchNotes(db, bob, "Alice")), []);

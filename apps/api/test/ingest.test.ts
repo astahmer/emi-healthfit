@@ -29,6 +29,8 @@ describe("HealthExportKit parser", () => {
 
     const firstSleep = result.sleep[0];
     assert.ok(firstSleep);
+    assert.ok(firstSleep.start);
+    assert.ok(firstSleep.end);
     assert.match(firstSleep.start, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     assert.match(firstSleep.end, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });

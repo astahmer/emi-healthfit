@@ -12,8 +12,17 @@ const generation = (
 ): ChatGeneration => ({
   id: "generation",
   conversation_id: "conversation",
+  request_id: "request",
+  trace_id: "trace",
   status,
   error,
+  finish_reason: null,
+  model: null,
+  input_tokens: null,
+  output_tokens: null,
+  retry_count: 0,
+  started_at: "2026-07-14T00:00:00.000Z",
+  finished_at: null,
   created_at: "2026-07-14T00:00:00.000Z",
   updated_at: "2026-07-14T00:00:00.000Z",
 });
@@ -24,7 +33,7 @@ const readAll = (stream: Stream.Stream<UIMessageChunk>) =>
 describe("createGenerationReplayStream", () => {
   it("replays ordered chunks and waits for a running generation to complete", async () => {
     const chunks: Array<{ sequence: number; chunk: UIMessageChunk }> = [];
-    let status: ChatGeneration["status"] = "running";
+    let status: ChatGeneration["status"] = "streaming";
     let polls = 0;
     const stream = createGenerationReplayStream({
       generationId: "generation",
@@ -73,7 +82,7 @@ describe("createGenerationReplayStream", () => {
         getGeneration: () => {
           reads += 1;
           return Effect.succeed(
-            reads === 1 ? generation("running") : generation("failed", "Generation timed out"),
+            reads === 1 ? generation("streaming") : generation("failed", "Generation timed out"),
           );
         },
         poll: Effect.void,

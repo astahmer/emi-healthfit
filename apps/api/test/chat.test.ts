@@ -1,12 +1,14 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import { RuntimeContext } from "alchemy";
 import { extractTextFromLlmResponse } from "../src/chat/handler.ts";
 import { executeTool } from "../src/tools/api.ts";
 import * as Effect from "effect/Effect";
 
 const fakeDb = {} as never;
 
-const run = <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect);
+const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(RuntimeContext.phantom)));
 
 describe("extractTextFromLlmResponse", () => {
   it("extracts assistant content from chat completion shape", () => {
@@ -40,6 +42,7 @@ describe("render_component tool", () => {
     const result = await run(
       executeTool({
         db: fakeDb,
+        userId: "test-user",
         name: "render_component",
         args: {
           component: "MetricCard",
@@ -60,7 +63,14 @@ describe("render_component tool", () => {
 
   it("fails when component name is missing", async () => {
     await assert.rejects(
-      run(executeTool({ db: fakeDb, name: "render_component", args: { props: {} } })),
+      run(
+        executeTool({
+          db: fakeDb,
+          userId: "test-user",
+          name: "render_component",
+          args: { props: {} },
+        }),
+      ),
       /component/,
     );
   });
@@ -70,6 +80,7 @@ describe("render_component tool", () => {
       run(
         executeTool({
           db: fakeDb,
+          userId: "test-user",
           name: "render_component",
           args: {
             component: "WorkoutTable",
