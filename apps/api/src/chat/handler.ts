@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
-import type { QueryDatabaseClient } from "../db/operations.ts";
+import type { QueryDatabaseClient } from "../db/client.ts";
 import { buildChatContext, renderContextPrompt } from "./context.ts";
 
 export interface ChatRequest {

@@ -1,14 +1,14 @@
 import * as Effect from "effect/Effect";
 import { z } from "zod";
+import type { QueryDatabaseClient } from "../db/client.ts";
 import {
   insertHealthWorkouts,
-  type QueryDatabaseClient,
   upsertBodyMetrics,
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../db/operations.ts";
+} from "../db/ingested-data.ts";
 
 const nullableNumber = z.number().nullable();
 const nullableString = z.string().nullable();

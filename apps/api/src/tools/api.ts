@@ -9,20 +9,22 @@ import { z } from "zod";
 import { buildChatContext } from "../chat/context.ts";
 import {
   createThread,
-  getDataSummary,
-  getExerciseProgress,
   getMessage,
-  getSleepTrend,
   getThread,
   getThreadMessages,
   getThreads,
+  summarizeThread,
+} from "../db/conversations.ts";
+import type { QueryDatabaseClient } from "../db/client.ts";
+import {
+  getDataSummary,
+  getExerciseProgress,
+  getSleepTrend,
   getWorkoutHistory,
   getWorkoutDetails,
   getWorkoutStreak,
-  searchMemories,
-  summarizeThread,
-  type QueryDatabaseClient,
-} from "../db/operations.ts";
+} from "../db/fitness.ts";
+import { searchMemories } from "../db/memories.ts";
 
 export interface ToolDefinition {
   name: string;

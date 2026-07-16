@@ -7,6 +7,7 @@ import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
 import { CurrentUser } from "./auth/request-auth.ts";
+import type { QueryDatabaseClient } from "./db/client.ts";
 import {
   deleteMemory,
   deleteNote,
@@ -14,11 +15,10 @@ import {
   getNotes,
   insertMemory,
   insertNote,
-  type QueryDatabaseClient,
   searchMemories,
   searchNotes,
   updateNote,
-} from "./db/operations.ts";
+} from "./db/memories.ts";
 
 const requireIdentifier = (identifier: string | null): string => {
   if (identifier === null) throw new Error("Database did not return an identifier");

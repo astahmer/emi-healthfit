@@ -9,21 +9,24 @@ import {
   deleteConversation,
   getConversation,
   getConversations,
-  getIngestedDataExport,
-  getWorkoutDetails,
-  getMemories,
-  getNotes,
   getThread,
-  insertMemory,
-  insertNote,
   saveConversationMessages,
-  searchMemories,
-  searchNotes,
-  updateNote,
+} from "../src/db/conversations.ts";
+import { getIngestedDataExport, getWorkoutDetails } from "../src/db/fitness.ts";
+import {
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
-} from "../src/db/operations.ts";
+} from "../src/db/ingested-data.ts";
+import {
+  getMemories,
+  getNotes,
+  insertMemory,
+  insertNote,
+  searchMemories,
+  searchNotes,
+  updateNote,
+} from "../src/db/memories.ts";
 import {
   appendGenerationChunk,
   createGeneration,

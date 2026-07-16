@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { QueryDatabaseClient } from "../db/operations.ts";
+import type { QueryDatabaseClient } from "../db/client.ts";
 import type { HevySetRow, SleepSessionRow } from "../db/schema.ts";
 
 interface WorkoutContext {

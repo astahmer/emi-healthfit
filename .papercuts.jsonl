@@ -1,2 +1,3 @@
 {"kind":"cut","id":"pc_6dojoxcdi8hs","ts":"2026-07-16T20:01:07.500Z","agent":"unknown","text":"Repository search used root alchemy.run.ts although file lives under apps/api; a root layout map would prevent failed lookup","tags":["tooling"],"severity":"minor"}
 {"kind":"resolve","id":"pc_i31lj65pmtdl","ts":"2026-07-16T20:20:57.208Z","cut_id":"pc_6dojoxcdi8hs"}
+{"kind":"cut","id":"pc_cxg3atk0kghz","ts":"2026-07-16T20:37:52.524Z","agent":"unknown","text":"rtk pnpm --filter @emi/api typecheck was rewritten as root tsc, hiding package filtering; preserve pnpm filter/run semantics","tags":["tooling"],"severity":"minor"}

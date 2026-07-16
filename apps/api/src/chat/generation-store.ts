@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { UIMessageChunk } from "ai";
-import type { QueryDatabaseClient } from "../db/operations.ts";
+import type { QueryDatabaseClient } from "../db/client.ts";
 
 export interface ChatGeneration {
   id: string;

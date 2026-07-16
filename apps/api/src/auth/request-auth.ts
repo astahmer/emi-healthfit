@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type { QueryDatabaseClient } from "../db/operations.ts";
+import type { QueryDatabaseClient } from "../db/client.ts";
 import { makeAuth, parseAllowedEmails, type AuthConfiguration } from "./auth.ts";
 
 const AuthEnvironment = Schema.Struct({

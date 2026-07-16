@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { z } from "zod";
-import type { QueryDatabaseClient } from "../db/operations.ts";
+import type { QueryDatabaseClient } from "../db/client.ts";
 
 const generationStatusSchema = z.enum([
   "pending",
