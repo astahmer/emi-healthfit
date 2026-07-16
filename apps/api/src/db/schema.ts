@@ -10,19 +10,25 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
-export const dailyActivity = sqliteTable("daily_activity", {
-  date: text().primaryKey(),
-  active_kcal: real(),
-  steps: integer(),
-  distance_km: real(),
-  exercise_min: integer(),
-  flights_climbed: integer(),
-});
+export const dailyActivity = sqliteTable(
+  "daily_activity",
+  {
+    user_id: text().notNull(),
+    date: text().notNull(),
+    active_kcal: real(),
+    steps: integer(),
+    distance_km: real(),
+    exercise_min: integer(),
+    flights_climbed: integer(),
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.date] })],
+);
 
 export const healthWorkouts = sqliteTable(
   "health_workouts",
   {
     id: integer().primaryKey({ autoIncrement: true }),
+    user_id: text().notNull(),
     date: text().notNull(),
     type: text().notNull(),
     start_raw: text(),
@@ -35,25 +41,29 @@ export const healthWorkouts = sqliteTable(
     source: text(),
     raw_json: text(),
   },
-  (table) => [unique().on(table.date, table.type, table.start_raw)],
+  (table) => [unique().on(table.user_id, table.date, table.type, table.start_raw)],
 );
 
-export const hevySessions = sqliteTable("hevy_sessions", {
-  session_id: text().primaryKey(),
-  title: text(),
-  start_time: text().notNull(),
-  end_time: text(),
-  duration_sec: integer(),
-  total_volume_kg: real(),
-});
+export const hevySessions = sqliteTable(
+  "hevy_sessions",
+  {
+    user_id: text().notNull(),
+    session_id: text().notNull(),
+    title: text(),
+    start_time: text().notNull(),
+    end_time: text(),
+    duration_sec: integer(),
+    total_volume_kg: real(),
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.session_id] })],
+);
 
 export const hevySets = sqliteTable(
   "hevy_sets",
   {
     id: integer().primaryKey({ autoIncrement: true }),
-    session_id: text()
-      .notNull()
-      .references(() => hevySessions.session_id),
+    user_id: text().notNull(),
+    session_id: text().notNull(),
     exercise_title: text().notNull(),
     set_index: integer().notNull(),
     set_type: text(),
@@ -64,12 +74,13 @@ export const hevySets = sqliteTable(
     duration_seconds: real(),
     exercise_notes: text(),
   },
-  (table) => [unique().on(table.session_id, table.exercise_title, table.set_index)],
+  (table) => [unique().on(table.user_id, table.session_id, table.exercise_title, table.set_index)],
 );
 
 export const sleepSessions = sqliteTable(
   "sleep_sessions",
   {
+    user_id: text().notNull(),
     date: text(),
     start: text(),
     end: text(),
@@ -78,26 +89,37 @@ export const sleepSessions = sqliteTable(
     awake_min: integer(),
     source: text(),
   },
-  (table) => [unique().on(table.date, table.start)],
+  (table) => [unique().on(table.user_id, table.date, table.start)],
 );
 
-export const bodyMetrics = sqliteTable("body_metrics", {
-  date: text().primaryKey(),
-  weight_kg: real(),
-  body_fat_pct: real(),
-  lean_mass_kg: real(),
-  source: text(),
-});
+export const bodyMetrics = sqliteTable(
+  "body_metrics",
+  {
+    user_id: text().notNull(),
+    date: text().notNull(),
+    weight_kg: real(),
+    body_fat_pct: real(),
+    lean_mass_kg: real(),
+    source: text(),
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.date] })],
+);
 
-export const syncCursors = sqliteTable("sync_cursors", {
-  source: text().primaryKey(),
-  last_sync: text(),
-});
+export const syncCursors = sqliteTable(
+  "sync_cursors",
+  {
+    user_id: text().notNull(),
+    source: text().notNull(),
+    last_sync: text(),
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.source] })],
+);
 
 export const conversations = sqliteTable(
   "conversations",
   {
     id: text().primaryKey(),
+    user_id: text().notNull(),
     title: text(),
     status: text({ enum: ["regular", "archived", "temporary"] })
       .notNull()
@@ -107,8 +129,9 @@ export const conversations = sqliteTable(
     updated_at: text().notNull(),
   },
   (table) => [
-    index("idx_conversations_updated_at").on(table.updated_at),
+    index("idx_conversations_user_updated_at").on(table.user_id, table.updated_at),
     index("idx_conversations_status_pinned_updated").on(
+      table.user_id,
       table.status,
       table.pinned,
       table.updated_at,
@@ -120,6 +143,7 @@ export const messages = sqliteTable(
   "messages",
   {
     id: text().primaryKey(),
+    user_id: text().notNull(),
     conversation_id: text()
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
@@ -142,6 +166,7 @@ export const threads = sqliteTable(
   "threads",
   {
     id: text().primaryKey(),
+    user_id: text().notNull(),
     conversation_id: text()
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
@@ -162,6 +187,7 @@ export const threads = sqliteTable(
 export const threadMessages = sqliteTable(
   "thread_messages",
   {
+    user_id: text().notNull(),
     thread_id: text()
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
@@ -171,21 +197,27 @@ export const threadMessages = sqliteTable(
     included_at: text().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.thread_id, table.message_id] }),
+    primaryKey({ columns: [table.user_id, table.thread_id, table.message_id] }),
     index("idx_thread_messages_thread_id").on(table.thread_id),
   ],
 );
 
-export const suggestions = sqliteTable("suggestions", {
-  id: text().primaryKey(),
-  suggestions: text().notNull(),
-  created_at: text().notNull(),
-});
+export const suggestions = sqliteTable(
+  "suggestions",
+  {
+    user_id: text().notNull(),
+    id: text().notNull(),
+    suggestions: text().notNull(),
+    created_at: text().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.user_id, table.id] })],
+);
 
 export const memories = sqliteTable(
   "memories",
   {
     id: text().primaryKey(),
+    user_id: text().notNull(),
     content: text().notNull(),
     source: text(),
     thread_id: text(),
@@ -201,6 +233,7 @@ export const notes = sqliteTable(
   "notes",
   {
     id: text().primaryKey(),
+    user_id: text().notNull(),
     content: text().notNull(),
     created_at: text().notNull(),
     updated_at: text().notNull(),
@@ -212,6 +245,7 @@ export const chatGenerations = sqliteTable(
   "chat_generations",
   {
     id: text().primaryKey(),
+    user_id: text().notNull(),
     conversation_id: text()
       .notNull()
       .references(() => conversations.id, { onDelete: "cascade" }),
@@ -236,6 +270,7 @@ export const chatGenerations = sqliteTable(
 export const chatGenerationChunks = sqliteTable(
   "chat_generation_chunks",
   {
+    user_id: text().notNull(),
     generation_id: text()
       .notNull()
       .references(() => chatGenerations.id, { onDelete: "cascade" }),
@@ -244,29 +279,31 @@ export const chatGenerationChunks = sqliteTable(
     created_at: text().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.generation_id, table.sequence] }),
+    primaryKey({ columns: [table.user_id, table.generation_id, table.sequence] }),
     index("idx_chat_generation_chunks_generation").on(table.generation_id, table.sequence),
   ],
 );
 
 export const privacyPreferences = sqliteTable("privacy_preferences", {
-  id: integer().primaryKey(),
+  user_id: text().primaryKey(),
   rawUploadRetentionDays: integer("raw_upload_retention_days").notNull().default(30),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-export type DailyActivityRow = typeof dailyActivity.$inferSelect;
-export type HealthWorkoutRow = Omit<typeof healthWorkouts.$inferSelect, "id"> & { id?: number };
-export type HevySessionRow = typeof hevySessions.$inferSelect;
-export type HevySetRow = Omit<typeof hevySets.$inferSelect, "id"> & { id?: number };
-export type SleepSessionRow = typeof sleepSessions.$inferSelect;
-export type BodyMetricRow = typeof bodyMetrics.$inferSelect;
-export type SuggestionsRow = typeof suggestions.$inferSelect;
+export type DailyActivityRow = Omit<typeof dailyActivity.$inferSelect, "user_id">;
+export type HealthWorkoutRow = Omit<typeof healthWorkouts.$inferSelect, "id" | "user_id"> & {
+  id?: number;
+};
+export type HevySessionRow = Omit<typeof hevySessions.$inferSelect, "user_id">;
+export type HevySetRow = Omit<typeof hevySets.$inferSelect, "id" | "user_id"> & { id?: number };
+export type SleepSessionRow = Omit<typeof sleepSessions.$inferSelect, "user_id">;
+export type BodyMetricRow = Omit<typeof bodyMetrics.$inferSelect, "user_id">;
+export type SuggestionsRow = Omit<typeof suggestions.$inferSelect, "user_id">;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type ThreadRow = typeof threads.$inferSelect;
 export type ThreadMessageRow = typeof threadMessages.$inferSelect;
-export type MemoryRow = typeof memories.$inferSelect;
-export type NoteRow = typeof notes.$inferSelect;
+export type MemoryRow = Omit<typeof memories.$inferSelect, "user_id">;
+export type NoteRow = Omit<typeof notes.$inferSelect, "user_id">;
