@@ -601,3 +601,59 @@ test("resumes an unfinished generation after refresh", async ({ page }) => {
   await expect(page.getByText("Resumed answer")).toBeVisible();
   expect(reconnectRequested).toBe(true);
 });
+
+test("shows persisted completion after a stream ends without finish", async ({ page }) => {
+  let providerFinished = false;
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/conversations/one/messages") {
+      const payload = conversationPayload({ id: "one", text: "one message" });
+      const messages = providerFinished
+        ? [
+            ...payload.messages,
+            {
+              id: "persisted-assistant",
+              conversationId: "one",
+              parentId: null,
+              role: "assistant",
+              parts: [{ type: "text", text: "Persisted completion" }],
+              createdAt: "2026-07-17T00:00:03.000Z",
+            },
+          ]
+        : payload.messages;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ...payload, messages }),
+      });
+      return;
+    }
+    if (request.method() === "POST" && url.pathname === "/api/chat") {
+      providerFinished = true;
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-thread-id": "one",
+          "x-vercel-ai-ui-message-stream": "v1",
+        },
+        body: [
+          'data: {"type":"start","messageId":"persisted-assistant"}',
+          'data: {"type":"text-start","id":"persisted-text"}',
+          'data: {"type":"text-delta","id":"persisted-text","delta":"Persisted completion"}',
+          "",
+        ].join("\n\n"),
+      });
+      return;
+    }
+    await fulfillApi(route);
+  });
+  await page.goto("/chat/one");
+
+  await page.getByLabel("Message input").fill("Complete despite truncation");
+  await page.getByLabel("Send message").click();
+  await page.reload();
+
+  await expect(page.getByText("Persisted completion")).toBeVisible();
+  await expect(page.getByText("Generation timed out")).not.toBeVisible();
+});
