@@ -1,6 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
+class TestResizeObserver implements ResizeObserver {
+  disconnect = () => {};
+  observe = () => {};
+  unobserve = () => {};
+}
+
+globalThis.ResizeObserver = TestResizeObserver;
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
