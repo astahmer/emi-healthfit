@@ -51,6 +51,8 @@ describe("Thread", () => {
       revise: vi.fn(),
       stop: vi.fn(),
       clearError: vi.fn(),
+      orphanMessageId: undefined,
+      retryOrphan: vi.fn(),
     });
   });
 
