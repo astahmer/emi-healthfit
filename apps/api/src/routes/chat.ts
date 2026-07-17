@@ -31,7 +31,6 @@ import {
   markGenerationStreaming,
   recordChatEvent,
   reconcileFinishedGenerations,
-  updateGenerationMetadata,
   type ChatGeneration,
 } from "../chat/generation-store.ts";
 import { createGenerationReplayStream } from "../chat/generation-replay.ts";
@@ -644,7 +643,13 @@ export const handleAiSdkChat = (
         onFinish: async (event) => {
           await Effect.runPromiseWith(services)(
             Effect.gen(function* () {
-              const assistantParts = buildAssistantParts(event.response?.messages ?? []);
+              const structuredAssistantParts = buildAssistantParts(event.response?.messages ?? []);
+              const assistantParts =
+                structuredAssistantParts.length > 0
+                  ? structuredAssistantParts
+                  : event.text === ""
+                    ? []
+                    : [{ type: "text", text: event.text }];
 
               yield* Effect.logInfo("chat.generation.finished").pipe(
                 Effect.annotateLogs({
@@ -657,7 +662,23 @@ export const handleAiSdkChat = (
                 }),
               );
 
-              if (!isTemporary && assistantParts.length > 0) {
+              if (!isTemporary && assistantParts.length === 0) {
+                yield* finishGeneration({
+                  db,
+                  userId: user.id,
+                  generationId,
+                  status: "failed",
+                  error: "Provider completed without assistant output",
+                  finishReason: event.finishReason,
+                });
+                yield* recordEvent("generation.failed", {
+                  error: "Provider completed without assistant output",
+                  finishReason: event.finishReason,
+                });
+                return;
+              }
+
+              if (!isTemporary) {
                 const assistantIds = yield* saveConversationMessages(
                   db,
                   user.id,
@@ -686,10 +707,11 @@ export const handleAiSdkChat = (
               }
 
               if (!isTemporary) {
-                yield* updateGenerationMetadata({
+                yield* finishGeneration({
                   db,
                   userId: user.id,
                   generationId,
+                  status: "completed",
                   finishReason: event.finishReason,
                   inputTokens: event.usage.inputTokens ?? 0,
                   outputTokens: event.usage.outputTokens ?? 0,
