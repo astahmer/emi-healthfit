@@ -11,9 +11,9 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "pnpm dev --hostname 127.0.0.1 --port 3100",
+    command: "pnpm serve:e2e",
     url: "http://127.0.0.1:3100/chat",
-    reuseExistingServer: process.env.CI === undefined,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });
