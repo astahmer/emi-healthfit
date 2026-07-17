@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "deploy": "alchemy deploy",
+    "deploy:prod": "alchemy deploy --stage prod --env-file ../../.env.prod",
     "destroy": "alchemy destroy",
     "dev": "alchemy dev",
     "db:check": "drizzle-kit check",

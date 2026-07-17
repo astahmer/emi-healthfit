@@ -15,6 +15,8 @@
     "knip": "knip",
     "format": "pnpm -r format",
     "format:fix": "pnpm -r format:fix",
+    "release:check": "pnpm format && pnpm lint && pnpm typecheck && pnpm test && pnpm verify && pnpm --filter @emi/api db:check && pnpm --filter @emi/chat test:e2e && pnpm build",
+    "release": "pnpm release:check && pnpm --filter @emi/api deploy:prod",
     "verify": "pnpm --filter api verify",
     "build": "pnpm -r build",
     "setup:google": "pnpm --filter api setup:google",
