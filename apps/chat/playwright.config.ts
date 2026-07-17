@@ -15,7 +15,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "node scripts/serve-e2e.mjs",
+    command: "exec node scripts/serve-e2e.mjs",
     url: "http://127.0.0.1:3100/chat",
     reuseExistingServer: false,
     timeout: 120_000,

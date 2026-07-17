@@ -83,4 +83,11 @@ const server = createServer((request, response) => {
   });
 });
 
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  server.closeAllConnections();
+};
+
+process.once("SIGINT", shutdown);
+process.once("SIGTERM", shutdown);
 server.listen(3100, "127.0.0.1");
