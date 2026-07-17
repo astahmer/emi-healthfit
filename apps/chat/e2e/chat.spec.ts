@@ -651,7 +651,11 @@ test("shows persisted completion after a stream ends without finish", async ({ p
   await page.goto("/chat/one");
 
   await page.getByLabel("Message input").fill("Complete despite truncation");
+  const truncatedResponse = page.waitForResponse(
+    (response) => response.url().endsWith("/api/chat") && response.request().method() === "POST",
+  );
   await page.getByLabel("Send message").click();
+  await truncatedResponse;
   await page.reload();
 
   await expect(page.getByText("Persisted completion")).toBeVisible();
