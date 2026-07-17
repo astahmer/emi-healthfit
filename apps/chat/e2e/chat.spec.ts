@@ -52,6 +52,17 @@ const conversationPayload = ({ id, text }: { id: string; text: string }) => ({
   threads: [],
 });
 
+const assistantStream = ({ messageId, text }: { messageId: string; text: string }) =>
+  [
+    `data: {"type":"start","messageId":"${messageId}"}`,
+    `data: {"type":"text-start","id":"${messageId}-text"}`,
+    `data: {"type":"text-delta","id":"${messageId}-text","delta":"${text}"}`,
+    `data: {"type":"text-end","id":"${messageId}-text"}`,
+    'data: {"type":"finish"}',
+    "data: [DONE]",
+    "",
+  ].join("\n\n");
+
 const fulfillApi = async (route: Route) => {
   const url = new URL(route.request().url());
   if (url.pathname === "/api/auth/get-session") {
@@ -109,6 +120,40 @@ const fulfillApi = async (route: Route) => {
     });
     return;
   }
+  if (url.pathname === "/api/analytics/overview") {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        activity: [],
+        sleep: [],
+        training: [],
+        body: [],
+        exercises: [],
+        highlights: {
+          averageSteps: null,
+          averageSleepMinutes: null,
+          workouts: 0,
+          trainingVolumeKg: 0,
+          weightChangeKg: null,
+        },
+      }),
+    });
+    return;
+  }
+  if (url.pathname === "/api/workouts") {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ workouts: [] }),
+    });
+    return;
+  }
+  if (url.pathname === "/api/memories") {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ memories: [] }),
+    });
+    return;
+  }
   await route.fulfill({ contentType: "application/json", body: "{}" });
 };
 
@@ -163,15 +208,7 @@ test("sends the first message from a new empty conversation", async ({ page }) =
           "x-thread-id": freshConversation.id,
           "x-vercel-ai-ui-message-stream": "v1",
         },
-        body: [
-          'data: {"type":"start","messageId":"fresh-assistant"}',
-          'data: {"type":"text-start","id":"fresh-text"}',
-          'data: {"type":"text-delta","id":"fresh-text","delta":"Fresh answer"}',
-          'data: {"type":"text-end","id":"fresh-text"}',
-          'data: {"type":"finish"}',
-          "data: [DONE]",
-          "",
-        ].join("\n\n"),
+        body: assistantStream({ messageId: "fresh-assistant", text: "Fresh answer" }),
       });
       return;
     }
@@ -261,6 +298,192 @@ test("previews an attachment before sending", async ({ page }) => {
   await expect(page.locator('img[src^="data:image/png"]')).toBeVisible();
 });
 
+test("sends the first message in an existing conversation with empty history", async ({ page }) => {
+  const emptyConversation = {
+    id: "empty",
+    title: "Empty conversation",
+    status: "regular",
+    pinned: false,
+    created_at: "2026-07-17T00:00:00.000Z",
+    updated_at: "2026-07-17T00:00:00.000Z",
+  };
+  let submittedRequest: unknown;
+  let generated = false;
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/conversations") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ conversations: [...conversations, emptyConversation] }),
+      });
+      return;
+    }
+    if (url.pathname === "/api/conversations/empty/messages") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          conversation: emptyConversation,
+          messages: generated
+            ? [
+                {
+                  id: "empty-user",
+                  conversationId: "empty",
+                  parentId: null,
+                  role: "user",
+                  parts: [{ type: "text", text: "Start this chat" }],
+                  createdAt: "2026-07-17T00:00:00.000Z",
+                },
+                {
+                  id: "empty-assistant",
+                  conversationId: "empty",
+                  parentId: null,
+                  role: "assistant",
+                  parts: [{ type: "text", text: "Chat started" }],
+                  createdAt: "2026-07-17T00:00:01.000Z",
+                },
+              ]
+            : [],
+          threads: [],
+        }),
+      });
+      return;
+    }
+    if (request.method() === "POST" && url.pathname === "/api/chat") {
+      submittedRequest = request.postDataJSON();
+      generated = true;
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-thread-id": "empty",
+          "x-vercel-ai-ui-message-stream": "v1",
+        },
+        body: assistantStream({ messageId: "empty-assistant", text: "Chat started" }),
+      });
+      return;
+    }
+    await fulfillApi(route);
+  });
+  await page.goto("/chat/empty");
+
+  await expect(page.getByText("What are we working on?")).toBeVisible();
+  await page.getByLabel("Message input").fill("Start this chat");
+  await page.getByLabel("Send message").click();
+
+  await expect(page.getByText("Chat started")).toBeVisible();
+  expect(submittedRequest).toEqual(
+    expect.objectContaining({
+      sessionId: "empty",
+      messages: [
+        expect.objectContaining({
+          role: "user",
+          parts: [{ type: "text", text: "Start this chat" }],
+        }),
+      ],
+    }),
+  );
+});
+
+test("surfaces a failed generation and retries the last turn", async ({ page }) => {
+  let generationAttempts = 0;
+  let revised = false;
+  let retrySucceeded = false;
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (
+      request.method() === "PATCH" &&
+      url.pathname.startsWith("/api/conversations/one/messages/")
+    ) {
+      revised = true;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+      return;
+    }
+    if (url.pathname === "/api/conversations/one/messages" && retrySucceeded) {
+      const payload = conversationPayload({ id: "one", text: "one message" });
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...payload,
+          messages: [
+            ...payload.messages,
+            {
+              id: "retry-user",
+              conversationId: "one",
+              parentId: null,
+              role: "user",
+              parts: [{ type: "text", text: "Try this request" }],
+              createdAt: "2026-07-17T00:00:02.000Z",
+            },
+            {
+              id: "retry-assistant",
+              conversationId: "one",
+              parentId: null,
+              role: "assistant",
+              parts: [{ type: "text", text: "Retry succeeded" }],
+              createdAt: "2026-07-17T00:00:03.000Z",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+    if (request.method() === "POST" && url.pathname === "/api/chat") {
+      generationAttempts += 1;
+      if (generationAttempts === 1) {
+        await route.fulfill({ status: 503, body: "Provider unavailable" });
+        return;
+      }
+      retrySucceeded = true;
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-thread-id": "one",
+          "x-vercel-ai-ui-message-stream": "v1",
+        },
+        body: assistantStream({ messageId: "retry-assistant", text: "Retry succeeded" }),
+      });
+      return;
+    }
+    await fulfillApi(route);
+  });
+  await page.goto("/chat/one");
+
+  await expect(page.getByText("one message answer")).toBeVisible();
+  await expect(page.getByLabel("Send message")).toBeVisible();
+  await page.getByLabel("Message input").fill("Try this request");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByText("Provider unavailable")).toBeVisible();
+  await page.getByRole("button", { name: "Retry last turn" }).click();
+
+  await expect(page.getByText("Retry succeeded")).toBeVisible();
+  expect(generationAttempts).toBe(2);
+  expect(revised).toBe(true);
+});
+
+test("navigates production-built data pages and renders empty states", async ({ page }) => {
+  await openMockedChat(page, "/upload");
+
+  await expect(page.getByRole("heading", { name: "Upload data" })).toBeVisible();
+  await page.getByRole("link", { name: "Workouts" }).click();
+  await expect(
+    page.getByText("No workouts found. Upload a Hevy export to get started."),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Trends" }).click();
+  await expect(page.getByRole("heading", { name: "Health overview" })).toBeVisible();
+  await page.getByRole("link", { name: "Notes" }).click();
+  await expect(page.getByText("No notes yet.")).toBeVisible();
+  await page.getByRole("link", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+});
+
 test("resumes an unfinished generation after refresh", async ({ page }) => {
   let reconnectRequested = false;
   await page.route("**/api/**", fulfillApi);
@@ -279,15 +502,7 @@ test("resumes an unfinished generation after refresh", async ({ page }) => {
         "content-type": "text/event-stream",
         "x-vercel-ai-ui-message-stream": "v1",
       },
-      body: [
-        'data: {"type":"start","messageId":"resumed-assistant"}',
-        'data: {"type":"text-start","id":"resumed-text"}',
-        'data: {"type":"text-delta","id":"resumed-text","delta":"Resumed answer"}',
-        'data: {"type":"text-end","id":"resumed-text"}',
-        'data: {"type":"finish"}',
-        "data: [DONE]",
-        "",
-      ].join("\n\n"),
+      body: assistantStream({ messageId: "resumed-assistant", text: "Resumed answer" }),
     });
   });
 
