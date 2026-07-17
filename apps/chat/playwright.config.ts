@@ -14,10 +14,4 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: "exec node scripts/serve-e2e.mjs",
-    url: "http://127.0.0.1:3100/chat",
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
 });
