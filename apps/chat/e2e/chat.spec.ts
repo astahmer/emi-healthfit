@@ -468,6 +468,96 @@ test("surfaces a failed generation and retries the last turn", async ({ page }) 
   expect(revised).toBe(true);
 });
 
+test("retries the persisted orphan turn instead of the blocked new prompt", async ({ page }) => {
+  const orphanMessageId = "30dd4f3b-02af-4168-83cc-f70d395c715c";
+  let retried = false;
+  let revisedMessageId: string | undefined;
+  let retryRequest: Record<string, unknown> | undefined;
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/conversations/one/messages") {
+      const payload = conversationPayload({ id: "one", text: "one message" });
+      const messages = [
+        ...payload.messages,
+        {
+          id: orphanMessageId,
+          conversationId: "one",
+          parentId: null,
+          role: "user",
+          parts: [{ type: "text", text: "Previous request" }],
+          createdAt: "2026-07-17T00:00:02.000Z",
+        },
+      ];
+      if (retried) {
+        messages.push({
+          id: "recovered-assistant",
+          conversationId: "one",
+          parentId: null,
+          role: "assistant",
+          parts: [{ type: "text", text: "Recovered response" }],
+          createdAt: "2026-07-17T00:00:03.000Z",
+        });
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ...payload, messages }),
+      });
+      return;
+    }
+    if (
+      request.method() === "PATCH" &&
+      url.pathname.startsWith("/api/conversations/one/messages/")
+    ) {
+      revisedMessageId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      return;
+    }
+    if (request.method() === "POST" && url.pathname === "/api/chat") {
+      const body = request.postDataJSON();
+      if (retryRequest === undefined) {
+        retryRequest = body;
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Previous user turn has no assistant response.",
+            code: "ORPHAN_USER_TURN",
+            orphanMessageId,
+            actions: ["retry", "discard", "send-as-new-turn"],
+          }),
+        });
+        return;
+      }
+      retryRequest = body;
+      retried = true;
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-thread-id": "one",
+          "x-vercel-ai-ui-message-stream": "v1",
+        },
+        body: assistantStream({ messageId: "recovered-assistant", text: "Recovered response" }),
+      });
+      return;
+    }
+    await fulfillApi(route);
+  });
+  await page.goto("/chat/one");
+
+  await page.getByLabel("Message input").fill("Blocked new prompt");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByText("Your previous request did not receive a response.")).toBeVisible();
+  await expect(page.getByText("ORPHAN_USER_TURN")).not.toBeVisible();
+  await page.getByRole("button", { name: "Retry previous request" }).click();
+
+  await expect(page.getByText("Recovered response")).toBeVisible();
+  expect(revisedMessageId).toBe(orphanMessageId);
+  expect(retryRequest?.replaceMessageId).toBe(orphanMessageId);
+});
+
 test("navigates production-built data pages and renders empty states", async ({ page }) => {
   await openMockedChat(page, "/upload");
 

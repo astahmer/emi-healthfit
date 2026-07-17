@@ -27,6 +27,7 @@ import { fetchConversationMessages, type ConversationSnapshot } from "../convers
 import { buildNotesContext } from "../notes";
 import { useNotes } from "../notes-context";
 import { getConversationViewMessages } from "./conversation-tree";
+import { OrphanTurnError, parseOrphanTurnError } from "./orphan-turn-error";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import { prepareAttachments } from "./attachments";
 import { runApi } from "../api-client";
@@ -56,6 +57,8 @@ interface ChatRuntimeValue {
   removeFile: (url: string) => void;
   submit: (text?: string) => Promise<void>;
   revise: (options: { messageId: string; text?: string }) => Promise<void>;
+  orphanMessageId: string | undefined;
+  retryOrphan: () => Promise<void>;
   stop: () => void;
   clearError: () => void;
 }
@@ -149,6 +152,8 @@ export const ChatRuntimeProvider = ({
         api: "/api/chat",
         fetch: async (input, init) => {
           const response = await fetch(input, init);
+          const orphanTurnError = await parseOrphanTurnError(response);
+          if (orphanTurnError !== undefined) throw orphanTurnError;
           const generationId = response.headers.get("x-generation-id");
           const conversationId = response.headers.get("x-thread-id");
           if (!config.temporary && generationId !== null && conversationId !== null) {
@@ -434,6 +439,12 @@ export const ChatRuntimeProvider = ({
     [config.sessionId, config.temporary, config.threadId, recordClientEvent, send, submitMessage],
   );
 
+  const retryOrphan = useCallback(async () => {
+    const error = stateRef.current.context.error;
+    if (!(error instanceof OrphanTurnError)) return;
+    await revise({ messageId: error.orphanMessageId });
+  }, [revise]);
+
   const value = useMemo<ChatRuntimeValue>(() => {
     const selectionMatchesRuntime = state.context.sessionId === config.sessionId;
     return {
@@ -472,6 +483,11 @@ export const ChatRuntimeProvider = ({
         }),
       submit,
       revise,
+      orphanMessageId:
+        state.context.error instanceof OrphanTurnError
+          ? state.context.error.orphanMessageId
+          : undefined,
+      retryOrphan,
       stop: () => {
         recordClientEvent("client.stopped");
         abortControllerRef.current?.abort();
@@ -486,6 +502,7 @@ export const ChatRuntimeProvider = ({
     isPreparingAttachments,
     revise,
     recordClientEvent,
+    retryOrphan,
     send,
     state,
     submit,

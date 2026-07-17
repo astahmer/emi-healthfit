@@ -703,23 +703,36 @@ export const Thread = ({
           {runtime.error !== null && (
             <div className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               <span>{runtime.error.message}</span>
-              {runtime.messages.some((message) => message.role === "user") && (
+              {runtime.orphanMessageId !== undefined ? (
                 <button
                   type="button"
                   className="ms-auto font-medium underline"
-                  onClick={() => {
-                    const lastMessage = runtime.messages.at(-1);
-                    if (lastMessage !== undefined)
-                      void runtime.revise({ messageId: lastMessage.id });
-                  }}
+                  onClick={() => void runtime.retryOrphan()}
                 >
-                  Retry last turn
+                  Retry previous request
                 </button>
+              ) : (
+                runtime.messages.some((message) => message.role === "user") && (
+                  <button
+                    type="button"
+                    className="ms-auto font-medium underline"
+                    onClick={() => {
+                      const lastMessage = runtime.messages.at(-1);
+                      if (lastMessage !== undefined)
+                        void runtime.revise({ messageId: lastMessage.id });
+                    }}
+                  >
+                    Retry last turn
+                  </button>
+                )
               )}
               <button
                 type="button"
                 className={
-                  runtime.messages.some((message) => message.role === "user") ? "" : "ms-auto"
+                  runtime.messages.some((message) => message.role === "user") ||
+                  runtime.orphanMessageId !== undefined
+                    ? ""
+                    : "ms-auto"
                 }
                 onClick={runtime.clearError}
               >
