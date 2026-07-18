@@ -1,0 +1,5 @@
+id: no-reflect-get-in-boundaries
+valid:
+  - "Schema.decodeUnknownOption(Value)(input)"
+invalid:
+  - "Reflect.get(input, 'value')"

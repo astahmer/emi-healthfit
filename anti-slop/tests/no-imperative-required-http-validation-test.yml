@@ -1,0 +1,9 @@
+id: no-imperative-required-http-validation
+valid:
+  - "if (title === '') return yield* new NotFound({ message: 'missing' });"
+  - "if (title === '') return yield* new BadRequest({ message: 'title is required' });"
+invalid:
+  - |
+    if (text === "") {
+      return yield* new BadRequest({ message: "text is required" });
+    }

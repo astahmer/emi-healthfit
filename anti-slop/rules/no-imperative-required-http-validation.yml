@@ -1,0 +1,14 @@
+id: no-imperative-required-http-validation
+language: TypeScript
+files:
+  - apps/api/src/routes/**/*.ts
+message: Express required non-empty request fields in the API Effect Schema.
+severity: error
+rule:
+  pattern: |
+    if ($VALUE === "") {
+      return yield* new $ERROR($$$ARGS);
+    }
+constraints:
+  ERROR:
+    regex: "^(BadRequest|UnprocessableEntity)$"

@@ -1,0 +1,20 @@
+id: no-wrapped-tagged-error
+language: TypeScript
+files:
+  - apps/api/src/**/*.ts
+message: Yield Schema.TaggedError values directly instead of wrapping them in Effect.fail.
+severity: error
+rule:
+  pattern: Effect.fail(new $ERROR($$$ARGS))
+constraints:
+  ERROR:
+    regex: "^(BadRequest|NotFound|Unauthorized|InternalServerError|ToolExecutionError)$"
+---
+id: no-wrapped-tool-error
+language: TypeScript
+files:
+  - apps/api/src/**/*.ts
+message: Yield the tagged tool error directly instead of wrapping it in Effect.fail.
+severity: error
+rule:
+  pattern: Effect.fail(toolError($$$ARGS))

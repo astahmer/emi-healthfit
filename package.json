@@ -10,7 +10,7 @@
     "dry": "pnpm --filter api dry",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r run typecheck",
-    "lint": "pnpm -r lint",
+    "lint": "pnpm slop:check && pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "knip": "knip",
     "format": "pnpm -r format",
@@ -22,9 +22,12 @@
     "setup:google": "pnpm --filter api setup:google",
     "chat:dev": "pnpm --filter chat dev",
     "chat:build": "pnpm --filter chat build",
+    "slop:check": "node scripts/run-ast-grep.mjs scan",
+    "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
     "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"
   },
   "devDependencies": {
+    "@ast-grep/cli": "0.44.1",
     "knip": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",

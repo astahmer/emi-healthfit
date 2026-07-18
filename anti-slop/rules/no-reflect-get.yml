@@ -1,0 +1,17 @@
+id: no-reflect-get-in-boundaries
+language: TypeScript
+files: [apps/api/src/**/*.ts, apps/chat/**/*.ts]
+ignores: ["**/*.test.ts"]
+message: Decode dynamic values with Effect Schema instead of Reflect.get.
+severity: error
+rule:
+  pattern: Reflect.get($OBJECT, $KEY)
+---
+id: no-reflect-get-in-components
+language: Tsx
+files: [apps/chat/**/*.tsx]
+ignores: ["**/*.test.tsx"]
+message: Decode dynamic values with Effect Schema instead of Reflect.get.
+severity: error
+rule:
+  pattern: Reflect.get($OBJECT, $KEY)

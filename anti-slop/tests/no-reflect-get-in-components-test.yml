@@ -1,0 +1,5 @@
+id: no-reflect-get-in-components
+valid:
+  - "const value = Schema.decodeUnknownOption(Value)(input)"
+invalid:
+  - "const value = Reflect.get(input, 'value')"

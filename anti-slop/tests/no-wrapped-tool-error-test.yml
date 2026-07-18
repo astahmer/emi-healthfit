@@ -1,0 +1,5 @@
+id: no-wrapped-tool-error
+valid:
+  - "yield* toolError({ tool: 'read', message: 'missing' })"
+invalid:
+  - "yield* Effect.fail(toolError({ tool: 'read', message: 'missing' }))"

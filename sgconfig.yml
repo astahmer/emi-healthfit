@@ -1,0 +1,4 @@
+ruleDirs:
+  - anti-slop/rules
+testConfigs:
+  - testDir: anti-slop/tests

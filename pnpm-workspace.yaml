@@ -16,6 +16,7 @@ catalog:
 overrides:
   "better-auth>next": "-"
 allowBuilds:
+  "@ast-grep/cli": true
   esbuild: true
   msgpackr-extract: true
   sharp: true

@@ -1,0 +1,6 @@
+id: no-wrapped-tagged-error
+valid:
+  - "yield* new NotFound({ message: 'missing' })"
+  - "yield* Effect.fail(new Error('missing'))"
+invalid:
+  - "yield* Effect.fail(new NotFound({ message: 'missing' }))"
