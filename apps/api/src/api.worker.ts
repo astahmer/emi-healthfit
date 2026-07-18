@@ -1,4 +1,5 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import { RuntimeContext } from "alchemy";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -13,6 +14,7 @@ import {
   isProtectedPath,
   withCurrentUser,
 } from "./auth/request-auth.ts";
+import { makeQueryDatabaseClient } from "./db/client.ts";
 import { handleAiSdkChat, handleChatResume, handleConversationDiagnostics } from "./routes/chat.ts";
 import {
   handleIngest,
@@ -57,7 +59,8 @@ export default class Api extends Cloudflare.Worker<Api>()(
     },
   },
   Effect.gen(function* () {
-    const db = yield* Cloudflare.D1.QueryDatabase(DB);
+    const query = yield* Cloudflare.D1.QueryDatabase(DB);
+    const db = makeQueryDatabaseClient({ query });
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const assetsBinding = Schema.decodeUnknownOption(AssetsBinding)(env.ASSETS);
@@ -134,6 +137,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
             Effect.as(HttpServerResponse.text("Internal Server Error", { status: 500 })),
           ),
         ),
+        Effect.provide(RuntimeContext.phantom),
       ),
     };
   }).pipe(

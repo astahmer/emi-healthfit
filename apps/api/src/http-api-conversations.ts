@@ -7,7 +7,6 @@ import {
   type Thread as ApiThread,
   type ThreadWithMessages as ApiThreadWithMessages,
 } from "@emi/api-contract";
-import type { RuntimeContext } from "alchemy";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -115,7 +114,7 @@ export const conversationsHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "conversations", (handlers) =>
     handlers
@@ -407,7 +406,7 @@ export const threadsHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "threads", (handlers) =>
     handlers
@@ -457,7 +456,7 @@ export const messagesHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "messages", (handlers) =>
     handlers.handle(
@@ -482,7 +481,7 @@ export const memoryExtractionHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "memoryExtraction", (handlers) =>
     handlers.handle(

@@ -1,7 +1,6 @@
 import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/api-contract";
-import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import type * as Context from "effect/Context";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -68,7 +67,7 @@ const notesHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "notes", (handlers) =>
     handlers
@@ -115,7 +114,7 @@ const memoriesHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "memories", (handlers) =>
     handlers
@@ -173,7 +172,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   db: QueryDatabaseClient;
   router: HttpRouter.HttpRouter;
 }) {
-  const runtimeContext = yield* Effect.context<RuntimeContext>();
+  const runtimeContext = Context.empty();
   const handlerContext = yield* Layer.build(
     Layer.mergeAll(
       notesHandlers({ db, runtimeContext }),

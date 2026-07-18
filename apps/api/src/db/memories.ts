@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { MemoryRow, NoteRow } from "./schema.ts";
-import { runBatches, type QueryDatabaseClient } from "./client.ts";
+import { runTransaction, type QueryDatabaseClient } from "./client.ts";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -43,7 +43,7 @@ export const insertMemories = (db: QueryDatabaseClient, userId: string, inputs: 
     const inserted = candidates
       .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
       .map((candidate) => ({ id: crypto.randomUUID(), ...candidate }));
-    yield* runBatches(
+    yield* runTransaction(
       db,
       inserted.map((memory) =>
         db

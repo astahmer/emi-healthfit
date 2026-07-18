@@ -1,7 +1,13 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
-import type { QueryDatabaseClient } from "../src/db/client.ts";
+import {
+  makeQueryDatabaseClient,
+  type QueryDatabaseClient,
+  type RawQueryDatabaseClient,
+} from "../src/db/client.ts";
+
+const normalizeRows = <T>(rows: T[]) => rows.map((row) => ({ ...row }));
 
 class Statement {
   readonly #database: DatabaseSync;
@@ -20,17 +26,14 @@ class Statement {
 
   all<T>() {
     return Effect.sync(() => ({
-      results: this.#database
-        .prepare(this.#sql)
-        .all(...this.#values)
-        .map((row) => ({ ...row })) as T[],
+      results: normalizeRows(this.#database.prepare(this.#sql).all(...this.#values) as T[]),
     }));
   }
 
   first<T>() {
     return Effect.sync(() => {
-      const row = this.#database.prepare(this.#sql).get(...this.#values);
-      return row === undefined ? null : ({ ...row } as T);
+      const row = this.#database.prepare(this.#sql).get(...this.#values) as T | undefined;
+      return row === undefined ? null : { ...row };
     });
   }
 
@@ -39,6 +42,41 @@ class Statement {
       const result = this.#database.prepare(this.#sql).run(...this.#values);
       return { meta: { changes: Number(result.changes) } };
     });
+  }
+
+  toD1Statement() {
+    return new D1Statement(this.#database, this.#sql, this.#values);
+  }
+}
+
+class D1Statement {
+  readonly #database: DatabaseSync;
+  readonly #sql: string;
+  readonly #values: SQLInputValue[];
+
+  constructor(database: DatabaseSync, sql: string, values: SQLInputValue[] = []) {
+    this.#database = database;
+    this.#sql = sql;
+    this.#values = values;
+  }
+
+  bind(...values: SQLInputValue[]) {
+    return new D1Statement(this.#database, this.#sql, values);
+  }
+
+  async all<T>() {
+    const statement = this.#database.prepare(this.#sql);
+    if (/^\s*(SELECT|WITH|EXPLAIN)/i.test(this.#sql)) {
+      return {
+        meta: { changes: 0, last_row_id: null },
+        results: normalizeRows(statement.all(...this.#values) as T[]),
+      };
+    }
+    const result = statement.run(...this.#values);
+    return {
+      meta: { changes: Number(result.changes), last_row_id: result.lastInsertRowid },
+      results: [],
+    };
   }
 }
 
@@ -65,11 +103,31 @@ export const makeSqliteDatabase = () => {
     CREATE TABLE chat_generation_chunks (user_id TEXT NOT NULL, generation_id TEXT NOT NULL REFERENCES chat_generations(id) ON DELETE CASCADE, sequence INTEGER NOT NULL, chunk TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (user_id, generation_id, sequence));
     CREATE TABLE chat_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, generation_id TEXT NOT NULL REFERENCES chat_generations(id) ON DELETE CASCADE, request_id TEXT NOT NULL, trace_id TEXT NOT NULL, type TEXT NOT NULL, schema_version INTEGER NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
   `);
-  const database = {
-    prepare: (sql: string) => new Statement(sqlite, sql),
-    batch: (statements: Statement[]) => Effect.all(statements.map((statement) => statement.run())),
+  const d1 = {
+    prepare: (sql: string) => new D1Statement(sqlite, sql),
+    batch: async (statements: D1Statement[]) => {
+      sqlite.exec("BEGIN");
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.all());
+        sqlite.exec("COMMIT");
+        return results;
+      } catch (error) {
+        sqlite.exec("ROLLBACK");
+        throw error;
+      }
+    },
   };
-  return { db: database as unknown as QueryDatabaseClient, sqlite };
+  const query = {
+    raw: Effect.succeed(d1),
+    prepare: (sql: string) => new Statement(sqlite, sql),
+    batch: (statements: Statement[]) =>
+      Effect.tryPromise(() => d1.batch(statements.map((statement) => statement.toD1Statement()))),
+  } as unknown as RawQueryDatabaseClient;
+  return {
+    db: makeQueryDatabaseClient({ query }),
+    sqlite,
+  } satisfies { db: QueryDatabaseClient; sqlite: DatabaseSync };
 };
 
 export const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>

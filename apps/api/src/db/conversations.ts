@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { getRevisionDeletionIds } from "../chat/conversation-revision.ts";
 import type { SuggestionsRow } from "./schema.ts";
-import { runBatches, type QueryDatabaseClient } from "./client.ts";
+import { runTransaction, type QueryDatabaseClient } from "./client.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -169,18 +169,22 @@ export const updateConversationState = Effect.fn("conversation.updateState")(fun
   status?: "regular" | "archived";
   pinned?: boolean;
 }) {
+  const statements = [];
   if (status !== undefined) {
-    yield* db
-      .prepare("UPDATE conversations SET status = ?, updated_at = ? WHERE user_id = ? AND id = ?")
-      .bind(status, nowIso(), userId, conversationId)
-      .run();
+    statements.push(
+      db
+        .prepare("UPDATE conversations SET status = ?, updated_at = ? WHERE user_id = ? AND id = ?")
+        .bind(status, nowIso(), userId, conversationId),
+    );
   }
   if (pinned !== undefined) {
-    yield* db
-      .prepare("UPDATE conversations SET pinned = ?, updated_at = ? WHERE user_id = ? AND id = ?")
-      .bind(pinned ? 1 : 0, nowIso(), userId, conversationId)
-      .run();
+    statements.push(
+      db
+        .prepare("UPDATE conversations SET pinned = ?, updated_at = ? WHERE user_id = ? AND id = ?")
+        .bind(pinned ? 1 : 0, nowIso(), userId, conversationId),
+    );
   }
+  if (statements.length > 0) yield* runTransaction(db, statements);
 });
 
 export const cloneConversation = Effect.fn("conversation.clone")(function* ({
@@ -207,21 +211,19 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
   const messageIds = new Map(originalMessages.map((message) => [message.id, crypto.randomUUID()]));
   const threadIds = new Map(originalThreads.map((thread) => [thread.id, crypto.randomUUID()]));
 
-  yield* db
-    .prepare(
-      "INSERT INTO conversations (id, user_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, 'regular', 0, ?, ?)",
-    )
-    .bind(
-      clonedConversationId,
-      userId,
-      `${conversation.title ?? "New chat"} copy`,
-      timestamp,
-      timestamp,
-    )
-    .run();
-  yield* runBatches(
-    db,
-    originalMessages.map((message) =>
+  yield* runTransaction(db, [
+    db
+      .prepare(
+        "INSERT INTO conversations (id, user_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, 'regular', 0, ?, ?)",
+      )
+      .bind(
+        clonedConversationId,
+        userId,
+        `${conversation.title ?? "New chat"} copy`,
+        timestamp,
+        timestamp,
+      ),
+    ...originalMessages.map((message) =>
       db
         .prepare(
           "INSERT INTO messages (id, user_id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -240,10 +242,7 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
           message.created_at,
         ),
     ),
-  );
-  yield* runBatches(
-    db,
-    originalThreads.map((thread) =>
+    ...originalThreads.map((thread) =>
       db
         .prepare(
           "INSERT INTO threads (id, user_id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -260,10 +259,7 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
           thread.updated_at,
         ),
     ),
-  );
-  yield* runBatches(
-    db,
-    threadMessageRows.results.flatMap((row) => {
+    ...threadMessageRows.results.flatMap((row) => {
       const threadId = threadIds.get(row.thread_id);
       const messageId = messageIds.get(row.message_id);
       if (threadId === undefined || messageId === undefined) return [];
@@ -275,7 +271,7 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* ({
           .bind(userId, threadId, messageId, row.included_at),
       ];
     }),
-  );
+  ]);
   return yield* getConversation(db, userId, clonedConversationId);
 });
 
@@ -370,9 +366,11 @@ export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")
         .prepare("DELETE FROM messages WHERE user_id = ? AND id = ?")
         .bind(userId, deletedMessageId),
     ),
+    db
+      .prepare("UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?")
+      .bind(nowIso(), userId, conversationId),
   ];
-  yield* runBatches(db, statements);
-  yield* updateConversationTimestamp(db, userId, conversationId);
+  yield* runTransaction(db, statements);
   return true;
 });
 
@@ -411,8 +409,12 @@ export const saveConversationMessages = (
         );
     });
 
-    yield* runBatches(db, statements);
-    yield* updateConversationTimestamp(db, userId, conversationId);
+    yield* runTransaction(db, [
+      ...statements,
+      db
+        .prepare("UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?")
+        .bind(nowIso(), userId, conversationId),
+    ]);
     return ids;
   });
 
@@ -426,28 +428,34 @@ export const createThread = (
   Effect.gen(function* () {
     const id = crypto.randomUUID();
     const createdAt = nowIso();
-    yield* db
-      .prepare(`
+    yield* runTransaction(db, [
+      db
+        .prepare(`
       INSERT INTO threads (id, user_id, conversation_id, anchor_message_id, title, status, pinned, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-      .bind(
-        id,
-        userId,
-        conversationId,
-        anchorMessageId,
-        title ?? null,
-        "regular",
-        0,
-        createdAt,
-        createdAt,
-      )
-      .run();
-    yield* db
-      .prepare("UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?")
-      .bind(createdAt, userId, conversationId)
-      .run();
-    yield* addThreadMessage(db, userId, id, anchorMessageId);
+        .bind(
+          id,
+          userId,
+          conversationId,
+          anchorMessageId,
+          title ?? null,
+          "regular",
+          0,
+          createdAt,
+          createdAt,
+        ),
+      db
+        .prepare("UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?")
+        .bind(createdAt, userId, conversationId),
+      db
+        .prepare(`
+      INSERT INTO thread_messages (user_id, thread_id, message_id, included_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, thread_id, message_id) DO NOTHING
+    `)
+        .bind(userId, id, anchorMessageId, createdAt),
+    ]);
     return id;
   });
 
@@ -642,27 +650,36 @@ export const summarizeThread = (
 
     const id = crypto.randomUUID();
     const createdAt = nowIso();
-    yield* db
-      .prepare(`
+    yield* runTransaction(db, [
+      db
+        .prepare(`
       INSERT INTO messages (id, user_id, conversation_id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-      .bind(
-        id,
-        userId,
-        thread.conversation_id,
-        targetMessageId ?? thread.anchor_message_id,
-        "summary",
-        JSON.stringify([{ type: "text", text: summaryText }]),
-        null,
-        null,
-        null,
-        null,
-        createdAt,
-      )
-      .run();
-    yield* addThreadMessage(db, userId, threadId, id);
-    yield* updateConversationTimestamp(db, userId, thread.conversation_id);
+        .bind(
+          id,
+          userId,
+          thread.conversation_id,
+          targetMessageId ?? thread.anchor_message_id,
+          "summary",
+          JSON.stringify([{ type: "text", text: summaryText }]),
+          null,
+          null,
+          null,
+          null,
+          createdAt,
+        ),
+      db
+        .prepare(`
+      INSERT INTO thread_messages (user_id, thread_id, message_id, included_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, thread_id, message_id) DO NOTHING
+    `)
+        .bind(userId, threadId, id, createdAt),
+      db
+        .prepare("UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?")
+        .bind(createdAt, userId, thread.conversation_id),
+    ]);
     return id;
   });
 

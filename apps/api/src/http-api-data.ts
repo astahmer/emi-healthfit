@@ -1,6 +1,5 @@
 import { EmiApi } from "@emi/api-contract";
 import * as Cloudflare from "alchemy/Cloudflare";
-import type { RuntimeContext } from "alchemy";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
@@ -48,7 +47,7 @@ export const suggestionsHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "suggestions", (handlers) =>
     handlers.handle(
@@ -85,7 +84,7 @@ export const analyticsHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "analytics", (handlers) =>
     handlers.handle(
@@ -106,7 +105,7 @@ export const dataHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "data", (handlers) =>
     handlers.handle(
@@ -130,7 +129,7 @@ export const privacyHandlers = ({
 }: {
   bucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "privacy", (handlers) =>
     handlers
@@ -193,7 +192,7 @@ export const workoutsHandlers = ({
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<RuntimeContext>;
+  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "workouts", (handlers) =>
     handlers.handle(

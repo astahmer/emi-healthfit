@@ -7,7 +7,7 @@ import type {
   HevySetRow,
   SleepSessionRow,
 } from "./schema.ts";
-import { runBatches, type QueryDatabaseClient } from "./client.ts";
+import { runBatches, runTransaction, type QueryDatabaseClient } from "./client.ts";
 
 type OwnedDailyActivityRow = Omit<DailyActivityRow, "user_id">;
 type OwnedHealthWorkoutRow = Omit<HealthWorkoutRow, "user_id">;
@@ -297,10 +297,10 @@ export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* 
     source === "health"
       ? ["daily_activity", "health_workouts", "sleep_sessions", "body_metrics"]
       : ["hevy_sets", "hevy_sessions"];
-  for (const table of tables)
-    yield* db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId).run();
-  yield* db
-    .prepare("DELETE FROM sync_cursors WHERE user_id = ? AND source = ?")
-    .bind(userId, source === "health" ? "apple_health" : "hevy")
-    .run();
+  yield* runTransaction(db, [
+    ...tables.map((table) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId)),
+    db
+      .prepare("DELETE FROM sync_cursors WHERE user_id = ? AND source = ?")
+      .bind(userId, source === "health" ? "apple_health" : "hevy"),
+  ]);
 });

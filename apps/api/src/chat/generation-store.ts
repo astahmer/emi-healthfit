@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
-import type { QueryDatabaseClient } from "../db/client.ts";
+import { runTransaction, type QueryDatabaseClient } from "../db/client.ts";
 import { decodeJson } from "../json-codec.ts";
 
 export interface ChatGeneration {
@@ -141,7 +141,7 @@ export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(fun
   const update = db
     .prepare("UPDATE chat_generations SET updated_at = ? WHERE user_id = ? AND id = ?")
     .bind(timestamp, userId, generationId);
-  yield* db.batch([insert, update]);
+  yield* runTransaction(db, [insert, update]);
 });
 
 export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({

@@ -30,6 +30,8 @@
     "better-auth": "catalog:",
     "drizzle-orm": "0.45.2",
     "effect": "catalog:",
+    "kysely": "0.29.3",
+    "kysely-d1": "0.4.0",
     "zod": "catalog:"
   },
   "devDependencies": {
