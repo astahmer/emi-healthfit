@@ -10,6 +10,7 @@ import { useSettings } from "../settings-store";
 import type { MessageWithUsage, Thread as SessionThread } from "../sessions";
 import { UsageProvider } from "../usage-context";
 import { useActionFeedback } from "../action-feedback";
+import { queryKeys } from "../query-cache";
 import { compactConversation } from "../conversations";
 import { chatModels } from "../models";
 import type { ChatSearch } from "../router";
@@ -129,10 +130,12 @@ export const ChatPage = ({
 
   useEffect(() => {
     if (conversation === null) return;
-    queryClient.setQueriesData<SessionThread[]>({ queryKey: ["threads"] }, (threads) =>
-      threads?.map((thread) =>
-        thread.id === conversation.id ? { ...thread, title: conversation.title } : thread,
-      ),
+    queryClient.setQueriesData<SessionThread[]>(
+      { queryKey: queryKeys.conversations.all },
+      (threads) =>
+        threads?.map((thread) =>
+          thread.id === conversation.id ? { ...thread, title: conversation.title } : thread,
+        ),
     );
   }, [conversation, queryClient]);
 

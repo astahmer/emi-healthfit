@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionFeedback } from "./action-feedback";
-import { notifyMemoriesChanged, subscribeToMemoryChanges } from "./memory-events";
+import { notifyMemoriesChanged } from "./memory-events";
 import { createMemory, deleteMemory, fetchMemories, memoryProvenance } from "./memories";
+import { queryKeys } from "./query-cache";
 
 const memorySource = (source: string | null | undefined): string => {
   if (source === "auto" || source === "assistant") return "Auto-saved from chat";
@@ -15,25 +16,16 @@ const memorySource = (source: string | null | undefined): string => {
 };
 
 export function MemoryPanel() {
-  const queryClient = useQueryClient();
   const feedback = useActionFeedback();
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
-
-  useEffect(
-    () =>
-      subscribeToMemoryChanges(() => {
-        void queryClient.invalidateQueries({ queryKey: ["memories"] });
-      }),
-    [queryClient],
-  );
 
   const {
     data: memories = [],
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["memories", search],
+    queryKey: queryKeys.memories.list({ search }),
     queryFn: () => fetchMemories({ search: search || undefined }),
   });
 

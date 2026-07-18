@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createNote, deleteNote, fetchNotes, updateNote, type Note } from "./notes";
+import { notifyQueryResourceChanged, queryKeys } from "./query-cache";
 
 export function NotesPanel() {
-  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -18,23 +18,23 @@ export function NotesPanel() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["notes", query],
+    queryKey: queryKeys.notes.list({ search: query }),
     queryFn: () => fetchNotes(query || undefined),
   });
 
   const createMutation = useMutation({
     mutationFn: createNote,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    onSuccess: () => notifyQueryResourceChanged("notes"),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) => updateNote(id, content),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    onSuccess: () => notifyQueryResourceChanged("notes"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteNote,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    onSuccess: () => notifyQueryResourceChanged("notes"),
   });
 
   const handleAdd = async () => {

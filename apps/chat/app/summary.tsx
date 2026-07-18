@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { runApi } from "./api-client";
+import { queryKeys } from "./query-cache";
 
 const compactDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -56,7 +57,7 @@ const bodyWeightDomain = ["dataMin - 2", "dataMax + 2"];
 export const SummaryPanel = () => {
   const [days, setDays] = useState(90);
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["analytics-overview", days],
+    queryKey: queryKeys.analytics.overview({ days }),
     queryFn: () => fetchOverview(days),
   });
   const sleep =

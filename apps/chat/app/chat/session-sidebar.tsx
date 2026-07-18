@@ -20,6 +20,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncConversations, type Thread } from "../sessions";
 import { subscribeToConversationChanges } from "../conversation-events";
+import { queryKeys } from "../query-cache";
 import { getCachedThreads } from "../session-cache";
 import { fetchConversationMessages as fetchConversationSnapshot } from "../conversations";
 import {
@@ -205,14 +206,14 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
               onClick={() => setOpenMobile(false)}
               onPointerDown={() =>
                 queryClient.prefetchQuery({
-                  queryKey: ["conversation", thread.id],
+                  queryKey: queryKeys.conversations.detail({ id: thread.id }),
                   queryFn: () => fetchConversationSnapshot(thread.id),
                   staleTime: 30_000,
                 })
               }
               onMouseEnter={() =>
                 queryClient.prefetchQuery({
-                  queryKey: ["conversation", thread.id],
+                  queryKey: queryKeys.conversations.detail({ id: thread.id }),
                   queryFn: () => fetchConversationSnapshot(thread.id),
                   staleTime: 30_000,
                 })
@@ -347,13 +348,13 @@ export const SessionSidebar = () => {
     error,
     dataUpdatedAt,
   } = useQuery({
-    queryKey: ["threads", search],
+    queryKey: queryKeys.conversations.list({ search }),
     queryFn: async () => {
       const querySearch = search || undefined;
       const cached = await getCachedThreads(querySearch);
       if (cached.length === 0) return syncConversations(querySearch);
       void syncConversations(querySearch)
-        .then((fresh) => queryClient.setQueryData(["threads", search], fresh))
+        .then((fresh) => queryClient.setQueryData(queryKeys.conversations.list({ search }), fresh))
         .catch(() => undefined);
       return cached;
     },
@@ -363,7 +364,7 @@ export const SessionSidebar = () => {
 
   const refreshConversations = useCallback(async () => {
     const fresh = await syncConversations(search || undefined);
-    queryClient.setQueryData(["threads", search], fresh);
+    queryClient.setQueryData(queryKeys.conversations.list({ search }), fresh);
   }, [queryClient, search]);
 
   useEffect(

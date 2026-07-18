@@ -19,7 +19,7 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -46,13 +46,14 @@ import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
 import { useUsage } from "@/app/usage-context";
 import { chatModels } from "@/app/models";
+import { queryKeys } from "@/app/query-cache";
 import {
   deleteMemoriesByMessage,
   extractMemories,
   fetchMemories,
   memoryProvenance,
 } from "@/app/memories";
-import { notifyMemoriesChanged, subscribeToMemoryChanges } from "@/app/memory-events";
+import { notifyMemoriesChanged } from "@/app/memory-events";
 import { useActionFeedback } from "@/app/action-feedback";
 
 export interface ComposerControls {
@@ -332,7 +333,11 @@ const FollowUpSuggestions = () => {
     .findLast((message) => message.role === "user");
   const lastAssistantText = getText(lastAssistant);
   const query = useQuery({
-    queryKey: ["suggestions", lastAssistant?.id, lastAssistantText, getText(lastUser)],
+    queryKey: queryKeys.suggestions.message({
+      assistantId: lastAssistant?.id,
+      assistantText: lastAssistantText,
+      userText: getText(lastUser),
+    }),
     queryFn: () =>
       fetchSuggestions({
         threadId: runtime.sessionId,
@@ -495,7 +500,7 @@ const ChatMessage = ({
             {onRetry !== undefined && (
               <button
                 type="button"
-                className="ms-auto font-medium underline"
+                className="ms-auto cursor-pointer font-medium underline"
                 onClick={() => onRetry(message.id)}
               >
                 Retry this request
@@ -606,12 +611,11 @@ export const Thread = ({
   const runtime = useChatRuntime();
   const settings = useSettings((state) => state.settings);
   const feedback = useActionFeedback();
-  const queryClient = useQueryClient();
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const [memoryMessageId, setMemoryMessageId] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const { data: conversationMemories = [] } = useQuery({
-    queryKey: ["memories", "message-sources"],
+    queryKey: queryKeys.memories.messageSources,
     queryFn: () => fetchMemories(),
     enabled: runtime.sessionId !== undefined,
   });
@@ -620,14 +624,6 @@ export const Thread = ({
       const messageId = memoryProvenance(memory).messageId;
       return messageId === undefined ? [] : [messageId];
     }),
-  );
-
-  useEffect(
-    () =>
-      subscribeToMemoryChanges(() => {
-        void queryClient.invalidateQueries({ queryKey: ["memories"] });
-      }),
-    [queryClient],
   );
 
   useEffect(() => {
@@ -666,7 +662,7 @@ export const Thread = ({
         kind: "success",
         message:
           ids.length === 0
-            ? "No new memories found."
+            ? "Nothing new to save to memory."
             : `Saved ${ids.length} memor${ids.length === 1 ? "y" : "ies"}.`,
       });
     } catch {
@@ -847,7 +843,7 @@ export const Thread = ({
               {runtime.orphanMessageId !== undefined ? (
                 <button
                   type="button"
-                  className="ms-auto font-medium underline"
+                  className="ms-auto cursor-pointer font-medium underline"
                   onClick={() => void runtime.retryOrphan()}
                 >
                   Retry previous request
@@ -856,7 +852,7 @@ export const Thread = ({
                 runtime.messages.some((message) => message.role === "user") && (
                   <button
                     type="button"
-                    className="ms-auto font-medium underline"
+                    className="ms-auto cursor-pointer font-medium underline"
                     onClick={() => {
                       const lastMessage = runtime.messages.at(-1);
                       if (lastMessage !== undefined)

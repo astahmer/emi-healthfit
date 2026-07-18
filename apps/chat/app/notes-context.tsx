@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchNotes, type Note } from "./notes";
+import { queryKeys } from "./query-cache";
 
 interface NotesContextValue {
   notes: Note[];
@@ -20,7 +21,7 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["notes"],
+    queryKey: queryKeys.notes.list({ search: "" }),
     queryFn: () => fetchNotes(undefined, 100),
   });
 

@@ -7,9 +7,14 @@ import { ActionFeedbackProvider } from "@/app/action-feedback";
 import type { MessageWithUsage } from "@/app/sessions";
 import { chatModels } from "@/app/models";
 import { useChatRuntime } from "@/app/chat/chat-runtime";
+import { extractMemories } from "@/app/memories";
 import { Thread, type ComposerControls } from "./thread";
 
 vi.mock("@/app/chat/chat-runtime", () => ({ useChatRuntime: vi.fn() }));
+vi.mock("@/app/memories", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/memories")>()),
+  extractMemories: vi.fn(),
+}));
 
 const controls: ComposerControls = {
   model: "gpt-5",
@@ -282,6 +287,25 @@ describe("Thread", () => {
     await user.click(view.getByRole("button", { name: "Retry this request" }));
 
     expect(vi.mocked(useChatRuntime)().revise).toHaveBeenCalledWith({ messageId: message.id });
+  });
+
+  it("confirms when an assistant message has no new memories", async () => {
+    const user = userEvent.setup();
+    vi.mocked(extractMemories).mockResolvedValue([]);
+    const message: MessageWithUsage = {
+      id: "assistant-empty-memory",
+      role: "assistant",
+      parts: [{ type: "text", text: "Nothing durable here." }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+    });
+    renderThread([message]);
+
+    await user.click(screen.getByLabelText("Save message to memory"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Nothing new to save to memory.");
   });
 
   it("regenerates an assistant turn", async () => {

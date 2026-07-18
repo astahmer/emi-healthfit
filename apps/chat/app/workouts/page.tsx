@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { runApi } from "../api-client";
+import { queryKeys } from "../query-cache";
 
 interface WorkoutSet {
   set_index: number;
@@ -105,7 +106,7 @@ export default function WorkoutsPage() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["workouts"],
+    queryKey: queryKeys.workouts.all,
     queryFn: fetchWorkouts,
   });
   const [search, setSearch] = useState("");
