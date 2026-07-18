@@ -50,7 +50,7 @@ const EmptyChart = () => (
   </div>
 );
 
-const trainingBarRadius = [4, 4, 0, 0];
+const trainingBarRadius: [number, number, number, number] = [4, 4, 0, 0];
 const bodyWeightDomain = ["dataMin - 2", "dataMax + 2"];
 
 export const SummaryPanel = () => {

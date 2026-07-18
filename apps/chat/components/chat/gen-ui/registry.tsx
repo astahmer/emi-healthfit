@@ -1,5 +1,6 @@
 "use client";
 
+import { isNonEmptySpec } from "@json-render/core";
 import { defineRegistry, JSONUIProvider, Renderer } from "@json-render/react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -89,7 +90,8 @@ const normalizeSpec = (raw: unknown) => {
       ]),
     ),
   });
-  return validation.success ? (validation.data ?? null) : null;
+  if (!validation.success || !isNonEmptySpec(validation.data)) return null;
+  return validation.data;
 };
 
 export const GenUIRenderer = ({ spec }: { spec: unknown }) => {

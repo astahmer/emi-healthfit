@@ -5,7 +5,8 @@ import * as Schema from "effect/Schema";
 import { runApi } from "./api-client";
 
 const messagePartSchema = Schema.declare<UIMessage["parts"][number]>(
-  (part) => typeof part === "object" && part !== null && "type" in part,
+  (part): part is UIMessage["parts"][number] =>
+    typeof part === "object" && part !== null && "type" in part,
 );
 
 const conversationSchema = Schema.Struct({
@@ -74,7 +75,7 @@ const toThread = (raw: typeof threadSchema.Type): ThreadView => ({
   title: raw.title,
   status: raw.status,
   pinned: raw.pinned,
-  messageIds: raw.message_ids,
+  messageIds: [...raw.message_ids],
   createdAt: raw.created_at,
   updatedAt: raw.updated_at,
 });
@@ -87,6 +88,7 @@ const toMessage = ({
   conversationId: string;
 }): MessageNode => ({
   ...raw,
+  parts: [...raw.parts],
   conversationId: raw.conversationId ?? conversationId,
   parentId: raw.parentId ?? null,
 });

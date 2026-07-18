@@ -17,50 +17,50 @@ import { GenUIRenderer } from "./gen-ui/registry";
 import { ErrorBoundary } from "../error-boundary";
 
 interface WorkoutHistoryItem {
-  session_id: string;
-  title: string | null;
-  start_time: string;
-  total_volume_kg: number | null;
-  exercise_count: number;
-  set_count: number;
+  readonly session_id: string;
+  readonly title: string | null;
+  readonly start_time: string;
+  readonly total_volume_kg: number | null;
+  readonly exercise_count: number;
+  readonly set_count: number;
 }
 
 interface ExerciseProgressSet {
-  session_id: string;
-  title: string | null;
-  start_time: string;
-  max_weight_kg: number | null;
-  max_volume_kg: number | null;
-  total_volume_kg: number | null;
-  total_reps: number | null;
-  sets: number;
+  readonly session_id: string;
+  readonly title: string | null;
+  readonly start_time: string;
+  readonly max_weight_kg: number | null;
+  readonly max_volume_kg: number | null;
+  readonly total_volume_kg: number | null;
+  readonly total_reps: number | null;
+  readonly sets: number;
 }
 
 interface ExerciseProgress {
-  exercise_title: string;
-  weeks: number;
-  workouts: ExerciseProgressSet[];
-  personalRecord: {
-    weight_kg: number | null;
-    reps: number | null;
-    volume_kg: number | null;
+  readonly exercise_title: string;
+  readonly weeks: number;
+  readonly workouts: ReadonlyArray<ExerciseProgressSet>;
+  readonly personalRecord: {
+    readonly weight_kg: number | null;
+    readonly reps: number | null;
+    readonly volume_kg: number | null;
   };
 }
 
 interface RecoveryResult {
-  today?: string;
-  label?: string;
-  explanation?: string;
-  lastWorkout?: string | null;
-  sleepAverageHours?: number | null;
-  recentWorkoutCount?: number;
-  recentVolume?: number | null;
+  readonly today?: string;
+  readonly label?: string;
+  readonly explanation?: string;
+  readonly lastWorkout?: string | null;
+  readonly sleepAverageHours?: number | null;
+  readonly recentWorkoutCount?: number;
+  readonly recentVolume?: number | null;
 }
 
 interface Citation {
-  title?: string;
-  url?: string;
-  content?: string;
+  readonly title?: string;
+  readonly url?: string;
+  readonly content?: string;
 }
 
 const WorkoutHistory = Schema.Array(
@@ -131,7 +131,7 @@ const formatDate = (value: string) =>
 const parseResult = (result: unknown): unknown =>
   Option.getOrElse(Schema.decodeUnknownOption(JsonResult)(result), () => result);
 
-const getCitations = (value: unknown): Citation[] | undefined => {
+const getCitations = (value: unknown): ReadonlyArray<Citation> | undefined => {
   const container = Schema.decodeUnknownOption(CitationContainer)(value);
   if (Option.isNone(container)) return undefined;
   return container.value.results ?? container.value.sources ?? container.value.citations;
@@ -139,7 +139,7 @@ const getCitations = (value: unknown): Citation[] | undefined => {
 
 const workoutHistoryHeaders = ["Date", "Workout", "Volume", "Exercises", "Sets"];
 const exerciseProgressHeaders = ["Date", "Max weight", "Volume", "Sets", "Reps"];
-const emptyWorkoutItems: WorkoutHistoryItem[] = [];
+const emptyWorkoutItems: ReadonlyArray<WorkoutHistoryItem> = [];
 
 const Table: FC<{ headers: readonly string[]; children: ReactNode }> = ({ headers, children }) => {
   return (
@@ -160,7 +160,7 @@ const Table: FC<{ headers: readonly string[]; children: ReactNode }> = ({ header
   );
 };
 
-export const WorkoutHistoryTable: FC<{ items?: WorkoutHistoryItem[] }> = ({
+export const WorkoutHistoryTable: FC<{ items?: ReadonlyArray<WorkoutHistoryItem> }> = ({
   items = emptyWorkoutItems,
 }) => {
   if (items.length === 0) {
@@ -293,7 +293,7 @@ export const RecoveryCard: FC<{ data: RecoveryResult }> = ({ data }) => {
   );
 };
 
-const WebSearchCitations: FC<{ citations: Citation[] }> = ({ citations }) => {
+const WebSearchCitations: FC<{ citations: ReadonlyArray<Citation> }> = ({ citations }) => {
   return (
     <div className="flex flex-col gap-2">
       {citations.map((citation) => (
