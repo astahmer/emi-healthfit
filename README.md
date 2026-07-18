@@ -390,6 +390,18 @@ It returns one of:
 - `Caution`
 - `Rest needed`
 
+## Session diagnostics
+
+Generate a redacted, owner-scoped postmortem for a conversation without opening a browser:
+
+```bash
+pnpm diagnose:session --url https://example.com/chat/<conversation-id> --env dev
+```
+
+The report is written to `.diagnostics/<conversation-id>/report.md`. See
+[session diagnostics](docs/session-diagnostics.md) for environment, credentials, output, and
+sensitive-data options.
+
 ## Testing
 
 The API uses Node's test runner; the chat app uses Vitest and Testing Library. Parser tests exercise real export files in `data/` when available.
