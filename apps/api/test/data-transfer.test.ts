@@ -1,5 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { ingestedDataExportSchema } from "../src/ingest/data-transfer.ts";
 
 const emptyExport = {
@@ -12,13 +14,18 @@ const emptyExport = {
 
 describe("ingested data transfer", () => {
   it("accepts the versioned export envelope", () => {
-    assert.strictEqual(ingestedDataExportSchema.safeParse(emptyExport).success, true);
+    assert.strictEqual(
+      Option.isSome(Schema.decodeUnknownOption(ingestedDataExportSchema)(emptyExport)),
+      true,
+    );
   });
 
   it("rejects unknown export versions before any import", () => {
     assert.strictEqual(
-      ingestedDataExportSchema.safeParse({ ...emptyExport, version: 2 }).success,
-      false,
+      Option.isNone(
+        Schema.decodeUnknownOption(ingestedDataExportSchema)({ ...emptyExport, version: 2 }),
+      ),
+      true,
     );
   });
 });

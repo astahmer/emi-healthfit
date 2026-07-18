@@ -168,7 +168,7 @@ export const conversationsHandlers = ({
             });
             const conversation = yield* getConversation(db, user.id, params.id);
             if (conversation === null) {
-              return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
+              return yield* new NotFound({ message: "Conversation not found" });
             }
             return { conversation: toApiConversation(conversation) };
           },
@@ -187,7 +187,7 @@ export const conversationsHandlers = ({
               conversationId: params.id,
             });
             if (conversation === null) {
-              return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
+              return yield* new NotFound({ message: "Conversation not found" });
             }
             return { conversation: toApiConversation(conversation) };
           },
@@ -202,7 +202,7 @@ export const conversationsHandlers = ({
             const user = yield* CurrentUser;
             const conversation = yield* getConversation(db, user.id, params.id);
             if (conversation === null) {
-              return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
+              return yield* new NotFound({ message: "Conversation not found" });
             }
             const messages = (yield* getConversationMessages(db, user.id, params.id))
               .map(rowToMessage)
@@ -213,9 +213,7 @@ export const conversationsHandlers = ({
               }))
               .filter((message) => message.text.trim() !== "");
             if (messages.length === 0) {
-              return yield* Effect.fail(
-                new BadRequest({ message: "Conversation has no text to compact" }),
-              );
+              return yield* new BadRequest({ message: "Conversation has no text to compact" });
             }
             const summary = yield* Effect.promise(() =>
               generateThreadSummary(payload.apiKey, payload.baseUrl, payload.model, messages),
@@ -235,9 +233,7 @@ export const conversationsHandlers = ({
             ]);
             const compactedConversation = yield* getConversation(db, user.id, compactedId);
             if (compactedConversation === null) {
-              return yield* Effect.fail(
-                new NotFound({ message: "Compacted conversation not found" }),
-              );
+              return yield* new NotFound({ message: "Compacted conversation not found" });
             }
             return { conversation: toApiConversation(compactedConversation) };
           },
@@ -252,19 +248,22 @@ export const conversationsHandlers = ({
             const user = yield* CurrentUser;
             const conversation = yield* getConversation(db, user.id, params.id);
             if (conversation === null) {
-              return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
+              return yield* new NotFound({ message: "Conversation not found" });
             }
             const rows = yield* getConversationMessages(db, user.id, params.id);
             const threads = yield* getThreadsIncludingDiscarded(db, user.id, params.id);
-            const threadsWithMessages = yield* Effect.forEach(threads, (thread) =>
-              getThreadMessages(db, user.id, thread.id).pipe(
-                Effect.map((messages) =>
-                  toApiThreadWithMessages({
-                    thread,
-                    messageIds: messages.map((message) => message.id),
-                  }),
+            const threadsWithMessages = yield* Effect.forEach(
+              threads,
+              (thread) =>
+                getThreadMessages(db, user.id, thread.id).pipe(
+                  Effect.map((messages) =>
+                    toApiThreadWithMessages({
+                      thread,
+                      messageIds: messages.map((message) => message.id),
+                    }),
+                  ),
                 ),
-              ),
+              { concurrency: 8 },
             );
             return {
               conversation: toApiConversation(conversation),
@@ -282,9 +281,6 @@ export const conversationsHandlers = ({
           function* ({ params, payload }) {
             const user = yield* CurrentUser;
             const title = payload.title.trim();
-            if (title === "") {
-              return yield* Effect.fail(new BadRequest({ message: "title is required" }));
-            }
             yield* renameConversation(db, user.id, params.id, title);
             return { success: true } as const;
           },
@@ -311,7 +307,7 @@ export const conversationsHandlers = ({
             const user = yield* CurrentUser;
             const anchor = yield* getMessage(db, user.id, payload.anchorMessageId);
             if (anchor === null || anchor.conversation_id !== params.id) {
-              return yield* Effect.fail(new NotFound({ message: "Anchor message not found" }));
+              return yield* new NotFound({ message: "Anchor message not found" });
             }
             const id = yield* createThread(
               db,
@@ -322,7 +318,7 @@ export const conversationsHandlers = ({
             );
             const thread = yield* getThread(db, user.id, id);
             if (thread === null) {
-              return yield* Effect.fail(new NotFound({ message: "Thread not found" }));
+              return yield* new NotFound({ message: "Thread not found" });
             }
             return toApiThreadWithMessages({
               thread,
@@ -344,7 +340,7 @@ export const conversationsHandlers = ({
               generationId: payload.generationId,
             });
             if (generation === null || generation.conversation_id !== params.id) {
-              return yield* Effect.fail(new NotFound({ message: "Generation not found" }));
+              return yield* new NotFound({ message: "Generation not found" });
             }
             yield* recordChatEvent({
               db,
@@ -373,7 +369,7 @@ export const conversationsHandlers = ({
               }),
             );
             if (!validated.success) {
-              return yield* Effect.fail(new BadRequest({ message: validated.error.message }));
+              return yield* new BadRequest({ message: validated.error.message });
             }
             const revised = yield* reviseConversationMessage({
               db,
@@ -384,7 +380,7 @@ export const conversationsHandlers = ({
               threadId: payload.threadId,
             });
             if (!revised) {
-              return yield* Effect.fail(new NotFound({ message: "Message not found" }));
+              return yield* new NotFound({ message: "Message not found" });
             }
             return { ok: true } as const;
           },
@@ -410,7 +406,7 @@ export const threadsHandlers = ({
             const user = yield* CurrentUser;
             const thread = yield* getThread(db, user.id, params.id);
             if (thread === null) {
-              return yield* Effect.fail(new NotFound({ message: "Thread not found" }));
+              return yield* new NotFound({ message: "Thread not found" });
             }
             const rows = yield* getThreadMessages(db, user.id, params.id);
             return { thread: toApiThread(thread), messages: rows.map(rowToMessage) };
@@ -459,7 +455,7 @@ export const messagesHandlers = ({
           const user = yield* CurrentUser;
           const message = yield* getMessage(db, user.id, params.id);
           if (message === null) {
-            return yield* Effect.fail(new NotFound({ message: "Message not found" }));
+            return yield* new NotFound({ message: "Message not found" });
           }
           return { message: rowToMessage(message) };
         },
@@ -483,9 +479,6 @@ export const memoryExtractionHandlers = ({
         function* ({ payload }) {
           const user = yield* CurrentUser;
           const text = payload.text.trim();
-          if (text === "") {
-            return yield* Effect.fail(new BadRequest({ message: "text is required" }));
-          }
           const snippets = yield* Effect.promise(() =>
             extractMemories(
               payload.config.apiKey,
@@ -494,11 +487,12 @@ export const memoryExtractionHandlers = ({
               text,
             ),
           );
-          const ids: string[] = [];
-          for (const snippet of snippets) {
-            const id = yield* insertMemory(db, user.id, snippet, "assistant", payload.threadId);
-            if (id !== null) ids.push(id);
-          }
+          const insertedIds = yield* Effect.forEach(
+            snippets,
+            (snippet) => insertMemory(db, user.id, snippet, "assistant", payload.threadId),
+            { concurrency: 8 },
+          );
+          const ids = insertedIds.filter((id) => id !== null);
           return { ids, count: ids.length };
         },
         withInternalError,

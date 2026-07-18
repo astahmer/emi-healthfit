@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
-import { Created, Deleted, Identifier, StandardErrors } from "./common.ts";
+import { Content, Created, Deleted, Identifier, StandardErrors } from "./common.ts";
 import { OpenAiClientConfig } from "./data.ts";
 
 export const Conversation = Schema.Struct({
@@ -116,7 +116,7 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
   .add(
     HttpApiEndpoint.patch("rename", "/conversations/:id/title", {
       params: { id: Identifier },
-      payload: Schema.Struct({ title: Schema.String.check(Schema.isMinLength(1)) }),
+      payload: Schema.Struct({ title: Content }),
       success: Deleted,
       error: StandardErrors,
     }),
@@ -133,7 +133,7 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
       params: { id: Identifier },
       payload: Schema.Struct({
         anchorMessageId: Identifier,
-        title: Schema.optional(Schema.String),
+        title: Schema.optional(Content),
       }),
       success: ThreadWithMessages.pipe(HttpApiSchema.status(201)),
       error: StandardErrors,
@@ -183,7 +183,7 @@ export class ThreadsApi extends HttpApiGroup.make("threads")
     HttpApiEndpoint.patch("update", "/threads/:id", {
       params: { id: Identifier },
       payload: Schema.Struct({
-        title: Schema.optional(Schema.String),
+        title: Schema.optional(Content),
         pinned: Schema.optional(Schema.Boolean),
         status: Schema.optional(Schema.Literals(["regular", "discarded"])),
       }),

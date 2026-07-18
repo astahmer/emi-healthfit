@@ -1,4 +1,4 @@
-import { BadRequest, EmiApi } from "@emi/api-contract";
+import { EmiApi } from "@emi/api-contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type { RuntimeContext } from "alchemy";
 import type * as Context from "effect/Context";
@@ -58,9 +58,6 @@ export const suggestionsHandlers = ({
         function* ({ payload }) {
           const user = yield* CurrentUser;
           const lastAssistantText = payload.lastAssistantText.trim();
-          if (lastAssistantText === "") {
-            return yield* Effect.fail(new BadRequest({ message: "lastAssistantText is required" }));
-          }
           const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
           const cached = yield* getSuggestionsById(db, user.id, key);
           if (cached !== null) {

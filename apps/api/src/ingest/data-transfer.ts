@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { z } from "zod";
+import * as Schema from "effect/Schema";
 import type { QueryDatabaseClient } from "../db/client.ts";
 import {
   insertHealthWorkouts,
@@ -10,91 +10,91 @@ import {
   upsertSleepSessions,
 } from "../db/ingested-data.ts";
 
-const nullableNumber = z.number().nullable();
-const nullableString = z.string().nullable();
+const NullableNumber = Schema.NullOr(Schema.Number);
+const NullableString = Schema.NullOr(Schema.String);
 
-export const ingestedDataExportSchema = z.object({
-  version: z.literal(1),
-  exportedAt: z.string(),
-  health: z.object({
-    dailyActivity: z.array(
-      z.object({
-        date: z.string(),
-        active_kcal: nullableNumber,
-        steps: nullableNumber,
-        distance_km: nullableNumber,
-        exercise_min: nullableNumber,
-        flights_climbed: nullableNumber,
+export const ingestedDataExportSchema = Schema.Struct({
+  version: Schema.Literal(1),
+  exportedAt: Schema.String,
+  health: Schema.Struct({
+    dailyActivity: Schema.Array(
+      Schema.Struct({
+        date: Schema.String,
+        active_kcal: NullableNumber,
+        steps: NullableNumber,
+        distance_km: NullableNumber,
+        exercise_min: NullableNumber,
+        flights_climbed: NullableNumber,
       }),
     ),
-    workouts: z.array(
-      z.object({
-        id: z.number().optional(),
-        date: z.string(),
-        type: z.string(),
-        start_raw: nullableString,
-        duration_sec: nullableNumber,
-        active_kcal: nullableNumber,
-        avg_hr: nullableNumber,
-        max_hr: nullableNumber,
-        min_hr: nullableNumber,
-        distance_km: nullableNumber,
-        source: nullableString,
-        raw_json: nullableString,
+    workouts: Schema.Array(
+      Schema.Struct({
+        id: Schema.optional(Schema.Number),
+        date: Schema.String,
+        type: Schema.String,
+        start_raw: NullableString,
+        duration_sec: NullableNumber,
+        active_kcal: NullableNumber,
+        avg_hr: NullableNumber,
+        max_hr: NullableNumber,
+        min_hr: NullableNumber,
+        distance_km: NullableNumber,
+        source: NullableString,
+        raw_json: NullableString,
       }),
     ),
-    sleepSessions: z.array(
-      z.object({
-        date: nullableString,
-        start: nullableString,
-        end: nullableString,
-        in_bed_min: nullableNumber,
-        asleep_min: nullableNumber,
-        awake_min: nullableNumber,
-        source: nullableString,
+    sleepSessions: Schema.Array(
+      Schema.Struct({
+        date: NullableString,
+        start: NullableString,
+        end: NullableString,
+        in_bed_min: NullableNumber,
+        asleep_min: NullableNumber,
+        awake_min: NullableNumber,
+        source: NullableString,
       }),
     ),
-    bodyMetrics: z.array(
-      z.object({
-        date: z.string(),
-        weight_kg: nullableNumber,
-        body_fat_pct: nullableNumber,
-        lean_mass_kg: nullableNumber,
-        source: nullableString,
-      }),
-    ),
-  }),
-  hevy: z.object({
-    sessions: z.array(
-      z.object({
-        session_id: z.string(),
-        title: nullableString,
-        start_time: z.string(),
-        end_time: nullableString,
-        duration_sec: nullableNumber,
-        total_volume_kg: nullableNumber,
-      }),
-    ),
-    sets: z.array(
-      z.object({
-        id: z.number().optional(),
-        session_id: z.string(),
-        exercise_title: z.string(),
-        set_index: z.number().int(),
-        set_type: nullableString,
-        weight_kg: nullableNumber,
-        reps: nullableNumber,
-        rpe: nullableNumber,
-        distance_km: nullableNumber,
-        duration_seconds: nullableNumber,
-        exercise_notes: nullableString,
+    bodyMetrics: Schema.Array(
+      Schema.Struct({
+        date: Schema.String,
+        weight_kg: NullableNumber,
+        body_fat_pct: NullableNumber,
+        lean_mass_kg: NullableNumber,
+        source: NullableString,
       }),
     ),
   }),
-  syncCursors: z.array(z.object({ source: z.string(), last_sync: nullableString })),
+  hevy: Schema.Struct({
+    sessions: Schema.Array(
+      Schema.Struct({
+        session_id: Schema.String,
+        title: NullableString,
+        start_time: Schema.String,
+        end_time: NullableString,
+        duration_sec: NullableNumber,
+        total_volume_kg: NullableNumber,
+      }),
+    ),
+    sets: Schema.Array(
+      Schema.Struct({
+        id: Schema.optional(Schema.Number),
+        session_id: Schema.String,
+        exercise_title: Schema.String,
+        set_index: Schema.Int,
+        set_type: NullableString,
+        weight_kg: NullableNumber,
+        reps: NullableNumber,
+        rpe: NullableNumber,
+        distance_km: NullableNumber,
+        duration_seconds: NullableNumber,
+        exercise_notes: NullableString,
+      }),
+    ),
+  }),
+  syncCursors: Schema.Array(Schema.Struct({ source: Schema.String, last_sync: NullableString })),
 });
 
-export type IngestedDataExport = z.infer<typeof ingestedDataExportSchema>;
+export type IngestedDataExport = typeof ingestedDataExportSchema.Type;
 
 interface ImportCount {
   received: number;

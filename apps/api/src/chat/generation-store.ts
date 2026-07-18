@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import type { QueryDatabaseClient } from "../db/client.ts";
+import { decodeJson } from "../json-codec.ts";
 
 export interface ChatGeneration {
   id: string;
@@ -30,7 +31,7 @@ const generationStaleMilliseconds = 5 * 60 * 1_000;
 const generationStaleSqlModifier = "-5 minutes";
 
 export const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => {
-  const parsed: unknown = JSON.parse(value);
+  const parsed = decodeJson(value);
   const validate = uiMessageChunkSchema().validate;
   if (validate === undefined) throw new Error("UI message chunk validator is unavailable");
   const result = await validate(parsed);

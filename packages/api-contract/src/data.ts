@@ -1,11 +1,11 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
-import { Identifier, StandardErrors } from "./common.ts";
+import { Content, Identifier, StandardErrors } from "./common.ts";
 
 const NullableNumber = Schema.NullOr(Schema.Number);
 
 export const OpenAiClientConfig = Schema.Struct({
-  apiKey: Schema.String.check(Schema.isMinLength(1)),
+  apiKey: Content,
   baseUrl: Schema.optional(Schema.String),
   model: Schema.String,
 });
@@ -16,7 +16,7 @@ export class SuggestionsApi extends HttpApiGroup.make("suggestions")
       payload: Schema.Struct({
         threadId: Schema.optional(Schema.String),
         messageId: Schema.optional(Schema.String),
-        lastAssistantText: Schema.String,
+        lastAssistantText: Content,
         lastUserText: Schema.optional(Schema.String),
         config: OpenAiClientConfig,
       }),
@@ -30,7 +30,7 @@ export class MemoriesExtraApi extends HttpApiGroup.make("memoryExtraction")
   .add(
     HttpApiEndpoint.post("extract", "/memories/extract", {
       payload: Schema.Struct({
-        text: Schema.String,
+        text: Content,
         threadId: Schema.optional(Schema.String),
         config: OpenAiClientConfig,
       }),

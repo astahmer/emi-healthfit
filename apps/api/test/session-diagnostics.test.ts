@@ -2,17 +2,27 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
+import * as Schema from "effect/Schema";
 import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
 } from "../src/diagnostics/bundle.ts";
 import { analyzeDiagnosticBundle } from "../src/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/json-codec.ts";
 
 const timestamp = "2026-07-16T12:00:00.000Z";
+const SessionFixture = Schema.Struct({
+  expectedFindings: Schema.Array(Schema.String),
+  sevenSqlShapes: Schema.Array(Schema.String),
+});
+const ScenarioFixture = Schema.Struct({
+  scenario: Schema.String,
+  events: Schema.Array(Schema.String),
+});
 
 const session9745Bundle = (): DiagnosticBundle =>
-  diagnosticBundleSchema.parse({
+  Schema.decodeUnknownSync(diagnosticBundleSchema)({
     schemaVersion: 1,
     exportedAt: timestamp,
     redacted: false,
@@ -103,12 +113,14 @@ const session9745Bundle = (): DiagnosticBundle =>
 
 describe("session diagnostics", () => {
   it("flags the deterministic session-9745 findings", () => {
-    const fixture = JSON.parse(
-      readFileSync(
-        resolve(import.meta.dirname, "fixtures/session-diagnostics/session-9745.json"),
-        "utf8",
+    const fixture = Schema.decodeUnknownSync(SessionFixture)(
+      decodeJson(
+        readFileSync(
+          resolve(import.meta.dirname, "fixtures/session-diagnostics/session-9745.json"),
+          "utf8",
+        ),
       ),
-    ) as { expectedFindings: string[]; sevenSqlShapes: string[] };
+    );
     const analysis = analyzeDiagnosticBundle(session9745Bundle());
     const codes = new Set(analysis.findings.map((finding) => finding.code));
 
@@ -140,12 +152,14 @@ describe("session diagnostics", () => {
       "persistence-failure",
     ];
     for (const name of names) {
-      const fixture = JSON.parse(
-        readFileSync(
-          resolve(import.meta.dirname, `fixtures/session-diagnostics/${name}.json`),
-          "utf8",
+      const fixture = Schema.decodeUnknownSync(ScenarioFixture)(
+        decodeJson(
+          readFileSync(
+            resolve(import.meta.dirname, `fixtures/session-diagnostics/${name}.json`),
+            "utf8",
+          ),
         ),
-      ) as { scenario: string; events: string[] };
+      );
       assert.strictEqual(fixture.scenario, name);
       assert.ok(fixture.events.length > 0);
     }

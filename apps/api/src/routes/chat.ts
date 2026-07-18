@@ -1,5 +1,6 @@
 import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
+import { Content } from "@emi/api-contract";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -55,6 +56,7 @@ import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { executeTool, tools as staticToolDefinitions } from "../tools/api.ts";
 import { corsHeaders } from "./http.ts";
 import { decodeMessageParts } from "../http-api-codecs.ts";
+import { decodeJsonOption } from "../json-codec.ts";
 
 const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
   const pathname = urlOrPath.startsWith("http") ? new URL(urlOrPath).pathname : urlOrPath;
@@ -76,15 +78,15 @@ const ChatStreamRequestSchema = Schema.Struct({
   config: Schema.Struct({
     provider: Schema.Literal("openai"),
     baseUrl: Schema.optional(Schema.String),
-    apiKey: Schema.String,
+    apiKey: Content,
     model: Schema.String,
     system: Schema.optional(Schema.String),
   }),
   coachMode: Schema.optional(Schema.Boolean),
   webSearch: Schema.optional(Schema.Boolean),
   temporary: Schema.optional(Schema.Boolean),
-  sessionId: Schema.optional(Schema.String),
-  threadId: Schema.optional(Schema.String),
+  sessionId: Schema.optional(Content),
+  threadId: Schema.optional(Content),
 });
 
 const MessageRevisionSchema = Schema.Struct({
@@ -211,15 +213,11 @@ const getFirstUserText = (
   for (const message of messages) {
     if (message.role !== "user") continue;
     for (const part of message.parts) {
-      if (
-        typeof part === "object" &&
-        part !== null &&
-        "type" in part &&
-        part.type === "text" &&
-        "text" in part
-      ) {
-        const text = part.text;
-        if (typeof text === "string" && text.trim() !== "") return text.trim();
+      const textPart = Schema.decodeUnknownOption(
+        Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }),
+      )(part);
+      if (Option.isSome(textPart) && textPart.value.text.trim() !== "") {
+        return textPart.value.text.trim();
       }
     }
   }
@@ -229,25 +227,25 @@ const getFirstUserText = (
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
-const getAttachmentSize = (part: Record<string, unknown>): number => {
-  if (part.type === "file" && typeof part.data === "string") {
-    return part.data.length;
-  }
-  if (part.type === "file" && typeof part.url === "string") {
-    return part.url.length;
-  }
-  if (part.type === "image" && typeof part.image === "string") {
-    return part.image.length;
-  }
-  return 0;
+const AttachmentPart = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("file"),
+    data: Schema.optional(Schema.String),
+    url: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({ type: Schema.Literal("image"), image: Schema.optional(Schema.String) }),
+]);
+
+const getAttachmentSize = (part: typeof AttachmentPart.Type): number => {
+  if (part.type === "file") return part.data?.length ?? part.url?.length ?? 0;
+  return part.image?.length ?? 0;
 };
 
 const validateAttachments = (messages: Array<{ parts: unknown[] }>): string | undefined => {
   for (const message of messages) {
-    const attachments = message.parts.filter((part) => {
-      if (typeof part !== "object" || part === null) return false;
-      const record = part as Record<string, unknown>;
-      return record.type === "file" || record.type === "image";
+    const attachments = message.parts.flatMap((part) => {
+      const attachment = Schema.decodeUnknownOption(AttachmentPart)(part);
+      return Option.isSome(attachment) ? [attachment.value] : [];
     });
 
     if (attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
@@ -255,7 +253,7 @@ const validateAttachments = (messages: Array<{ parts: unknown[] }>): string | un
     }
 
     for (const attachment of attachments) {
-      const size = getAttachmentSize(attachment as Record<string, unknown>);
+      const size = getAttachmentSize(attachment);
       if (size > MAX_ATTACHMENT_BYTES * 2) {
         return "One attachment is too large. Maximum size is 5 MB.";
       }
@@ -270,8 +268,11 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
     const user = yield* CurrentUser;
     const requestStartedAt = performance.now();
     const text = yield* request.text;
-    const raw: unknown = JSON.parse(text || "{}");
-    const parsed = Schema.decodeUnknownOption(ChatStreamRequestSchema)(raw);
+    const raw = decodeJsonOption(text);
+    if (Option.isNone(raw)) {
+      return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+    const parsed = Schema.decodeUnknownOption(ChatStreamRequestSchema)(raw.value);
 
     if (Option.isNone(parsed)) {
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -291,15 +292,6 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
       ...parsed.value,
       messages: validatedMessages.data,
     };
-    const apiKey = chatRequest.config.apiKey;
-
-    if (apiKey === "") {
-      return yield* HttpServerResponse.json(
-        { error: "OpenAI API key is required" },
-        { status: 400 },
-      );
-    }
-
     const requestWithKey: ChatStreamRequest = chatRequest;
 
     const isTemporary = chatRequest.temporary === true;
@@ -851,8 +843,15 @@ const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(functi
         if (chunk.type === "error") yield* Ref.set(streamError, chunk.errorText);
         if (chunk.type === "finish") {
           yield* Ref.set(sawFinish, true);
-          const reason = Reflect.get(chunk, "finishReason");
-          if (typeof reason === "string") yield* Ref.set(finishReason, reason);
+          const finish = Schema.decodeUnknownOption(
+            Schema.Struct({
+              type: Schema.Literal("finish"),
+              finishReason: Schema.optional(Schema.String),
+            }),
+          )(chunk);
+          if (Option.isSome(finish) && finish.value.finishReason !== undefined) {
+            yield* Ref.set(finishReason, finish.value.finishReason);
+          }
         }
       }),
     ),

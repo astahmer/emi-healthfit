@@ -1,8 +1,10 @@
 import * as Effect from "effect/Effect";
-import { z } from "zod";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import type { QueryDatabaseClient } from "../db/client.ts";
+import { decodeJson } from "../json-codec.ts";
 
-const generationStatusSchema = z.enum([
+const GenerationStatus = Schema.Literals([
   "pending",
   "streaming",
   "completed",
@@ -11,63 +13,63 @@ const generationStatusSchema = z.enum([
   "cancelled",
 ]);
 
-export const diagnosticBundleSchema = z.object({
-  schemaVersion: z.literal(1),
-  exportedAt: z.string(),
-  redacted: z.boolean(),
-  conversation: z.object({
-    id: z.string(),
-    title: z.string().nullable(),
-    status: z.string(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+export const diagnosticBundleSchema = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
+  exportedAt: Schema.String,
+  redacted: Schema.Boolean,
+  conversation: Schema.Struct({
+    id: Schema.String,
+    title: Schema.NullOr(Schema.String),
+    status: Schema.String,
+    createdAt: Schema.String,
+    updatedAt: Schema.String,
   }),
-  messages: z.array(
-    z.object({
-      id: z.string(),
-      parentId: z.string().nullable(),
-      role: z.string(),
-      parts: z.array(z.unknown()),
-      promptTokens: z.number().nullable(),
-      completionTokens: z.number().nullable(),
-      totalTokens: z.number().nullable(),
-      model: z.string().nullable(),
-      createdAt: z.string(),
+  messages: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      parentId: Schema.NullOr(Schema.String),
+      role: Schema.String,
+      parts: Schema.Array(Schema.Unknown),
+      promptTokens: Schema.NullOr(Schema.Number),
+      completionTokens: Schema.NullOr(Schema.Number),
+      totalTokens: Schema.NullOr(Schema.Number),
+      model: Schema.NullOr(Schema.String),
+      createdAt: Schema.String,
     }),
   ),
-  generations: z.array(
-    z.object({
-      id: z.string(),
-      requestId: z.string(),
-      traceId: z.string(),
-      status: generationStatusSchema,
-      error: z.string().nullable(),
-      finishReason: z.string().nullable(),
-      model: z.string().nullable(),
-      inputTokens: z.number().nullable(),
-      outputTokens: z.number().nullable(),
-      retryCount: z.number(),
-      startedAt: z.string(),
-      finishedAt: z.string().nullable(),
-      createdAt: z.string(),
-      updatedAt: z.string(),
+  generations: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      requestId: Schema.String,
+      traceId: Schema.String,
+      status: GenerationStatus,
+      error: Schema.NullOr(Schema.String),
+      finishReason: Schema.NullOr(Schema.String),
+      model: Schema.NullOr(Schema.String),
+      inputTokens: Schema.NullOr(Schema.Number),
+      outputTokens: Schema.NullOr(Schema.Number),
+      retryCount: Schema.Number,
+      startedAt: Schema.String,
+      finishedAt: Schema.NullOr(Schema.String),
+      createdAt: Schema.String,
+      updatedAt: Schema.String,
     }),
   ),
-  events: z.array(
-    z.object({
-      id: z.string(),
-      generationId: z.string(),
-      requestId: z.string(),
-      traceId: z.string(),
-      type: z.string(),
-      schemaVersion: z.number(),
-      payload: z.unknown(),
-      createdAt: z.string(),
+  events: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      generationId: Schema.String,
+      requestId: Schema.String,
+      traceId: Schema.String,
+      type: Schema.String,
+      schemaVersion: Schema.Number,
+      payload: Schema.Unknown,
+      createdAt: Schema.String,
     }),
   ),
 });
 
-export type DiagnosticBundle = z.infer<typeof diagnosticBundleSchema>;
+export type DiagnosticBundle = typeof diagnosticBundleSchema.Type;
 
 interface ConversationRow {
   id: string;
@@ -123,8 +125,11 @@ const healthPayloadKey = /^(input|output|args|result|props|payload|value)$/i;
 export const redactDiagnosticValue = (value: unknown, key = ""): unknown => {
   if (sensitiveKey.test(key)) return "[REDACTED]";
   if (healthPayloadKey.test(key) && value !== null && typeof value === "object") {
-    if ("type" in value && Reflect.get(value, "type") === "error-text") {
-      return { type: "error-text", value: String(Reflect.get(value, "value") ?? "Tool failed") };
+    const errorText = Schema.decodeUnknownOption(
+      Schema.Struct({ type: Schema.Literal("error-text"), value: Schema.optional(Schema.Unknown) }),
+    )(value);
+    if (Option.isSome(errorText)) {
+      return { type: "error-text", value: String(errorText.value.value ?? "Tool failed") };
     }
     return "[REDACTED]";
   }
@@ -139,7 +144,7 @@ export const redactDiagnosticValue = (value: unknown, key = ""): unknown => {
 };
 
 export const redactDiagnosticBundle = (bundle: DiagnosticBundle): DiagnosticBundle =>
-  diagnosticBundleSchema.parse({
+  Schema.decodeUnknownSync(diagnosticBundleSchema)({
     ...bundle,
     redacted: true,
     messages: bundle.messages.map((message) => ({
@@ -194,7 +199,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
 
   const redact = (value: unknown): unknown =>
     includeSensitive ? value : redactDiagnosticValue(value);
-  return diagnosticBundleSchema.parse({
+  return Schema.decodeUnknownSync(diagnosticBundleSchema)({
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     redacted: !includeSensitive,
@@ -209,7 +214,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
       id: message.id,
       parentId: message.parent_id,
       role: message.role,
-      parts: redact(JSON.parse(message.parts)),
+      parts: redact(decodeJson(message.parts)),
       promptTokens: message.prompt_tokens,
       completionTokens: message.completion_tokens,
       totalTokens: message.total_tokens,
@@ -239,7 +244,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
       traceId: event.trace_id,
       type: event.type,
       schemaVersion: event.schema_version,
-      payload: redact(JSON.parse(event.payload)),
+      payload: redact(decodeJson(event.payload)),
       createdAt: event.created_at,
     })),
   });

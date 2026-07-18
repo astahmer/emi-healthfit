@@ -33,6 +33,7 @@ import {
   ingestedDataExportSchema,
   previewIngestedDataImport,
 } from "../ingest/data-transfer.ts";
+import { decodeJsonOption } from "../json-codec.ts";
 import { parseHealthExport } from "../ingest/health.ts";
 import { parseHevyCsv } from "../ingest/hevy.ts";
 
@@ -238,18 +239,18 @@ export const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
 export const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const raw: unknown = JSON.parse((yield* request.text) || "{}");
-    const parsed = ingestedDataExportSchema.safeParse(raw);
-    if (!parsed.success) {
-      return yield* HttpServerResponse.json(
-        { error: "Invalid HealthFit export", issues: parsed.error.issues },
-        { status: 400 },
-      );
+    const raw = decodeJsonOption(yield* request.text);
+    if (Option.isNone(raw)) {
+      return yield* HttpServerResponse.json({ error: "Invalid HealthFit export" }, { status: 400 });
     }
-    const preview = yield* previewIngestedDataImport({ db, userId: user.id, data: parsed.data });
+    const parsed = Schema.decodeUnknownOption(ingestedDataExportSchema)(raw.value);
+    if (Option.isNone(parsed)) {
+      return yield* HttpServerResponse.json({ error: "Invalid HealthFit export" }, { status: 400 });
+    }
+    const preview = yield* previewIngestedDataImport({ db, userId: user.id, data: parsed.value });
     const apply = new URL(request.url, "http://localhost").searchParams.get("apply") === "true";
     if (apply) {
-      yield* importIngestedData({ db, userId: user.id, data: parsed.data });
+      yield* importIngestedData({ db, userId: user.id, data: parsed.value });
       summaryCache.clear();
     }
     return yield* HttpServerResponse.json({ preview, applied: apply });
@@ -273,12 +274,18 @@ export const handlePrivacyUpdate = (
 ) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const raw: unknown = JSON.parse((yield* request.text) || "{}");
+    const raw = decodeJsonOption(yield* request.text);
+    if (Option.isNone(raw)) {
+      return yield* HttpServerResponse.json(
+        { error: "Retention must be between 0 and 3650 days" },
+        { status: 400 },
+      );
+    }
     const parsed = Schema.decodeUnknownOption(
       Schema.Struct({
         rawUploadRetentionDays: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 3650 })),
       }),
-    )(raw);
+    )(raw.value);
     if (Option.isNone(parsed)) {
       return yield* HttpServerResponse.json(
         { error: "Retention must be between 0 and 3650 days" },

@@ -13,6 +13,9 @@ import {
 import { streamText } from "ai";
 import type { JSONSchema7 } from "json-schema";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import { decodeJsonOption } from "../json-codec.ts";
 import { fitnessCoachV1 } from "./prompts/fitness-coach-v1.ts";
 
 interface ChatConfig {
@@ -22,6 +25,8 @@ interface ChatConfig {
   model: string;
   system?: string | undefined;
 }
+
+const GeneratedStrings = Schema.Array(Schema.String);
 
 export interface ChatStreamRequest {
   messages: Array<Omit<UIMessage, "id">>;
@@ -161,13 +166,12 @@ export const generateSuggestions = async (request: SuggestionsRequest): Promise<
   const text = result.text.trim();
   const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
 
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === "string").slice(0, 5);
+  const parsed = decodeJsonOption(cleaned);
+  if (Option.isSome(parsed)) {
+    const suggestions = Schema.decodeUnknownOption(GeneratedStrings)(parsed.value);
+    if (Option.isSome(suggestions)) {
+      return suggestions.value.slice(0, 5);
     }
-  } catch {
-    // Fall through to line extraction.
   }
 
   return cleaned
@@ -224,16 +228,12 @@ export const extractMemories = async (
     .replace(/^```(?:json)?\s*|\s*```$/gi, "")
     .trim();
 
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
+  const parsed = decodeJsonOption(cleaned);
+  if (Option.isSome(parsed)) {
+    const memories = Schema.decodeUnknownOption(GeneratedStrings)(parsed.value);
+    if (Option.isSome(memories)) {
+      return memories.value.map((item) => item.trim()).filter((item) => item.length > 0);
     }
-  } catch {
-    // Fall through.
   }
 
   return [];
