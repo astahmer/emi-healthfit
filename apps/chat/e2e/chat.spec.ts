@@ -211,6 +211,14 @@ test("switches sessions, renders tools, and starts a new chat", async ({ page })
 
 test("sends the first message from a new empty conversation", async ({ page }) => {
   let submittedRequest: unknown;
+  let releaseChatResponse: () => void = () => {};
+  let signalChatRequestStarted: () => void = () => {};
+  const chatResponseReady = new Promise<void>((resolve) => {
+    releaseChatResponse = resolve;
+  });
+  const chatRequestStarted = new Promise<void>((resolve) => {
+    signalChatRequestStarted = resolve;
+  });
   const freshConversation = {
     id: "fresh",
     title: null,
@@ -234,6 +242,8 @@ test("sends the first message from a new empty conversation", async ({ page }) =
     }
     if (request.method() === "POST" && url.pathname === "/api/chat") {
       submittedRequest = request.postDataJSON();
+      signalChatRequestStarted();
+      await chatResponseReady;
       await route.fulfill({
         status: 200,
         headers: {
@@ -284,8 +294,13 @@ test("sends the first message from a new empty conversation", async ({ page }) =
   );
   await page.getByLabel("Send message").click();
 
-  expect((await chatResponse).ok()).toBe(true);
+  await chatRequestStarted;
   await expect(page).toHaveURL(/\/chat\/fresh$/);
+  await expect(page.getByText("First message")).toBeVisible();
+  await expect(page.getByLabel("Assistant is working")).toBeVisible();
+  releaseChatResponse();
+
+  expect((await chatResponse).ok()).toBe(true);
   await expect(page.getByText("Fresh answer")).toBeVisible();
   expect(submittedRequest).toEqual(
     expect.objectContaining({

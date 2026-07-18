@@ -93,10 +93,9 @@ export const useChatSubmission = ({
         return;
 
       let sessionId = config.sessionId;
-      let shouldNavigateToCreatedSession = false;
       if (sessionId === undefined) {
         sessionId = config.temporary ? `temp_${crypto.randomUUID()}` : await createConversation();
-        shouldNavigateToCreatedSession = !config.temporary;
+        if (!config.temporary) onSessionCreated?.(sessionId);
       }
 
       const textParts: UIMessage["parts"] = content === "" ? [] : [{ type: "text", text: content }];
@@ -144,10 +143,6 @@ export const useChatSubmission = ({
             replaceMessageId,
           },
         });
-        if (shouldNavigateToCreatedSession) {
-          onSessionCreated?.(sessionId);
-          shouldNavigateToCreatedSession = false;
-        }
         await consumeAssistantStream({
           stream,
           onMessage: (message) => {
@@ -161,7 +156,6 @@ export const useChatSubmission = ({
         notifyConversationsChanged();
         void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
       } catch (error) {
-        if (shouldNavigateToCreatedSession) onSessionCreated?.(sessionId);
         if (operationRef.current !== operation) return;
         if (controller.signal.aborted) {
           send({ type: "stream.stopped" });

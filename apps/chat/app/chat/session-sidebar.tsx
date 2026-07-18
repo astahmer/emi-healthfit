@@ -201,7 +201,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
         ) : (
           <SidebarMenuButton asChild isActive={isActive} tooltip={title}>
             <Link
-              to="/chat/$sessionId"
+              to="/chat/{-$sessionId}"
               params={{ sessionId: thread.id }}
               onClick={() => setOpenMobile(false)}
               onPointerDown={() =>
@@ -384,7 +384,7 @@ export const SessionSidebar = () => {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild onClick={closeMobileSidebar} tooltip="New chat">
-                <Link to="/chat">
+                <Link to="/chat/{-$sessionId}" params={{ sessionId: undefined }}>
                   <PlusIcon />
                   <span>New chat</span>
                 </Link>
@@ -418,10 +418,17 @@ export const SessionSidebar = () => {
                       thread={thread}
                       isActive={activeId === thread.id}
                       onDeleted={() => {
-                        if (activeId === thread.id) void navigate({ to: "/chat" });
+                        if (activeId !== thread.id) return;
+                        void navigate({
+                          to: "/chat/{-$sessionId}",
+                          params: { sessionId: undefined },
+                        });
                       }}
                       onCloned={(threadId) => {
-                        void navigate({ to: "/chat/$sessionId", params: { sessionId: threadId } });
+                        void navigate({
+                          to: "/chat/{-$sessionId}",
+                          params: { sessionId: threadId },
+                        });
                       }}
                     />
                   ))}

@@ -3,7 +3,6 @@ import {
   createRoute,
   createRouter,
   redirect,
-  useLocation,
   useNavigate,
 } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
@@ -41,11 +40,8 @@ const RootRouteComponent = RootLayout;
 
 const ChatRouteComponent = () => {
   const search = chatRoute.useSearch();
-  const pathname = useLocation({ select: (location) => location.pathname });
+  const { sessionId } = chatRoute.useParams();
   const navigate = useNavigate({ from: chatRoute.fullPath });
-  const encodedSessionId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
-  const sessionId =
-    encodedSessionId === undefined ? undefined : decodeURIComponent(encodedSessionId);
   return (
     <ChatPage
       sessionId={sessionId}
@@ -54,17 +50,14 @@ const ChatRouteComponent = () => {
         navigate({ search: (currentSearch) => ({ ...currentSearch, ...nextSearch }) })
       }
       onNavigate={(nextSessionId) =>
-        navigate(
-          nextSessionId === undefined
-            ? { to: "/chat" }
-            : { to: "/chat/$sessionId", params: { sessionId: nextSessionId } },
-        )
+        navigate({
+          to: "/chat/{-$sessionId}",
+          params: { sessionId: nextSessionId },
+        })
       }
     />
   );
 };
-
-const EmptyRouteComponent = () => null;
 
 const AuthRouteComponent = () => {
   const search = authRoute.useSearch();
@@ -77,22 +70,15 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   beforeLoad: () => {
-    throw redirect({ to: "/chat" });
+    throw redirect({ to: "/chat/{-$sessionId}", params: { sessionId: undefined } });
   },
 });
 
 const chatRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/chat",
+  path: "/chat/{-$sessionId}",
   validateSearch: validateChatSearch,
   component: ChatRouteComponent,
-});
-
-const chatSessionRoute = createRoute({
-  getParentRoute: () => chatRoute,
-  path: "$sessionId",
-  validateSearch: validateChatSearch,
-  component: EmptyRouteComponent,
 });
 
 const authRoute = createRoute({
@@ -153,7 +139,6 @@ const threadLayoutsRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   chatRoute,
-  chatSessionRoute,
   authRoute,
   uploadRoute,
   workoutsRoute,
