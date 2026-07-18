@@ -35,7 +35,7 @@ import {
 } from "../chat/generation-store.ts";
 import { createGenerationReplayStream } from "../chat/generation-replay.ts";
 import { resolveGenerationTerminalState } from "../chat/generation-terminal-state.ts";
-import { getOrphanUserMessageId } from "../chat/orphan-turn.ts";
+import { getProviderMessages } from "../chat/orphan-turn.ts";
 import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
 import { createChatStreamResponse } from "../chat/ui-message-stream-response.ts";
 import { validateStoredUIMessages } from "../chat/ui-messages.ts";
@@ -418,23 +418,6 @@ export const handleAiSdkChat = (
       );
     }
     const incomingMessages = chatRequest.replaceMessageId === undefined ? requestedMessages : [];
-    const orphanMessageId = getOrphanUserMessageId(existingRows);
-    if (
-      !isTemporary &&
-      chatRequest.replaceMessageId === undefined &&
-      incomingMessages.length > 0 &&
-      orphanMessageId !== null
-    ) {
-      return yield* HttpServerResponse.json(
-        {
-          error: "Previous user turn has no assistant response.",
-          code: "ORPHAN_USER_TURN",
-          orphanMessageId,
-          actions: ["retry", "discard", "send-as-new-turn"],
-        },
-        { status: 409, headers: corsHeaders(request) },
-      );
-    }
 
     const toolRecord = Object.fromEntries(
       staticToolDefinitions.map((definition) => [
@@ -445,7 +428,12 @@ export const handleAiSdkChat = (
 
     const requestWithHistory: ChatStreamRequest = {
       ...requestWithKey,
-      messages: [...existingMessages, ...incomingMessages],
+      messages: getProviderMessages({
+        existingRows,
+        existingMessages,
+        incomingMessages,
+        replaceMessageId: chatRequest.replaceMessageId,
+      }),
       sessionId,
       tools: toolRecord,
     };

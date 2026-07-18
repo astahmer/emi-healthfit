@@ -84,6 +84,21 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().matches("streaming")).toBe(false);
   });
 
+  it("attaches a reconnect failure to a user turn that arrives with persisted history", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({ type: "resume.started" });
+    actor.send({ type: "stream.failed", error: new Error("Generation timed out") });
+    actor.send({
+      type: "history.changed",
+      sessionId: "one",
+      messages: [message("orphaned-user", "user", "Unanswered request")],
+    });
+
+    expect(actor.getSnapshot().context.errorMessageId).toBe("orphaned-user");
+    expect(actor.getSnapshot().context.error?.message).toBe("Generation timed out");
+  });
+
   it("rejects a concurrent submission while one generation is streaming", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();

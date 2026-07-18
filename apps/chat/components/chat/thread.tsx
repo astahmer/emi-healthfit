@@ -348,6 +348,8 @@ const ChatMessage = ({
   onEditSubmit,
   onRegenerate,
   onReferenceMessage,
+  error,
+  onRetry,
 }: {
   message: UIMessage;
   isStreaming: boolean;
@@ -360,6 +362,8 @@ const ChatMessage = ({
   onEditSubmit: () => void;
   onRegenerate: (messageId: string) => void;
   onReferenceMessage?: (messageId: string) => void;
+  error?: Error;
+  onRetry?: (messageId: string) => void;
 }) => {
   const isUser = message.role === "user";
   const usage = useUsage();
@@ -436,6 +440,20 @@ const ChatMessage = ({
               </Button>
             </div>
           </form>
+        )}
+        {isUser && error !== undefined && (
+          <div className="ms-auto flex max-w-[85%] items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <span>{error.message}</span>
+            {onRetry !== undefined && (
+              <button
+                type="button"
+                className="ms-auto font-medium underline"
+                onClick={() => onRetry(message.id)}
+              >
+                Retry this request
+              </button>
+            )}
+          </div>
         )}
         <MessageFooter className={cn("gap-1", !isUser && "px-2")}>
           <span className="me-1 font-medium text-foreground/70">{isUser ? "You" : "Coach"}</span>
@@ -619,6 +637,10 @@ export const Thread = ({
                   }}
                   onRegenerate={(messageId) => void runtime.revise({ messageId })}
                   onReferenceMessage={onReferenceMessage}
+                  error={
+                    runtime.errorMessageId === message.id ? (runtime.error ?? undefined) : undefined
+                  }
+                  onRetry={(messageId) => void runtime.revise({ messageId })}
                 />
               ))}
               {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
@@ -700,7 +722,7 @@ export const Thread = ({
             rows={1}
             className="max-h-48 min-h-11 w-full min-w-0 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none sm:min-h-14 sm:px-3"
           />
-          {runtime.error !== null && (
+          {runtime.error !== null && runtime.errorMessageId === undefined && (
             <div className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               <span>{runtime.error.message}</span>
               {runtime.orphanMessageId !== undefined ? (

@@ -42,6 +42,7 @@ describe("Thread", () => {
       files: [],
       isStreaming: false,
       error: null,
+      errorMessageId: undefined,
       attachmentError: null,
       isPreparingAttachments: false,
       setDraft: vi.fn(),
@@ -216,6 +217,27 @@ describe("Thread", () => {
     await user.click(screen.getByRole("button", { name: "Update" }));
 
     expect(runtime.revise).toHaveBeenCalledWith({ messageId: "user-1", text: "Edited" });
+  });
+
+  it("attaches a retry action to the failed user turn", async () => {
+    const user = userEvent.setup();
+    const retryError = new Error("Generation timed out");
+    const message: MessageWithUsage = {
+      id: "user-failed",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      error: retryError,
+      errorMessageId: message.id,
+    });
+    const view = renderThread([message]);
+
+    await user.click(view.getByRole("button", { name: "Retry this request" }));
+
+    expect(vi.mocked(useChatRuntime)().revise).toHaveBeenCalledWith({ messageId: message.id });
   });
 
   it("regenerates an assistant turn", async () => {

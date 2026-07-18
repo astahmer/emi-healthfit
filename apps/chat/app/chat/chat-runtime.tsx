@@ -50,6 +50,7 @@ interface ChatRuntimeValue {
   files: import("ai").FileUIPart[];
   isStreaming: boolean;
   error: Error | null;
+  errorMessageId: string | undefined;
   attachmentError: string | null;
   isPreparingAttachments: boolean;
   setDraft: (value: string) => void;
@@ -236,6 +237,11 @@ export const ChatRuntimeProvider = ({
     const resume = async () => {
       const operation = operationRef.current + 1;
       operationRef.current = operation;
+      send({
+        type: "history.changed",
+        sessionId,
+        messages: config.initialMessages,
+      });
       send({ type: "resume.started" });
       const stream = await transport.reconnectToStream({ chatId: sessionId });
       if (stream === null) {
@@ -271,10 +277,12 @@ export const ChatRuntimeProvider = ({
       send({
         type: "stream.failed",
         error: error instanceof Error ? error : new Error(String(error)),
+        messageId: config.initialMessages.findLast((message) => message.role === "user")?.id,
       });
       recordClientEvent("client.disconnected");
     });
   }, [
+    config.initialMessages,
     config.historyReady,
     config.sessionId,
     config.temporary,
@@ -374,6 +382,7 @@ export const ChatRuntimeProvider = ({
         send({
           type: "stream.failed",
           error: error instanceof Error ? error : new Error(String(error)),
+          messageId: userMessage.id,
         });
         recordClientEvent("client.disconnected");
       } finally {
@@ -433,6 +442,7 @@ export const ChatRuntimeProvider = ({
         send({
           type: "stream.failed",
           error: error instanceof Error ? error : new Error(String(error)),
+          messageId: userMessage.id,
         });
       }
     },
@@ -454,6 +464,10 @@ export const ChatRuntimeProvider = ({
       files: selectionMatchesRuntime ? state.context.files : [],
       isStreaming: selectionMatchesRuntime && state.matches("streaming"),
       error: state.context.error,
+      errorMessageId:
+        state.context.error instanceof OrphanTurnError
+          ? state.context.error.orphanMessageId
+          : state.context.errorMessageId,
       attachmentError,
       isPreparingAttachments,
       setDraft: (value) => send({ type: "draft.changed", value }),

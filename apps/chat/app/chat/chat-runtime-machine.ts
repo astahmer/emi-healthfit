@@ -8,6 +8,7 @@ export interface ChatRuntimeContext {
   draft: string;
   files: FileUIPart[];
   error: Error | null;
+  errorMessageId: string | undefined;
 }
 
 export type ChatRuntimeEvent =
@@ -25,7 +26,7 @@ export type ChatRuntimeEvent =
   | { type: "stream.updated"; message: UIMessage }
   | { type: "stream.completed" }
   | { type: "stream.stopped" }
-  | { type: "stream.failed"; error: Error }
+  | { type: "stream.failed"; error: Error; messageId?: string }
   | { type: "error.cleared" };
 
 const sessionKey = (sessionId: string | undefined): string => sessionId ?? "new";
@@ -44,13 +45,19 @@ export const chatRuntimeMachine = setup({
         [sessionKey(context.sessionId)]: { text: context.draft, files: context.files },
       };
       const nextDraft = drafts[sessionKey(event.sessionId)];
+      const errorMessageId =
+        context.error === null
+          ? undefined
+          : (context.errorMessageId ??
+            event.messages.findLast((message) => message.role === "user")?.id);
       return {
         sessionId: event.sessionId,
         messages: event.messages,
         drafts,
         draft: nextDraft?.text ?? "",
         files: nextDraft?.files ?? [],
-        error: null,
+        error: context.error,
+        errorMessageId,
       };
     }),
     changeDraft: assign(({ context, event }) => {
@@ -85,6 +92,7 @@ export const chatRuntimeMachine = setup({
           [sessionKey(event.sessionId)]: { text: "", files: [] },
         },
         error: null,
+        errorMessageId: undefined,
       };
     }),
     startRevision: assign(({ context, event }) => {
@@ -99,6 +107,7 @@ export const chatRuntimeMachine = setup({
             ? [...context.messages, event.message]
             : [...context.messages.slice(0, replacedIndex), event.message],
         error: null,
+        errorMessageId: undefined,
       };
     }),
     updateStream: assign(({ context, event }) => {
@@ -109,10 +118,15 @@ export const chatRuntimeMachine = setup({
       }
       return { messages: [...context.messages, event.message] };
     }),
-    failStream: assign({
-      error: ({ event }) => (event.type === "stream.failed" ? event.error : null),
+    failStream: assign(({ context, event }) => {
+      if (event.type !== "stream.failed") return {};
+      return {
+        error: event.error,
+        errorMessageId:
+          event.messageId ?? context.messages.findLast((message) => message.role === "user")?.id,
+      };
     }),
-    clearError: assign({ error: () => null }),
+    clearError: assign({ error: () => null, errorMessageId: () => undefined }),
   },
 }).createMachine({
   id: "chatRuntime",
@@ -124,6 +138,7 @@ export const chatRuntimeMachine = setup({
     draft: "",
     files: [],
     error: null,
+    errorMessageId: undefined,
   }),
   states: {
     idle: {

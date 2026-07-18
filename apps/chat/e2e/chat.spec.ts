@@ -386,7 +386,7 @@ test("sends the first message in an existing conversation with empty history", a
   );
 });
 
-test("surfaces a failed generation and retries the last turn", async ({ page }) => {
+test("attaches retry to a timed-out user request", async ({ page }) => {
   let generationAttempts = 0;
   let revised = false;
   let retrySucceeded = false;
@@ -437,7 +437,7 @@ test("surfaces a failed generation and retries the last turn", async ({ page }) 
     if (request.method() === "POST" && url.pathname === "/api/chat") {
       generationAttempts += 1;
       if (generationAttempts === 1) {
-        await route.fulfill({ status: 503, body: "Provider unavailable" });
+        await route.fulfill({ status: 503, body: "Generation timed out" });
         return;
       }
       retrySucceeded = true;
@@ -460,19 +460,17 @@ test("surfaces a failed generation and retries the last turn", async ({ page }) 
   await expect(page.getByLabel("Send message")).toBeVisible();
   await page.getByLabel("Message input").fill("Try this request");
   await page.getByLabel("Send message").click();
-  await expect(page.getByText("Provider unavailable")).toBeVisible();
-  await page.getByRole("button", { name: "Retry last turn" }).click();
+  await expect(page.getByText("Generation timed out")).toBeVisible();
+  await page.getByRole("button", { name: "Retry this request" }).click();
 
   await expect(page.getByText("Retry succeeded")).toBeVisible();
   expect(generationAttempts).toBe(2);
   expect(revised).toBe(true);
 });
 
-test("retries the persisted orphan turn instead of the blocked new prompt", async ({ page }) => {
+test("accepts a new request after a persisted orphaned turn", async ({ page }) => {
   const orphanMessageId = "30dd4f3b-02af-4168-83cc-f70d395c715c";
-  let retried = false;
-  let revisedMessageId: string | undefined;
-  let retryRequest: Record<string, unknown> | undefined;
+  let submittedRequest: Record<string, unknown> | undefined;
 
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -490,48 +488,14 @@ test("retries the persisted orphan turn instead of the blocked new prompt", asyn
           createdAt: "2026-07-17T00:00:02.000Z",
         },
       ];
-      if (retried) {
-        messages.push({
-          id: "recovered-assistant",
-          conversationId: "one",
-          parentId: null,
-          role: "assistant",
-          parts: [{ type: "text", text: "Recovered response" }],
-          createdAt: "2026-07-17T00:00:03.000Z",
-        });
-      }
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ ...payload, messages }),
       });
       return;
     }
-    if (
-      request.method() === "PATCH" &&
-      url.pathname.startsWith("/api/conversations/one/messages/")
-    ) {
-      revisedMessageId = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
-      return;
-    }
     if (request.method() === "POST" && url.pathname === "/api/chat") {
-      const body = request.postDataJSON();
-      if (retryRequest === undefined) {
-        retryRequest = body;
-        await route.fulfill({
-          status: 409,
-          contentType: "application/json",
-          body: JSON.stringify({
-            error: "Previous user turn has no assistant response.",
-            code: "ORPHAN_USER_TURN",
-            orphanMessageId,
-            actions: ["retry", "discard", "send-as-new-turn"],
-          }),
-        });
-        return;
-      }
-      retryRequest = body;
-      retried = true;
+      submittedRequest = request.postDataJSON();
       await route.fulfill({
         status: 200,
         headers: {
@@ -539,7 +503,7 @@ test("retries the persisted orphan turn instead of the blocked new prompt", asyn
           "x-thread-id": "one",
           "x-vercel-ai-ui-message-stream": "v1",
         },
-        body: assistantStream({ messageId: "recovered-assistant", text: "Recovered response" }),
+        body: assistantStream({ messageId: "continued-assistant", text: "Continued response" }),
       });
       return;
     }
@@ -547,15 +511,18 @@ test("retries the persisted orphan turn instead of the blocked new prompt", asyn
   });
   await page.goto("/chat/one");
 
-  await page.getByLabel("Message input").fill("Blocked new prompt");
+  await page.getByLabel("Message input").fill("Continue with a new request");
   await page.getByLabel("Send message").click();
-  await expect(page.getByText("Your previous request did not receive a response.")).toBeVisible();
-  await expect(page.getByText("ORPHAN_USER_TURN")).not.toBeVisible();
-  await page.getByRole("button", { name: "Retry previous request" }).click();
 
-  await expect(page.getByText("Recovered response")).toBeVisible();
-  expect(revisedMessageId).toBe(orphanMessageId);
-  expect(retryRequest?.replaceMessageId).toBe(orphanMessageId);
+  await expect(page.getByText("Continued response")).toBeVisible();
+  expect(submittedRequest).toEqual(
+    expect.objectContaining({
+      replaceMessageId: undefined,
+      messages: [
+        expect.objectContaining({ parts: [{ type: "text", text: "Continue with a new request" }] }),
+      ],
+    }),
+  );
 });
 
 test("navigates production-built data pages and renders empty states", async ({ page }) => {
