@@ -5,6 +5,7 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const staticRoot = resolve(fileURLToPath(new URL("../dist/", import.meta.url)));
+const port = Number.parseInt(process.env.E2E_PORT ?? "3100", 10);
 const mediaTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -85,4 +86,11 @@ const shutdown = () => {
 
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);
-server.listen(3100, "127.0.0.1");
+server.listen(port, "127.0.0.1", () => {
+  const address = server.address();
+  if (typeof address === "string" || address === null)
+    throw new Error("E2E server has no TCP port");
+  const serverUrl = `http://127.0.0.1:${address.port}`;
+  process.send?.({ type: "ready", url: serverUrl });
+  console.log(`E2E static server listening on ${serverUrl}`);
+});

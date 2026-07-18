@@ -9,7 +9,7 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 - **Runtime:** Cloudflare Workers
 - **Language:** TypeScript 7
 - **Infra + runtime framework:** [Alchemy](https://alchemy.run) + [Effect](https://effect.website)
-- **Frontend:** Next.js static export, XState chat runtime, Vercel AI SDK transport, shadcn UI
+- **Frontend:** Vite static build, XState chat runtime, Vercel AI SDK transport, shadcn UI
 - **Database:** Cloudflare D1
 - **Raw export storage:** Cloudflare R2
 - **LLM:** OpenAI (`gpt-5.2-chat-latest` by default) via BYOK through the Worker
@@ -217,6 +217,9 @@ pnpm --filter @emi/api db:generate
 pnpm --filter @emi/api db:check
 ```
 
+The filtered commands run from `apps/api`. When using Drizzle directly, use package-relative paths
+such as `./src/db/schema.ts`; root-relative paths are not resolved by the CLI.
+
 Do not create, edit, rename, move, or delete migration SQL, journals, or snapshots manually. Generated
 SQL should be reviewed and tested but not hand-modified. If a required backfill does not fit the
 established Drizzle workflow, stop and design an explicit migration process before deployment.
@@ -410,16 +413,21 @@ The API uses Node's test runner; the chat app uses Vitest and Testing Library. P
 pnpm test
 pnpm lint
 pnpm typecheck
-pnpm fmt
+pnpm format
 pnpm knip
 ```
 
-For focused checks, run the relevant package directly:
+For focused checks, pass the test file to its package runner:
 
 ```bash
-cd apps/api && pnpm typecheck && pnpm test
-cd apps/chat && pnpm typecheck && pnpm test
+pnpm --filter @emi/api test:file test/auth.test.ts
+pnpm --filter @emi/chat test:file app/chat/attachments.test.ts
 ```
+
+Browser tests run against the Vite production build. Use `pnpm --filter @emi/chat test:e2e` after
+source changes; `test:e2e:run` only serves the existing `dist/` directory. If Chromium is not
+available, run `pnpm --filter @emi/chat e2e:install` once. Each test run selects an unused local
+port, so an existing development server cannot be mistaken for the static build.
 
 ## Contributing
 

@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: "line",
   timeout: 15_000,
   use: {
-    baseURL: "http://127.0.0.1:3100",
+    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100",
     serviceWorkers: "block",
     trace: "retain-on-failure",
   },
