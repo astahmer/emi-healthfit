@@ -271,7 +271,7 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
                   );
             return [
               ...new Map([...contextRows, ...branchRows].map((row) => [row.id, row])).values(),
-            ].sort((left, right) => left.created_at.localeCompare(right.created_at));
+            ].toSorted((left, right) => left.created_at.localeCompare(right.created_at));
           });
     const providerMessageRole = Schema.Literals(["system", "user", "assistant"]);
     const storedMessages = existingRows

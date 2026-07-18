@@ -93,7 +93,7 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
 
   const history = Array.from(usage.metaByMessageId.entries())
     .filter((entry) => entry[1].usage !== undefined)
-    .reverse();
+    .toReversed();
   const estimatedCost = history.reduce((total, entry) => total + estimateMessageCost(entry[1]), 0);
   const totalTokens = usage.totalUsage.totalTokens ?? 0;
 

@@ -31,6 +31,13 @@ const AssetsBinding = Schema.Struct({
     (value) => typeof value === "function",
   ),
 });
+const cors = <E, R>({
+  request,
+  effect,
+}: {
+  request: HttpServerRequest;
+  effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>;
+}) => withCors(effect, request);
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
@@ -59,14 +66,9 @@ export default class Api extends Cloudflare.Worker<Api>()(
       : undefined;
 
     const router = yield* HttpRouter.make;
-    const cors = <E, R>(
-      request: HttpServerRequest,
-      effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-    ) => withCors(effect, request);
-
     yield* Effect.gen(function* () {
       yield* router.add("POST", "/ingest", (request) =>
-        cors(request, handleIngest(db, bucket, request)),
+        cors({ request, effect: handleIngest(db, bucket, request) }),
       );
       yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, request));
       yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>
@@ -75,16 +77,20 @@ export default class Api extends Cloudflare.Worker<Api>()(
           return yield* handleChatResume(db, params.conversationId ?? "", request);
         }),
       );
-      yield* router.add("GET", "/api/recovery", (request) => cors(request, handleRecovery(db)));
-      yield* router.add("GET", "/api/summary", (request) => cors(request, handleSummary(db)));
+      yield* router.add("GET", "/api/recovery", (request) =>
+        cors({ request, effect: handleRecovery(db) }),
+      );
+      yield* router.add("GET", "/api/summary", (request) =>
+        cors({ request, effect: handleSummary(db) }),
+      );
       yield* router.add("GET", "/api/export/ingested-data", (request) =>
-        cors(request, handleIngestedDataExport(db)),
+        cors({ request, effect: handleIngestedDataExport(db) }),
       );
       yield* router.add("POST", "/api/import/ingested-data", (request) =>
-        cors(request, handleIngestedDataImport(db, request)),
+        cors({ request, effect: handleIngestedDataImport(db, request) }),
       );
       yield* router.add("GET", "/api/conversations/:conversationId/diagnostics", (request) =>
-        cors(request, handleConversationDiagnostics(db, request)),
+        cors({ request, effect: handleConversationDiagnostics(db, request) }),
       );
       yield* registerHttpApi({ bucket, db, router });
       yield* router.add("*", "/*", (request) => {
@@ -92,7 +98,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         if (request.method === "GET") return handleAssetRequest({ assetsFetcher, request });
         return Effect.succeed(HttpServerResponse.text("Not Found", { status: 404 }));
       });
-    }) as Effect.Effect<void>;
+    }).pipe(Effect.asVoid);
 
     return {
       fetch: Effect.gen(function* () {

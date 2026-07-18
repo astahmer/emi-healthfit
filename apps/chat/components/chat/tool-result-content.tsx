@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type FC } from "react";
+import { memo, useMemo, type FC, type ReactNode } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import {
@@ -137,7 +137,11 @@ const getCitations = (value: unknown): Citation[] | undefined => {
   return container.value.results ?? container.value.sources ?? container.value.citations;
 };
 
-const Table: FC<{ headers: string[]; rows: React.ReactNode[][] }> = ({ headers, rows }) => {
+const workoutHistoryHeaders = ["Date", "Workout", "Volume", "Exercises", "Sets"];
+const exerciseProgressHeaders = ["Date", "Max weight", "Volume", "Sets", "Reps"];
+const emptyWorkoutItems: WorkoutHistoryItem[] = [];
+
+const Table: FC<{ headers: readonly string[]; children: ReactNode }> = ({ headers, children }) => {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs">
@@ -150,49 +154,45 @@ const Table: FC<{ headers: string[]; rows: React.ReactNode[][] }> = ({ headers, 
             ))}
           </tr>
         </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={`row-${index}-${String(row[0])}`}
-              className="border-b border-border/50 last:border-0"
-            >
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="py-1.5 pr-3">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
+        <tbody>{children}</tbody>
       </table>
     </div>
   );
 };
 
-export const WorkoutHistoryTable: FC<{ items?: WorkoutHistoryItem[] }> = ({ items = [] }) => {
+export const WorkoutHistoryTable: FC<{ items?: WorkoutHistoryItem[] }> = ({
+  items = emptyWorkoutItems,
+}) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground">No workouts found.</p>;
   }
 
   return (
-    <Table
-      headers={["Date", "Workout", "Volume", "Exercises", "Sets"]}
-      rows={items.map((item) => [
-        formatDate(item.start_time),
-        item.title ?? "Untitled",
-        item.total_volume_kg !== null ? `${item.total_volume_kg.toFixed(1)} kg` : "—",
-        String(item.exercise_count),
-        String(item.set_count),
-      ])}
-    />
+    <Table headers={workoutHistoryHeaders}>
+      {items.map((item) => (
+        <tr key={item.session_id} className="border-b border-border/50 last:border-0">
+          <td className="py-1.5 pr-3">{formatDate(item.start_time)}</td>
+          <td className="py-1.5 pr-3">{item.title ?? "Untitled"}</td>
+          <td className="py-1.5 pr-3">
+            {item.total_volume_kg !== null ? `${item.total_volume_kg.toFixed(1)} kg` : "—"}
+          </td>
+          <td className="py-1.5 pr-3">{item.exercise_count}</td>
+          <td className="py-1.5 pr-3">{item.set_count}</td>
+        </tr>
+      ))}
+    </Table>
   );
 };
 
 export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => {
-  const chartData = data.workouts.map((workout) => ({
-    date: formatDate(workout.start_time),
-    weight: workout.max_weight_kg,
-  }));
+  const chartData = useMemo(
+    () =>
+      data.workouts.map((workout) => ({
+        date: formatDate(workout.start_time),
+        weight: workout.max_weight_kg,
+      })),
+    [data.workouts],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -233,16 +233,23 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <Table
-            headers={["Date", "Max weight", "Volume", "Sets", "Reps"]}
-            rows={data.workouts.map((workout) => [
-              formatDate(workout.start_time),
-              workout.max_weight_kg !== null ? `${workout.max_weight_kg.toFixed(1)} kg` : "—",
-              workout.total_volume_kg !== null ? `${workout.total_volume_kg.toFixed(1)} kg` : "—",
-              String(workout.sets),
-              workout.total_reps !== null ? String(workout.total_reps) : "—",
-            ])}
-          />
+          <Table headers={exerciseProgressHeaders}>
+            {data.workouts.map((workout) => (
+              <tr key={workout.session_id} className="border-b border-border/50 last:border-0">
+                <td className="py-1.5 pr-3">{formatDate(workout.start_time)}</td>
+                <td className="py-1.5 pr-3">
+                  {workout.max_weight_kg !== null ? `${workout.max_weight_kg.toFixed(1)} kg` : "—"}
+                </td>
+                <td className="py-1.5 pr-3">
+                  {workout.total_volume_kg !== null
+                    ? `${workout.total_volume_kg.toFixed(1)} kg`
+                    : "—"}
+                </td>
+                <td className="py-1.5 pr-3">{workout.sets}</td>
+                <td className="py-1.5 pr-3">{workout.total_reps ?? "—"}</td>
+              </tr>
+            ))}
+          </Table>
         </>
       )}
     </div>
@@ -289,9 +296,9 @@ export const RecoveryCard: FC<{ data: RecoveryResult }> = ({ data }) => {
 const WebSearchCitations: FC<{ citations: Citation[] }> = ({ citations }) => {
   return (
     <div className="flex flex-col gap-2">
-      {citations.map((citation, index) => (
+      {citations.map((citation) => (
         <div
-          key={`citation-${index}-${citation.url ?? citation.title ?? ""}`}
+          key={citation.url ?? citation.title ?? citation.content ?? "citation"}
           className="rounded-lg border p-3"
         >
           {citation.title !== undefined && (

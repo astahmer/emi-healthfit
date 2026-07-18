@@ -36,6 +36,17 @@ export interface MemorySearchResult {
   rank: number;
 }
 
+type MemorySearchRow = Omit<MemorySearchResult, "rank"> & { rank?: number };
+
+const toMemorySearchResult = (row: MemorySearchRow): MemorySearchResult => ({
+  id: row.id,
+  content: row.content,
+  source: row.source,
+  thread_id: row.thread_id,
+  created_at: row.created_at,
+  rank: row.rank ?? 0,
+});
+
 export const searchMemories = (
   db: QueryDatabaseClient,
   userId: string,
@@ -54,8 +65,8 @@ export const searchMemories = (
         LIMIT ?
       `)
         .bind(userId, limit)
-        .all<Omit<MemorySearchResult, "rank">>();
-      return result.results.map((row) => ({ ...row, rank: 0 }));
+        .all<MemorySearchRow>();
+      return result.results.map(toMemorySearchResult);
     }
 
     const pattern = `%${term.toLowerCase()}%`;
@@ -74,9 +85,9 @@ export const searchMemories = (
       LIMIT ?
     `)
       .bind(term.toLowerCase(), `${term.toLowerCase()} %`, pattern, userId, pattern, limit)
-      .all<MemorySearchResult>();
+      .all<MemorySearchRow>();
 
-    return result.results;
+    return result.results.map(toMemorySearchResult);
   });
 
 export const getMemories = (db: QueryDatabaseClient, userId: string, limit = 100) =>

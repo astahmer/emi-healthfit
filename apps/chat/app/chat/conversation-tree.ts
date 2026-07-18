@@ -6,7 +6,7 @@ export const getRootMessages = (messages: MessageNode[]): MessageNode[] =>
 export const getChildMessages = (messages: MessageNode[], parentId: string): MessageNode[] =>
   messages
     .filter((message) => message.parentId === parentId)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .toSorted((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
 export const getMessageAncestors = (messages: MessageNode[], messageId: string): MessageNode[] => {
   const byId = new Map(messages.map((message) => [message.id, message]));
@@ -33,7 +33,7 @@ export const getThreadMessages = (messages: MessageNode[], thread: ThreadView): 
   const included = new Set(thread.messageIds);
   return messages
     .filter((message) => included.has(message.id))
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .toSorted((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 };
 
 export const getConversationViewMessages = ({

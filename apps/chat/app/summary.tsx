@@ -50,6 +50,9 @@ const EmptyChart = () => (
   </div>
 );
 
+const trainingBarRadius = [4, 4, 0, 0];
+const bodyWeightDomain = ["dataMin - 2", "dataMax + 2"];
+
 export const SummaryPanel = () => {
   const [days, setDays] = useState(90);
   const { data, isLoading, error, refetch } = useQuery({
@@ -200,7 +203,7 @@ export const SummaryPanel = () => {
                   <Bar
                     dataKey="volume_kg"
                     fill="var(--color-chart-4)"
-                    radius={[4, 4, 0, 0]}
+                    radius={trainingBarRadius}
                     name="Volume (kg)"
                   />
                 </BarChart>
@@ -216,7 +219,7 @@ export const SummaryPanel = () => {
                 <AreaChart data={data.body}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                   <XAxis dataKey="date" tickFormatter={compactDate} minTickGap={32} />
-                  <YAxis domain={["dataMin - 2", "dataMax + 2"]} unit="kg" width={50} />
+                  <YAxis domain={bodyWeightDomain} unit="kg" width={50} />
                   <Tooltip labelFormatter={formatChartLabel} />
                   <Area
                     dataKey="weight_kg"

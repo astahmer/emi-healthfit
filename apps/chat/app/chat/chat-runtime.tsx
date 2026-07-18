@@ -470,7 +470,7 @@ export const ChatRuntimeProvider = ({
           : state.context.errorMessageId,
       attachmentError,
       isPreparingAttachments,
-      setDraft: (value) => send({ type: "draft.changed", value }),
+      setDraft: (draft) => send({ type: "draft.changed", value: draft }),
       addFiles: async (files) => {
         setAttachmentError(null);
         setIsPreparingAttachments(true);

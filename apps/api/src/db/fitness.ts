@@ -18,6 +18,9 @@ export interface WorkoutHistoryItem {
   set_count: number;
 }
 
+const average = (values: number[]): number | null =>
+  values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / values.length;
+
 export const getWorkoutHistory = (db: QueryDatabaseClient, userId: string, limit = 10) =>
   Effect.gen(function* () {
     const result = yield* db
@@ -273,7 +276,7 @@ const computeStreaks = (
 ): { current: number; longest: number; last: string | null } => {
   if (dates.length === 0) return { current: 0, longest: 0, last: null };
 
-  const sorted = [...new Set(dates)].sort();
+  const sorted = Array.from(new Set(dates)).toSorted();
   const today = new Date().toISOString().slice(0, 10);
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -578,8 +581,6 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
       .bind(userId, since)
       .all<{ exercise_title: string; sets: number; volume_kg: number }>(),
   ]);
-  const average = (values: number[]) =>
-    values.length === 0 ? null : values.reduce((total, value) => total + value, 0) / values.length;
   const weights = body.results.flatMap((row) => (row.weight_kg === null ? [] : [row.weight_kg]));
   return {
     days,
@@ -715,6 +716,16 @@ export const getWorkouts = (db: QueryDatabaseClient, userId: string) =>
         exercises.push({ exercise_title, sets: exerciseSets });
       }
 
-      return { ...session, exerciseDetails: exercises } satisfies WorkoutSessionDetail;
+      return {
+        session_id: session.session_id,
+        title: session.title,
+        start_time: session.start_time,
+        end_time: session.end_time,
+        duration_sec: session.duration_sec,
+        total_volume_kg: session.total_volume_kg,
+        sets: session.sets,
+        exercises: session.exercises,
+        exerciseDetails: exercises,
+      } satisfies WorkoutSessionDetail;
     });
   });

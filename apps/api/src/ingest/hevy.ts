@@ -60,6 +60,8 @@ const parseNumber = (value: string | null | undefined): number | null => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const pad = (value: number): string => String(value).padStart(2, "0");
+
 const parseCsvLine = (line: string): string[] => {
   const values: string[] = [];
   let current = "";
@@ -80,7 +82,6 @@ const parseCsvLine = (line: string): string[] => {
 };
 
 const toDateTimeLocal = (date: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 

@@ -1,4 +1,5 @@
 import { assign, fromPromise, setup } from "xstate";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 const UploadResultSchema = Schema.Struct({
@@ -41,10 +42,13 @@ const uploadFiles = async (
     method: "POST",
     body: form,
   });
-  const json = Schema.decodeUnknownSync(UploadResultSchema)(await res.json().catch(() => ({})));
+  const decoded = Schema.decodeUnknownOption(UploadResultSchema)(
+    await res.json().catch(() => undefined),
+  );
+  if (Option.isNone(decoded)) throw new Error("Upload returned an invalid response.");
 
-  if (!res.ok) throw new Error(json.error || "Upload failed.");
-  return json;
+  if (!res.ok) throw new Error(decoded.value.error || "Upload failed.");
+  return decoded.value;
 };
 
 export const uploadMachine = setup({

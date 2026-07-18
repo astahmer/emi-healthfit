@@ -76,6 +76,8 @@ const HealthExport = Schema.Struct({
 
 type HealthExport = typeof HealthExport.Type;
 
+const pad = (value: number): string => String(value).padStart(2, "0");
+
 const parseDateParts = (
   value: string,
 ): { month: number; day: number; hour: number; minute: number; second: number } => {
@@ -111,7 +113,6 @@ export const assignYears = (starts: string[], startYear: number): Date[] => {
 const toIsoLocal = (date: Date): string => date.toISOString().slice(0, 10);
 
 const toDateTimeLocal = (date: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 

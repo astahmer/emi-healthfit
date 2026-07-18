@@ -1,19 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { FileUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ImportCount {
-  received: number;
-  existing: number;
-  new: number;
-}
+const ImportCount = Schema.Struct({
+  received: Schema.Number,
+  existing: Schema.Number,
+  new: Schema.Number,
+});
 
-interface ImportPreview {
-  groups: Record<string, ImportCount>;
-  totals: ImportCount;
-}
+const ImportPreview = Schema.Struct({
+  groups: Schema.Record(Schema.String, ImportCount),
+  totals: ImportCount,
+});
+
+const ImportResponse = Schema.Struct({
+  preview: Schema.optional(ImportPreview),
+  applied: Schema.optional(Schema.Boolean),
+  error: Schema.optional(Schema.String),
+});
+
+type ImportPreview = typeof ImportPreview.Type;
+
+const decodeImportResponse = Schema.decodeUnknownOption(ImportResponse);
 
 const labels: Record<string, string> = {
   dailyActivity: "Daily activity",
@@ -31,15 +43,12 @@ const requestPreview = async ({ file, apply }: { file: File; apply: boolean }) =
     headers: { "content-type": "application/json" },
     body: await file.text(),
   });
-  const data = (await response.json()) as {
-    preview?: ImportPreview;
-    applied?: boolean;
-    error?: string;
-  };
-  if (!response.ok || data.preview === undefined) {
-    throw new Error(data.error ?? `Import failed (${response.status})`);
+  const decoded = decodeImportResponse(await response.json().catch(() => undefined));
+  if (!response.ok || Option.isNone(decoded) || decoded.value.preview === undefined) {
+    const error = Option.isSome(decoded) ? decoded.value.error : undefined;
+    throw new Error(error ?? `Import failed (${response.status})`);
   }
-  return data.preview;
+  return decoded.value.preview;
 };
 
 export const DataImport = () => {

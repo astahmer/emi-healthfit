@@ -39,9 +39,9 @@ const { registry } = defineRegistry(catalog, {
     ),
     SetList: ({ props }) => (
       <div className="flex flex-col gap-2">
-        {props.sets.map((set, index) => (
+        {props.sets.map((set) => (
           <div
-            key={`set-${index}-${set.exercise}-${set.weightKg ?? ""}`}
+            key={`${set.exercise}-${set.weightKg ?? ""}-${set.reps ?? ""}-${set.rpe ?? ""}-${set.setType ?? ""}`}
             className="rounded-md border p-2 text-sm"
           >
             <p className="font-medium">{set.exercise}</p>

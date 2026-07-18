@@ -85,7 +85,7 @@ const buildSearchOptions = (sessions: WorkoutSession[]): string[] => {
       }
     }
   }
-  return Array.from(options).sort((a, b) => a.localeCompare(b));
+  return Array.from(options).toSorted((a, b) => a.localeCompare(b));
 };
 
 const fetchWorkouts = async (): Promise<WorkoutSession[]> => {
