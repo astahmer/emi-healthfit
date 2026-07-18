@@ -1,6 +1,6 @@
 # 003 — Split page layout from chat route coordination
 
-- **Status**: TODO
+- **Status**: DONE (2026-07-19)
 - **Commit**: f163cac
 - **Severity**: MEDIUM
 - **Category**: Maintainability & architecture

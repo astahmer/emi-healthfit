@@ -306,10 +306,19 @@ const MessagePart = ({
 };
 
 const getText = (message: UIMessage | undefined): string =>
-  message?.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("\n") ?? "";
+  message?.parts.reduce(
+    (text, part) => (part.type === "text" ? `${text}${text === "" ? "" : "\n"}${part.text}` : text),
+    "",
+  ) ?? "";
+
+const messagePartKey = (part: MessagePartValue): string => {
+  if (part.type === "text") return `text:${part.text}`;
+  if (part.type === "file") return `file:${part.url}`;
+  if ("toolCallId" in part && typeof part.toolCallId === "string") {
+    return `tool:${part.type}:${part.toolCallId}`;
+  }
+  return `${part.type}:${JSON.stringify(part)}`;
+};
 
 const FollowUpSuggestions = () => {
   const runtime = useChatRuntime();
@@ -431,9 +440,9 @@ const ChatMessage = ({
             className={cn(isUser ? "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md" : "w-full")}
           >
             <BubbleContent className={cn(!isUser && "w-full space-y-3")}>
-              {message.parts.map((part, index) => (
+              {message.parts.map((part) => (
                 <MessagePart
-                  key={`${message.id}-${index}`}
+                  key={messagePartKey(part)}
                   part={part}
                   onReferenceMessage={onReferenceMessage}
                   isStreaming={isStreaming}
@@ -716,7 +725,7 @@ export const Thread = ({
             <>
               {runtime.messages.map((message, index) => (
                 <ChatMessage
-                  key={message.id === "" ? `${message.role}-${index}` : message.id}
+                  key={message.id}
                   message={message}
                   isStreaming={
                     runtime.isStreaming &&

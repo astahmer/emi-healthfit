@@ -1,6 +1,6 @@
 # 001 — Keep chat runtime render-pure
 
-- **Status**: TODO
+- **Status**: DONE (2026-07-19)
 - **Commit**: f163cac
 - **Severity**: HIGH
 - **Category**: Bugs & correctness

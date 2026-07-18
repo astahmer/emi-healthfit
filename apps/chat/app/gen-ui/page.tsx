@@ -134,6 +134,7 @@ const samples = [
           props: {
             sets: [
               {
+                id: "bench-warmup-1",
                 exercise: "Bench Press (Barbell)",
                 weightKg: 80,
                 reps: 8,
@@ -141,6 +142,7 @@ const samples = [
                 setType: "Warm-up",
               },
               {
+                id: "bench-top-1",
                 exercise: "Bench Press (Barbell)",
                 weightKg: 82.5,
                 reps: 6,
@@ -148,13 +150,21 @@ const samples = [
                 setType: "Top",
               },
               {
+                id: "bench-backoff-1",
                 exercise: "Bench Press (Barbell)",
                 weightKg: 75,
                 reps: 10,
                 rpe: 8,
                 setType: "Back-off",
               },
-              { exercise: "Lat Pulldown", weightKg: 60, reps: 12, rpe: 8, setType: null },
+              {
+                id: "lat-pulldown-1",
+                exercise: "Lat Pulldown",
+                weightKg: 60,
+                reps: 12,
+                rpe: 8,
+                setType: null,
+              },
             ],
           },
         },

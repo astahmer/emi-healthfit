@@ -57,6 +57,7 @@ const metricCardSchema = z.object({
 const setListSchema = z.object({
   sets: z.array(
     z.object({
+      id: z.string(),
       exercise: z.string(),
       weightKg: z.number().nullable(),
       reps: z.number().nullable(),

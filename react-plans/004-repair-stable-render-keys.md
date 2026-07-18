@@ -1,6 +1,6 @@
 # 004 — Give generated UI and streamed messages stable identities
 
-- **Status**: TODO
+- **Status**: DONE (2026-07-19)
 - **Commit**: f163cac
 - **Severity**: HIGH
 - **Category**: Bugs & correctness

@@ -1,6 +1,6 @@
 # 002 — Split chat runtime orchestration by responsibility
 
-- **Status**: TODO
+- **Status**: DONE (2026-07-19)
 - **Commit**: f163cac
 - **Severity**: HIGH
 - **Category**: Maintainability & architecture
