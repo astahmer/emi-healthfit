@@ -1,0 +1,8 @@
+id: no-database-row-spread
+language: TypeScript
+files: [apps/api/src/db/**/*.ts]
+ignores: ["**/*.test.ts"]
+message: Enumerate database fields before returning a response-shaped value.
+severity: error
+rule:
+  pattern: return { ...$ROW, $$$PROPERTIES };

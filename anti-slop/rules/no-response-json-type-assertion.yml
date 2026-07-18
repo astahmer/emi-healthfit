@@ -1,0 +1,17 @@
+id: no-response-json-type-assertion
+language: TypeScript
+files: [apps/**/*.ts, packages/**/*.ts]
+ignores: ["**/*.test.ts"]
+message: Decode response JSON with a runtime schema instead of a type assertion.
+severity: error
+rule:
+  pattern: (await $RESPONSE.json()) as $TYPE
+---
+id: no-response-json-type-assertion-tsx
+language: Tsx
+files: [apps/**/*.tsx, packages/**/*.tsx]
+ignores: ["**/*.test.tsx"]
+message: Decode response JSON with a runtime schema instead of a type assertion.
+severity: error
+rule:
+  pattern: (await $RESPONSE.json()) as $TYPE
