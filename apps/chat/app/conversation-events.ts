@@ -8,7 +8,9 @@ export const notifyConversationsChanged = () => {
 
 export const subscribeToConversationChanges = (listener: () => void) => {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 };
 
 export const getConversationRevision = () => revision;
