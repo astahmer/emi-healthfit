@@ -1,4 +1,14 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import type { Memory } from "@emi/api-contract";
+import * as Schema from "effect/Schema";
+
+const NoteRequest = Schema.Struct({ content: Schema.String });
+const MemoryRequest = Schema.Struct({
+  content: Schema.String,
+  source: Schema.optional(Schema.String),
+  threadId: Schema.optional(Schema.String),
+  messageId: Schema.optional(Schema.String),
+});
 
 const conversations = [
   {
@@ -703,4 +713,159 @@ test("shows persisted completion after a stream ends without finish", async ({ p
 
   await expect(page.getByText("Persisted completion")).toBeVisible();
   await expect(page.getByText("Generation timed out")).not.toBeVisible();
+});
+
+test("creates, edits, searches, and deletes notes through the notes page", async ({ page }) => {
+  const notes = [
+    {
+      id: "note-existing",
+      content: "Keep one full rest day",
+      created_at: "2026-07-18T10:00:00.000Z",
+      updated_at: "2026-07-18T10:00:00.000Z",
+    },
+  ];
+  await setTestSettings(page);
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/notes") {
+      if (route.request().method() === "GET") {
+        const search = url.searchParams.get("search")?.toLowerCase();
+        const filtered =
+          search === undefined
+            ? notes
+            : notes.filter((note) => note.content.toLowerCase().includes(search));
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ notes: filtered }),
+        });
+        return;
+      }
+      const body = Schema.decodeUnknownSync(NoteRequest)(route.request().postDataJSON());
+      const note = {
+        id: "note-created",
+        content: body.content,
+        created_at: "2026-07-19T10:00:00.000Z",
+        updated_at: "2026-07-19T10:00:00.000Z",
+      };
+      notes.unshift(note);
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ id: note.id }),
+      });
+      return;
+    }
+    const noteMatch = url.pathname.match(/^\/api\/notes\/([^/]+)$/);
+    if (noteMatch !== null) {
+      const note = notes.find((candidate) => candidate.id === noteMatch[1]);
+      if (route.request().method() === "PATCH" && note !== undefined) {
+        const body = Schema.decodeUnknownSync(NoteRequest)(route.request().postDataJSON());
+        note.content = body.content;
+        note.updated_at = "2026-07-19T10:05:00.000Z";
+      }
+      if (route.request().method() === "DELETE") {
+        const index = notes.findIndex((candidate) => candidate.id === noteMatch[1]);
+        if (index >= 0) notes.splice(index, 1);
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      });
+      return;
+    }
+    await fulfillApi(route);
+  });
+  await page.goto("/notes");
+
+  await expect(page.getByText("Keep one full rest day")).toBeVisible();
+  await page.getByPlaceholder("Add a note…").fill("Track sleep before hard sessions");
+  await page.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText("Track sleep before hard sessions")).toBeVisible();
+  const createdNote = page
+    .getByRole("listitem")
+    .filter({ hasText: "Track sleep before hard sessions" });
+  await createdNote.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("listitem").getByRole("textbox").fill("Track sleep before long runs");
+  await page.getByRole("listitem").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Track sleep before long runs")).toBeVisible();
+  await page.getByPlaceholder("Search notes…").fill("rest");
+  await expect(page.getByText("Keep one full rest day")).toBeVisible();
+  await expect(page.getByText("Track sleep before long runs")).toHaveCount(0);
+  await page.getByPlaceholder("Search notes…").fill("");
+  const updatedNote = page
+    .getByRole("listitem")
+    .filter({ hasText: "Track sleep before long runs" });
+  await updatedNote.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByText("Track sleep before long runs")).toHaveCount(0);
+});
+
+test("creates, filters, and deletes manually saved memories", async ({ page }) => {
+  const memories: Memory[] = [
+    {
+      id: "memory-existing",
+      content: "Enjoys early training",
+      source: "manual",
+      thread_id: null,
+      created_at: "2026-07-18T10:00:00.000Z",
+    },
+  ];
+  await setTestSettings(page);
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/memories") {
+      if (route.request().method() === "GET") {
+        const search = url.searchParams.get("search")?.toLowerCase();
+        const filtered =
+          search === undefined
+            ? memories
+            : memories.filter((memory) => memory.content.toLowerCase().includes(search));
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ memories: filtered }),
+        });
+        return;
+      }
+      const body = Schema.decodeUnknownSync(MemoryRequest)(route.request().postDataJSON());
+      const memory = {
+        id: "memory-created",
+        content: body.content,
+        source: body.source ?? null,
+        thread_id: body.threadId ?? null,
+        created_at: "2026-07-19T10:00:00.000Z",
+      };
+      memories.unshift(memory);
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ id: memory.id }),
+      });
+      return;
+    }
+    const memoryMatch = url.pathname.match(/^\/api\/memories\/([^/]+)$/);
+    if (memoryMatch !== null && route.request().method() === "DELETE") {
+      const index = memories.findIndex((memory) => memory.id === memoryMatch[1]);
+      if (index >= 0) memories.splice(index, 1);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      });
+      return;
+    }
+    await fulfillApi(route);
+  });
+  await page.goto("/memory");
+
+  await expect(page.getByText("Enjoys early training")).toBeVisible();
+  await page.getByPlaceholder("Save a memory…").fill("Prefers Wednesday rest days");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Memory saved.")).toBeVisible();
+  await page.getByPlaceholder("Search memories…").fill("Wednesday");
+  await expect(page.getByText("Prefers Wednesday rest days")).toBeVisible();
+  await expect(page.getByText("Enjoys early training")).toHaveCount(0);
+  const createdMemory = page
+    .getByRole("listitem")
+    .filter({ hasText: "Prefers Wednesday rest days" });
+  await createdMemory.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByText("Memory removed.")).toBeVisible();
+  await expect(page.getByText("Prefers Wednesday rest days")).toHaveCount(0);
 });
