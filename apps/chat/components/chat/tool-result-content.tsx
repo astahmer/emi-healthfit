@@ -1,6 +1,8 @@
 "use client";
 
 import { memo, type FC } from "react";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import {
   CartesianGrid,
   Line,
@@ -61,58 +63,78 @@ interface Citation {
   content?: string;
 }
 
+const WorkoutHistory = Schema.Array(
+  Schema.Struct({
+    session_id: Schema.String,
+    title: Schema.NullOr(Schema.String),
+    start_time: Schema.String,
+    total_volume_kg: Schema.NullOr(Schema.Number),
+    exercise_count: Schema.Number,
+    set_count: Schema.Number,
+  }),
+);
+const ExerciseProgressSchema = Schema.Struct({
+  exercise_title: Schema.String,
+  weeks: Schema.Number,
+  workouts: Schema.Array(
+    Schema.Struct({
+      session_id: Schema.String,
+      title: Schema.NullOr(Schema.String),
+      start_time: Schema.String,
+      max_weight_kg: Schema.NullOr(Schema.Number),
+      max_volume_kg: Schema.NullOr(Schema.Number),
+      total_volume_kg: Schema.NullOr(Schema.Number),
+      total_reps: Schema.NullOr(Schema.Number),
+      sets: Schema.Number,
+    }),
+  ),
+  personalRecord: Schema.Struct({
+    weight_kg: Schema.NullOr(Schema.Number),
+    reps: Schema.NullOr(Schema.Number),
+    volume_kg: Schema.NullOr(Schema.Number),
+  }),
+});
+const RecoveryResultSchema = Schema.Struct({
+  today: Schema.optional(Schema.String),
+  label: Schema.optional(Schema.String),
+  explanation: Schema.optional(Schema.String),
+  lastWorkout: Schema.optional(Schema.NullOr(Schema.String)),
+  sleepAverageHours: Schema.optional(Schema.NullOr(Schema.Number)),
+  recentWorkoutCount: Schema.optional(Schema.Number),
+  recentVolume: Schema.optional(Schema.NullOr(Schema.Number)),
+});
+const Citations = Schema.Array(
+  Schema.Struct({
+    title: Schema.optional(Schema.String),
+    url: Schema.optional(Schema.String),
+    content: Schema.optional(Schema.String),
+  }),
+);
+const CitationContainer = Schema.Struct({
+  results: Schema.optional(Citations),
+  sources: Schema.optional(Citations),
+  citations: Schema.optional(Citations),
+});
+const ErrorText = Schema.Struct({
+  type: Schema.Literal("error-text"),
+  value: Schema.optional(Schema.Unknown),
+});
+const RenderComponentResult = Schema.Struct({ spec: Schema.Unknown });
+const JsonResult = Schema.fromJsonString(Schema.Unknown);
+
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });
 
-const parseResult = (result: unknown): unknown => {
-  if (typeof result === "string") {
-    try {
-      return JSON.parse(result);
-    } catch {
-      return result;
-    }
-  }
-  return result;
-};
-
-const isWorkoutHistory = (value: unknown): value is WorkoutHistoryItem[] =>
-  Array.isArray(value) &&
-  value.every(
-    (item) =>
-      typeof item === "object" && item !== null && "session_id" in item && "start_time" in item,
-  );
-
-const isExerciseProgress = (value: unknown): value is ExerciseProgress =>
-  typeof value === "object" &&
-  value !== null &&
-  "exercise_title" in value &&
-  "workouts" in value &&
-  Array.isArray(value.workouts);
-
-const isRecoveryResult = (value: unknown): value is RecoveryResult =>
-  typeof value === "object" && value !== null && ("label" in value || "explanation" in value);
+const parseResult = (result: unknown): unknown =>
+  Option.getOrElse(Schema.decodeUnknownOption(JsonResult)(result), () => result);
 
 const getCitations = (value: unknown): Citation[] | undefined => {
-  if (typeof value !== "object" || value === null) return undefined;
-
-  for (const key of ["results", "sources", "citations"]) {
-    const candidate = Reflect.get(value, key);
-    if (
-      Array.isArray(candidate) &&
-      candidate.every((item) => typeof item === "object" && item !== null)
-    ) {
-      return candidate.map((item) => ({
-        title: "title" in item && typeof item.title === "string" ? item.title : undefined,
-        url: "url" in item && typeof item.url === "string" ? item.url : undefined,
-        content: "content" in item && typeof item.content === "string" ? item.content : undefined,
-      }));
-    }
-  }
-
-  return undefined;
+  const container = Schema.decodeUnknownOption(CitationContainer)(value);
+  if (Option.isNone(container)) return undefined;
+  return container.value.results ?? container.value.sources ?? container.value.citations;
 };
 
 const Table: FC<{ headers: string[]; rows: React.ReactNode[][] }> = ({ headers, rows }) => {
@@ -305,28 +327,28 @@ export interface ToolResultContentProps {
 
 const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, className }) => {
   const parsed = parseResult(result);
-  if (
-    typeof parsed === "object" &&
-    parsed !== null &&
-    Reflect.get(parsed, "type") === "error-text"
-  ) {
+  const errorText = Schema.decodeUnknownOption(ErrorText)(parsed);
+  if (Option.isSome(errorText)) {
     return (
       <p className={cn("text-sm text-destructive", className)}>
-        {String(Reflect.get(parsed, "value") ?? "Tool failed")}
+        {String(errorText.value.value ?? "Tool failed")}
       </p>
     );
   }
 
-  if (toolName === "get_workout_history" && isWorkoutHistory(parsed)) {
-    return <WorkoutHistoryTable items={parsed} />;
+  const workoutHistory = Schema.decodeUnknownOption(WorkoutHistory)(parsed);
+  if (toolName === "get_workout_history" && Option.isSome(workoutHistory)) {
+    return <WorkoutHistoryTable items={workoutHistory.value} />;
   }
 
-  if (toolName === "get_exercise_progress" && isExerciseProgress(parsed)) {
-    return <ExerciseProgressView data={parsed} />;
+  const exerciseProgress = Schema.decodeUnknownOption(ExerciseProgressSchema)(parsed);
+  if (toolName === "get_exercise_progress" && Option.isSome(exerciseProgress)) {
+    return <ExerciseProgressView data={exerciseProgress.value} />;
   }
 
-  if (toolName === "get_recovery" && isRecoveryResult(parsed)) {
-    return <RecoveryCard data={parsed} />;
+  const recoveryResult = Schema.decodeUnknownOption(RecoveryResultSchema)(parsed);
+  if (toolName === "get_recovery" && Option.isSome(recoveryResult)) {
+    return <RecoveryCard data={recoveryResult.value} />;
   }
 
   const citations = getCitations(parsed);
@@ -334,13 +356,9 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, c
     return <WebSearchCitations citations={citations} />;
   }
 
-  if (
-    toolName === "render_component" &&
-    typeof parsed === "object" &&
-    parsed !== null &&
-    "spec" in parsed
-  ) {
-    const spec = parsed.spec;
+  const renderComponent = Schema.decodeUnknownOption(RenderComponentResult)(parsed);
+  if (toolName === "render_component" && Option.isSome(renderComponent)) {
+    const spec = renderComponent.value.spec;
     return (
       <ErrorBoundary
         fallback={

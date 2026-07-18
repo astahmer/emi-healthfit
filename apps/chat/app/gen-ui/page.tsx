@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GenUIRenderer } from "@/components/chat/gen-ui/registry";
 import { Button } from "@/components/ui/button";
 
@@ -165,8 +165,6 @@ const samples = [
 
 export default function GenUISandboxPage() {
   const [selected, setSelected] = useState(0);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-auto p-4 md:p-6">
@@ -192,7 +190,7 @@ export default function GenUISandboxPage() {
         ))}
       </div>
       <div className="rounded-lg border p-4">
-        {mounted ? <GenUIRenderer spec={samples[selected].spec} /> : null}
+        <GenUIRenderer spec={samples[selected].spec} />
       </div>
     </div>
   );

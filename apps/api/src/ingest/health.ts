@@ -7,6 +7,7 @@ import type {
   HealthWorkoutRow,
   SleepSessionRow,
 } from "../db/schema.ts";
+import { decodeJson } from "../json-codec.ts";
 
 const HealthDailyActivity = Schema.Struct({
   date: Schema.String,
@@ -142,7 +143,7 @@ export const parseHealthExport = (
 > =>
   Effect.gen(function* () {
     const raw = yield* Effect.try({
-      try: () => JSON.parse(text),
+      try: () => decodeJson(text),
       catch: (error) => new Error(`Failed to parse health JSON: ${error}`),
     });
 

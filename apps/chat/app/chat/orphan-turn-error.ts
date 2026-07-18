@@ -1,8 +1,9 @@
-import { z } from "zod";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
-const orphanTurnResponseSchema = z.object({
-  code: z.literal("ORPHAN_USER_TURN"),
-  orphanMessageId: z.string().uuid(),
+const orphanTurnResponseSchema = Schema.Struct({
+  code: Schema.Literal("ORPHAN_USER_TURN"),
+  orphanMessageId: Schema.String.check(Schema.isUUID()),
 });
 
 export class OrphanTurnError extends Error {
@@ -23,7 +24,7 @@ export const parseOrphanTurnError = async (
     .clone()
     .json()
     .catch(() => undefined);
-  const parsed = orphanTurnResponseSchema.safeParse(body);
-  if (!parsed.success) return undefined;
-  return new OrphanTurnError({ orphanMessageId: parsed.data.orphanMessageId });
+  const parsed = Schema.decodeUnknownOption(orphanTurnResponseSchema)(body);
+  if (Option.isNone(parsed)) return undefined;
+  return new OrphanTurnError({ orphanMessageId: parsed.value.orphanMessageId });
 };

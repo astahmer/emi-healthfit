@@ -2,6 +2,8 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
@@ -24,6 +26,11 @@ import { registerHttpApi } from "./http-api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
+const AssetsBinding = Schema.Struct({
+  fetch: Schema.declare<(request: Request) => Promise<Response>>(
+    (value) => typeof value === "function",
+  ),
+});
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
@@ -46,16 +53,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
     const db = yield* Cloudflare.D1.QueryDatabase(DB);
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
-    const assetsBinding = env.ASSETS;
-    const assetsFetch =
-      typeof assetsBinding === "object" && assetsBinding !== null
-        ? Reflect.get(assetsBinding, "fetch")
-        : undefined;
-    const assetsFetcher =
-      typeof assetsFetch === "function"
-        ? (request: Request): Promise<Response> =>
-            Promise.resolve(Reflect.apply(assetsFetch, assetsBinding, [request]))
-        : undefined;
+    const assetsBinding = Schema.decodeUnknownOption(AssetsBinding)(env.ASSETS);
+    const assetsFetcher = Option.isSome(assetsBinding)
+      ? (request: Request): Promise<Response> => Promise.resolve(assetsBinding.value.fetch(request))
+      : undefined;
 
     const router = yield* HttpRouter.make;
     const cors = <E, R>(

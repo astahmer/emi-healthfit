@@ -4,6 +4,8 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
@@ -35,6 +37,9 @@ import {
 } from "./http-api-data.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
+const HttpApiHandler = Schema.Struct({
+  routes: Schema.declare<Array<HttpRouter.Route<never, never>>>(Array.isArray),
+});
 
 const requireIdentifier = (identifier: string | null): string => {
   if (identifier === null) throw new Error("Database did not return an identifier");
@@ -177,11 +182,11 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   const routes = Object.values(EmiApi.groups).flatMap((group) => {
     const service = handlerContext.mapUnsafe.get(group.key);
     if (service === undefined) throw new Error(`Missing handlers for ${group.identifier}`);
-    const groupRoutes = Reflect.get(service, "routes");
-    if (!Array.isArray(groupRoutes)) throw new Error(`Missing routes for ${group.identifier}`);
-    return groupRoutes as Array<HttpRouter.Route<never, never>>;
+    const handler = Schema.decodeUnknownOption(HttpApiHandler)(service);
+    if (Option.isNone(handler)) throw new Error(`Missing routes for ${group.identifier}`);
+    return handler.value.routes;
   });
-  yield* router.addAll(routes) as Effect.Effect<void>;
+  yield* router.addAll(routes);
   yield* router.add(
     "GET",
     "/api/openapi.json",

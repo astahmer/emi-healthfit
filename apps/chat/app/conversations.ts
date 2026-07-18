@@ -1,54 +1,54 @@
 import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
 import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./session-cache";
 import type { UIMessage } from "ai";
-import { z } from "zod";
+import * as Schema from "effect/Schema";
 import { runApi } from "./api-client";
 
-const conversationSchema = z.object({
-  id: z.string(),
-  title: z.string().nullable(),
-  status: z.enum(["regular", "archived"]),
-  created_at: z.string(),
-  updated_at: z.string(),
+const messagePartSchema = Schema.declare<UIMessage["parts"][number]>(
+  (part) => typeof part === "object" && part !== null && "type" in part,
+);
+
+const conversationSchema = Schema.Struct({
+  id: Schema.String,
+  title: Schema.NullOr(Schema.String),
+  status: Schema.Literals(["regular", "archived"]),
+  created_at: Schema.String,
+  updated_at: Schema.String,
 });
 
-const messageSchema = z.object({
-  id: z.string(),
-  conversationId: z.string().optional(),
-  parentId: z.string().nullable().optional(),
-  role: z.enum(["user", "assistant", "system", "summary"]),
-  parts: z.array(
-    z.custom<UIMessage["parts"][number]>(
-      (part) => typeof part === "object" && part !== null && "type" in part,
-    ),
+const messageSchema = Schema.Struct({
+  id: Schema.String,
+  conversationId: Schema.optional(Schema.String),
+  parentId: Schema.optional(Schema.NullOr(Schema.String)),
+  role: Schema.Literals(["user", "assistant", "system", "summary"]),
+  parts: Schema.Array(messagePartSchema),
+  usage: Schema.optional(
+    Schema.Struct({
+      promptTokens: Schema.NullOr(Schema.Number),
+      completionTokens: Schema.NullOr(Schema.Number),
+      totalTokens: Schema.NullOr(Schema.Number),
+    }),
   ),
-  usage: z
-    .object({
-      promptTokens: z.number().nullable(),
-      completionTokens: z.number().nullable(),
-      totalTokens: z.number().nullable(),
-    })
-    .optional(),
-  model: z.string().optional(),
-  createdAt: z.string(),
+  model: Schema.optional(Schema.String),
+  createdAt: Schema.String,
 });
 
-const threadSchema = z.object({
-  id: z.string(),
-  conversation_id: z.string(),
-  anchor_message_id: z.string(),
-  title: z.string().nullable(),
-  status: z.enum(["regular", "discarded", "merged"]),
-  pinned: z.boolean(),
-  message_ids: z.array(z.string()),
-  created_at: z.string(),
-  updated_at: z.string(),
+const threadSchema = Schema.Struct({
+  id: Schema.String,
+  conversation_id: Schema.String,
+  anchor_message_id: Schema.String,
+  title: Schema.NullOr(Schema.String),
+  status: Schema.Literals(["regular", "discarded", "merged"]),
+  pinned: Schema.Boolean,
+  message_ids: Schema.Array(Schema.String),
+  created_at: Schema.String,
+  updated_at: Schema.String,
 });
 
-const conversationPayloadSchema = z.object({
+const conversationPayloadSchema = Schema.Struct({
   conversation: conversationSchema,
-  messages: z.array(messageSchema),
-  threads: z.array(threadSchema),
+  messages: Schema.Array(messageSchema),
+  threads: Schema.Array(threadSchema),
 });
 
 export type ConversationSnapshot = {
@@ -59,7 +59,7 @@ export type ConversationSnapshot = {
 
 const memorySnapshots = new Map<string, ConversationSnapshot>();
 
-const toConversation = (raw: z.infer<typeof conversationSchema>): Conversation => ({
+const toConversation = (raw: typeof conversationSchema.Type): Conversation => ({
   id: raw.id,
   title: raw.title,
   status: raw.status,
@@ -67,7 +67,7 @@ const toConversation = (raw: z.infer<typeof conversationSchema>): Conversation =
   updatedAt: raw.updated_at,
 });
 
-const toThread = (raw: z.infer<typeof threadSchema>): ThreadView => ({
+const toThread = (raw: typeof threadSchema.Type): ThreadView => ({
   id: raw.id,
   conversationId: raw.conversation_id,
   anchorMessageId: raw.anchor_message_id,
@@ -83,7 +83,7 @@ const toMessage = ({
   raw,
   conversationId,
 }: {
-  raw: z.infer<typeof messageSchema>;
+  raw: typeof messageSchema.Type;
   conversationId: string;
 }): MessageNode => ({
   ...raw,
@@ -98,7 +98,7 @@ const decodeConversationSnapshot = ({
   data: unknown;
   conversationId: string;
 }): ConversationSnapshot => {
-  const raw = conversationPayloadSchema.parse(data);
+  const raw = Schema.decodeUnknownSync(conversationPayloadSchema)(data);
   return {
     conversation: toConversation(raw.conversation),
     messages: raw.messages.map((message) => toMessage({ raw: message, conversationId })),
@@ -152,7 +152,7 @@ export const forkThread = async (
       payload: { anchorMessageId, title },
     }),
   );
-  return toThread(threadSchema.parse(thread));
+  return toThread(Schema.decodeUnknownSync(threadSchema)(thread));
 };
 
 export const compactConversation = async ({
@@ -165,7 +165,7 @@ export const compactConversation = async ({
   const data = await runApi((client) =>
     client.conversations.compact({ params: { id: conversationId }, payload: config }),
   );
-  return toConversation(conversationSchema.parse(data.conversation));
+  return toConversation(Schema.decodeUnknownSync(conversationSchema)(data.conversation));
 };
 
 export const renameConversation = async (

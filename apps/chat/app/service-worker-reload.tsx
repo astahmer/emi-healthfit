@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 export const ServiceWorkerReload = () => {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
 
     const hadController = Boolean(navigator.serviceWorker.controller);
     let refreshing = false;

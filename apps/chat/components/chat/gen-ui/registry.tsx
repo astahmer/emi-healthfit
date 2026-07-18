@@ -1,6 +1,8 @@
 "use client";
 
-import { type Spec, defineRegistry, JSONUIProvider, Renderer } from "@json-render/react";
+import { defineRegistry, JSONUIProvider, Renderer } from "@json-render/react";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { catalog } from "@/app/gen-ui/catalog";
 import {
   ExerciseProgressView,
@@ -56,27 +58,38 @@ const { registry } = defineRegistry(catalog, {
   },
 });
 
-const normalizeSpec = (raw: unknown): Spec | null => {
-  if (raw === null || typeof raw !== "object") return null;
-  const spec = raw as Record<string, unknown>;
+const RawElement = Schema.Struct({
+  type: Schema.String,
+  props: Schema.Unknown,
+  children: Schema.optional(Schema.Array(Schema.String)),
+  visible: Schema.optional(Schema.Unknown),
+});
 
-  if ("elements" in spec && typeof spec.elements === "object" && spec.elements !== null) {
-    return spec as unknown as Spec;
-  }
+const RawSpec = Schema.Struct({
+  root: Schema.String,
+  elements: Schema.Record(Schema.String, RawElement),
+});
 
-  if ("root" in spec && typeof spec.root === "object" && spec.root !== null) {
-    const rootElement = spec.root as Record<string, unknown>;
-    return {
-      root: "root",
-      elements: { root: rootElement },
-    } as unknown as Spec;
-  }
+const decodeRawSpec = Schema.decodeUnknownOption(RawSpec);
 
-  if ("root" in spec && typeof spec.root === "string") {
-    return spec as unknown as Spec;
-  }
+const normalizeSpec = (raw: unknown) => {
+  const decoded = decodeRawSpec(raw);
+  if (Option.isNone(decoded)) return null;
 
-  return null;
+  const validation = catalog.validate({
+    ...decoded.value,
+    elements: Object.fromEntries(
+      Object.entries(decoded.value.elements).map(([key, element]) => [
+        key,
+        {
+          ...element,
+          children: element.children ?? [],
+          visible: element.visible,
+        },
+      ]),
+    ),
+  });
+  return validation.success ? (validation.data ?? null) : null;
 };
 
 export const GenUIRenderer = ({ spec }: { spec: unknown }) => {

@@ -2,21 +2,30 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
-import { z } from "zod";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
 } from "../src/diagnostics/bundle.ts";
 import { analyzeDiagnosticBundle, renderDiagnosticMarkdown } from "../src/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/json-codec.ts";
 
-const optionsSchema = z.object({
-  url: z.string().min(1),
-  env: z.string().min(1),
-  envFile: z.string().min(1).optional(),
-  output: z.string().min(1).default(".diagnostics"),
-  includeSensitive: z.boolean().default(false),
+const Options = Schema.Struct({
+  url: Schema.String.check(Schema.isMinLength(1)),
+  env: Schema.String.check(Schema.isMinLength(1)),
+  envFile: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+  output: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+  includeSensitive: Schema.optional(Schema.Boolean),
 });
+const WranglerError = Schema.Struct({ stderr: Schema.optional(Schema.Unknown) });
+const QueryCommands = Schema.Array(
+  Schema.Struct({
+    results: Schema.optional(Schema.Array(Schema.Record(Schema.String, Schema.Unknown))),
+  }),
+);
+const Databases = Schema.Array(Schema.Struct({ name: Schema.String }));
 
 const parseOptions = () => {
   const values: Record<string, string | boolean> = {};
@@ -38,7 +47,12 @@ const parseOptions = () => {
     values[argument.slice(2)] = value;
     index += 1;
   }
-  return optionsSchema.parse(values);
+  const options = Schema.decodeUnknownSync(Options)(values);
+  return {
+    ...options,
+    output: options.output ?? ".diagnostics",
+    includeSensitive: options.includeSensitive ?? false,
+  };
 };
 
 const workspaceRoot = resolve(import.meta.dirname, "../../..");
@@ -71,12 +85,10 @@ const wrangler = (arguments_: string[]): unknown => {
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
-    return JSON.parse(output);
+    return decodeJson(output);
   } catch (error) {
-    const stderr =
-      typeof error === "object" && error !== null && "stderr" in error
-        ? String(Reflect.get(error, "stderr"))
-        : String(error);
+    const parsed = Schema.decodeUnknownOption(WranglerError)(error);
+    const stderr = Option.isSome(parsed) ? String(parsed.value.stderr ?? error) : String(error);
     throw new Error(
       `Wrangler D1 access failed. Verify the requested environment and its credentials, or run 'pnpm --filter @emi/api exec wrangler login'. ${stderr.trim()}`,
       { cause: error },
@@ -85,16 +97,12 @@ const wrangler = (arguments_: string[]): unknown => {
 };
 
 const resultRows = (value: unknown): Record<string, unknown>[] => {
-  const commands = z
-    .array(z.object({ results: z.array(z.record(z.string(), z.unknown())).default([]) }))
-    .parse(value);
-  return commands.flatMap((command) => command.results);
+  const commands = Schema.decodeUnknownSync(QueryCommands)(value);
+  return commands.flatMap((command) => command.results ?? []);
 };
 
 const selectDatabase = (environment: string): string => {
-  const databases = z
-    .array(z.object({ name: z.string() }))
-    .parse(wrangler(["d1", "list", "--json"]));
+  const databases = Schema.decodeUnknownSync(Databases)(wrangler(["d1", "list", "--json"]));
   const candidates = databases.filter((database) => /gymdata/i.test(database.name));
   const selected =
     candidates.find((database) => database.name === "GymData") ??
@@ -166,7 +174,7 @@ const buildBundle = ({
           sql: `SELECT id, generation_id, request_id, trace_id, type, schema_version, payload, created_at FROM chat_events WHERE conversation_id = '${id}'${ownerPredicate({ columns: eventColumns, id })} ORDER BY created_at, id`,
         });
 
-  return diagnosticBundleSchema.parse({
+  return Schema.decodeUnknownSync(diagnosticBundleSchema)({
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     redacted: false,
@@ -181,7 +189,7 @@ const buildBundle = ({
       id: message.id,
       parentId: message.parent_id,
       role: message.role,
-      parts: JSON.parse(String(message.parts)),
+      parts: decodeJson(String(message.parts)),
       promptTokens: message.prompt_tokens,
       completionTokens: message.completion_tokens,
       totalTokens: message.total_tokens,
@@ -211,7 +219,7 @@ const buildBundle = ({
       traceId: event.trace_id,
       type: event.type,
       schemaVersion: event.schema_version,
-      payload: JSON.parse(String(event.payload)),
+      payload: decodeJson(String(event.payload)),
       createdAt: event.created_at,
     })),
   });

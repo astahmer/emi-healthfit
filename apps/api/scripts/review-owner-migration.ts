@@ -1,19 +1,19 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { z } from "zod";
+import * as Schema from "effect/Schema";
 
-const requiredEnvironment = z.object({
-  CLOUDFLARE_API_TOKEN: z.string().min(1),
-  CLOUDFLARE_ACCOUNT_ID: z.string().min(1),
-  D1_DATABASE_ID: z.string().uuid(),
+const RequiredEnvironment = Schema.Struct({
+  CLOUDFLARE_API_TOKEN: Schema.String.check(Schema.isMinLength(1)),
+  CLOUDFLARE_ACCOUNT_ID: Schema.String.check(Schema.isMinLength(1)),
+  D1_DATABASE_ID: Schema.String.check(Schema.isUUID()),
 });
 
-const queryResponse = z.object({
-  success: z.literal(true),
-  result: z.array(
-    z.object({
-      success: z.literal(true),
-      results: z.array(z.record(z.string(), z.unknown())),
+const QueryResponse = Schema.Struct({
+  success: Schema.Literal(true),
+  result: Schema.Array(
+    Schema.Struct({
+      success: Schema.Literal(true),
+      results: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
     }),
   ),
 });
@@ -42,7 +42,7 @@ SELECT
 `;
 
 const main = async () => {
-  const environment = requiredEnvironment.parse(process.env);
+  const environment = Schema.decodeUnknownSync(RequiredEnvironment)(process.env);
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${environment.CLOUDFLARE_ACCOUNT_ID}/d1/database/${environment.D1_DATABASE_ID}/query`,
     {
@@ -55,7 +55,7 @@ const main = async () => {
     },
   );
   if (!response.ok) throw new Error(`D1 count query failed with ${response.status}`);
-  const decoded = queryResponse.parse(await response.json());
+  const decoded = Schema.decodeUnknownSync(QueryResponse)(await response.json());
   const counts = decoded.result[0]?.results[0];
   if (counts === undefined) throw new Error("D1 count query returned no row");
   console.table(counts);

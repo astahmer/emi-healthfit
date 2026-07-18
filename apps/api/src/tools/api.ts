@@ -1,11 +1,11 @@
 import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as Tool from "effect/unstable/ai/Tool";
 import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
-import { z } from "zod";
 import { buildChatContext } from "../chat/context.ts";
 import {
   createThread,
@@ -196,48 +196,48 @@ const RenderComponent = Tool.make("render_component", {
   failure: Schema.Unknown,
 });
 
-const componentSchemas: Record<string, z.ZodType> = {
-  WorkoutTable: z.strictObject({
-    workouts: z.array(
-      z.strictObject({
-        session_id: z.string(),
-        title: z.string().nullable(),
-        start_time: z.string(),
-        total_volume_kg: z.number().nullable(),
-        exercise_count: z.number(),
-        set_count: z.number(),
+const componentSchemas: Record<string, Schema.Top> = {
+  WorkoutTable: Schema.Struct({
+    workouts: Schema.Array(
+      Schema.Struct({
+        session_id: Schema.String,
+        title: Schema.NullOr(Schema.String),
+        start_time: Schema.String,
+        total_volume_kg: Schema.NullOr(Schema.Number),
+        exercise_count: Schema.Number,
+        set_count: Schema.Number,
       }),
     ),
   }),
-  ExerciseProgress: z.strictObject({
-    exercise_title: z.string(),
-    weeks: z.number(),
-    workouts: z.array(z.record(z.string(), z.unknown())),
-    personalRecord: z.record(z.string(), z.unknown()),
+  ExerciseProgress: Schema.Struct({
+    exercise_title: Schema.String,
+    weeks: Schema.Number,
+    workouts: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
+    personalRecord: Schema.Record(Schema.String, Schema.Unknown),
   }),
-  RecoveryCard: z.strictObject({
-    today: z.string().optional(),
-    label: z.string().optional(),
-    explanation: z.string().optional(),
-    lastWorkout: z.string().nullable().optional(),
-    sleepAverageHours: z.number().nullable().optional(),
-    recentWorkoutCount: z.number().optional(),
-    recentVolume: z.number().nullable().optional(),
+  RecoveryCard: Schema.Struct({
+    today: Schema.optional(Schema.String),
+    label: Schema.optional(Schema.String),
+    explanation: Schema.optional(Schema.String),
+    lastWorkout: Schema.optional(Schema.NullOr(Schema.String)),
+    sleepAverageHours: Schema.optional(Schema.NullOr(Schema.Number)),
+    recentWorkoutCount: Schema.optional(Schema.Number),
+    recentVolume: Schema.optional(Schema.NullOr(Schema.Number)),
   }),
-  MetricCard: z.strictObject({
-    label: z.string(),
-    value: z.union([z.string(), z.number()]),
-    unit: z.string().optional(),
-    trend: z.enum(["up", "down", "flat"]).optional(),
+  MetricCard: Schema.Struct({
+    label: Schema.String,
+    value: Schema.Union([Schema.String, Schema.Number]),
+    unit: Schema.optional(Schema.String),
+    trend: Schema.optional(Schema.Literals(["up", "down", "flat"])),
   }),
-  SetList: z.strictObject({
-    sets: z.array(
-      z.strictObject({
-        exercise: z.string(),
-        weightKg: z.number().nullable(),
-        reps: z.number().nullable(),
-        rpe: z.number().nullable().optional(),
-        setType: z.string().nullable().optional(),
+  SetList: Schema.Struct({
+    sets: Schema.Array(
+      Schema.Struct({
+        exercise: Schema.String,
+        weightKg: Schema.NullOr(Schema.Number),
+        reps: Schema.NullOr(Schema.Number),
+        rpe: Schema.optional(Schema.NullOr(Schema.Number)),
+        setType: Schema.optional(Schema.NullOr(Schema.String)),
       }),
     ),
   }),
@@ -281,10 +281,16 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   threadTools: ThreadToolOptions;
 }) {
   const services = yield* Effect.context<RuntimeContext>();
-  const requireConversationId = (tool: string) =>
-    threadTools.conversationId === undefined
-      ? Effect.fail(toolError({ tool, message: "A persisted conversation is required." }))
-      : Effect.succeed(threadTools.conversationId);
+  const requireConversationId = Effect.fn("FitnessToolkit.requireConversationId")(function* ({
+    tool,
+  }: {
+    tool: string;
+  }) {
+    if (threadTools.conversationId === undefined) {
+      return yield* toolError({ tool, message: "A persisted conversation is required." });
+    }
+    return threadTools.conversationId;
+  });
   const requireThread = Effect.fn("FitnessToolkit.requireThread")(function* ({
     tool,
     threadId,
@@ -292,10 +298,10 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     tool: string;
     threadId: string;
   }) {
-    const conversationId = yield* requireConversationId(tool);
+    const conversationId = yield* requireConversationId({ tool });
     const thread = yield* getThread(db, userId, threadId).pipe(Effect.provideContext(services));
     if (thread === null || thread.conversation_id !== conversationId) {
-      return yield* Effect.fail(toolError({ tool, message: "Thread not found." }));
+      return yield* toolError({ tool, message: "Thread not found." });
     }
     return thread;
   });
@@ -310,7 +316,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   }) {
     yield* requireThread({ tool, threadId });
     if (threadTools.summarize === undefined) {
-      return yield* Effect.fail(toolError({ tool, message: "Summarization is unavailable." }));
+      return yield* toolError({ tool, message: "Summarization is unavailable." });
     }
     const rows = yield* getThreadMessages(db, userId, threadId).pipe(
       Effect.provideContext(services),
@@ -364,9 +370,10 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         Effect.provideContext(services),
       );
       if (details === null) {
-        return yield* Effect.fail(
-          toolError({ tool: "get_workout_details", message: "Workout session not found." }),
-        );
+        return yield* toolError({
+          tool: "get_workout_details",
+          message: "Workout session not found.",
+        });
       }
       return details;
     }),
@@ -389,7 +396,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       ),
     ),
     get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
-      const conversationId = yield* requireConversationId("get_threads");
+      const conversationId = yield* requireConversationId({ tool: "get_threads" });
       return yield* getThreads(db, userId, conversationId).pipe(Effect.provideContext(services));
     }),
     read_thread: Effect.fn("FitnessToolkit.readThread")(function* ({ thread_id }) {
@@ -403,14 +410,12 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       }));
     }),
     read_message: Effect.fn("FitnessToolkit.readMessage")(function* ({ message_id }) {
-      const conversationId = yield* requireConversationId("read_message");
+      const conversationId = yield* requireConversationId({ tool: "read_message" });
       const message = yield* getMessage(db, userId, message_id).pipe(
         Effect.provideContext(services),
       );
       if (message === null || message.conversation_id !== conversationId) {
-        return yield* Effect.fail(
-          toolError({ tool: "read_message", message: "Message not found." }),
-        );
+        return yield* toolError({ tool: "read_message", message: "Message not found." });
       }
       return { ...message, parts: Schema.decodeUnknownSync(StoredParts)(message.parts) };
     }),
@@ -418,14 +423,12 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       anchor_message_id,
       title,
     }) {
-      const conversationId = yield* requireConversationId("create_thread");
+      const conversationId = yield* requireConversationId({ tool: "create_thread" });
       const anchor = yield* getMessage(db, userId, anchor_message_id).pipe(
         Effect.provideContext(services),
       );
       if (anchor === null || anchor.conversation_id !== conversationId) {
-        return yield* Effect.fail(
-          toolError({ tool: "create_thread", message: "Anchor message not found." }),
-        );
+        return yield* toolError({ tool: "create_thread", message: "Anchor message not found." });
       }
       const threadId = yield* createThread(
         db,
@@ -450,25 +453,23 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     render_component: Effect.fn("FitnessToolkit.renderComponent")(function* ({ component, props }) {
       const schema = componentSchemas[component];
       if (schema === undefined) {
-        return yield* Effect.fail(
-          toolError({ tool: "render_component", message: `Unknown component: ${component}.` }),
-        );
+        return yield* toolError({
+          tool: "render_component",
+          message: `Unknown component: ${component}.`,
+        });
       }
-      const parsed = schema.safeParse(props);
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0];
-        return yield* Effect.fail(
-          toolError({
-            tool: "render_component",
-            message: `Invalid ${component} props at ${issue?.path.join(".") || "root"}: ${issue?.message ?? "schema mismatch"}.`,
-          }),
-        );
+      const parsed = Schema.decodeUnknownResult(schema)(props);
+      if (Result.isFailure(parsed)) {
+        return yield* toolError({
+          tool: "render_component",
+          message: `Invalid ${component} props: ${String(parsed.failure)}`,
+        });
       }
       return {
         spec: {
           root: "root",
           elements: {
-            root: { type: component, props: parsed.data },
+            root: { type: component, props: parsed.success },
           },
         },
       };
@@ -504,7 +505,7 @@ export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   summarize?: ThreadToolOptions["summarize"];
 }) {
   if (!(name in FitnessToolkit.tools)) {
-    return yield* Effect.fail(toolError({ tool: name, message: "Unknown tool." }));
+    return yield* toolError({ tool: name, message: "Unknown tool." });
   }
 
   const runtime = yield* FitnessToolkit.pipe(

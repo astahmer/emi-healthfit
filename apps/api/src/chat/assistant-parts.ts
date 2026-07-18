@@ -1,23 +1,49 @@
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+
+const ToolOutput = Schema.Struct({
+  type: Schema.Literal("json", "text"),
+  value: Schema.Unknown,
+});
+
+const ErrorOutput = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("error-text") }),
+  Schema.Struct({ error: Schema.String }),
+]);
+
+const ProviderPart = Schema.Struct({
+  type: Schema.String,
+  toolCallId: Schema.optional(Schema.String),
+  toolName: Schema.optional(Schema.String),
+  input: Schema.optional(Schema.Unknown),
+  output: Schema.optional(Schema.Unknown),
+  text: Schema.optional(Schema.String),
+});
+
+const ProviderMessage = Schema.Struct({
+  role: Schema.String,
+  content: Schema.optional(Schema.Unknown),
+});
+
+const decodeProviderPart = Schema.decodeUnknownOption(ProviderPart);
+const decodeProviderMessage = Schema.decodeUnknownOption(ProviderMessage);
+const decodeToolOutput = Schema.decodeUnknownOption(ToolOutput);
+const decodeErrorOutput = Schema.decodeUnknownOption(ErrorOutput);
+
 const normalizeToolOutput = (output: unknown): unknown => {
-  if (typeof output !== "object" || output === null || !("type" in output)) return output;
-  if ((output.type === "json" || output.type === "text") && "value" in output) {
-    return output.value;
-  }
-  return output;
+  const decoded = decodeToolOutput(output);
+  return Option.isSome(decoded) ? decoded.value.value : output;
 };
 
-const isErrorOutput = (output: unknown): boolean =>
-  typeof output === "object" &&
-  output !== null &&
-  (("type" in output && output.type === "error-text") ||
-    ("error" in output && typeof output.error === "string"));
+const isErrorOutput = (output: unknown): boolean => Option.isSome(decodeErrorOutput(output));
 
-const messageParts = (message: unknown): unknown[] => {
-  if (typeof message !== "object" || message === null) return [];
-  const content = (message as { content?: unknown }).content;
-  if (Array.isArray(content)) return content;
-  if (content !== undefined && content !== null) return [content];
-  return [];
+const messageParts = (content: unknown): (typeof ProviderPart.Type)[] => {
+  if (content === undefined || content === null) return [];
+  const candidates = Array.isArray(content) ? content : [content];
+  return candidates.flatMap((candidate) => {
+    const decoded = decodeProviderPart(candidate);
+    return Option.isSome(decoded) ? [decoded.value] : [];
+  });
 };
 
 export const buildAssistantParts = (messages: unknown[]): unknown[] => {
@@ -26,24 +52,28 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
   const toolResults = new Map<string, { output: unknown; outcome: "success" | "error" }>();
   const emittedToolCalls = new Set<string>();
 
-  for (const message of messages) {
-    const role =
-      typeof message === "object" && message !== null
-        ? (message as { role?: string }).role
-        : undefined;
-    for (const part of messageParts(message)) {
-      if (typeof part !== "object" || part === null) continue;
-      const type = (part as { type?: string }).type;
-      const toolCallId = (part as { toolCallId?: string }).toolCallId;
-
-      if (role === "assistant" && type === "tool-call" && toolCallId !== undefined) {
+  for (const candidate of messages) {
+    const decoded = decodeProviderMessage(candidate);
+    if (Option.isNone(decoded)) continue;
+    const message = decoded.value;
+    for (const part of messageParts(message.content)) {
+      if (
+        message.role === "assistant" &&
+        part.type === "tool-call" &&
+        part.toolCallId !== undefined
+      ) {
+        const toolCallId = part.toolCallId;
         toolCalls.set(toolCallId, {
-          toolName: (part as { toolName?: string }).toolName ?? "",
-          input: (part as { input?: unknown }).input,
+          toolName: part.toolName ?? "",
+          input: part.input,
         });
-      } else if (role === "tool" && type === "tool-result" && toolCallId !== undefined) {
-        const rawOutput = (part as { output?: unknown }).output;
-        toolResults.set(toolCallId, {
+      } else if (
+        message.role === "tool" &&
+        part.type === "tool-result" &&
+        part.toolCallId !== undefined
+      ) {
+        const rawOutput = part.output;
+        toolResults.set(part.toolCallId, {
           output: normalizeToolOutput(rawOutput),
           outcome: isErrorOutput(rawOutput) ? "error" : "success",
         });
@@ -51,32 +81,24 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
     }
   }
 
-  for (const message of messages) {
-    const role =
-      typeof message === "object" && message !== null
-        ? (message as { role?: string }).role
-        : undefined;
-    if (role !== "assistant") continue;
-    for (const part of messageParts(message)) {
-      if (typeof part !== "object" || part === null) continue;
-      const type = (part as { type?: string }).type;
-      const toolCallId = (part as { toolCallId?: string }).toolCallId;
-
-      if (type === "text") {
-        const text = (part as { text?: unknown }).text;
-        if (typeof text === "string" && text !== "") {
-          assistantParts.push({ type: "text", text });
+  for (const candidate of messages) {
+    const decoded = decodeProviderMessage(candidate);
+    if (Option.isNone(decoded) || decoded.value.role !== "assistant") continue;
+    for (const part of messageParts(decoded.value.content)) {
+      if (part.type === "text") {
+        if (part.text !== undefined && part.text !== "") {
+          assistantParts.push({ type: "text", text: part.text });
         }
-      } else if (type === "tool-call" && toolCallId !== undefined) {
-        if (emittedToolCalls.has(toolCallId)) continue;
-        const call = toolCalls.get(toolCallId);
+      } else if (part.type === "tool-call" && part.toolCallId !== undefined) {
+        if (emittedToolCalls.has(part.toolCallId)) continue;
+        const call = toolCalls.get(part.toolCallId);
         if (call !== undefined) {
-          const result = toolResults.get(toolCallId);
-          emittedToolCalls.add(toolCallId);
+          const result = toolResults.get(part.toolCallId);
+          emittedToolCalls.add(part.toolCallId);
           assistantParts.push({
             type: "dynamic-tool",
             toolName: call.toolName,
-            toolCallId,
+            toolCallId: part.toolCallId,
             input: call.input,
             output: result?.output,
             outcome: result?.outcome ?? "error",

@@ -1,24 +1,20 @@
 import { assign, fromPromise, setup } from "xstate";
-import { z } from "zod";
+import * as Schema from "effect/Schema";
 
-export interface UploadResult {
-  error?: string;
-  health?: { daily: number; workouts: number; sleep: number; body: number };
-  hevy?: { sessions: number; sets: number };
-}
-
-const uploadResultSchema: z.ZodType<UploadResult> = z.object({
-  error: z.string().optional(),
-  health: z
-    .object({
-      daily: z.number(),
-      workouts: z.number(),
-      sleep: z.number(),
-      body: z.number(),
-    })
-    .optional(),
-  hevy: z.object({ sessions: z.number(), sets: z.number() }).optional(),
+const UploadResultSchema = Schema.Struct({
+  error: Schema.optional(Schema.String),
+  health: Schema.optional(
+    Schema.Struct({
+      daily: Schema.Number,
+      workouts: Schema.Number,
+      sleep: Schema.Number,
+      body: Schema.Number,
+    }),
+  ),
+  hevy: Schema.optional(Schema.Struct({ sessions: Schema.Number, sets: Schema.Number })),
 });
+
+export type UploadResult = typeof UploadResultSchema.Type;
 
 export interface UploadContext {
   healthFile: File | null;
@@ -45,7 +41,7 @@ const uploadFiles = async (
     method: "POST",
     body: form,
   });
-  const json = uploadResultSchema.parse(await res.json().catch(() => ({})));
+  const json = Schema.decodeUnknownSync(UploadResultSchema)(await res.json().catch(() => ({})));
 
   if (!res.ok) throw new Error(json.error || "Upload failed.");
   return json;

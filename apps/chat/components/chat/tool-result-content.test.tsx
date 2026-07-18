@@ -10,7 +10,7 @@ describe("ToolResultContent", () => {
         result={{
           spec: {
             root: "root",
-            elements: { root: { type: "WorkoutTable", props: {} } },
+            elements: { root: { type: "WorkoutTable", props: { workouts: [] } } },
           },
         }}
       />,

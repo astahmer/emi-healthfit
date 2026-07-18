@@ -1,3 +1,5 @@
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import type { DiagnosticBundle } from "./bundle.ts";
 
 export interface DiagnosticFinding {
@@ -13,8 +15,27 @@ export interface DiagnosticAnalysis {
 }
 
 const textOf = (value: unknown): string => JSON.stringify(value).toLowerCase();
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+
+const PersistedPart = Schema.Struct({
+  type: Schema.optional(Schema.String),
+  text: Schema.optional(Schema.String),
+  state: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.Unknown),
+});
+
+const ErrorOutput = Schema.Struct({ type: Schema.Literal("error-text") });
+
+const decodePersistedPart = Schema.decodeUnknownOption(PersistedPart);
+const decodeErrorOutput = Schema.decodeUnknownOption(ErrorOutput);
+
+const isToolPart = (part: typeof PersistedPart.Type): boolean =>
+  part.type === "dynamic-tool" || part.type?.startsWith("tool-") === true;
+
+const decodeParts = (parts: unknown[]): (typeof PersistedPart.Type)[] =>
+  parts.flatMap((part) => {
+    const decoded = decodePersistedPart(part);
+    return Option.isSome(decoded) ? [decoded.value] : [];
+  });
 
 export const analyzeDiagnosticBundle = (bundle: DiagnosticBundle): DiagnosticAnalysis => {
   const findings: DiagnosticFinding[] = [];
@@ -26,22 +47,16 @@ export const analyzeDiagnosticBundle = (bundle: DiagnosticBundle): DiagnosticAna
 
   for (const message of messages) {
     if (message.role !== "assistant") continue;
-    const parts = message.parts.filter(isRecord);
+    const parts = decodeParts(message.parts);
     const assistantText = parts
-      .filter((part) => part.type === "text" && typeof part.text === "string")
-      .map((part) => String(part.text))
+      .filter((part) => part.type === "text" && part.text !== undefined)
+      .map((part) => part.text)
       .join(" ");
-    const toolParts = parts.filter(
-      (part) =>
-        typeof part.type === "string" &&
-        (part.type === "dynamic-tool" || part.type.startsWith("tool-")),
-    );
+    const toolParts = parts.filter(isToolPart);
     if (
       toolParts.some(
         (part) =>
-          part.state === "output-available" &&
-          isRecord(part.output) &&
-          part.output.type === "error-text",
+          part.state === "output-available" && Option.isSome(decodeErrorOutput(part.output)),
       )
     ) {
       findings.push({
@@ -60,18 +75,10 @@ export const analyzeDiagnosticBundle = (bundle: DiagnosticBundle): DiagnosticAna
     const promiseIndex = parts.findIndex(
       (part) =>
         part.type === "text" &&
-        typeof part.text === "string" &&
+        part.text !== undefined &&
         /let me (try|pull)|je vais (essayer|récupérer)/i.test(part.text),
     );
-    const toolAfterPromise =
-      promiseIndex >= 0 &&
-      parts
-        .slice(promiseIndex + 1)
-        .some(
-          (part) =>
-            typeof part.type === "string" &&
-            (part.type === "dynamic-tool" || part.type.startsWith("tool-")),
-        );
+    const toolAfterPromise = promiseIndex >= 0 && parts.slice(promiseIndex + 1).some(isToolPart);
     if (promiseIndex >= 0 && !toolAfterPromise) {
       findings.push({
         code: "unfulfilled-tool-promise",

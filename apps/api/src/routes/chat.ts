@@ -1,13 +1,10 @@
 import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Content } from "@emi/api-contract";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
-import * as Stream from "effect/Stream";
-import { safeValidateUIMessages, type UIMessage, type UIMessageChunk } from "ai";
+import { safeValidateUIMessages, type UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { CurrentUser } from "../auth/request-auth.ts";
@@ -19,7 +16,6 @@ import {
 } from "../chat/ai-sdk.ts";
 import { buildAssistantParts } from "../chat/assistant-parts.ts";
 import {
-  appendGenerationChunk,
   cleanupGenerationHistory,
   createGeneration,
   expireStaleGenerations,
@@ -29,13 +25,11 @@ import {
   getResumableGeneration,
   getRunningGeneration,
   isGenerationStale,
-  markGenerationStreaming,
   recordChatEvent,
   reconcileFinishedGenerations,
   type ChatGeneration,
 } from "../chat/generation-store.ts";
 import { createGenerationReplayStream } from "../chat/generation-replay.ts";
-import { resolveGenerationTerminalState } from "../chat/generation-terminal-state.ts";
 import { getProviderMessages } from "../chat/orphan-turn.ts";
 import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
 import { createChatStreamResponse } from "../chat/ui-message-stream-response.ts";
@@ -55,6 +49,8 @@ import type { QueryDatabaseClient } from "../db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { executeTool, tools as staticToolDefinitions } from "../tools/api.ts";
 import { corsHeaders } from "./http.ts";
+import { persistGenerationStream } from "./chat-generation-persistence.ts";
+import { ChatStreamRequestSchema, getFirstUserText, validateAttachments } from "./chat-request.ts";
 import { decodeMessageParts } from "../http-api-codecs.ts";
 import { decodeJsonOption } from "../json-codec.ts";
 
@@ -62,32 +58,6 @@ const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
   const pathname = urlOrPath.startsWith("http") ? new URL(urlOrPath).pathname : urlOrPath;
   return pathname.match(/\/api\/conversations\/([^/]+)/)?.[1];
 };
-
-const ChatStreamRequestSchema = Schema.Struct({
-  messages: Schema.mutable(Schema.Array(Schema.Unknown)),
-  system: Schema.optional(Schema.String),
-  tools: Schema.optional(
-    Schema.Record(
-      Schema.String,
-      Schema.Struct({
-        description: Schema.optional(Schema.String),
-        parameters: Schema.Record(Schema.String, Schema.Unknown),
-      }),
-    ),
-  ),
-  config: Schema.Struct({
-    provider: Schema.Literal("openai"),
-    baseUrl: Schema.optional(Schema.String),
-    apiKey: Content,
-    model: Schema.String,
-    system: Schema.optional(Schema.String),
-  }),
-  coachMode: Schema.optional(Schema.Boolean),
-  webSearch: Schema.optional(Schema.Boolean),
-  temporary: Schema.optional(Schema.Boolean),
-  sessionId: Schema.optional(Content),
-  threadId: Schema.optional(Content),
-});
 
 const MessageRevisionSchema = Schema.Struct({
   parts: Schema.mutable(Schema.Array(Schema.Unknown)),
@@ -206,62 +176,6 @@ export const handleConversationDiagnosticEvent = (
     });
     return yield* HttpServerResponse.json({ recorded: true }, { status: 201 });
   });
-
-const getFirstUserText = (
-  messages: Array<{ role: string; parts: unknown[] }>,
-): string | undefined => {
-  for (const message of messages) {
-    if (message.role !== "user") continue;
-    for (const part of message.parts) {
-      const textPart = Schema.decodeUnknownOption(
-        Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }),
-      )(part);
-      if (Option.isSome(textPart) && textPart.value.text.trim() !== "") {
-        return textPart.value.text.trim();
-      }
-    }
-  }
-  return undefined;
-};
-
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const MAX_ATTACHMENTS_PER_MESSAGE = 10;
-
-const AttachmentPart = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("file"),
-    data: Schema.optional(Schema.String),
-    url: Schema.optional(Schema.String),
-  }),
-  Schema.Struct({ type: Schema.Literal("image"), image: Schema.optional(Schema.String) }),
-]);
-
-const getAttachmentSize = (part: typeof AttachmentPart.Type): number => {
-  if (part.type === "file") return part.data?.length ?? part.url?.length ?? 0;
-  return part.image?.length ?? 0;
-};
-
-const validateAttachments = (messages: Array<{ parts: unknown[] }>): string | undefined => {
-  for (const message of messages) {
-    const attachments = message.parts.flatMap((part) => {
-      const attachment = Schema.decodeUnknownOption(AttachmentPart)(part);
-      return Option.isSome(attachment) ? [attachment.value] : [];
-    });
-
-    if (attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-      return `Too many attachments. Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} per message.`;
-    }
-
-    for (const attachment of attachments) {
-      const size = getAttachmentSize(attachment);
-      if (size > MAX_ATTACHMENT_BYTES * 2) {
-        return "One attachment is too large. Maximum size is 5 MB.";
-      }
-    }
-  }
-
-  return undefined;
-};
 
 export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
@@ -783,142 +697,6 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
       ),
     ),
   );
-
-const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(function* ({
-  db,
-  userId,
-  conversationId,
-  generationId,
-  requestId,
-  traceId,
-  stream,
-}: {
-  db: QueryDatabaseClient;
-  userId: string;
-  conversationId: string;
-  generationId: string;
-  requestId: string;
-  traceId: string;
-  stream: ReadableStream<UIMessageChunk>;
-}) {
-  const streamError = yield* Ref.make<string | undefined>(undefined);
-  const finishReason = yield* Ref.make<string | undefined>(undefined);
-  const sawFinish = yield* Ref.make(false);
-  const persistenceStartedAt = performance.now();
-  const previousChunkAt = yield* Ref.make(persistenceStartedAt);
-  const persist = Stream.fromReadableStream({
-    evaluate: () => stream,
-    onError: (error) => error,
-  }).pipe(
-    Stream.zipWithIndex,
-    Stream.runForEach(([chunk, sequence]) =>
-      Effect.gen(function* () {
-        const timestamp = performance.now();
-        const previous = yield* Ref.get(previousChunkAt);
-        yield* appendGenerationChunk({ db, userId, generationId, sequence, chunk });
-        if (sequence === 0) {
-          yield* markGenerationStreaming({ db, userId, generationId });
-          yield* recordChatEvent({
-            db,
-            userId,
-            conversationId,
-            generationId,
-            requestId,
-            traceId,
-            type: "provider.first_chunk",
-            payload: { timeToFirstChunkMilliseconds: Math.round(timestamp - persistenceStartedAt) },
-          });
-        }
-        yield* Effect.logDebug("chat.persistence.chunk").pipe(
-          Effect.annotateLogs({
-            generationId,
-            sequence,
-            timeToFirstChunkMilliseconds:
-              sequence === 0 ? Math.round(timestamp - persistenceStartedAt) : undefined,
-            interChunkLatencyMilliseconds:
-              sequence === 0 ? undefined : Math.round(timestamp - previous),
-          }),
-        );
-        yield* Ref.set(previousChunkAt, timestamp);
-        if (chunk.type === "error") yield* Ref.set(streamError, chunk.errorText);
-        if (chunk.type === "finish") {
-          yield* Ref.set(sawFinish, true);
-          const finish = Schema.decodeUnknownOption(
-            Schema.Struct({
-              type: Schema.Literal("finish"),
-              finishReason: Schema.optional(Schema.String),
-            }),
-          )(chunk);
-          if (Option.isSome(finish) && finish.value.finishReason !== undefined) {
-            yield* Ref.set(finishReason, finish.value.finishReason);
-          }
-        }
-      }),
-    ),
-  );
-
-  yield* persist.pipe(
-    Effect.matchEffect({
-      onFailure: (error) =>
-        Effect.gen(function* () {
-          const message = error instanceof Error ? error.message : String(error);
-          yield* Effect.logError("chat.generation.failure").pipe(
-            Effect.annotateLogs({ generationId, error: message }),
-          );
-          yield* recordChatEvent({
-            db,
-            userId,
-            conversationId,
-            generationId,
-            requestId,
-            traceId,
-            type: "persistence.failed",
-            payload: { error: message },
-          });
-          yield* finishGeneration({
-            db,
-            userId,
-            generationId,
-            status: "failed",
-            error: message,
-          });
-        }),
-      onSuccess: () =>
-        Effect.all([Ref.get(streamError), Ref.get(finishReason), Ref.get(sawFinish)]).pipe(
-          Effect.flatMap(([streamErrorValue, reason, finished]) => {
-            const terminal = resolveGenerationTerminalState({
-              streamError: streamErrorValue,
-              sawFinish: finished,
-            });
-            return Effect.all(
-              [
-                finishGeneration({
-                  db,
-                  userId,
-                  generationId,
-                  status: terminal.status,
-                  error: terminal.error,
-                  finishReason: reason,
-                }),
-                recordChatEvent({
-                  db,
-                  userId,
-                  conversationId,
-                  generationId,
-                  requestId,
-                  traceId,
-                  type:
-                    terminal.status === "completed" ? "generation.completed" : "generation.failed",
-                  payload: { error: terminal.error ?? null, finishReason: reason ?? null },
-                }),
-              ],
-              { discard: true },
-            );
-          }),
-        ),
-    }),
-  );
-});
 
 export const handleChatResume = (
   db: QueryDatabaseClient,

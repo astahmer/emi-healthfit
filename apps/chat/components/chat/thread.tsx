@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { assign, setup } from "xstate";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -99,35 +101,42 @@ const messageEditorMachine = setup({
   },
 });
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
 type MessagePartValue = UIMessage["parts"][number];
+const ToolMessagePart = Schema.Struct({
+  type: Schema.String,
+  toolName: Schema.optional(Schema.String),
+  input: Schema.optional(Schema.Unknown),
+  args: Schema.optional(Schema.Unknown),
+  argsText: Schema.optional(Schema.Unknown),
+  output: Schema.optional(Schema.Unknown),
+  result: Schema.optional(Schema.Unknown),
+  state: Schema.optional(Schema.String),
+  outcome: Schema.optional(Schema.String),
+});
+const ToolErrorOutput = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("error-text"), value: Schema.String }),
+  Schema.Struct({ error: Schema.String }),
+]);
 
 const ToolPart = ({ part, isStreaming }: { part: MessagePartValue; isStreaming: boolean }) => {
-  if (!isRecord(part)) return null;
-  const type = Reflect.get(part, "type");
-  if (typeof type !== "string") return null;
+  const toolPart = Schema.decodeUnknownOption(ToolMessagePart)(part);
+  if (Option.isNone(toolPart)) return null;
+  const type = toolPart.value.type;
   const isTool = type === "dynamic-tool" || type === "tool-call" || type.startsWith("tool-");
   if (!isTool) return null;
 
-  const configuredToolName = Reflect.get(part, "toolName");
+  const configuredToolName = toolPart.value.toolName;
   const toolName =
-    typeof configuredToolName === "string"
+    configuredToolName !== undefined
       ? configuredToolName
       : type.startsWith("tool-")
         ? type.slice(5)
         : "tool";
-  const input =
-    Reflect.get(part, "input") ?? Reflect.get(part, "args") ?? Reflect.get(part, "argsText");
-  const output = Reflect.get(part, "output") ?? Reflect.get(part, "result");
-  const state = Reflect.get(part, "state");
-  const outcome = Reflect.get(part, "outcome");
-  const errorOutput =
-    isRecord(output) &&
-    ((Reflect.get(output, "type") === "error-text" &&
-      typeof Reflect.get(output, "value") === "string") ||
-      typeof Reflect.get(output, "error") === "string");
+  const input = toolPart.value.input ?? toolPart.value.args ?? toolPart.value.argsText;
+  const output = toolPart.value.output ?? toolPart.value.result;
+  const state = toolPart.value.state;
+  const outcome = toolPart.value.outcome;
+  const errorOutput = Option.isSome(Schema.decodeUnknownOption(ToolErrorOutput)(output));
   const isFailed = state === "output-error" || outcome === "error" || errorOutput;
   const hasOutput =
     output !== undefined || state === "output-available" || state === "output-error";
