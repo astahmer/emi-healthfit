@@ -32,6 +32,8 @@ export class MemoriesExtraApi extends HttpApiGroup.make("memoryExtraction")
       payload: Schema.Struct({
         text: Content,
         threadId: Schema.optional(Schema.String),
+        messageId: Schema.optional(Schema.String),
+        source: Schema.optional(Schema.Literals(["auto", "manual"])),
         config: OpenAiClientConfig,
       }),
       success: Schema.Struct({ ids: Schema.Array(Schema.String), count: Schema.Number }),

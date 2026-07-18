@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, type FormEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import type { UIMessage } from "ai";
 import {
   ArrowUpIcon,
@@ -46,7 +46,13 @@ import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
 import { useUsage } from "@/app/usage-context";
 import { chatModels } from "@/app/models";
-import { extractMemories } from "@/app/memories";
+import {
+  deleteMemoriesByMessage,
+  extractMemories,
+  fetchMemories,
+  memoryProvenance,
+} from "@/app/memories";
+import { notifyMemoriesChanged, subscribeToMemoryChanges } from "@/app/memory-events";
 import { useActionFeedback } from "@/app/action-feedback";
 
 export interface ComposerControls {
@@ -358,6 +364,8 @@ const ChatMessage = ({
   isStreaming,
   onFork,
   onRemember,
+  isRemembered,
+  isRemembering,
   editingDraft,
   onEditStart,
   onEditChange,
@@ -372,6 +380,8 @@ const ChatMessage = ({
   isStreaming: boolean;
   onFork?: (messageId: string) => void;
   onRemember: (message: UIMessage) => Promise<void>;
+  isRemembered: boolean;
+  isRemembering: boolean;
   editingDraft?: string;
   onEditStart: (message: UIMessage) => void;
   onEditChange: (value: string) => void;
@@ -543,13 +553,18 @@ const ChatMessage = ({
           {!isUser && !isStreaming && getText(message).trim() !== "" && (
             <>
               <TooltipIconButton
-                tooltip="Save to memory"
+                tooltip={isRemembered ? "Remove from memories" : "Save to memory"}
                 side="top"
                 type="button"
-                aria-label="Remember message"
+                aria-label={isRemembered ? "Remove message memories" : "Save message to memory"}
                 onClick={() => void onRemember(message)}
+                disabled={isRemembering}
               >
-                <BookmarkIcon className="size-3.5" />
+                {isRemembering ? (
+                  <LoaderIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <BookmarkIcon className={cn("size-3.5", isRemembered && "fill-current")} />
+                )}
               </TooltipIconButton>
               <TooltipIconButton
                 tooltip="Export as Markdown"
@@ -570,10 +585,12 @@ const ChatMessage = ({
 
 export const Thread = ({
   composerControls,
+  contextSummary,
   onForkMessage,
   onReferenceMessage,
 }: {
   composerControls: ComposerControls;
+  contextSummary?: string;
   onForkMessage?: (messageId: string) => void;
   onReferenceMessage?: (messageId: string) => void;
 }) => {
@@ -582,7 +599,27 @@ export const Thread = ({
   const feedback = useActionFeedback();
   const queryClient = useQueryClient();
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
+  const [memoryMessageId, setMemoryMessageId] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const { data: conversationMemories = [] } = useQuery({
+    queryKey: ["memories", "message-sources"],
+    queryFn: fetchMemories,
+    enabled: runtime.sessionId !== undefined,
+  });
+  const savedMemoryMessageIds = new Set(
+    conversationMemories.flatMap((memory) => {
+      const messageId = memoryProvenance(memory).messageId;
+      return messageId === undefined ? [] : [messageId];
+    }),
+  );
+
+  useEffect(
+    () =>
+      subscribeToMemoryChanges(() => {
+        void queryClient.invalidateQueries({ queryKey: ["memories"] });
+      }),
+    [queryClient],
+  );
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -598,17 +635,24 @@ export const Thread = ({
   const rememberMessage = async (message: UIMessage) => {
     const text = getText(message).trim();
     if (text === "") return;
+    setMemoryMessageId(message.id);
     try {
+      if (savedMemoryMessageIds.has(message.id)) {
+        await deleteMemoriesByMessage(message.id);
+        feedback.show({ kind: "success", message: "Removed message memories." });
+        return;
+      }
       const ids = await extractMemories({
         text,
         threadId: runtime.sessionId,
+        messageId: message.id,
+        source: "manual",
         config: {
           apiKey: settings.apiKey,
           baseUrl: settings.baseUrl || undefined,
           model: settings.model,
         },
       });
-      await queryClient.invalidateQueries({ queryKey: ["memories"] });
       feedback.show({
         kind: "success",
         message:
@@ -618,6 +662,9 @@ export const Thread = ({
       });
     } catch {
       feedback.show({ kind: "error", message: "Could not save memories." });
+    } finally {
+      setMemoryMessageId(null);
+      notifyMemoriesChanged();
     }
   };
 
@@ -635,7 +682,16 @@ export const Thread = ({
         aria-relevant="additions"
       >
         <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
-          {runtime.messages.length === 0 ? (
+          {contextSummary !== undefined && (
+            <aside
+              className="rounded-xl border bg-muted/40 px-4 py-3 text-sm"
+              aria-label="Compacted context"
+            >
+              <p className="font-medium">Compacted context</p>
+              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
+            </aside>
+          )}
+          {runtime.messages.length === 0 && contextSummary === undefined ? (
             <div className="my-auto space-y-6 text-center">
               <div>
                 <h1 className="text-2xl font-semibold">What are we working on?</h1>
@@ -669,6 +725,8 @@ export const Thread = ({
                   }
                   onFork={onForkMessage}
                   onRemember={rememberMessage}
+                  isRemembered={savedMemoryMessageIds.has(message.id)}
+                  isRemembering={memoryMessageId === message.id}
                   editingDraft={
                     editorState.context.messageId === message.id
                       ? editorState.context.draft

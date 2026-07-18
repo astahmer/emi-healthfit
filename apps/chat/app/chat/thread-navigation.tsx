@@ -39,8 +39,8 @@ interface ThreadNavigationProps {
   onRestore: (threadId: string) => void;
 }
 
-const threadTitle = ({ thread, index }: { thread: ThreadView; index: number }) =>
-  thread.title?.trim() || `Branch ${index + 1}`;
+const threadTitle = ({ thread }: { thread: ThreadView }) =>
+  thread.title?.trim() || `Branch from ${new Date(thread.createdAt).toLocaleString()}`;
 
 const findThreadForMessage = ({
   threads,
@@ -132,8 +132,8 @@ export const ThreadNavigation = ({
           >
             Main
           </Button>
-          {visibleThreads.map((thread, index) => {
-            const title = threadTitle({ thread, index });
+          {visibleThreads.map((thread) => {
+            const title = threadTitle({ thread });
             const isActive = focusedThreadId === thread.id;
             return (
               <div key={thread.id} className="flex shrink-0 items-center">
@@ -238,9 +238,9 @@ export const ThreadNavigation = ({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {discardedThreads.map((thread, index) => (
+                  {discardedThreads.map((thread) => (
                     <DropdownMenuItem key={thread.id} onClick={() => onRestore(thread.id)}>
-                      <ArchiveRestoreIcon /> {threadTitle({ thread, index })}
+                      <ArchiveRestoreIcon /> {threadTitle({ thread })}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -259,13 +259,10 @@ export const ThreadNavigation = ({
                   threads: visibleThreads,
                   messageId: message.id,
                 });
-                const resultThreadIndex = visibleThreads.findIndex(
-                  (thread) => thread.id === resultThread?.id,
-                );
                 const branch =
                   resultThread === undefined
                     ? "Main"
-                    : `Main › ${threadTitle({ thread: resultThread, index: resultThreadIndex })}`;
+                    : `Main › ${threadTitle({ thread: resultThread })}`;
                 return (
                   <button
                     key={message.id}

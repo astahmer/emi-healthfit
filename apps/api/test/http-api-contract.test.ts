@@ -11,6 +11,7 @@ import {
 } from "@emi/api-contract";
 import * as Schema from "effect/Schema";
 import { decodeGenerationChunk } from "../src/chat/generation-store.ts";
+import { normalizeGeneratedStrings } from "../src/chat/ai-sdk.ts";
 import {
   decodeMessageParts,
   decodeSuggestions,
@@ -138,6 +139,13 @@ describe("HTTP response contracts", () => {
     );
     assert.strictEqual(textFromMessageParts(parts), "First");
     assert.throws(() => decodeMessageParts('{"type":"text"}'));
+  });
+
+  it("recovers a JSON suggestion array wrapped in a malformed response", () => {
+    assert.deepStrictEqual(normalizeGeneratedStrings('["First question", "Second question"]}'), [
+      "First question",
+      "Second question",
+    ]);
   });
 
   it("validates persisted generation chunks with the AI SDK schema", async () => {

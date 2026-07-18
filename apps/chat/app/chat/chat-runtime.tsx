@@ -15,22 +15,25 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "../settings-store";
 import { createConversation } from "../sessions";
 import { fetchConversationMessages, type ConversationSnapshot } from "../conversations";
 import { buildNotesContext } from "../notes";
 import { useNotes } from "../notes-context";
+import { extractMemories } from "../memories";
+import { notifyMemoriesChanged } from "../memory-events";
 import { getConversationViewMessages } from "./conversation-tree";
 import { OrphanTurnError, parseOrphanTurnError } from "./orphan-turn-error";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import { prepareAttachments } from "./attachments";
 import { runApi } from "../api-client";
+import { notifyConversationsChanged } from "../conversation-events";
 
 export interface ChatRuntimeConfig {
   model: string;
@@ -132,7 +135,6 @@ export const ChatRuntimeProvider = ({
 }) => {
   const settings = useSettings((state) => state.settings);
   const { notes } = useNotes();
-  const queryClient = useQueryClient();
   const [state, send] = useMachine(chatRuntimeMachine, {
     input: { sessionId: config.sessionId, messages: config.initialMessages },
   });
@@ -187,8 +189,39 @@ export const ChatRuntimeProvider = ({
       );
       onHistoryChanged?.(snapshot);
       send({ type: "history.changed", sessionId, messages });
+      return snapshot;
     },
     [config.threadId, onHistoryChanged, send],
+  );
+
+  const autoSaveAssistantMemories = useCallback(
+    async ({ sessionId, snapshot }: { sessionId: string; snapshot: ConversationSnapshot }) => {
+      if (config.temporary) return;
+      const assistant = snapshot.messages.findLast((message) => message.role === "assistant");
+      if (assistant === undefined) return;
+      const text = assistant.parts
+        .filter(
+          (part): part is { type: "text"; text: string } =>
+            part.type === "text" && typeof part.text === "string",
+        )
+        .map((part) => part.text)
+        .join("\n")
+        .trim();
+      if (text === "") return;
+      const ids = await extractMemories({
+        text,
+        threadId: sessionId,
+        messageId: assistant.id,
+        source: "auto",
+        config: {
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl || undefined,
+          model: config.model,
+        },
+      });
+      if (ids.length > 0) notifyMemoriesChanged();
+    },
+    [config.model, config.temporary, settings.apiKey, settings.baseUrl],
   );
 
   const recordClientEvent = useCallback(
@@ -201,7 +234,7 @@ export const ChatRuntimeProvider = ({
     [config.temporary],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (historySignatureRef.current === historySignature) return;
     historySignatureRef.current = historySignature;
     if (
@@ -247,7 +280,7 @@ export const ChatRuntimeProvider = ({
       if (stream === null) {
         if (operationRef.current === operation) send({ type: "stream.completed" });
         await synchronizePersistedHistory(sessionId);
-        await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
+        notifyConversationsChanged();
         return;
       }
       await consumeAssistantStream({
@@ -262,7 +295,7 @@ export const ChatRuntimeProvider = ({
       if (operationRef.current !== operation) return;
       send({ type: "stream.completed" });
       await synchronizePersistedHistory(sessionId);
-      await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
+      notifyConversationsChanged();
     };
     void resume().catch((error) => {
       if (stateRef.current.context.sessionId !== sessionId) return;
@@ -286,7 +319,6 @@ export const ChatRuntimeProvider = ({
     config.historyReady,
     config.sessionId,
     config.temporary,
-    queryClient,
     recordClientEvent,
     send,
     synchronizePersistedHistory,
@@ -370,9 +402,9 @@ export const ChatRuntimeProvider = ({
         });
         if (operationRef.current !== operation) return;
         send({ type: "stream.completed" });
-        await synchronizePersistedHistory(sessionId);
-        await queryClient.invalidateQueries({ queryKey: ["thread", sessionId] });
-        await queryClient.invalidateQueries({ queryKey: ["threads"] });
+        const snapshot = await synchronizePersistedHistory(sessionId);
+        notifyConversationsChanged();
+        void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
       } catch (error) {
         if (operationRef.current !== operation) return;
         if (controller.signal.aborted) {
@@ -396,9 +428,9 @@ export const ChatRuntimeProvider = ({
       config.temporary,
       config.threadId,
       config.webSearch,
+      autoSaveAssistantMemories,
       notes,
       onSessionCreated,
-      queryClient,
       recordClientEvent,
       send,
       settings.apiKey,

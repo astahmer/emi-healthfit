@@ -1,15 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createMemory, deleteMemory, fetchMemories } from "./memories";
+import { useActionFeedback } from "./action-feedback";
+import { notifyMemoriesChanged, subscribeToMemoryChanges } from "./memory-events";
+import { createMemory, deleteMemory, fetchMemories, memoryProvenance } from "./memories";
+
+const memorySource = (source: string | null | undefined): string => {
+  if (source === "auto" || source === "assistant") return "Auto-saved from chat";
+  if (source === "manual") return "Saved manually";
+  return "Saved";
+};
 
 export function MemoryPanel() {
   const queryClient = useQueryClient();
+  const feedback = useActionFeedback();
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
+
+  useEffect(
+    () =>
+      subscribeToMemoryChanges(() => {
+        void queryClient.invalidateQueries({ queryKey: ["memories"] });
+      }),
+    [queryClient],
+  );
 
   const {
     data: memories = [],
@@ -17,17 +34,23 @@ export function MemoryPanel() {
     error,
   } = useQuery({
     queryKey: ["memories", search],
-    queryFn: () => fetchMemories(search || undefined),
+    queryFn: () => fetchMemories({ search: search || undefined }),
   });
 
   const createMutation = useMutation({
     mutationFn: (content: string) => createMemory(content, "manual"),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["memories"] }),
+    onSuccess: () => {
+      notifyMemoriesChanged();
+      feedback.show({ kind: "success", message: "Memory saved." });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteMemory,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["memories"] }),
+    onSuccess: () => {
+      notifyMemoriesChanged();
+      feedback.show({ kind: "success", message: "Memory removed." });
+    },
   });
 
   const handleAdd = async () => {
@@ -74,20 +97,39 @@ export function MemoryPanel() {
       {error !== null && <p className="text-destructive text-sm">{error.message}</p>}
 
       <ul className="space-y-2">
-        {memories.map((memory) => (
-          <li key={memory.id} className="flex items-start gap-2 rounded-lg border p-3 text-sm">
-            <span className="flex-1 whitespace-pre-wrap">{memory.content}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive"
-              onClick={() => void handleDelete(memory.id)}
-              disabled={deleteMutation.isPending}
-            >
-              Delete
-            </Button>
-          </li>
-        ))}
+        {memories.map((memory) => {
+          const provenance = memoryProvenance(memory);
+          return (
+            <li key={memory.id} className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="whitespace-pre-wrap">{memory.content}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {memorySource(provenance.source)} · {new Date(memory.created_at).toLocaleString()}
+                  {provenance.conversationId !== null && provenance.messageId !== undefined && (
+                    <>
+                      {" · "}
+                      <a
+                        className="underline hover:text-foreground"
+                        href={`/chat/${encodeURIComponent(provenance.conversationId)}#message-${encodeURIComponent(provenance.messageId)}`}
+                      >
+                        Open source message
+                      </a>
+                    </>
+                  )}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => void handleDelete(memory.id)}
+                disabled={deleteMutation.isPending}
+              >
+                Delete
+              </Button>
+            </li>
+          );
+        })}
       </ul>
 
       {!isLoading && memories.length === 0 && (

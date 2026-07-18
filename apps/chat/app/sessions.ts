@@ -1,5 +1,6 @@
 import { safeValidateUIMessages, type UIMessage } from "ai";
 import { runApi } from "./api-client";
+import { notifyConversationsChanged } from "./conversation-events";
 import {
   deleteCachedThread,
   getCachedMessages,
@@ -72,6 +73,7 @@ export const createConversation = async (): Promise<string> => {
       updated_at: now,
     }),
   );
+  notifyConversationsChanged();
   return data.id;
 };
 
@@ -127,6 +129,7 @@ export const renameConversation = async (conversationId: string, title: string):
       updated_at: now,
     }),
   );
+  notifyConversationsChanged();
 };
 
 export const updateConversationState = async ({
@@ -145,6 +148,7 @@ export const updateConversationState = async ({
     }),
   );
   ignoreCacheError(updateCachedThread(data.conversation));
+  notifyConversationsChanged();
   return data.conversation;
 };
 
@@ -153,10 +157,12 @@ export const cloneConversation = async (conversationId: string): Promise<Thread>
     client.conversations.clone({ params: { id: conversationId } }),
   );
   ignoreCacheError(updateCachedThread(data.conversation));
+  notifyConversationsChanged();
   return data.conversation;
 };
 
 export const deleteConversation = async (conversationId: string): Promise<void> => {
   await runApi((client) => client.conversations.remove({ params: { id: conversationId } }));
   ignoreCacheError(deleteCachedThread(conversationId));
+  notifyConversationsChanged();
 };

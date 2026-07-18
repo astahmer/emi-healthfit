@@ -67,6 +67,7 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
         content: Content,
         source: Schema.optional(Schema.String),
         threadId: Schema.optional(Schema.String),
+        messageId: Schema.optional(Schema.String),
       }),
       success: Created.pipe(HttpApiSchema.status(201)),
     }),
@@ -74,6 +75,12 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
   .add(
     HttpApiEndpoint.delete("remove", "/memories/:id", {
       params: { id: Identifier },
+      success: Deleted,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.delete("removeByMessage", "/memories/message/:messageId", {
+      params: { messageId: Identifier },
       success: Deleted,
     }),
   )

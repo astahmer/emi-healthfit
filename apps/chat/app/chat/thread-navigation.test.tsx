@@ -71,4 +71,26 @@ describe("ThreadNavigation", () => {
     expect(onFocus).toHaveBeenCalledWith("thread-1");
     expect(onSearch).toHaveBeenCalledWith("");
   });
+
+  it("uses an immutable creation timestamp instead of visible-list indexes", () => {
+    render(
+      <ThreadNavigation
+        threads={[
+          { ...thread, id: "thread-3", title: null },
+          { ...thread, id: "thread-1", title: null, status: "discarded" },
+        ]}
+        focusedThreadId={null}
+        searchQuery=""
+        searchResults={[]}
+        onFocus={vi.fn()}
+        onSearch={vi.fn()}
+        onRename={vi.fn()}
+        onPin={vi.fn()}
+        onDiscard={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText(/Branch from/).length).toBeGreaterThan(0);
+  });
 });

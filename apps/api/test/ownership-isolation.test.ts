@@ -25,6 +25,7 @@ import {
   getMemories,
   getNotes,
   insertMemory,
+  insertMemories,
   insertNote,
   searchMemories,
   searchNotes,
@@ -149,6 +150,21 @@ describe("per-user ownership", () => {
 
     await run(insertMemory(db, alice, "Alice memory"));
     assert.strictEqual((await run(getMemories(db, alice))).length, 1);
+    const insertedMemoryIds = await run(
+      insertMemories(db, alice, [
+        { content: "Wants three strength sessions per week", source: "auto" },
+        { content: " wants  three strength sessions per week ", source: "auto" },
+      ]),
+    );
+    assert.strictEqual(insertedMemoryIds.length, 1);
+    assert.deepStrictEqual(
+      await run(
+        insertMemories(db, alice, [
+          { content: "Wants three strength sessions per week", source: "auto" },
+        ]),
+      ),
+      [],
+    );
     assert.deepStrictEqual(await run(searchMemories(db, bob, "Alice")), []);
 
     await run(

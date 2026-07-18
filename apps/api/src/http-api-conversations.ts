@@ -28,6 +28,7 @@ import {
   getConversations,
   getMessage,
   getThread,
+  getThreadByAnchor,
   getThreadMessages,
   getThreads,
   getThreadsIncludingDiscarded,
@@ -41,7 +42,7 @@ import {
   updateConversationState,
 } from "./db/conversations.ts";
 import type { QueryDatabaseClient } from "./db/client.ts";
-import { insertMemory } from "./db/memories.ts";
+import { getMemories, insertMemories, listMemoryIdsForMessage } from "./db/memories.ts";
 import { decodeMessageParts, textFromMessageParts } from "./http-api-codecs.ts";
 import { withInternalError } from "./http-api-errors.ts";
 
@@ -309,13 +310,24 @@ export const conversationsHandlers = ({
             if (anchor === null || anchor.conversation_id !== params.id) {
               return yield* new NotFound({ message: "Anchor message not found" });
             }
-            const id = yield* createThread(
+            const existing = yield* getThreadByAnchor(
               db,
               user.id,
               params.id,
               payload.anchorMessageId,
-              payload.title?.trim(),
             );
+            if (existing !== null && existing.status === "discarded") {
+              yield* restoreThread(db, user.id, existing.id);
+            }
+            const id =
+              existing?.id ??
+              (yield* createThread(
+                db,
+                user.id,
+                params.id,
+                payload.anchorMessageId,
+                payload.title?.trim(),
+              ));
             const thread = yield* getThread(db, user.id, id);
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });
@@ -479,20 +491,31 @@ export const memoryExtractionHandlers = ({
         function* ({ payload }) {
           const user = yield* CurrentUser;
           const text = payload.text.trim();
+          const existingIds =
+            payload.messageId === undefined
+              ? []
+              : yield* listMemoryIdsForMessage(db, user.id, payload.messageId);
+          if (existingIds.length > 0) return { ids: existingIds, count: 0 };
+          const existingMemories = yield* getMemories(db, user.id, { limit: 60 });
           const snippets = yield* Effect.promise(() =>
             extractMemories(
               payload.config.apiKey,
               payload.config.baseUrl,
               payload.config.model,
               text,
+              existingMemories.map((memory) => memory.content),
             ),
           );
-          const insertedIds = yield* Effect.forEach(
-            snippets,
-            (snippet) => insertMemory(db, user.id, snippet, "assistant", payload.threadId),
-            { concurrency: 8 },
+          const ids = yield* insertMemories(
+            db,
+            user.id,
+            snippets.map((content) => ({
+              content,
+              source: payload.source ?? "manual",
+              threadId: payload.threadId,
+              messageId: payload.messageId,
+            })),
           );
-          const ids = insertedIds.filter((id) => id !== null);
           return { ids, count: ids.length };
         },
         withInternalError,

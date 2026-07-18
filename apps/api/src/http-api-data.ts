@@ -5,7 +5,7 @@ import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { CurrentUser } from "./auth/request-auth.ts";
-import { generateSuggestions } from "./chat/ai-sdk.ts";
+import { generateSuggestions, normalizeGeneratedStrings } from "./chat/ai-sdk.ts";
 import { getSuggestionsById, hashSuggestionsKey, saveSuggestions } from "./db/conversations.ts";
 import type { QueryDatabaseClient } from "./db/client.ts";
 import { getAnalyticsOverview, getIngestedDataExportSummary, getWorkouts } from "./db/fitness.ts";
@@ -15,7 +15,6 @@ import {
   updateRawUploadRetentionDays,
 } from "./db/ingested-data.ts";
 import { withInternalError } from "./http-api-errors.ts";
-import { decodeSuggestions } from "./http-api-codecs.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
@@ -61,7 +60,7 @@ export const suggestionsHandlers = ({
           const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
           const cached = yield* getSuggestionsById(db, user.id, key);
           if (cached !== null) {
-            return { suggestions: decodeSuggestions(cached.suggestions) };
+            return { suggestions: normalizeGeneratedStrings(cached.suggestions) };
           }
           const suggestions = yield* Effect.promise(() =>
             generateSuggestions({

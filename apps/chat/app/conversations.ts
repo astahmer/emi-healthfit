@@ -3,6 +3,7 @@ import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./
 import type { UIMessage } from "ai";
 import * as Schema from "effect/Schema";
 import { runApi } from "./api-client";
+import { notifyConversationsChanged } from "./conversation-events";
 
 const messagePartSchema = Schema.declare<UIMessage["parts"][number]>(
   (part): part is UIMessage["parts"][number] =>
@@ -154,7 +155,9 @@ export const forkThread = async (
       payload: { anchorMessageId, title },
     }),
   );
-  return toThread(Schema.decodeUnknownSync(threadSchema)(thread));
+  const created = toThread(Schema.decodeUnknownSync(threadSchema)(thread));
+  notifyConversationsChanged();
+  return created;
 };
 
 export const compactConversation = async ({
@@ -167,7 +170,11 @@ export const compactConversation = async ({
   const data = await runApi((client) =>
     client.conversations.compact({ params: { id: conversationId }, payload: config }),
   );
-  return toConversation(Schema.decodeUnknownSync(conversationSchema)(data.conversation));
+  const conversation = toConversation(
+    Schema.decodeUnknownSync(conversationSchema)(data.conversation),
+  );
+  notifyConversationsChanged();
+  return conversation;
 };
 
 export const renameConversation = async (
@@ -177,6 +184,7 @@ export const renameConversation = async (
   await runApi((client) =>
     client.conversations.rename({ params: { id: conversationId }, payload: { title } }),
   );
+  notifyConversationsChanged();
   return { conversationId, title };
 };
 
@@ -185,6 +193,7 @@ export const renameThread = async (
   title: string,
 ): Promise<{ threadId: string; title: string }> => {
   await runApi((client) => client.threads.update({ params: { id: threadId }, payload: { title } }));
+  notifyConversationsChanged();
   return { threadId, title };
 };
 
@@ -195,6 +204,7 @@ export const pinThread = async (
   await runApi((client) =>
     client.threads.update({ params: { id: threadId }, payload: { pinned } }),
   );
+  notifyConversationsChanged();
   return { threadId, pinned };
 };
 
@@ -202,6 +212,7 @@ export const discardThread = async (threadId: string): Promise<{ threadId: strin
   await runApi((client) =>
     client.threads.update({ params: { id: threadId }, payload: { status: "discarded" } }),
   );
+  notifyConversationsChanged();
   return { threadId };
 };
 
@@ -209,5 +220,6 @@ export const restoreThread = async (threadId: string): Promise<{ threadId: strin
   await runApi((client) =>
     client.threads.update({ params: { id: threadId }, payload: { status: "regular" } }),
   );
+  notifyConversationsChanged();
   return { threadId };
 };

@@ -405,7 +405,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       getWorkoutStreak(db, userId).pipe(Effect.provideContext(services)),
     ),
     search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
-      searchMemories(db, userId, query, limit ?? 10).pipe(
+      searchMemories(db, userId, query, { limit: limit ?? 10 }).pipe(
         Effect.provideContext(services),
         Effect.map((results) => ({ results })),
       ),

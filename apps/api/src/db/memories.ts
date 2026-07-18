@@ -1,8 +1,68 @@
 import * as Effect from "effect/Effect";
 import type { MemoryRow, NoteRow } from "./schema.ts";
-import type { QueryDatabaseClient } from "./client.ts";
+import { runBatches, type QueryDatabaseClient } from "./client.ts";
 
 const nowIso = (): string => new Date().toISOString();
+
+const normalizeContent = (content: string): string => content.trim().replace(/\s+/g, " ");
+
+const normalizeMemoryKey = (content: string): string =>
+  normalizeContent(content).toLocaleLowerCase();
+
+export interface MemoryInput {
+  content: string;
+  source?: string;
+  threadId?: string;
+  messageId?: string;
+}
+
+const persistedSource = ({ source, messageId }: MemoryInput): string | null =>
+  messageId === undefined ? (source ?? null) : `${source ?? "manual"}:${messageId}`;
+
+export const insertMemories = (db: QueryDatabaseClient, userId: string, inputs: MemoryInput[]) =>
+  Effect.gen(function* () {
+    const unique = new Map<string, MemoryInput>();
+    for (const input of inputs) {
+      const content = normalizeContent(input.content);
+      if (content !== "") unique.set(normalizeMemoryKey(content), { ...input, content });
+    }
+    const candidates = [...unique.values()];
+    if (candidates.length === 0) return [];
+
+    const placeholders = candidates.map(() => "?").join(", ");
+    const existing = yield* db
+      .prepare(`
+        SELECT LOWER(TRIM(content)) AS normalized
+        FROM memories
+        WHERE user_id = ? AND LOWER(TRIM(content)) IN (${placeholders})
+      `)
+      .bind(userId, ...candidates.map((candidate) => normalizeMemoryKey(candidate.content)))
+      .all<{ normalized: string }>();
+    const existingKeys = new Set(existing.results.map((row) => row.normalized));
+    const createdAt = nowIso();
+    const inserted = candidates
+      .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
+      .map((candidate) => ({ id: crypto.randomUUID(), ...candidate }));
+    yield* runBatches(
+      db,
+      inserted.map((memory) =>
+        db
+          .prepare(`
+            INSERT INTO memories (id, user_id, content, source, thread_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `)
+          .bind(
+            memory.id,
+            userId,
+            memory.content,
+            persistedSource(memory),
+            memory.threadId ?? null,
+            createdAt,
+          ),
+      ),
+    );
+    return inserted.map((memory) => memory.id);
+  });
 
 export const insertMemory = (
   db: QueryDatabaseClient,
@@ -10,22 +70,11 @@ export const insertMemory = (
   content: string,
   source?: string,
   threadId?: string,
+  messageId?: string,
 ) =>
-  Effect.gen(function* () {
-    const trimmed = content.trim();
-    if (trimmed === "") return null;
-
-    const id = crypto.randomUUID();
-    yield* db
-      .prepare(`
-      INSERT INTO memories (id, user_id, content, source, thread_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `)
-      .bind(id, userId, trimmed, source ?? null, threadId ?? null, nowIso())
-      .run();
-
-    return id;
-  });
+  insertMemories(db, userId, [{ content, source, threadId, messageId }]).pipe(
+    Effect.map((ids) => ids[0] ?? null),
+  );
 
 export interface MemorySearchResult {
   id: string;
@@ -51,9 +100,10 @@ export const searchMemories = (
   db: QueryDatabaseClient,
   userId: string,
   query: string,
-  limit = 10,
+  options: { limit?: number } = {},
 ) =>
   Effect.gen(function* () {
+    const limit = options.limit ?? 10;
     const term = query.trim();
     if (term === "") {
       const result = yield* db
@@ -90,8 +140,13 @@ export const searchMemories = (
     return result.results.map(toMemorySearchResult);
   });
 
-export const getMemories = (db: QueryDatabaseClient, userId: string, limit = 100) =>
+export const getMemories = (
+  db: QueryDatabaseClient,
+  userId: string,
+  options: { limit?: number } = {},
+) =>
   Effect.gen(function* () {
+    const limit = options.limit ?? 100;
     const result = yield* db
       .prepare(`
       SELECT id, content, source, thread_id, created_at
@@ -105,9 +160,34 @@ export const getMemories = (db: QueryDatabaseClient, userId: string, limit = 100
     return result.results;
   });
 
+export const listMemoryIdsForMessage = (
+  db: QueryDatabaseClient,
+  userId: string,
+  messageId: string,
+) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare("SELECT id FROM memories WHERE user_id = ? AND source LIKE ?")
+      .bind(userId, `%:${messageId}`)
+      .all<{ id: string }>();
+    return result.results.map((row) => row.id);
+  });
+
 export const deleteMemory = (db: QueryDatabaseClient, userId: string, id: string) =>
   Effect.gen(function* () {
     yield* db.prepare(`DELETE FROM memories WHERE user_id = ? AND id = ?`).bind(userId, id).run();
+  });
+
+export const deleteMemoriesByMessage = (
+  db: QueryDatabaseClient,
+  userId: string,
+  messageId: string,
+) =>
+  Effect.gen(function* () {
+    yield* db
+      .prepare("DELETE FROM memories WHERE user_id = ? AND source LIKE ?")
+      .bind(userId, `%:${messageId}`)
+      .run();
   });
 
 export const insertNote = (db: QueryDatabaseClient, userId: string, content: string) =>

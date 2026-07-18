@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import {
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncConversations, type Thread } from "../sessions";
+import { subscribeToConversationChanges } from "../conversation-events";
 import { getCachedThreads } from "../session-cache";
 import { fetchConversationMessages as fetchConversationSnapshot } from "../conversations";
 import {
@@ -149,9 +150,9 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
 interface SidebarItemProps {
   thread: Thread;
   isActive: boolean;
-  onDeleted: () => void;
-  onChanged: () => void;
-  onCloned: (threadId: string) => void;
+  onDeleted?: () => void;
+  onChanged?: () => void;
+  onCloned?: (threadId: string) => void;
 }
 
 const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: SidebarItemProps) => {
@@ -160,10 +161,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
   const [state, send] = useMachine(sidebarItemMachine, {
     input: {
       thread,
-      onRenamed: () => {
-        void queryClient.invalidateQueries({ queryKey: ["threads"] });
-        void queryClient.invalidateQueries({ queryKey: ["thread", thread.id] });
-      },
+      onRenamed: () => undefined,
       onDeleted,
       onChanged,
       onCloned,
@@ -347,7 +345,6 @@ export const SessionSidebar = () => {
     data: threads = [],
     isFetching,
     error,
-    refetch,
     dataUpdatedAt,
   } = useQuery({
     queryKey: ["threads", search],
@@ -363,6 +360,19 @@ export const SessionSidebar = () => {
     staleTime: 30_000,
     gcTime: 86_400_000,
   });
+
+  const refreshConversations = useCallback(async () => {
+    const fresh = await syncConversations(search || undefined);
+    queryClient.setQueryData(["threads", search], fresh);
+  }, [queryClient, search]);
+
+  useEffect(
+    () =>
+      subscribeToConversationChanges(() => {
+        void refreshConversations().catch(() => undefined);
+      }),
+    [refreshConversations],
+  );
 
   const closeMobileSidebar = () => setOpenMobile(false);
 
@@ -408,13 +418,8 @@ export const SessionSidebar = () => {
                       isActive={activeId === thread.id}
                       onDeleted={() => {
                         if (activeId === thread.id) void navigate({ to: "/chat" });
-                        void queryClient.invalidateQueries({ queryKey: ["threads"] });
                       }}
-                      onChanged={() =>
-                        void queryClient.invalidateQueries({ queryKey: ["threads"] })
-                      }
                       onCloned={(threadId) => {
-                        void queryClient.invalidateQueries({ queryKey: ["threads"] });
                         void navigate({ to: "/chat/$sessionId", params: { sessionId: threadId } });
                       }}
                     />
@@ -427,7 +432,7 @@ export const SessionSidebar = () => {
         <SidebarFooter className="shrink-0 border-t px-3 py-2">
           <button
             type="button"
-            onClick={() => void refetch()}
+            onClick={() => void refreshConversations()}
             disabled={isFetching}
             aria-label="Sync sessions"
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"

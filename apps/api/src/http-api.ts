@@ -13,6 +13,7 @@ import { CurrentUser } from "./auth/request-auth.ts";
 import type { QueryDatabaseClient } from "./db/client.ts";
 import {
   deleteMemory,
+  deleteMemoriesByMessage,
   deleteNote,
   getMemories,
   getNotes,
@@ -125,8 +126,8 @@ const memoriesHandlers = ({
           const limit = query.limit ?? 100;
           const memories =
             query.search === undefined
-              ? yield* getMemories(db, user.id, limit)
-              : yield* searchMemories(db, user.id, query.search, limit);
+              ? yield* getMemories(db, user.id, { limit })
+              : yield* searchMemories(db, user.id, query.search, { limit });
           return { memories: memories.map(toApiMemory) };
         }, Effect.provide(runtimeContext)),
       )
@@ -140,6 +141,7 @@ const memoriesHandlers = ({
             payload.content,
             payload.source,
             payload.threadId,
+            payload.messageId,
           );
           return { id: requireIdentifier(id) };
         }, Effect.provide(runtimeContext)),
@@ -149,6 +151,14 @@ const memoriesHandlers = ({
         Effect.fn("httpApi.memories.remove")(function* ({ params }) {
           const user = yield* CurrentUser;
           yield* deleteMemory(db, user.id, params.id);
+          return { success: true } satisfies { success: true };
+        }, Effect.provide(runtimeContext)),
+      )
+      .handle(
+        "removeByMessage",
+        Effect.fn("httpApi.memories.removeByMessage")(function* ({ params }) {
+          const user = yield* CurrentUser;
+          yield* deleteMemoriesByMessage(db, user.id, params.messageId);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       ),

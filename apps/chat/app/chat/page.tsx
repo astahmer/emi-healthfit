@@ -65,6 +65,24 @@ const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
     createdAt: message.createdAt,
   }));
 
+const compactedSummary = (messages: MessageNode[]): string | undefined => {
+  const context = messages.find((message) => message.role === "system");
+  if (context === undefined) return undefined;
+  const text = context.parts
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        part.type === "text" && typeof part.text === "string",
+    )
+    .map((part) => part.text)
+    .join("\n")
+    .trim();
+  if (text === "") return undefined;
+  return text.replace(
+    /^Use this compacted summary of the previous conversation as context:\s*/i,
+    "",
+  );
+};
+
 export const ChatPage = ({
   onNavigate = noNavigation,
   onSearchChange = noSearchChange,
@@ -120,6 +138,7 @@ export const ChatPage = ({
 
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);
+  const contextSummary = compactedSummary(initialMessages);
 
   useEffect(() => {
     if (conversation === null) return;
@@ -141,7 +160,6 @@ export const ChatPage = ({
       branchCount > previousBranchCountRef.current
     ) {
       feedback.show({ kind: "success", message: "Branch created." });
-      void queryClient.invalidateQueries({ queryKey: ["threads"] });
     }
     previousBranchCountRef.current = branchCount;
   }, [
@@ -174,7 +192,6 @@ export const ChatPage = ({
           model: configState.context.model,
         },
       });
-      await queryClient.invalidateQueries({ queryKey: ["threads"] });
       onNavigate(compactedConversation.id);
       feedback.show({ kind: "success", message: "Fresh chat ready with compacted context." });
     } catch {
@@ -196,7 +213,6 @@ export const ChatPage = ({
       <ErrorBoundary
         onReset={() => {
           sendConversation({ type: "reset" });
-          void queryClient.invalidateQueries({ queryKey: ["thread", activeConversationId] });
         }}
       >
         <UsageProvider messages={usageMessages}>
@@ -358,6 +374,7 @@ export const ChatPage = ({
                   </div>
                 ) : hasOpenAiKey ? (
                   <Thread
+                    contextSummary={contextSummary}
                     onForkMessage={(messageId) => {
                       feedback.show({ kind: "info", message: "Creating branch…" });
                       sendConversation({ type: "thread.fork", anchorMessageId: messageId });

@@ -443,6 +443,10 @@ export const createThread = (
         createdAt,
       )
       .run();
+    yield* db
+      .prepare("UPDATE conversations SET updated_at = ? WHERE user_id = ? AND id = ?")
+      .bind(createdAt, userId, conversationId)
+      .run();
     yield* addThreadMessage(db, userId, id, anchorMessageId);
     return id;
   });
@@ -510,6 +514,25 @@ export const getThread = (db: QueryDatabaseClient, userId: string, threadId: str
     return result === null ? null : mapThreadRow(result);
   });
 
+export const getThreadByAnchor = (
+  db: QueryDatabaseClient,
+  userId: string,
+  conversationId: string,
+  anchorMessageId: string,
+) =>
+  Effect.gen(function* () {
+    const result = yield* db
+      .prepare(`
+      SELECT * FROM threads
+      WHERE user_id = ? AND conversation_id = ? AND anchor_message_id = ? AND status != 'merged'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `)
+      .bind(userId, conversationId, anchorMessageId)
+      .first<ThreadRow>();
+    return result === null ? null : mapThreadRow(result);
+  });
+
 export const renameThread = (
   db: QueryDatabaseClient,
   userId: string,
@@ -552,10 +575,14 @@ export const discardThread = (db: QueryDatabaseClient, userId: string, threadId:
 
 export const restoreThread = (db: QueryDatabaseClient, userId: string, threadId: string) =>
   Effect.gen(function* () {
+    const thread = yield* getThread(db, userId, threadId);
+    if (thread === null) return;
+    const updatedAt = nowIso();
     yield* db
       .prepare("UPDATE threads SET status = 'regular', updated_at = ? WHERE user_id = ? AND id = ?")
-      .bind(nowIso(), userId, threadId)
+      .bind(updatedAt, userId, threadId)
       .run();
+    yield* updateConversationTimestamp(db, userId, thread.conversation_id);
   });
 
 export const addThreadMessage = (

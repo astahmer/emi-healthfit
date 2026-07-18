@@ -28,6 +28,43 @@ interface ChatConfig {
 
 const GeneratedStrings = Schema.Array(Schema.String);
 
+const decodeGeneratedStrings = (value: string): string[] | undefined => {
+  const parsed = decodeJsonOption(value);
+  if (Option.isNone(parsed)) return undefined;
+  const strings = Schema.decodeUnknownOption(GeneratedStrings)(parsed.value);
+  if (Option.isNone(strings)) return undefined;
+  return strings.value.map((item) => item.trim()).filter((item) => item.length > 0);
+};
+
+export const normalizeGeneratedStrings = (value: string): string[] => {
+  const cleaned = value
+    .trim()
+    .replace(/^```(?:json)?\s*|\s*```$/gi, "")
+    .trim();
+  const decoded = decodeGeneratedStrings(cleaned);
+  if (decoded !== undefined) {
+    return decoded.flatMap((item) => {
+      const firstArrayBracket = item.indexOf("[");
+      const lastArrayBracket = item.lastIndexOf("]");
+      if (firstArrayBracket < 0 || lastArrayBracket <= firstArrayBracket) return [item];
+      return normalizeGeneratedStrings(item);
+    });
+  }
+
+  const firstArrayBracket = cleaned.indexOf("[");
+  const lastArrayBracket = cleaned.lastIndexOf("]");
+  if (firstArrayBracket >= 0 && lastArrayBracket > firstArrayBracket) {
+    const embedded = decodeGeneratedStrings(cleaned.slice(firstArrayBracket, lastArrayBracket + 1));
+    if (embedded !== undefined) return embedded;
+  }
+
+  return cleaned
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-\d.*]+\s*["']?|["']?\s*$/g, "").trim())
+    .filter((line) => line.length > 0 && !line.startsWith("["))
+    .slice(0, 5);
+};
+
 export interface ChatStreamRequest {
   messages: Array<Omit<UIMessage, "id">>;
   system?: string | undefined;
@@ -163,22 +200,7 @@ export const generateSuggestions = async (request: SuggestionsRequest): Promise<
       `Return only a JSON array of strings, no markdown.\n\n${context}`,
   });
 
-  const text = result.text.trim();
-  const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
-
-  const parsed = decodeJsonOption(cleaned);
-  if (Option.isSome(parsed)) {
-    const suggestions = Schema.decodeUnknownOption(GeneratedStrings)(parsed.value);
-    if (Option.isSome(suggestions)) {
-      return suggestions.value.slice(0, 5);
-    }
-  }
-
-  return cleaned
-    .split("\n")
-    .map((line) => line.replace(/^\s*[-\d.*]+\s*["']?|["']?\s*$/g, "").trim())
-    .filter((line) => line.length > 0)
-    .slice(0, 5);
+  return normalizeGeneratedStrings(result.text).slice(0, 5);
 };
 
 export const generateThreadTitle = async (
@@ -214,27 +236,23 @@ export const extractMemories = async (
   baseUrl: string | undefined,
   model: string,
   text: string,
+  existingMemories: string[],
 ): Promise<string[]> => {
   const openai = createOpenAI({ apiKey, baseURL: baseUrl });
+  const today = new Date().toISOString().slice(0, 10);
+  const knownMemories = existingMemories
+    .slice(0, 60)
+    .map((memory) => `- ${memory.slice(0, 280)}`)
+    .join("\n");
   const result = await generateText({
     model: openai.chat(model),
     prompt:
-      `Extract any facts, preferences, or context from the assistant message below that would be useful to remember for future conversations. ` +
-      `Return only a JSON array of short strings. If there is nothing worth remembering, return an empty array.\n\n${text}`,
+      `Extract only durable, high-value facts, preferences, or goals from the assistant message below. ` +
+      `Today is ${today}. Each memory must be standalone, specific, and useful in a future chat. ` +
+      `Never use vague or relative timing such as "currently", "Monday", "last week", or "by November": resolve it to an ISO date or explicit year when the source makes that possible; otherwise omit the timing. ` +
+      `Do not invent missing dates or years. Do not repeat or paraphrase an existing memory. ` +
+      `Return only a JSON array of short strings. If there is nothing novel and durable, return an empty array.\n\n` +
+      `Existing memories:\n${knownMemories || "(none)"}\n\nAssistant message:\n${text}`,
   });
-
-  const cleaned = result.text
-    .trim()
-    .replace(/^```(?:json)?\s*|\s*```$/gi, "")
-    .trim();
-
-  const parsed = decodeJsonOption(cleaned);
-  if (Option.isSome(parsed)) {
-    const memories = Schema.decodeUnknownOption(GeneratedStrings)(parsed.value);
-    if (Option.isSome(memories)) {
-      return memories.value.map((item) => item.trim()).filter((item) => item.length > 0);
-    }
-  }
-
-  return [];
+  return decodeGeneratedStrings(result.text) ?? [];
 };
