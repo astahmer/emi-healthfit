@@ -5,5 +5,8 @@ export const validateStoredUIMessages = async (messages: unknown[]): Promise<UIM
 
   const validatedMessages = await safeValidateUIMessages<UIMessage>({ messages });
   if (!validatedMessages.success) throw validatedMessages.error;
+  if (validatedMessages.data.some((message) => message.id.trim() === "")) {
+    throw new Error("UI messages require non-empty identifiers");
+  }
   return validatedMessages.data;
 };

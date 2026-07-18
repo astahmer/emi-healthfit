@@ -1,0 +1,8 @@
+id: no-imperative-empty-string-http-check
+valid:
+  - "if (Schema.is(Content)(title)) return title;"
+invalid:
+  - |
+    if (text === "") {
+      return HttpServerResponse.json({ error: "text is required" }, { status: 400 });
+    }

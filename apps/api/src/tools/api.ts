@@ -247,6 +247,7 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
     Schema.Struct({
       sets: Schema.Array(
         Schema.Struct({
+          id: Schema.String,
           exercise: Schema.String,
           weightKg: Schema.NullOr(Schema.Number),
           reps: Schema.NullOr(Schema.Number),

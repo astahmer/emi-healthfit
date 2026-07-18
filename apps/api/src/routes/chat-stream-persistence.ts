@@ -13,7 +13,7 @@ import {
 import { resolveGenerationTerminalState } from "../chat/generation-terminal-state.ts";
 import type { QueryDatabaseClient } from "../db/client.ts";
 
-export const persistGenerationStream = Effect.fn("chatGeneration.persistStream")(function* ({
+export const persistGenerationStream = Effect.fn("chatStream.persist")(function* ({
   db,
   userId,
   conversationId,

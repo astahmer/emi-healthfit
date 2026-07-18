@@ -28,7 +28,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
   threadId: Schema.optional(Content),
 });
 
-const TextPart = Schema.Struct({ type: Schema.Literal("text"), text: Schema.String });
+const TextPart = Schema.Struct({ type: Schema.Literal("text"), text: Content });
 const AttachmentPart = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("file"),
@@ -47,9 +47,7 @@ export const getFirstUserText = (
     if (message.role !== "user") continue;
     for (const part of message.parts) {
       const textPart = Schema.decodeUnknownOption(TextPart)(part);
-      if (Option.isSome(textPart) && textPart.value.text.trim() !== "") {
-        return textPart.value.text.trim();
-      }
+      if (Option.isSome(textPart)) return textPart.value.text.trim();
     }
   }
   return undefined;

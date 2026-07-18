@@ -1,0 +1,8 @@
+id: no-imperative-empty-string-http-check
+language: TypeScript
+files:
+  - apps/api/src/routes/**/*.ts
+message: Normalize required request text in an Effect Schema, not with a direct empty-string check.
+severity: error
+rule:
+  pattern: $VALUE === ""

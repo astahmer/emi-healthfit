@@ -1,6 +1,6 @@
 # API boundary cleanup
 
-- **Status**: TODO
+- **Status**: DONE (2026-07-19)
 - **Commit audited**: `f163cac`
 - **Scope**: API parsing/validation, error boundaries, controlled concurrency, lint guardrails
 
