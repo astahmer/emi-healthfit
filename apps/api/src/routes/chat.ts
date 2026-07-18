@@ -265,11 +265,7 @@ const validateAttachments = (messages: Array<{ parts: unknown[] }>): string | un
   return undefined;
 };
 
-export const handleAiSdkChat = (
-  db: QueryDatabaseClient,
-  env: Record<string, unknown>,
-  request: HttpServerRequest,
-) =>
+export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
     const requestStartedAt = performance.now();
@@ -295,12 +291,7 @@ export const handleAiSdkChat = (
       ...parsed.value,
       messages: validatedMessages.data,
     };
-    const apiKey =
-      chatRequest.config.apiKey !== ""
-        ? chatRequest.config.apiKey
-        : env.OPENAI_API_KEY !== undefined
-          ? String(env.OPENAI_API_KEY)
-          : "";
+    const apiKey = chatRequest.config.apiKey;
 
     if (apiKey === "") {
       return yield* HttpServerResponse.json(
@@ -309,10 +300,7 @@ export const handleAiSdkChat = (
       );
     }
 
-    const requestWithKey: ChatStreamRequest = {
-      ...chatRequest,
-      config: { ...chatRequest.config, apiKey },
-    };
+    const requestWithKey: ChatStreamRequest = chatRequest;
 
     const isTemporary = chatRequest.temporary === true;
 
@@ -527,7 +515,12 @@ export const handleAiSdkChat = (
               ...(isTemporary ? {} : { conversationId: sessionId }),
               summarize: (messages) =>
                 Effect.promise(() =>
-                  generateThreadSummary(apiKey, chatRequest.config.baseUrl, messages),
+                  generateThreadSummary(
+                    apiKey,
+                    chatRequest.config.baseUrl,
+                    chatRequest.config.model,
+                    messages,
+                  ),
                 ),
             }),
           ),

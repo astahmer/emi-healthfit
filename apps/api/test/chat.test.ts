@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import { RuntimeContext } from "alchemy";
-import { extractTextFromLlmResponse } from "../src/chat/handler.ts";
 import { executeTool } from "../src/tools/api.ts";
 import * as Effect from "effect/Effect";
 
@@ -9,33 +8,6 @@ const fakeDb = {} as never;
 
 const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
   Effect.runPromise(effect.pipe(Effect.provide(RuntimeContext.phantom)));
-
-describe("extractTextFromLlmResponse", () => {
-  it("extracts assistant content from chat completion shape", () => {
-    const text = extractTextFromLlmResponse({
-      choices: [
-        {
-          message: {
-            role: "assistant",
-            content: "hello",
-          },
-        },
-      ],
-    });
-    assert.strictEqual(text, "hello");
-  });
-
-  it("extracts text from Workers AI shape", () => {
-    const text = extractTextFromLlmResponse({ response: "world" });
-    assert.strictEqual(text, "world");
-  });
-
-  it("returns null for malformed responses", () => {
-    assert.strictEqual(extractTextFromLlmResponse(null), null);
-    assert.strictEqual(extractTextFromLlmResponse({ choices: [] }), null);
-    assert.strictEqual(extractTextFromLlmResponse({ error: "bad" }), null);
-  });
-});
 
 describe("render_component tool", () => {
   it("returns a json-render spec with elements map", async () => {

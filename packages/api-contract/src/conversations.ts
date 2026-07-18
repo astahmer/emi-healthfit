@@ -182,13 +182,6 @@ export class ThreadsApi extends HttpApiGroup.make("threads")
       error: StandardErrors,
     }),
   )
-  .add(
-    HttpApiEndpoint.post("summarize", "/threads/:id/summarize", {
-      params: { id: Identifier },
-      success: Schema.Struct({ message: Message }),
-      error: StandardErrors,
-    }),
-  )
   .prefix("/api") {}
 
 export class MessagesApi extends HttpApiGroup.make("messages")

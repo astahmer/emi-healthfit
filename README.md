@@ -193,7 +193,6 @@ Alchemy will create/update:
 
 - `GymData` D1 database
 - `Exports` R2 bucket
-- `AiGateway` AI Gateway
 - `Api` Worker with bindings to the above and the built frontend assets
 
 The command prints the deployed Worker URL. Open that URL in a browser to use the chat UI.

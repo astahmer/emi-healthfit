@@ -158,9 +158,38 @@ const fulfillApi = async (route: Route) => {
 };
 
 const openMockedChat = async (page: Page, path = "/chat") => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "emi-chat-settings",
+      JSON.stringify({
+        state: {
+          settings: {
+            provider: "openai",
+            baseUrl: "",
+            apiKey: "sk-test",
+            model: "gpt-5.2-chat-latest",
+            systemPrompt: "You are a test assistant.",
+            coachMode: false,
+          },
+        },
+        version: 0,
+      }),
+    );
+  });
   await page.route("**/api/**", fulfillApi);
   await page.goto(path);
 };
+
+test("requires an OpenAI API key before showing the chat composer", async ({ page }) => {
+  await page.route("**/api/**", fulfillApi);
+  await page.goto("/chat");
+
+  await expect(page.getByText("Add your OpenAI API key")).toBeVisible();
+  await expect(page.getByLabel("Message input")).toHaveCount(0);
+  await page.getByLabel("OpenAI API key").fill("sk-test");
+  await page.getByRole("button", { name: "Save key and start chatting" }).click();
+  await expect(page.getByLabel("Message input")).toBeVisible();
+});
 
 test("switches sessions, renders tools, and starts a new chat", async ({ page }) => {
   await openMockedChat(page, "/chat/one");

@@ -196,13 +196,3 @@ export const restoreThread = async (threadId: string): Promise<{ threadId: strin
   );
   return { threadId };
 };
-
-export const summarizeThread = async (threadId: string): Promise<{ message: MessageNode }> => {
-  const data = await runApi((client) => client.threads.summarize({ params: { id: threadId } }));
-  return {
-    message: toMessage({
-      raw: messageSchema.parse(data.message),
-      conversationId: data.message.conversationId,
-    }),
-  };
-};

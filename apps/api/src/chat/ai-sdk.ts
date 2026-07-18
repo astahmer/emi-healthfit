@@ -138,6 +138,7 @@ export const createChatStream = async ({
 export interface SuggestionsRequest {
   apiKey: string;
   baseUrl?: string | undefined;
+  model: string;
   lastAssistantText: string;
   lastUserText?: string | undefined;
 }
@@ -151,7 +152,7 @@ export const generateSuggestions = async (request: SuggestionsRequest): Promise<
       : `Assistant: ${request.lastAssistantText}`;
 
   const result = await generateText({
-    model: openai.chat("gpt-4o-mini"),
+    model: openai.chat(request.model),
     prompt:
       `Given this conversation, suggest up to 5 short, natural follow-up questions the user might ask. ` +
       `Return only a JSON array of strings, no markdown.\n\n${context}`,
@@ -192,12 +193,13 @@ export const generateThreadTitle = async (
 export const generateThreadSummary = async (
   apiKey: string,
   baseUrl: string | undefined,
+  model: string,
   messages: Array<{ role: string; text: string }>,
 ): Promise<string> => {
   const openai = createOpenAI({ apiKey, baseURL: baseUrl });
   const transcript = messages.map((message) => `${message.role}: ${message.text}`).join("\n");
   const result = await generateText({
-    model: openai.chat("gpt-4o-mini"),
+    model: openai.chat(model),
     prompt: `Summarize the following conversation thread in 1-2 sentences. Be concise.\n\n${transcript}`,
   });
   return result.text.trim();
@@ -206,11 +208,12 @@ export const generateThreadSummary = async (
 export const extractMemories = async (
   apiKey: string,
   baseUrl: string | undefined,
+  model: string,
   text: string,
 ): Promise<string[]> => {
   const openai = createOpenAI({ apiKey, baseURL: baseUrl });
   const result = await generateText({
-    model: openai.chat("gpt-4o-mini"),
+    model: openai.chat(model),
     prompt:
       `Extract any facts, preferences, or context from the assistant message below that would be useful to remember for future conversations. ` +
       `Return only a JSON array of short strings. If there is nothing worth remembering, return an empty array.\n\n${text}`,

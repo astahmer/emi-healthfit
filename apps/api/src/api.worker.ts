@@ -13,7 +13,6 @@ import {
 } from "./auth/request-auth.ts";
 import { handleAiSdkChat, handleChatResume, handleConversationDiagnostics } from "./routes/chat.ts";
 import {
-  handleChatRoute,
   handleIngest,
   handleIngestedDataExport,
   handleIngestedDataImport,
@@ -25,7 +24,6 @@ import { registerHttpApi } from "./http-api.ts";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
-const AiGateway = Cloudflare.AI.Gateway("AiGateway");
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
@@ -47,7 +45,6 @@ export default class Api extends Cloudflare.Worker<Api>()(
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.QueryDatabase(DB);
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
-    const aiGateway = yield* Cloudflare.AI.QueryGateway(AiGateway);
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const assetsBinding = env.ASSETS;
     const assetsFetch =
@@ -70,10 +67,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("POST", "/ingest", (request) =>
         cors(request, handleIngest(db, bucket, request)),
       );
-      yield* router.add("POST", "/chat", (request) =>
-        cors(request, handleChatRoute(db, aiGateway, env, request)),
-      );
-      yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, env, request));
+      yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, request));
       yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>
         Effect.gen(function* () {
           const params = yield* HttpRouter.params;
@@ -91,7 +85,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("GET", "/api/conversations/:conversationId/diagnostics", (request) =>
         cors(request, handleConversationDiagnostics(db, request)),
       );
-      yield* registerHttpApi({ bucket, db, env, router });
+      yield* registerHttpApi({ bucket, db, router });
       yield* router.add("*", "/*", (request) => {
         if (request.method === "OPTIONS") return handleCorsPreflight(request);
         if (request.method === "GET") return handleAssetRequest({ assetsFetcher, request });
@@ -137,11 +131,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     };
   }).pipe(
     Effect.provide(
-      Layer.mergeAll(
-        Cloudflare.D1.QueryDatabaseBinding,
-        Cloudflare.R2.ReadWriteBucketBinding,
-        Cloudflare.AI.QueryGatewayBinding,
-      ),
+      Layer.mergeAll(Cloudflare.D1.QueryDatabaseBinding, Cloudflare.R2.ReadWriteBucketBinding),
     ),
   ),
 ) {}

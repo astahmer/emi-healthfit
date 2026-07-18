@@ -4,6 +4,12 @@ import { Identifier, StandardErrors } from "./common.ts";
 
 const NullableNumber = Schema.NullOr(Schema.Number);
 
+export const OpenAiClientConfig = Schema.Struct({
+  apiKey: Schema.String.check(Schema.isMinLength(1)),
+  baseUrl: Schema.optional(Schema.String),
+  model: Schema.String,
+});
+
 export class SuggestionsApi extends HttpApiGroup.make("suggestions")
   .add(
     HttpApiEndpoint.post("generate", "/suggestions", {
@@ -12,14 +18,7 @@ export class SuggestionsApi extends HttpApiGroup.make("suggestions")
         messageId: Schema.optional(Schema.String),
         lastAssistantText: Schema.String,
         lastUserText: Schema.optional(Schema.String),
-        config: Schema.optional(
-          Schema.Struct({
-            provider: Schema.optional(Schema.String),
-            apiKey: Schema.optional(Schema.String),
-            baseUrl: Schema.optional(Schema.String),
-            model: Schema.optional(Schema.String),
-          }),
-        ),
+        config: OpenAiClientConfig,
       }),
       success: Schema.Struct({ suggestions: Schema.Array(Schema.String) }),
       error: StandardErrors,
@@ -30,7 +29,11 @@ export class SuggestionsApi extends HttpApiGroup.make("suggestions")
 export class MemoriesExtraApi extends HttpApiGroup.make("memoryExtraction")
   .add(
     HttpApiEndpoint.post("extract", "/memories/extract", {
-      payload: Schema.Struct({ text: Schema.String, threadId: Schema.optional(Schema.String) }),
+      payload: Schema.Struct({
+        text: Schema.String,
+        threadId: Schema.optional(Schema.String),
+        config: OpenAiClientConfig,
+      }),
       success: Schema.Struct({ ids: Schema.Array(Schema.String), count: Schema.Number }),
       error: StandardErrors,
     }),

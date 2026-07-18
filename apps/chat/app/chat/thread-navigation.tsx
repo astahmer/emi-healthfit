@@ -10,7 +10,6 @@ import {
   PencilIcon,
   PinIcon,
   SearchIcon,
-  SparklesIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
@@ -38,7 +37,6 @@ interface ThreadNavigationProps {
   onPin: (threadId: string, pinned: boolean) => void;
   onDiscard: (threadId: string) => void;
   onRestore: (threadId: string) => void;
-  onSummarize: (threadId: string) => void;
 }
 
 const threadTitle = ({ thread, index }: { thread: ThreadView; index: number }) =>
@@ -58,14 +56,12 @@ const ThreadMenu = ({
   onRename,
   onPin,
   onDiscard,
-  onSummarize,
 }: {
   thread: ThreadView;
   title: string;
   onRename: () => void;
   onPin: () => void;
   onDiscard: () => void;
-  onSummarize: () => void;
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -83,9 +79,6 @@ const ThreadMenu = ({
       </DropdownMenuItem>
       <DropdownMenuItem onClick={onPin}>
         <PinIcon /> {thread.pinned ? "Unpin" : "Pin"}
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={onSummarize}>
-        <SparklesIcon /> Summarize
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem className="text-destructive" onClick={onDiscard}>
@@ -106,7 +99,6 @@ export const ThreadNavigation = ({
   onPin,
   onDiscard,
   onRestore,
-  onSummarize,
 }: ThreadNavigationProps) => {
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -198,7 +190,6 @@ export const ThreadNavigation = ({
                         onRename={() => beginRename({ thread, title })}
                         onPin={() => onPin(thread.id, !thread.pinned)}
                         onDiscard={() => onDiscard(thread.id)}
-                        onSummarize={() => onSummarize(thread.id)}
                       />
                     </>
                   )}

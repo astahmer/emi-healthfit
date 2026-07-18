@@ -1,8 +1,7 @@
 interface SuggestionsConfig {
-  provider?: string;
-  apiKey?: string;
+  apiKey: string;
   baseUrl?: string;
-  model?: string;
+  model: string;
 }
 
 export interface SuggestionsRequest {
@@ -10,7 +9,7 @@ export interface SuggestionsRequest {
   messageId?: string;
   lastAssistantText: string;
   lastUserText?: string;
-  config?: SuggestionsConfig;
+  config: SuggestionsConfig;
 }
 
 export const fetchSuggestions = async (request: SuggestionsRequest): Promise<string[]> => {

@@ -14,7 +14,7 @@ import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { CurrentUser } from "./auth/request-auth.ts";
-import { extractMemories, generateThreadSummary } from "./chat/ai-sdk.ts";
+import { extractMemories } from "./chat/ai-sdk.ts";
 import { getGeneration, recordChatEvent } from "./chat/generation-store.ts";
 import {
   type Conversation,
@@ -36,7 +36,6 @@ import {
   renameThread,
   reviseConversationMessage,
   restoreThread,
-  summarizeThread,
   type Thread,
   updateConversationState,
 } from "./db/conversations.ts";
@@ -346,11 +345,9 @@ export const conversationsHandlers = ({
 
 export const threadsHandlers = ({
   db,
-  env,
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  env: Record<string, unknown>;
   runtimeContext: Context.Context<RuntimeContext>;
 }) =>
   HttpApiBuilder.group(EmiApi, "threads", (handlers) =>
@@ -394,43 +391,6 @@ export const threadsHandlers = ({
           Effect.provide(runtimeContext),
         ),
       )
-      .handle(
-        "summarize",
-        Effect.fn("httpApi.threads.summarize")(
-          function* ({ params }) {
-            const user = yield* CurrentUser;
-            const thread = yield* getThread(db, user.id, params.id);
-            if (thread === null) {
-              return yield* Effect.fail(new NotFound({ message: "Thread not found" }));
-            }
-            const rows = yield* getThreadMessages(db, user.id, params.id);
-            const messages = rows
-              .map(rowToMessage)
-              .filter((message) => message.role !== "summary")
-              .map((message) => ({
-                role: message.role,
-                text: textFromMessageParts(message.parts),
-              }))
-              .filter((message) => message.text.trim() !== "");
-            const apiKey = env.OPENAI_API_KEY === undefined ? "" : String(env.OPENAI_API_KEY);
-            const summary =
-              apiKey === "" || messages.length === 0
-                ? "No summary available."
-                : yield* Effect.promise(() => generateThreadSummary(apiKey, undefined, messages));
-            const id = yield* summarizeThread(db, user.id, params.id, summary);
-            if (id === null) {
-              return yield* Effect.fail(new NotFound({ message: "Summary message not found" }));
-            }
-            const message = yield* getMessage(db, user.id, id);
-            if (message === null) {
-              return yield* Effect.fail(new NotFound({ message: "Summary message not found" }));
-            }
-            return { message: rowToMessage(message) };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
-      ),
   );
 
 export const messagesHandlers = ({
@@ -460,11 +420,9 @@ export const messagesHandlers = ({
 
 export const memoryExtractionHandlers = ({
   db,
-  env,
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  env: Record<string, unknown>;
   runtimeContext: Context.Context<RuntimeContext>;
 }) =>
   HttpApiBuilder.group(EmiApi, "memoryExtraction", (handlers) =>
@@ -477,13 +435,9 @@ export const memoryExtractionHandlers = ({
           if (text === "") {
             return yield* Effect.fail(new BadRequest({ message: "text is required" }));
           }
-          const apiKey = env.OPENAI_API_KEY === undefined ? "" : String(env.OPENAI_API_KEY);
-          if (apiKey === "") {
-            return yield* Effect.fail(new BadRequest({ message: "OpenAI API key is required" }));
-          }
-          const baseUrl =
-            env.OPENAI_BASE_URL === undefined ? undefined : String(env.OPENAI_BASE_URL);
-          const snippets = yield* Effect.promise(() => extractMemories(apiKey, baseUrl, text));
+          const snippets = yield* Effect.promise(() =>
+            extractMemories(payload.config.apiKey, payload.config.baseUrl, payload.config.model, text),
+          );
           const ids: string[] = [];
           for (const snippet of snippets) {
             const id = yield* insertMemory(db, user.id, snippet, "assistant", payload.threadId);

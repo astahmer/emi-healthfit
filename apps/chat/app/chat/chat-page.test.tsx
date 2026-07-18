@@ -60,18 +60,20 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+const settingsStore = vi.hoisted(() => ({
+  settings: {
+    provider: "openai" as const,
+    baseUrl: "",
+    apiKey: "test-key",
+    model: "gpt-5.2-chat-latest",
+    systemPrompt: "test",
+    coachMode: false,
+  },
+  update: vi.fn(),
+}));
+
 vi.mock("@/app/settings-store", () => ({
-  useSettings: () => ({
-    settings: {
-      mode: "proxy",
-      provider: "openai",
-      baseUrl: "",
-      apiKey: "test-key",
-      model: "gpt-5.2-chat-latest",
-      systemPrompt: "test",
-      coachMode: false,
-    },
-  }),
+  useSettings: <T,>(selector: (state: typeof settingsStore) => T) => selector(settingsStore),
 }));
 
 vi.mock("@/app/usage-context", () => ({
@@ -178,6 +180,8 @@ describe("ChatPage", () => {
   beforeEach(() => {
     updateFromUrl("/chat");
     providerMountCount = 0;
+    settingsStore.settings.apiKey = "test-key";
+    settingsStore.update.mockReset();
     vi.spyOn(window.history, "replaceState").mockImplementation((_data, _unused, url) => {
       if (url !== undefined && url !== null) updateFromUrl(String(url));
     });
@@ -238,6 +242,19 @@ describe("ChatPage", () => {
     expect(screen.queryByText("Loading session…")).not.toBeInTheDocument();
     expect(screen.getByTestId("thread")).toBeInTheDocument();
     expect(providerMountCount).toBe(beforeCreation);
+  });
+
+  it("requires an OpenAI API key before rendering the composer", async () => {
+    settingsStore.settings.apiKey = "";
+
+    render(<ChatPage />);
+
+    expect(screen.getByText("Add your OpenAI API key")).toBeInTheDocument();
+    expect(screen.queryByTestId("thread")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("OpenAI API key"), "sk-test");
+    await userEvent.click(screen.getByRole("button", { name: "Save key and start chatting" }));
+
+    expect(settingsStore.update).toHaveBeenCalledWith({ apiKey: "sk-test" });
   });
 
   it("switches to a new chat without remounting the runtime", async () => {

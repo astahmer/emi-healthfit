@@ -5,12 +5,8 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { CurrentUser } from "../auth/request-auth.ts";
-import { generateSuggestions } from "../chat/ai-sdk.ts";
 import { buildChatContext } from "../chat/context.ts";
-import { handleChat } from "../chat/handler.ts";
-import { fitnessCoachV1 } from "../chat/prompts/fitness-coach-v1.ts";
 import { TtlCache } from "../cache.ts";
-import { getSuggestionsById, hashSuggestionsKey, saveSuggestions } from "../db/conversations.ts";
 import type { QueryDatabaseClient } from "../db/client.ts";
 import {
   type DataSummary,
@@ -39,27 +35,8 @@ import {
 } from "../ingest/data-transfer.ts";
 import { parseHealthExport } from "../ingest/health.ts";
 import { parseHevyCsv } from "../ingest/hevy.ts";
-import { decodeSuggestions } from "../http-api-codecs.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
-type QueryGatewayClient = Effect.Success<ReturnType<typeof Cloudflare.AI.QueryGateway>>;
-const ChatRouteBody = Schema.Struct({
-  message: Schema.optional(Schema.String),
-  coachMode: Schema.optional(Schema.Boolean),
-});
-const SuggestionsConfig = Schema.Struct({
-  provider: Schema.optional(Schema.String),
-  apiKey: Schema.optional(Schema.String),
-  baseUrl: Schema.optional(Schema.String),
-  model: Schema.optional(Schema.String),
-});
-const SuggestionsRequest = Schema.Struct({
-  threadId: Schema.optional(Schema.String),
-  lastAssistantText: Schema.optional(Schema.String),
-  lastUserText: Schema.optional(Schema.String),
-  config: Schema.optional(SuggestionsConfig),
-});
-type SuggestionsConfigBody = typeof SuggestionsConfig.Type;
 
 const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
@@ -190,98 +167,6 @@ export const handleIngest = (
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: String(error) }, { status: 500 })),
   );
-
-export const handleChatRoute = (
-  db: QueryDatabaseClient,
-  aiGateway: QueryGatewayClient,
-  env: Record<string, unknown>,
-  request: HttpServerRequest,
-) =>
-  Effect.gen(function* () {
-    const user = yield* CurrentUser;
-    const text = yield* request.text;
-    const raw: unknown = JSON.parse(text || "{}");
-    const body = Schema.decodeUnknownSync(ChatRouteBody)(raw);
-    const message = body.message?.trim();
-
-    if (message === undefined || message === "") {
-      return yield* HttpServerResponse.json({ error: "message is required" }, { status: 400 });
-    }
-
-    const result = yield* handleChat(db, user.id, aiGateway, env, {
-      message,
-      systemPrompt: body.coachMode ? fitnessCoachV1 : undefined,
-    });
-    return yield* HttpServerResponse.json(result);
-  }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
-  );
-
-const resolveSuggestionsApiKey = (
-  env: Record<string, unknown>,
-  config?: SuggestionsConfigBody,
-): string => {
-  if (config?.apiKey !== undefined && config.apiKey !== "") return config.apiKey;
-  if (env.OPENAI_API_KEY !== undefined) return String(env.OPENAI_API_KEY);
-  return "";
-};
-
-export const handleSuggestions = Effect.fn("handleSuggestions")(
-  function* (db: QueryDatabaseClient, env: Record<string, unknown>, request: HttpServerRequest) {
-    const user = yield* CurrentUser;
-    const text = yield* request.text;
-    const raw: unknown = JSON.parse(text || "{}");
-    const body = Schema.decodeUnknownSync(SuggestionsRequest)(raw);
-
-    const lastAssistantText = body.lastAssistantText?.trim();
-    if (lastAssistantText === undefined || lastAssistantText === "") {
-      return yield* HttpServerResponse.json(
-        { error: "lastAssistantText is required" },
-        { status: 400 },
-      );
-    }
-
-    const key = yield* hashSuggestionsKey(lastAssistantText, body.lastUserText);
-    const cached = yield* getSuggestionsById(db, user.id, key);
-    if (cached !== null) {
-      return yield* HttpServerResponse.json({
-        suggestions: decodeSuggestions(cached.suggestions),
-      });
-    }
-
-    const apiKey = resolveSuggestionsApiKey(env, body.config);
-    if (apiKey === "") {
-      return yield* HttpServerResponse.json({ suggestions: [] });
-    }
-
-    const baseUrl =
-      body.config?.baseUrl !== undefined && body.config.baseUrl !== ""
-        ? body.config.baseUrl
-        : env.OPENAI_BASE_URL !== undefined
-          ? String(env.OPENAI_BASE_URL)
-          : undefined;
-
-    const suggestions = yield* Effect.promise(() =>
-      generateSuggestions({
-        apiKey,
-        baseUrl,
-        lastAssistantText,
-        lastUserText: body.lastUserText,
-      }),
-    );
-
-    yield* saveSuggestions(db, user.id, key, suggestions);
-
-    return yield* HttpServerResponse.json({ suggestions });
-  },
-  Effect.catch(
-    Effect.fn("handleSuggestions.catch")(function* (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      yield* Effect.logError("chat.request.failure").pipe(Effect.annotateLogs({ error: message }));
-      return yield* HttpServerResponse.json({ error: message }, { status: 500 });
-    }),
-  ),
-);
 
 export const handleRecovery = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {

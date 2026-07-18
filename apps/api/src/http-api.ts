@@ -152,12 +152,10 @@ const memoriesHandlers = ({
 export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   bucket,
   db,
-  env,
   router,
 }: {
   bucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
-  env: Record<string, unknown>;
   router: HttpRouter.HttpRouter;
 }) {
   const runtimeContext = yield* Effect.context<RuntimeContext>();
@@ -166,10 +164,10 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
       notesHandlers({ db, runtimeContext }),
       memoriesHandlers({ db, runtimeContext }),
       conversationsHandlers({ db, runtimeContext }),
-      threadsHandlers({ db, env, runtimeContext }),
+      threadsHandlers({ db, runtimeContext }),
       messagesHandlers({ db, runtimeContext }),
-      memoryExtractionHandlers({ db, env, runtimeContext }),
-      suggestionsHandlers({ db, env, runtimeContext }),
+      memoryExtractionHandlers({ db, runtimeContext }),
+      suggestionsHandlers({ db, runtimeContext }),
       analyticsHandlers({ db, runtimeContext }),
       dataHandlers({ db, runtimeContext }),
       privacyHandlers({ bucket, db, runtimeContext }),

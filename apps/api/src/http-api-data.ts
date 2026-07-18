@@ -44,25 +44,11 @@ const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   return deleted;
 });
 
-const resolveSuggestionsApiKey = ({
-  env,
-  config,
-}: {
-  env: Record<string, unknown>;
-  config?: { readonly apiKey?: string };
-}): string => {
-  if (config?.apiKey !== undefined && config.apiKey !== "") return config.apiKey;
-  if (env.OPENAI_API_KEY !== undefined) return String(env.OPENAI_API_KEY);
-  return "";
-};
-
 export const suggestionsHandlers = ({
   db,
-  env,
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
-  env: Record<string, unknown>;
   runtimeContext: Context.Context<RuntimeContext>;
 }) =>
   HttpApiBuilder.group(EmiApi, "suggestions", (handlers) =>
@@ -80,18 +66,11 @@ export const suggestionsHandlers = ({
           if (cached !== null) {
             return { suggestions: decodeSuggestions(cached.suggestions) };
           }
-          const apiKey = resolveSuggestionsApiKey({ env, config: payload.config });
-          if (apiKey === "") return { suggestions: [] };
-          const baseUrl =
-            payload.config?.baseUrl !== undefined && payload.config.baseUrl !== ""
-              ? payload.config.baseUrl
-              : env.OPENAI_BASE_URL === undefined
-                ? undefined
-                : String(env.OPENAI_BASE_URL);
           const suggestions = yield* Effect.promise(() =>
             generateSuggestions({
-              apiKey,
-              baseUrl,
+              apiKey: payload.config.apiKey,
+              baseUrl: payload.config.baseUrl,
+              model: payload.config.model,
               lastAssistantText,
               lastUserText: payload.lastUserText,
             }),

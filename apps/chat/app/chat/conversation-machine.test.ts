@@ -299,34 +299,6 @@ describe("conversationMachine", () => {
     expect(actor.getSnapshot().context.threads[0]?.status).toBe("regular");
   });
 
-  it("summarizes a thread by adding a summary message", async () => {
-    const summary = makeMessage({
-      id: "summary-1",
-      role: "summary",
-      parts: [{ type: "text", text: "TL;DR" }],
-    });
-    const machine = conversationMachine.provide({
-      actors: {
-        loadConversation: fromPromise(async () => ({
-          conversation: makeConversation(),
-          messages: [makeMessage()],
-          threads: [makeThread()],
-        })),
-        summarizeThread: fromPromise(async () => ({ message: summary })),
-      },
-    });
-    const actor = createActor(machine, { input: { conversationId: "conv-1" } });
-    actor.start();
-
-    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
-
-    actor.send({ type: "thread.summarize", threadId: "thread-1" });
-
-    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
-
-    expect(actor.getSnapshot().context.messages).toContainEqual(summary);
-  });
-
   it("searches messages", async () => {
     const machine = conversationMachine.provide({
       actors: {

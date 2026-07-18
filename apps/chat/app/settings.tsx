@@ -49,8 +49,7 @@ export function SettingsPanel() {
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Leave empty for default OpenAI URL. Use a GPT-compatible endpoint (e.g. your CF worker)
-            by entering its base URL.
+            Leave empty for OpenAI. Enter a GPT-compatible endpoint only when you need one.
           </p>
         </div>
 
@@ -67,8 +66,7 @@ export function SettingsPanel() {
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            Stored in browser localStorage. In proxy mode it is sent to the CF Worker, which uses it
-            to call the provider.
+            Stored in browser localStorage and used only for requests you start.
           </p>
         </div>
 
@@ -116,8 +114,7 @@ export function SettingsPanel() {
               Coach mode
             </label>
             <p className="text-muted-foreground text-xs">
-              Injects the fitness coach pre-prompt before the user message. Only applies in proxy
-              mode.
+              Adds Emi's fitness-coach instructions to each chat request.
             </p>
           </div>
         </div>

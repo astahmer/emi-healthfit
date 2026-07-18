@@ -38,7 +38,6 @@ describe("ThreadNavigation", () => {
         onPin={vi.fn()}
         onDiscard={vi.fn()}
         onRestore={vi.fn()}
-        onSummarize={vi.fn()}
       />,
     );
 
@@ -61,7 +60,6 @@ describe("ThreadNavigation", () => {
         onPin={vi.fn()}
         onDiscard={vi.fn()}
         onRestore={vi.fn()}
-        onSummarize={vi.fn()}
       />,
     );
 

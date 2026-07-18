@@ -307,7 +307,6 @@ const FollowUpSuggestions = () => {
         lastAssistantText,
         lastUserText: getText(lastUser),
         config: {
-          provider: settings.provider,
           apiKey: settings.apiKey,
           baseUrl: settings.baseUrl || undefined,
           model: settings.model,
@@ -549,6 +548,7 @@ export const Thread = ({
   onReferenceMessage?: (messageId: string) => void;
 }) => {
   const runtime = useChatRuntime();
+  const settings = useSettings((state) => state.settings);
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -566,7 +566,15 @@ export const Thread = ({
   const rememberMessage = async (message: UIMessage) => {
     const text = getText(message).trim();
     if (text === "") return;
-    await extractMemories(text, runtime.sessionId);
+    await extractMemories({
+      text,
+      threadId: runtime.sessionId,
+      config: {
+        apiKey: settings.apiKey,
+        baseUrl: settings.baseUrl || undefined,
+        model: settings.model,
+      },
+    });
   };
 
   return (

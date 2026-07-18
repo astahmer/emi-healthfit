@@ -17,15 +17,12 @@ export default Alchemy.Stack(
 
     const exportsBucket = yield* Cloudflare.R2.Bucket("Exports");
 
-    const aiGateway = yield* Cloudflare.AI.Gateway("AiGateway");
-
     const api = yield* Api;
 
     return {
       url: api.url.as<string>(),
       databaseId: db.databaseId,
       bucketName: exportsBucket.bucketName,
-      gatewayId: aiGateway.gatewayId,
     };
   }),
 );

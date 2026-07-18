@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, type CSSProperties } from "react";
+import { Suspense, useEffect, useState, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -17,7 +17,7 @@ import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { ConversationUsage, UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
-import { DownloadIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
+import { DownloadIcon, KeyRoundIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
 import { useConversationMachine } from "./use-conversation-machine";
 import { composerConfigMachine } from "./composer-config-machine";
 import type { MessageNode } from "./conversation-machine";
@@ -57,6 +57,7 @@ const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
 
 function ChatPageInner() {
   const settings = useSettings((state) => state.settings);
+  const updateSettings = useSettings((state) => state.update);
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
@@ -95,6 +96,7 @@ function ChatPageInner() {
   const isLoading = conversationState.matches("loading");
   const loadError = conversationState.matches("error") ? conversationState.context.error : null;
   const isRenaming = conversationState.matches({ ready: "renamingConversation" });
+  const hasOpenAiKey = settings.apiKey.trim() !== "";
 
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);
@@ -255,65 +257,65 @@ function ChatPageInner() {
                   }
                   onDiscard={(threadId) => sendConversation({ type: "thread.discard", threadId })}
                   onRestore={(threadId) => sendConversation({ type: "thread.restore", threadId })}
-                  onSummarize={(threadId) =>
-                    sendConversation({ type: "thread.summarize", threadId })
-                  }
                 />
               )}
               <div className="min-w-0 flex-1 overflow-hidden">
-                <Thread
-                  onForkMessage={(messageId) =>
-                    sendConversation({ type: "thread.fork", anchorMessageId: messageId })
-                  }
-                  onReferenceMessage={(messageId) => {
-                    const referencedThread = conversationState.context.threads.find((thread) =>
-                      thread.messageIds.includes(messageId),
-                    );
-                    sendConversation({
-                      type: "thread.focus",
-                      threadId: referencedThread?.id ?? null,
-                    });
-                    requestAnimationFrame(() =>
+                {isLoading ? (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Loading session…
+                  </div>
+                ) : hasOpenAiKey ? (
+                  <Thread
+                    onForkMessage={(messageId) =>
+                      sendConversation({ type: "thread.fork", anchorMessageId: messageId })
+                    }
+                    onReferenceMessage={(messageId) => {
+                      const referencedThread = conversationState.context.threads.find((thread) =>
+                        thread.messageIds.includes(messageId),
+                      );
+                      sendConversation({
+                        type: "thread.focus",
+                        threadId: referencedThread?.id ?? null,
+                      });
                       requestAnimationFrame(() =>
-                        document.getElementById(`message-${messageId}`)?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "center",
-                        }),
-                      ),
-                    );
-                  }}
-                  composerControls={{
-                    model: configState.context.model,
-                    onModelChange: (model) => {
-                      sendConfig({ type: "model.select", model });
-                      setUrlModel(model);
-                    },
-                    coachMode: configState.context.coachMode,
-                    onCoachModeChange: () => {
-                      sendConfig({ type: "coach.toggle" });
-                      setUrlCoachMode(!configState.context.coachMode);
-                    },
-                    webSearch: configState.context.webSearch,
-                    onWebSearchChange: (value) => {
-                      sendConfig({ type: "web.toggle", value });
-                      setUrlWebSearch(value);
-                    },
-                    temporary: configState.context.temporary,
-                    onTemporaryChange: (value) => {
-                      sendConfig({ type: "temporary.toggle", value });
-                      sendConversation({ type: "temporary.changed", isTemporary: value });
-                      if (value && activeConversationId !== undefined) router.push("/chat");
-                    },
-                    models: chatModels,
-                    canWebSearch,
-                  }}
-                />
+                        requestAnimationFrame(() =>
+                          document.getElementById(`message-${messageId}`)?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center",
+                          }),
+                        ),
+                      );
+                    }}
+                    composerControls={{
+                      model: configState.context.model,
+                      onModelChange: (model) => {
+                        sendConfig({ type: "model.select", model });
+                        setUrlModel(model);
+                      },
+                      coachMode: configState.context.coachMode,
+                      onCoachModeChange: () => {
+                        sendConfig({ type: "coach.toggle" });
+                        setUrlCoachMode(!configState.context.coachMode);
+                      },
+                      webSearch: configState.context.webSearch,
+                      onWebSearchChange: (value) => {
+                        sendConfig({ type: "web.toggle", value });
+                        setUrlWebSearch(value);
+                      },
+                      temporary: configState.context.temporary,
+                      onTemporaryChange: (value) => {
+                        sendConfig({ type: "temporary.toggle", value });
+                        sendConversation({ type: "temporary.changed", isTemporary: value });
+                        if (value && activeConversationId !== undefined) router.push("/chat");
+                      },
+                      models: chatModels,
+                      canWebSearch,
+                    }}
+                  />
+                ) : (
+                  <OpenAiKeyRequired onSave={(apiKey) => updateSettings({ apiKey })} />
+                )}
               </div>
-              {isLoading && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 text-muted-foreground backdrop-blur-sm">
-                  Loading session…
-                </div>
-              )}
               {loadError !== null && activeConversationId !== undefined && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/95 p-6 text-center backdrop-blur-sm">
                   <p className="text-destructive">{loadError.message}</p>
@@ -333,6 +335,41 @@ function ChatPageInner() {
     </SidebarProvider>
   );
 }
+
+const OpenAiKeyRequired = ({ onSave }: { onSave: (apiKey: string) => void }) => {
+  const [apiKey, setApiKey] = useState("");
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <form
+        className="w-full max-w-md space-y-4 rounded-2xl border bg-card p-6 shadow-sm"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (apiKey.trim() !== "") onSave(apiKey.trim());
+        }}
+      >
+        <KeyRoundIcon className="size-6 text-primary" />
+        <div>
+          <h2 className="text-lg font-semibold">Add your OpenAI API key</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your key stays in this browser and is required before you can start a chat.
+          </p>
+        </div>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(event) => setApiKey(event.target.value)}
+          placeholder="sk-..."
+          aria-label="OpenAI API key"
+          autoComplete="off"
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <Button type="submit" className="w-full" disabled={apiKey.trim() === ""}>
+          Save key and start chatting
+        </Button>
+      </form>
+    </div>
+  );
+};
 
 const NewChatButton = ({ onNewChat }: { onNewChat: () => void }) => {
   const router = useRouter();

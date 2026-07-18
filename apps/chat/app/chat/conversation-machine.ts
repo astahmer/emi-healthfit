@@ -10,7 +10,6 @@ import {
   renameConversation as renameConversationApi,
   renameThread as renameThreadApi,
   restoreThread as restoreThreadApi,
-  summarizeThread as summarizeThreadApi,
 } from "../conversations";
 import { searchMessages } from "./conversation-tree";
 
@@ -88,9 +87,6 @@ export type ConversationEvent =
   | { type: "discard.succeeded"; threadId: string }
   | { type: "discard.failed"; error: Error }
   | { type: "thread.restore"; threadId: string }
-  | { type: "thread.summarize"; threadId: string }
-  | { type: "summarize.succeeded"; message: MessageNode }
-  | { type: "summarize.failed"; error: Error }
   | { type: "search.query"; query: string }
   | { type: "view.select"; viewMode: ViewMode }
   | { type: "temporary.changed"; isTemporary: boolean }
@@ -221,10 +217,6 @@ export const conversationMachine = setup({
     restoreThread: fromPromise(
       async ({ input }: { input: { threadId: string } }): Promise<{ threadId: string }> =>
         restoreThreadApi(input.threadId),
-    ),
-    summarizeThread: fromPromise(
-      async ({ input }: { input: { threadId: string } }): Promise<{ message: MessageNode }> =>
-        summarizeThreadApi(input.threadId),
     ),
   },
   actions: {
@@ -358,7 +350,6 @@ export const conversationMachine = setup({
             "thread.pin": { target: "pinning" },
             "thread.discard": { target: "discarding" },
             "thread.restore": { target: "restoring" },
-            "thread.summarize": { target: "summarizing" },
             "search.query": {
               actions: assign({
                 searchQuery: ({ event }) => event.query,
@@ -518,28 +509,6 @@ export const conversationMachine = setup({
                   context.threads.map((thread) =>
                     thread.id === event.output.threadId ? { ...thread, status: "regular" } : thread,
                   ),
-              }),
-            },
-            onError: {
-              target: "idle",
-              actions: assign({
-                error: ({ event }) =>
-                  event.error instanceof Error ? event.error : new Error(String(event.error)),
-              }),
-            },
-          },
-        },
-        summarizing: {
-          invoke: {
-            src: "summarizeThread",
-            input: ({ event }) => {
-              if (event.type !== "thread.summarize") throw new Error("Unexpected event");
-              return { threadId: event.threadId };
-            },
-            onDone: {
-              target: "idle",
-              actions: assign({
-                messages: ({ context, event }) => [...context.messages, event.output.message],
               }),
             },
             onError: {

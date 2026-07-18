@@ -27,9 +27,17 @@ export const createMemory = async (
   return data.id;
 };
 
-export const extractMemories = async (text: string, threadId?: string): Promise<string[]> => {
+export const extractMemories = async ({
+  text,
+  threadId,
+  config,
+}: {
+  text: string;
+  threadId?: string;
+  config: { apiKey: string; baseUrl?: string; model: string };
+}): Promise<string[]> => {
   const data = await runApi((client) =>
-    client.memoryExtraction.extract({ payload: { text, threadId } }),
+    client.memoryExtraction.extract({ payload: { text, threadId, config } }),
   );
   return [...data.ids];
 };
