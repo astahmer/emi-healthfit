@@ -191,14 +191,11 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Use full path and `--run` for fast feedback.
 - Add `.only` to isolate a single failing test.
 
-Run checks once before giving the final summary after a task (not after every changes):
+## Release handoff
 
-```bash
-pnpm test # prefer running a single file & with --run when debugging
-pnpm lint
-pnpm typecheck
-pnpm format
-```
+- During implementation and debugging, run focused checks only. Do not run the full release suite repeatedly.
+- Immediately before final handoff or marking a session complete, run `pnpm release:check` once on the final worktree.
+- Do not mark the session complete unless that final release check passes.
 
 ## Unacceptable comments
 
