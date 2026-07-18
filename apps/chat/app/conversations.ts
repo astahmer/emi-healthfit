@@ -155,6 +155,19 @@ export const forkThread = async (
   return toThread(threadSchema.parse(thread));
 };
 
+export const compactConversation = async ({
+  conversationId,
+  config,
+}: {
+  conversationId: string;
+  config: { apiKey: string; baseUrl?: string; model: string };
+}): Promise<Conversation> => {
+  const data = await runApi((client) =>
+    client.conversations.compact({ params: { id: conversationId }, payload: config }),
+  );
+  return toConversation(conversationSchema.parse(data.conversation));
+};
+
 export const renameConversation = async (
   conversationId: string,
   title: string,

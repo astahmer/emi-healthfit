@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchConversationMessages, forkThread } from "./conversations";
+import { compactConversation, fetchConversationMessages, forkThread } from "./conversations";
 
 const rawThread = {
   id: "branch-1",
@@ -65,5 +65,38 @@ describe("conversation API decoding", () => {
       id: "branch-1",
       anchorMessageId: "message-1",
     });
+  });
+
+  it("creates a fresh conversation with the supplied OpenAI configuration", async () => {
+    const fetchMock = vi.fn(
+      async (_request: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            conversation: {
+              id: "compacted-1",
+              title: "Workout (compacted)",
+              status: "regular",
+              pinned: false,
+              created_at: "2026-07-18T12:00:00.000Z",
+              updated_at: "2026-07-18T12:00:00.000Z",
+            },
+          }),
+          { status: 201 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      compactConversation({
+        conversationId: "conversation-1",
+        config: { apiKey: "sk-test", model: "gpt-5" },
+      }),
+    ).resolves.toMatchObject({ id: "compacted-1" });
+
+    const [request, init] = fetchMock.mock.calls[0] ?? [];
+    if (request === undefined) throw new Error("Expected a compaction request");
+    const submitted = new Request(request, init);
+    expect(submitted.url).toContain("/api/conversations/conversation-1/compact");
+    await expect(submitted.json()).resolves.toEqual({ apiKey: "sk-test", model: "gpt-5" });
   });
 });

@@ -1,6 +1,14 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { Conversation, Memory, Message, Note, Thread, ThreadWithMessages } from "@emi/api-contract";
+import {
+  Conversation,
+  Memory,
+  Message,
+  Note,
+  OpenAiClientConfig,
+  Thread,
+  ThreadWithMessages,
+} from "@emi/api-contract";
 import * as Schema from "effect/Schema";
 import { decodeGenerationChunk } from "../src/chat/generation-store.ts";
 import {
@@ -30,6 +38,16 @@ const thread = {
 } satisfies Thread;
 
 describe("HTTP response contracts", () => {
+  it("requires a non-empty key for client OpenAI actions", () => {
+    assert.throws(() =>
+      Schema.decodeUnknownSync(OpenAiClientConfig)({ apiKey: "", model: "gpt-5" }),
+    );
+    assert.deepStrictEqual(
+      Schema.decodeUnknownSync(OpenAiClientConfig)({ apiKey: "sk-test", model: "gpt-5" }),
+      { apiKey: "sk-test", model: "gpt-5" },
+    );
+  });
+
   it("encodes plain database-shaped DTOs and removes private fields", () => {
     assert.deepStrictEqual(
       Schema.encodeUnknownSync(Conversation)({ ...conversation, user_id: "private" }),

@@ -24,6 +24,7 @@ import {
   KeyRoundIcon,
   PencilIcon,
   PlusIcon,
+  SparklesIcon,
   XIcon,
 } from "lucide-react";
 import { useConversationMachine } from "./use-conversation-machine";
@@ -33,12 +34,13 @@ import { getConversationViewMessages } from "./conversation-tree";
 import { ThreadNavigation } from "./thread-navigation";
 import { useActionFeedback } from "../action-feedback";
 import { conversationMarkdown } from "./conversation-markdown";
+import { compactConversation } from "../conversations";
 
 const HEADER_HEIGHT = 56;
 type RuntimeMessage = MessageNode & { role: UIMessage["role"] };
 
 const isRuntimeMessage = (message: MessageNode): message is RuntimeMessage =>
-  message.role === "user" || message.role === "assistant" || message.role === "system";
+  message.role === "user" || message.role === "assistant";
 
 const sidebarStyle: CSSProperties & { "--sidebar-top": string } = {
   "--sidebar-top": `${HEADER_HEIGHT}px`,
@@ -78,6 +80,7 @@ function ChatPageInner() {
   const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
   const [urlCoachMode, setUrlCoachMode] = useSessionFlag("coach", settings.coachMode);
   const [urlWebSearch, setUrlWebSearch] = useSessionFlag("web", false);
+  const [isCompacting, setIsCompacting] = useState(false);
 
   const { state: conversationState, send: sendConversation } = useConversationMachine(sessionId);
   const activeConversationId = sessionId;
@@ -150,6 +153,29 @@ function ChatPageInner() {
       feedback.show({ kind: "success", message: "Conversation copied as Markdown." });
     } catch {
       feedback.show({ kind: "error", message: "Could not copy conversation." });
+    }
+  };
+
+  const startCompactedConversation = async () => {
+    if (activeConversationId === undefined || isCompacting) return;
+    setIsCompacting(true);
+    feedback.show({ kind: "info", message: "Compacting conversation…" });
+    try {
+      const compactedConversation = await compactConversation({
+        conversationId: activeConversationId,
+        config: {
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl || undefined,
+          model: configState.context.model,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: ["threads"] });
+      router.push(`/chat/${encodeURIComponent(compactedConversation.id)}`);
+      feedback.show({ kind: "success", message: "Fresh chat ready with compacted context." });
+    } catch {
+      feedback.show({ kind: "error", message: "Could not compact conversation." });
+    } finally {
+      setIsCompacting(false);
     }
   };
 
@@ -294,6 +320,19 @@ function ChatPageInner() {
                         }}
                       >
                         <DownloadIcon className="size-4" />
+                      </TooltipIconButton>
+                      <TooltipIconButton
+                        tooltip="Compact conversation and start fresh"
+                        side="bottom"
+                        type="button"
+                        variant="ghost"
+                        aria-label="Compact conversation and start fresh"
+                        disabled={!hasOpenAiKey || isCompacting}
+                        onClick={() => void startCompactedConversation()}
+                      >
+                        <SparklesIcon
+                          className={isCompacting ? "size-4 animate-pulse" : "size-4"}
+                        />
                       </TooltipIconButton>
                     </>
                   )}

@@ -181,7 +181,7 @@ export const ChatRuntimeProvider = ({
       const thread = snapshot.threads.find((candidate) => candidate.id === config.threadId);
       const messages = getConversationViewMessages({ messages: snapshot.messages, thread }).flatMap(
         (message) =>
-          message.role === "summary"
+          message.role !== "user" && message.role !== "assistant"
             ? []
             : [{ id: message.id, role: message.role, parts: message.parts }],
       );

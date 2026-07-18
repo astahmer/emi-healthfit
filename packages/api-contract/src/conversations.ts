@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
 import { Created, Deleted, Identifier, StandardErrors } from "./common.ts";
+import { OpenAiClientConfig } from "./data.ts";
 
 export const Conversation = Schema.Struct({
   id: Schema.String,
@@ -93,6 +94,14 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
   .add(
     HttpApiEndpoint.post("clone", "/conversations/:id/clone", {
       params: { id: Identifier },
+      success: ConversationResponse.pipe(HttpApiSchema.status(201)),
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("compact", "/conversations/:id/compact", {
+      params: { id: Identifier },
+      payload: OpenAiClientConfig,
       success: ConversationResponse.pipe(HttpApiSchema.status(201)),
       error: StandardErrors,
     }),

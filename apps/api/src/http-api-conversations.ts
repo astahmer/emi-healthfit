@@ -14,7 +14,7 @@ import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { CurrentUser } from "./auth/request-auth.ts";
-import { extractMemories } from "./chat/ai-sdk.ts";
+import { extractMemories, generateThreadSummary } from "./chat/ai-sdk.ts";
 import { getGeneration, recordChatEvent } from "./chat/generation-store.ts";
 import {
   type Conversation,
@@ -36,6 +36,7 @@ import {
   renameThread,
   reviseConversationMessage,
   restoreThread,
+  saveConversationMessages,
   type Thread,
   updateConversationState,
 } from "./db/conversations.ts";
@@ -189,6 +190,56 @@ export const conversationsHandlers = ({
               return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
             }
             return { conversation: toApiConversation(conversation) };
+          },
+          withInternalError,
+          Effect.provide(runtimeContext),
+        ),
+      )
+      .handle(
+        "compact",
+        Effect.fn("httpApi.conversations.compact")(
+          function* ({ params, payload }) {
+            const user = yield* CurrentUser;
+            const conversation = yield* getConversation(db, user.id, params.id);
+            if (conversation === null) {
+              return yield* Effect.fail(new NotFound({ message: "Conversation not found" }));
+            }
+            const messages = (yield* getConversationMessages(db, user.id, params.id))
+              .map(rowToMessage)
+              .filter((message) => message.role !== "summary")
+              .map((message) => ({
+                role: message.role,
+                text: textFromMessageParts(message.parts),
+              }))
+              .filter((message) => message.text.trim() !== "");
+            if (messages.length === 0) {
+              return yield* Effect.fail(
+                new BadRequest({ message: "Conversation has no text to compact" }),
+              );
+            }
+            const summary = yield* Effect.promise(() =>
+              generateThreadSummary(payload.apiKey, payload.baseUrl, payload.model, messages),
+            );
+            const title = conversation.title?.trim() || "New chat";
+            const compactedId = yield* createConversation(db, user.id, `${title} (compacted)`);
+            yield* saveConversationMessages(db, user.id, compactedId, null, [
+              {
+                role: "system",
+                parts: [
+                  {
+                    type: "text",
+                    text: `Use this compacted summary of the previous conversation as context:\n\n${summary}`,
+                  },
+                ],
+              },
+            ]);
+            const compactedConversation = yield* getConversation(db, user.id, compactedId);
+            if (compactedConversation === null) {
+              return yield* Effect.fail(
+                new NotFound({ message: "Compacted conversation not found" }),
+              );
+            }
+            return { conversation: toApiConversation(compactedConversation) };
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -390,7 +441,7 @@ export const threadsHandlers = ({
           withInternalError,
           Effect.provide(runtimeContext),
         ),
-      )
+      ),
   );
 
 export const messagesHandlers = ({
@@ -436,7 +487,12 @@ export const memoryExtractionHandlers = ({
             return yield* Effect.fail(new BadRequest({ message: "text is required" }));
           }
           const snippets = yield* Effect.promise(() =>
-            extractMemories(payload.config.apiKey, payload.config.baseUrl, payload.config.model, text),
+            extractMemories(
+              payload.config.apiKey,
+              payload.config.baseUrl,
+              payload.config.model,
+              text,
+            ),
           );
           const ids: string[] = [];
           for (const snippet of snippets) {
