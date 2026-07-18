@@ -33,33 +33,6 @@ const updateFromUrl = (url: string) => {
   searchStore.set({ params: parsed.searchParams, pathname: parsed.pathname });
 };
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: (url: string) => updateFromUrl(url),
-    replace: (url: string) => updateFromUrl(url),
-  }),
-  useSearchParams: () => {
-    const React = require("react");
-    return React.useSyncExternalStore(searchStore.subscribe, searchStore.get, searchStore.get);
-  },
-  usePathname: () => {
-    const React = require("react");
-    return React.useSyncExternalStore(
-      searchStore.subscribe,
-      searchStore.getPathname,
-      searchStore.getPathname,
-    );
-  },
-  useParams: () => {
-    const React = require("react");
-    return React.useSyncExternalStore(
-      searchStore.subscribe,
-      searchStore.getRouteParams,
-      searchStore.getRouteParams,
-    );
-  },
-}));
-
 const settingsStore = vi.hoisted(() => ({
   settings: {
     provider: "openai" as const,
@@ -134,14 +107,32 @@ const ChatProvidersMock = ({
 
 let providerMountCount = 0;
 
+const ChatPageHarness = () => {
+  const pathname = React.useSyncExternalStore(
+    searchStore.subscribe,
+    searchStore.getPathname,
+    searchStore.getPathname,
+  );
+  const sessionId = pathname.match(/^\/chat\/([^/]+)$/)?.[1];
+
+  return (
+    <ChatPage
+      sessionId={sessionId === undefined ? undefined : decodeURIComponent(sessionId)}
+      onNavigate={(nextSessionId) =>
+        updateFromUrl(nextSessionId === undefined ? "/chat" : `/chat/${nextSessionId}`)
+      }
+    />
+  );
+};
+
 vi.mock("@/app/providers", () => ({
   ChatProviders: (props: {
     children: ReactNode;
     onSessionCreated?: (id: string) => void;
     sessionConfig?: { sessionId?: string };
   }) => {
-    const React = require("react");
-    React.useEffect(() => {
+    const reactModule = require("react");
+    reactModule.useEffect(() => {
       providerMountCount += 1;
     }, []);
     return <ChatProvidersMock {...props} />;
@@ -182,12 +173,6 @@ describe("ChatPage", () => {
     providerMountCount = 0;
     settingsStore.settings.apiKey = "test-key";
     settingsStore.update.mockReset();
-    vi.spyOn(window.history, "replaceState").mockImplementation((_data, _unused, url) => {
-      if (url !== undefined && url !== null) updateFromUrl(String(url));
-    });
-    vi.spyOn(window.history, "pushState").mockImplementation((_data, _unused, url) => {
-      if (url !== undefined && url !== null) updateFromUrl(String(url));
-    });
     vi.stubGlobal(
       "fetch",
       vi.fn((url: RequestInfo | URL) => {
@@ -229,7 +214,7 @@ describe("ChatPage", () => {
   });
 
   it("does not show a loading flash when the created conversation id appears in the url", async () => {
-    render(<ChatPage />);
+    render(<ChatPageHarness />);
 
     await waitFor(() => expect(screen.getByTestId("chat-providers")).toBeInTheDocument());
 
@@ -247,7 +232,7 @@ describe("ChatPage", () => {
   it("requires an OpenAI API key before rendering the composer", async () => {
     settingsStore.settings.apiKey = "";
 
-    render(<ChatPage />);
+    render(<ChatPageHarness />);
 
     expect(screen.getByText("Add your OpenAI API key")).toBeInTheDocument();
     expect(screen.queryByTestId("thread")).not.toBeInTheDocument();
@@ -260,7 +245,7 @@ describe("ChatPage", () => {
   it("switches to a new chat without remounting the runtime", async () => {
     updateFromUrl("/chat/existing-id");
 
-    render(<ChatPage />);
+    render(<ChatPageHarness />);
 
     await waitFor(() => expect(screen.getByText("Existing chat")).toBeInTheDocument());
     expect(screen.getByTestId("runtime-session")).toHaveTextContent("existing-id");
@@ -278,7 +263,7 @@ describe("ChatPage", () => {
 
   it("loads another existing session without remounting the runtime", async () => {
     updateFromUrl("/chat/existing-id");
-    render(<ChatPage />);
+    render(<ChatPageHarness />);
 
     await waitFor(() => expect(screen.getByText("Existing chat")).toBeInTheDocument());
     const beforeSwitch = providerMountCount;

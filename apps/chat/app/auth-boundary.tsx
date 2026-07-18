@@ -1,20 +1,12 @@
-"use client";
-
-import { useEffect, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { Navigate, useLocation } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { authClient } from "./auth-client";
 
 export const AuthBoundary = ({ children }: { children: ReactNode }) => {
-  const pathname = usePathname();
-  const router = useRouter();
+  const location = useLocation();
+  const pathname = location.pathname;
   const session = authClient.useSession();
   const isAuthRoute = pathname === "/auth" || pathname.startsWith("/auth/");
-
-  useEffect(() => {
-    if (isAuthRoute || session.isPending || session.data !== null) return;
-    const next = `${pathname}${window.location.search}`;
-    router.replace(`/auth?next=${encodeURIComponent(next)}`);
-  }, [isAuthRoute, pathname, router, session.data, session.isPending]);
 
   if (isAuthRoute) return children;
   if (session.isPending) {
@@ -24,6 +16,8 @@ export const AuthBoundary = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-  if (session.data === null) return null;
+  if (session.data === null) {
+    return <Navigate to="/auth" search={{ next: `${pathname}${location.searchStr}` }} replace />;
+  }
   return children;
 };

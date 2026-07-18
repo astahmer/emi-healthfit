@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect } from "react";
 
 export const ServiceWorkerReload = () => {
@@ -8,6 +6,8 @@ export const ServiceWorkerReload = () => {
 
     const hadController = Boolean(navigator.serviceWorker.controller);
     let refreshing = false;
+
+    void navigator.serviceWorker.register("/sw.js");
 
     const onControllerChange = () => {
       if (!hadController || refreshing) return;

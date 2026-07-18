@@ -1,7 +1,4 @@
-"use client";
-
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -204,22 +201,10 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
           </form>
         ) : (
           <SidebarMenuButton asChild isActive={isActive} tooltip={title}>
-            <a
-              href={`/chat/${encodeURIComponent(thread.id)}`}
-              onClick={(event) => {
-                if (
-                  event.button !== 0 ||
-                  event.metaKey ||
-                  event.ctrlKey ||
-                  event.shiftKey ||
-                  event.altKey
-                ) {
-                  return;
-                }
-                event.preventDefault();
-                setOpenMobile(false);
-                window.history.pushState(null, "", event.currentTarget.href);
-              }}
+            <Link
+              to="/chat/$sessionId"
+              params={{ sessionId: thread.id }}
+              onClick={() => setOpenMobile(false)}
               onPointerDown={() =>
                 queryClient.prefetchQuery({
                   queryKey: ["conversation", thread.id],
@@ -255,7 +240,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
                   </TooltipContent>
                 </Tooltip>
               </div>
-            </a>
+            </Link>
           </SidebarMenuButton>
         )}
 
@@ -348,9 +333,9 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
   );
 };
 
-export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
-  const router = useRouter();
-  const pathname = usePathname();
+export const SessionSidebar = () => {
+  const navigate = useNavigate();
+  const pathname = useLocation({ select: (location) => location.pathname });
   const queryClient = useQueryClient();
   const encodedActiveId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
   const activeId = encodedActiveId === undefined ? undefined : decodeURIComponent(encodedActiveId);
@@ -379,11 +364,7 @@ export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
     gcTime: 86_400_000,
   });
 
-  const handleNew = () => {
-    setOpenMobile(false);
-    onNewChat?.();
-    router.push("/chat");
-  };
+  const closeMobileSidebar = () => setOpenMobile(false);
 
   return (
     <>
@@ -391,8 +372,8 @@ export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild onClick={handleNew} tooltip="New chat">
-                <Link href="/chat">
+              <SidebarMenuButton asChild onClick={closeMobileSidebar} tooltip="New chat">
+                <Link to="/chat">
                   <PlusIcon />
                   <span>New chat</span>
                 </Link>
@@ -426,7 +407,7 @@ export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
                       thread={thread}
                       isActive={activeId === thread.id}
                       onDeleted={() => {
-                        if (activeId === thread.id) router.push("/chat");
+                        if (activeId === thread.id) void navigate({ to: "/chat" });
                         void queryClient.invalidateQueries({ queryKey: ["threads"] });
                       }}
                       onChanged={() =>
@@ -434,7 +415,7 @@ export const SessionSidebar = ({ onNewChat }: { onNewChat?: () => void }) => {
                       }
                       onCloned={(threadId) => {
                         void queryClient.invalidateQueries({ queryKey: ["threads"] });
-                        router.push(`/chat/${encodeURIComponent(threadId)}`);
+                        void navigate({ to: "/chat/$sessionId", params: { sessionId: threadId } });
                       }}
                     />
                   ))}

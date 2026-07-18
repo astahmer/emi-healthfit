@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="description" content="Personal gym assistant" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <title>Emi HealthFit</title>
+    <script>
+      (() => {
+        try {
+          const storedTheme = localStorage.getItem("emi-theme");
+          const theme =
+            storedTheme ??
+            (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          document.documentElement.classList.toggle("dark", theme === "dark");
+        } catch {}
+      })();
+    </script>
+  </head>
+  <body class="antialiased">
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

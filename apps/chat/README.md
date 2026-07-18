@@ -1,6 +1,6 @@
 # Chat frontend
 
-Next.js static chat UI with an XState-owned runtime and Vercel AI SDK transport. Message history, streaming state, per-session composer drafts, attachments, tool results, and resumable reconnects are independent of rendering primitives.
+Vite chat UI with TanStack Router, an XState-owned runtime, and Vercel AI SDK transport. Message history, streaming state, per-session composer drafts, attachments, tool results, and resumable reconnects are independent of rendering primitives.
 
 ## Development
 

@@ -1,9 +1,7 @@
-"use client";
-
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GenUIRenderer } from "@/components/chat/gen-ui/registry";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 const samples = [
   {
@@ -179,7 +177,7 @@ export default function GenUISandboxPage() {
         </p>
       </div>
       <Button asChild variant="outline" className="w-fit">
-        <Link href="/gen-ui/thread-layouts">Open six thread layout prototypes</Link>
+        <Link to="/gen-ui/thread-layouts">Open six thread layout prototypes</Link>
       </Button>
       <div className="flex flex-wrap gap-2">
         {samples.map((sample, index) => (

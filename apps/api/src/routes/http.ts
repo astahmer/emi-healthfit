@@ -15,13 +15,21 @@ export const handleAssetRequest = ({
     if (assetsFetcher === undefined) {
       return HttpServerResponse.text("Not Found", { status: 404 });
     }
+    if (pathname === "/ingest" || pathname.startsWith("/api/")) {
+      return HttpServerResponse.text("Not Found", { status: 404 });
+    }
 
     const nativeRequest = yield* requestToWeb(request);
-    const assetRequest = pathname.match(/^\/chat\/[^/]+\/?$/)
-      ? new Request(new URL("/chat/", url), nativeRequest)
-      : nativeRequest;
-    const response = yield* Effect.promise(() => assetsFetcher(assetRequest));
-    return HttpServerResponse.fromWeb(response);
+    const response = yield* Effect.promise(() => assetsFetcher(nativeRequest));
+    if (
+      response.status !== 404 ||
+      nativeRequest.headers.get("accept")?.includes("text/html") !== true
+    ) {
+      return HttpServerResponse.fromWeb(response);
+    }
+    const applicationShell = new Request(new URL("/", url), nativeRequest);
+    const applicationShellResponse = yield* Effect.promise(() => assetsFetcher(applicationShell));
+    return HttpServerResponse.fromWeb(applicationShellResponse);
   });
 
 export const corsHeaders = (request: HttpServerRequest): Record<string, string> => {

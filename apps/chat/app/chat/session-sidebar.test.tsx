@@ -15,10 +15,15 @@ vi.mock("@/app/session-cache", () => ({
   setCachedMessages: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
-  usePathname: () => "/chat",
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, ...props }: { children: ReactNode; to: string }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+  useLocation: ({ select }: { select: (location: { pathname: string }) => string }) =>
+    select({ pathname: "/chat" }),
+  useNavigate: () => vi.fn(),
 }));
 
 const createWrapper = () => {

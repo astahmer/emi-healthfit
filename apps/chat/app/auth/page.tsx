@@ -1,7 +1,4 @@
-"use client";
-
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { LoaderCircleIcon, LogInIcon, UserRoundIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { startAnonymousSession } from "../anonymous-auth";
@@ -10,12 +7,16 @@ import { authClient } from "../auth-client";
 const safeNextPath = (value: string | null): string =>
   value !== null && value.startsWith("/") && !value.startsWith("//") ? value : "/chat";
 
-const AuthPage = () => {
-  const searchParams = useSearchParams();
+const AuthPage = ({
+  error,
+  nextPath,
+}: {
+  error: string | undefined;
+  nextPath: string | undefined;
+}) => {
   const [startingMethod, setStartingMethod] = useState<"anonymous" | "google" | null>(null);
   const [anonymousError, setAnonymousError] = useState(false);
-  const googleError = searchParams.get("error");
-  const callbackURL = safeNextPath(searchParams.get("next"));
+  const callbackURL = safeNextPath(nextPath ?? null);
 
   const signInWithGoogle = async () => {
     setStartingMethod("google");
@@ -54,15 +55,6 @@ const AuthPage = () => {
             workouts, and health data.
           </p>
         </div>
-        {googleError !== null && (
-          <div
-            role="alert"
-            className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm"
-          >
-            This Google account is not approved, or sign-in could not be completed. Try an allowed
-            account.
-          </div>
-        )}
         <Button
           className="h-12 w-full gap-2 rounded-xl"
           onClick={() => void continueAnonymously()}
@@ -75,6 +67,15 @@ const AuthPage = () => {
           )}
           Continue as guest
         </Button>
+        {error !== undefined && (
+          <div
+            role="alert"
+            className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm"
+          >
+            This Google account is not approved, or sign-in could not be completed. Try an allowed
+            account.
+          </div>
+        )}
         {anonymousError && (
           <p role="alert" className="mt-3 text-center text-sm text-destructive">
             Guest session could not be started. Try again.

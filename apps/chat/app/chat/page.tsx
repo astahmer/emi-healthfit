@@ -1,7 +1,4 @@
-"use client";
-
-import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { Thread } from "@/components/chat/thread";
@@ -14,7 +11,6 @@ import { useSettings } from "../settings-store";
 import type { UIMessage } from "ai";
 import type { MessageWithUsage, Thread as SessionThread } from "../sessions";
 import { SessionSidebar } from "./session-sidebar";
-import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { ConversationUsage, UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import {
@@ -35,6 +31,7 @@ import { ThreadNavigation } from "./thread-navigation";
 import { useActionFeedback } from "../action-feedback";
 import { conversationMarkdown } from "./conversation-markdown";
 import { compactConversation } from "../conversations";
+import type { ChatSearch } from "../router";
 
 const HEADER_HEIGHT = 56;
 type RuntimeMessage = MessageNode & { role: UIMessage["role"] };
@@ -45,11 +42,12 @@ const isRuntimeMessage = (message: MessageNode): message is RuntimeMessage =>
 const sidebarStyle: CSSProperties & { "--sidebar-top": string } = {
   "--sidebar-top": `${HEADER_HEIGHT}px`,
 };
-const sessionIdFromPath = (pathname: string): string | undefined => {
-  const encodedSessionId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
-  return encodedSessionId === undefined ? undefined : decodeURIComponent(encodedSessionId);
-};
 
+const emptySearch: ChatSearch = {};
+
+const noNavigation = () => undefined;
+
+const noSearchChange = () => undefined;
 const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
   messages.filter(isRuntimeMessage).map((message) => ({
     id: message.id,
@@ -67,19 +65,26 @@ const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
     createdAt: message.createdAt,
   }));
 
-function ChatPageInner() {
+export const ChatPage = ({
+  onNavigate = noNavigation,
+  onSearchChange = noSearchChange,
+  search = emptySearch,
+  sessionId = undefined,
+}: {
+  onNavigate?: (sessionId: string | undefined) => void;
+  onSearchChange?: (search: Partial<ChatSearch>) => void;
+  search?: ChatSearch;
+  sessionId?: string;
+}) => {
   const settings = useSettings((state) => state.settings);
   const updateSettings = useSettings((state) => state.update);
-  const router = useRouter();
-  const pathname = usePathname();
   const queryClient = useQueryClient();
   const feedback = useActionFeedback();
   const previousBranchCountRef = useRef<number | undefined>(undefined);
-  const sessionId = sessionIdFromPath(pathname);
 
-  const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
-  const [urlCoachMode, setUrlCoachMode] = useSessionFlag("coach", settings.coachMode);
-  const [urlWebSearch, setUrlWebSearch] = useSessionFlag("web", false);
+  const urlModel = search.model ?? settings.model;
+  const urlCoachMode = search.coach === undefined ? settings.coachMode : true;
+  const urlWebSearch = search.web === "1";
   const [isCompacting, setIsCompacting] = useState(false);
 
   const { state: conversationState, send: sendConversation } = useConversationMachine(sessionId);
@@ -170,7 +175,7 @@ function ChatPageInner() {
         },
       });
       await queryClient.invalidateQueries({ queryKey: ["threads"] });
-      router.push(`/chat/${encodeURIComponent(compactedConversation.id)}`);
+      onNavigate(compactedConversation.id);
       feedback.show({ kind: "success", message: "Fresh chat ready with compacted context." });
     } catch {
       feedback.show({ kind: "error", message: "Could not compact conversation." });
@@ -186,11 +191,7 @@ function ChatPageInner() {
       onWidthChange={(width) => sendConversation({ type: "sidebar.widthChanged", width })}
       style={sidebarStyle}
     >
-      <SessionSidebar
-        onNewChat={() =>
-          sendConversation({ type: "conversationId.changed", conversationId: undefined })
-        }
-      />
+      <SessionSidebar />
 
       <ErrorBoundary
         onReset={() => {
@@ -212,7 +213,7 @@ function ChatPageInner() {
             }}
             onSessionCreated={(id) => {
               sendConversation({ type: "session.created", conversationId: id });
-              window.history.replaceState(null, "", `/chat/${encodeURIComponent(id)}`);
+              onNavigate(id);
             }}
             onHistoryChanged={(snapshot) =>
               sendConversation({
@@ -289,14 +290,7 @@ function ChatPageInner() {
                   {activeConversationId !== undefined && (
                     <ConversationUsage conversationId={activeConversationId} />
                   )}
-                  <NewChatButton
-                    onNewChat={() =>
-                      sendConversation({
-                        type: "conversationId.changed",
-                        conversationId: undefined,
-                      })
-                    }
-                  />
+                  <NewChatButton onNewChat={() => onNavigate(undefined)} />
                   {activeConversationId && (
                     <>
                       <TooltipIconButton
@@ -389,23 +383,23 @@ function ChatPageInner() {
                       model: configState.context.model,
                       onModelChange: (model) => {
                         sendConfig({ type: "model.select", model });
-                        setUrlModel(model);
+                        onSearchChange({ model: model === settings.model ? undefined : model });
                       },
                       coachMode: configState.context.coachMode,
                       onCoachModeChange: () => {
                         sendConfig({ type: "coach.toggle" });
-                        setUrlCoachMode(!configState.context.coachMode);
+                        onSearchChange({ coach: configState.context.coachMode ? undefined : "1" });
                       },
                       webSearch: configState.context.webSearch,
                       onWebSearchChange: (value) => {
                         sendConfig({ type: "web.toggle", value });
-                        setUrlWebSearch(value);
+                        onSearchChange({ web: value ? "1" : undefined });
                       },
                       temporary: configState.context.temporary,
                       onTemporaryChange: (value) => {
                         sendConfig({ type: "temporary.toggle", value });
                         sendConversation({ type: "temporary.changed", isTemporary: value });
-                        if (value && activeConversationId !== undefined) router.push("/chat");
+                        if (value && activeConversationId !== undefined) onNavigate(undefined);
                       },
                       models: chatModels,
                       canWebSearch,
@@ -433,7 +427,7 @@ function ChatPageInner() {
       </ErrorBoundary>
     </SidebarProvider>
   );
-}
+};
 
 const OpenAiKeyRequired = ({ onSave }: { onSave: (apiKey: string) => void }) => {
   const [apiKey, setApiKey] = useState("");
@@ -471,7 +465,6 @@ const OpenAiKeyRequired = ({ onSave }: { onSave: (apiKey: string) => void }) => 
 };
 
 const NewChatButton = ({ onNewChat }: { onNewChat: () => void }) => {
-  const router = useRouter();
   return (
     <Button
       type="button"
@@ -479,10 +472,7 @@ const NewChatButton = ({ onNewChat }: { onNewChat: () => void }) => {
       size="sm"
       className="gap-1.5 rounded-full"
       aria-label="New chat"
-      onClick={() => {
-        onNewChat();
-        router.push("/chat");
-      }}
+      onClick={onNewChat}
     >
       <PlusIcon className="size-4" />
       <span className="hidden md:inline">New chat</span>
@@ -490,10 +480,4 @@ const NewChatButton = ({ onNewChat }: { onNewChat: () => void }) => {
   );
 };
 
-export default function ChatPage() {
-  return (
-    <Suspense>
-      <ChatPageInner />
-    </Suspense>
-  );
-}
+export default ChatPage;

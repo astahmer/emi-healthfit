@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, it } from "vitest";
 import { createActor } from "xstate";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import compression from "next/dist/compiled/compression";
 import { DefaultChatTransport, readUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 import { createChatStreamResponse } from "../../../api/src/chat/ui-message-stream-response";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
@@ -18,48 +17,45 @@ const textFromMessage = (message: UIMessage): string =>
     .join("");
 
 describe("browser chat stream timing", () => {
-  const compressionMiddleware = compression();
-  const server = createServer((request, response) => {
-    compressionMiddleware(request, response, () => {
-      const stream = new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          controller.enqueue({ type: "start" });
-          controller.enqueue({ type: "start-step" });
-          controller.enqueue({ type: "text-start", id: "text" });
-          controller.enqueue({ type: "text-delta", id: "text", delta: "one" });
-          setTimeout(
-            () => controller.enqueue({ type: "text-delta", id: "text", delta: " two" }),
-            delayMilliseconds,
-          );
-          setTimeout(
-            () => controller.enqueue({ type: "text-delta", id: "text", delta: " three" }),
-            delayMilliseconds * 2,
-          );
-          setTimeout(() => {
-            controller.enqueue({ type: "text-end", id: "text" });
-            controller.enqueue({ type: "finish-step" });
-            controller.enqueue({ type: "finish", finishReason: "stop" });
-            controller.close();
-          }, delayMilliseconds * 3);
-        },
-      });
-      const webResponse = createChatStreamResponse({ stream, headers: {} });
-      response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
-      const responseBody = webResponse.body;
-      if (responseBody === null) {
-        response.end();
-        return;
-      }
-      void Effect.runPromise(
-        Stream.fromReadableStream({
-          evaluate: () => responseBody,
-          onError: (error) => (error instanceof Error ? error : new Error(String(error))),
-        }).pipe(
-          Stream.runForEach((chunk) => Effect.sync(() => response.write(chunk))),
-          Effect.ensuring(Effect.sync(() => response.end())),
-        ),
-      );
+  const server = createServer((_, response) => {
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.enqueue({ type: "start" });
+        controller.enqueue({ type: "start-step" });
+        controller.enqueue({ type: "text-start", id: "text" });
+        controller.enqueue({ type: "text-delta", id: "text", delta: "one" });
+        setTimeout(
+          () => controller.enqueue({ type: "text-delta", id: "text", delta: " two" }),
+          delayMilliseconds,
+        );
+        setTimeout(
+          () => controller.enqueue({ type: "text-delta", id: "text", delta: " three" }),
+          delayMilliseconds * 2,
+        );
+        setTimeout(() => {
+          controller.enqueue({ type: "text-end", id: "text" });
+          controller.enqueue({ type: "finish-step" });
+          controller.enqueue({ type: "finish", finishReason: "stop" });
+          controller.close();
+        }, delayMilliseconds * 3);
+      },
     });
+    const webResponse = createChatStreamResponse({ stream, headers: {} });
+    response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
+    const responseBody = webResponse.body;
+    if (responseBody === null) {
+      response.end();
+      return;
+    }
+    void Effect.runPromise(
+      Stream.fromReadableStream({
+        evaluate: () => responseBody,
+        onError: (error) => (error instanceof Error ? error : new Error(String(error))),
+      }).pipe(
+        Stream.runForEach((chunk) => Effect.sync(() => response.write(chunk))),
+        Effect.ensuring(Effect.sync(() => response.end())),
+      ),
+    );
   });
   let api = "";
 
@@ -76,7 +72,7 @@ describe("browser chat stream timing", () => {
     );
   });
 
-  it("reaches XState progressively through Next compression and DefaultChatTransport", async () => {
+  it("reaches XState progressively through the Vite transport boundary", async () => {
     const actor = createActor(chatRuntimeMachine, {
       input: { sessionId: "timing", messages: [] },
     }).start();
@@ -123,7 +119,7 @@ describe("browser chat stream timing", () => {
     console.log(
       JSON.stringify({
         event: "chat.stream.timing",
-        boundary: "next-proxy-to-xstate",
+        boundary: "vite-transport-to-xstate",
         arrivalsMilliseconds: arrivals.map(Math.round),
       }),
     );

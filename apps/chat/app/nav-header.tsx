@@ -1,8 +1,4 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FC, ReactNode } from "react";
 import {
@@ -45,14 +41,14 @@ const tabs = [
   },
   { href: "/notes", label: "Notes", icon: NotebookPenIcon, description: "Gym journal" },
   { href: "/memory", label: "Memory", icon: BrainIcon, description: "Saved snippets" },
-  ...(process.env.NODE_ENV === "development"
+  ...(import.meta.env.DEV
     ? [{ href: "/gen-ui", label: "Sandbox", icon: FlaskConicalIcon, description: "UI playground" }]
     : []),
   { href: "/settings", label: "Settings", icon: SettingsIcon, description: "Preferences" },
 ];
 
 export const NavHeader: FC = () => {
-  const pathname = usePathname();
+  const pathname = useLocation({ select: (location) => location.pathname });
   if (pathname === "/auth" || pathname.startsWith("/auth/")) return null;
 
   return (
@@ -109,13 +105,13 @@ export const NavHeader: FC = () => {
 const AccountMenu = () => {
   const session = authClient.useSession();
   const queryClient = useQueryClient();
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const signOut = async () => {
     await authClient.signOut();
     queryClient.clear();
     await clearSessionCache();
-    router.replace("/auth");
+    await navigate({ to: "/auth", replace: true });
   };
 
   if (session.data === null) return null;
@@ -157,7 +153,7 @@ const TabButton = ({
   children: ReactNode;
 }) => (
   <Link
-    href={href}
+    to={href}
     className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
       active
         ? "bg-primary text-primary-foreground"
@@ -183,7 +179,7 @@ const MobileTabButton = ({
   children: ReactNode;
 }) => (
   <Link
-    href={href}
+    to={href}
     className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
       active
         ? "bg-primary text-primary-foreground"

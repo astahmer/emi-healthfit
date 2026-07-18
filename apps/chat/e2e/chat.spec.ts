@@ -157,7 +157,7 @@ const fulfillApi = async (route: Route) => {
   await route.fulfill({ contentType: "application/json", body: "{}" });
 };
 
-const openMockedChat = async (page: Page, path = "/chat") => {
+const setTestSettings = async (page: Page) => {
   await page.addInitScript(() => {
     localStorage.setItem(
       "emi-chat-settings",
@@ -176,6 +176,10 @@ const openMockedChat = async (page: Page, path = "/chat") => {
       }),
     );
   });
+};
+
+const openMockedChat = async (page: Page, path = "/chat") => {
+  await setTestSettings(page);
   await page.route("**/api/**", fulfillApi);
   await page.goto(path);
 };
@@ -216,6 +220,7 @@ test("sends the first message from a new empty conversation", async ({ page }) =
     updated_at: "2026-07-17T00:00:00.000Z",
   };
 
+  await setTestSettings(page);
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -339,6 +344,7 @@ test("sends the first message in an existing conversation with empty history", a
   let submittedRequest: unknown;
   let generated = false;
 
+  await setTestSettings(page);
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -420,6 +426,7 @@ test("attaches retry to a timed-out user request", async ({ page }) => {
   let revised = false;
   let retrySucceeded = false;
 
+  await setTestSettings(page);
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -500,7 +507,9 @@ test("attaches retry to a timed-out user request", async ({ page }) => {
 test("accepts a new request after a persisted orphaned turn", async ({ page }) => {
   const orphanMessageId = "30dd4f3b-02af-4168-83cc-f70d395c715c";
   let submittedRequest: Record<string, unknown> | undefined;
+  let generated = false;
 
+  await setTestSettings(page);
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -516,6 +525,26 @@ test("accepts a new request after a persisted orphaned turn", async ({ page }) =
           parts: [{ type: "text", text: "Previous request" }],
           createdAt: "2026-07-17T00:00:02.000Z",
         },
+        ...(generated
+          ? [
+              {
+                id: "continued-user",
+                conversationId: "one",
+                parentId: null,
+                role: "user" as const,
+                parts: [{ type: "text", text: "Continue with a new request" }],
+                createdAt: "2026-07-17T00:00:03.000Z",
+              },
+              {
+                id: "continued-assistant",
+                conversationId: "one",
+                parentId: null,
+                role: "assistant" as const,
+                parts: [{ type: "text", text: "Continued response" }],
+                createdAt: "2026-07-17T00:00:04.000Z",
+              },
+            ]
+          : []),
       ];
       await route.fulfill({
         contentType: "application/json",
@@ -525,6 +554,7 @@ test("accepts a new request after a persisted orphaned turn", async ({ page }) =
     }
     if (request.method() === "POST" && url.pathname === "/api/chat") {
       submittedRequest = request.postDataJSON();
+      generated = true;
       await route.fulfill({
         status: 200,
         headers: {
@@ -546,12 +576,12 @@ test("accepts a new request after a persisted orphaned turn", async ({ page }) =
   await expect(page.getByText("Continued response")).toBeVisible();
   expect(submittedRequest).toEqual(
     expect.objectContaining({
-      replaceMessageId: undefined,
       messages: [
         expect.objectContaining({ parts: [{ type: "text", text: "Continue with a new request" }] }),
       ],
     }),
   );
+  expect(submittedRequest).not.toHaveProperty("replaceMessageId");
 });
 
 test("navigates production-built data pages and renders empty states", async ({ page }) => {
@@ -572,6 +602,7 @@ test("navigates production-built data pages and renders empty states", async ({ 
 
 test("resumes an unfinished generation after refresh", async ({ page }) => {
   let reconnectRequested = false;
+  await setTestSettings(page);
   await page.route("**/api/**", fulfillApi);
   await page.route("**/api/conversations/one/messages", (route) =>
     route.fulfill({
@@ -600,6 +631,7 @@ test("resumes an unfinished generation after refresh", async ({ page }) => {
 
 test("shows persisted completion after a stream ends without finish", async ({ page }) => {
   let providerFinished = false;
+  await setTestSettings(page);
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());

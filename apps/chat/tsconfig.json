@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext", "webworker"],
-    "types": ["@serwist/next/typings"],
+    "types": ["@serwist/vite/typings"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -15,25 +15,16 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": ["./*"]
     }
   },
   "include": [
-    "next-env.d.ts",
+    "vite-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
     "../api/assets/types/**/*.ts",
-    "../api/assets/dev/types/**/*.ts",
-    "dist/types/**/*.ts",
-    "dist/dev/types/**/*.ts"
+    "../api/assets/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules", "public/sw*.js", "public/swe-worker*.js"]
 }

@@ -13,6 +13,8 @@ catalog:
   oxlint: "^1.71.0"
   typescript: "7.0.1-rc"
   zod: "^3.25.76"
+overrides:
+  "better-auth>next": "-"
 allowBuilds:
   esbuild: true
   msgpackr-extract: true

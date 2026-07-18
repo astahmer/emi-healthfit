@@ -20,12 +20,11 @@ const mediaTypes = new Map([
 
 const findFile = async ({ pathname }) => {
   const decodedPath = decodeURIComponent(pathname);
-  const routePath =
-    decodedPath === "/chat" || decodedPath.startsWith("/chat/") ? "/chat/index.html" : decodedPath;
+  const routePath = decodedPath;
   const candidates = routePath.endsWith("/")
     ? [`${routePath}index.html`]
     : extname(routePath) === ""
-      ? [routePath, `${routePath}/index.html`]
+      ? [routePath, `${routePath}/index.html`, "/index.html"]
       : [routePath];
   const files = await Promise.all(
     candidates.map(async (candidate) => {
@@ -64,12 +63,8 @@ const handleRequest = async ({ request, response }) => {
     return;
   }
 
-  sendFile({
-    filePath: resolve(staticRoot, "404.html"),
-    request,
-    response,
-    status: 404,
-  });
+  response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+  response.end("Not Found");
 };
 
 const server = createServer((request, response) => {
