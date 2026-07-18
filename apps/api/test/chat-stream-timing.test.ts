@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
-import { createChatStream } from "../src/chat/ai-sdk.ts";
+import { createChatStream, toUiMessageStream } from "../src/chat/ai-sdk.ts";
 
 const delayMilliseconds = 600;
 
@@ -124,7 +124,7 @@ describe("chat stream timing", () => {
 
   it("delivers UI chunks progressively with a slow tee consumer", async () => {
     const result = await makeResult();
-    const streams = result.toUIMessageStream().tee();
+    const streams = toUiMessageStream({ result }).tee();
     const startedAt = performance.now();
     const arrivals: number[] = [];
 
@@ -146,7 +146,7 @@ describe("chat stream timing", () => {
 
   it("continues the persistence branch after the client branch disconnects", async () => {
     const result = await makeResult();
-    const streams = result.toUIMessageStream().tee();
+    const streams = toUiMessageStream({ result }).tee();
     const persistedText: string[] = [];
     const consumePersistence = async () => {
       for await (const part of streams[1]) {
@@ -162,6 +162,20 @@ describe("chat stream timing", () => {
     await persistence;
 
     assert.deepStrictEqual(persistedText, ["one", " two", " three"]);
+  });
+
+  it("assigns an identifier to streamed assistant messages", async () => {
+    const result = await makeResult();
+    const messageIds: string[] = [];
+
+    for await (const chunk of toUiMessageStream({ result })) {
+      if (chunk.type === "start" && typeof chunk.messageId === "string") {
+        messageIds.push(chunk.messageId);
+      }
+    }
+
+    assert.strictEqual(messageIds.length, 1);
+    assert.notStrictEqual(messageIds[0], "");
   });
 
   it("surfaces provider failures as terminal stream errors", async () => {

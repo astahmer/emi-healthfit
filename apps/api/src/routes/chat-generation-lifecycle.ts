@@ -10,7 +10,12 @@ import { safeValidateUIMessages, type UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { CurrentUser } from "../auth/request-auth.ts";
-import { createChatStream, generateThreadTitle, type ChatStreamRequest } from "../chat/ai-sdk.ts";
+import {
+  createChatStream,
+  generateThreadTitle,
+  toUiMessageStream,
+  type ChatStreamRequest,
+} from "../chat/ai-sdk.ts";
 import { buildAssistantParts } from "../chat/assistant-parts.ts";
 import {
   cleanupGenerationHistory,
@@ -441,10 +446,7 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
       }),
     );
 
-    const uiMessageStream = result.toUIMessageStream({
-      sendReasoning: true,
-      onError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
-    });
+    const uiMessageStream = toUiMessageStream({ result });
 
     let responseStream = uiMessageStream;
 

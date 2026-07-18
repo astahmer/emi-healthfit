@@ -3,6 +3,7 @@ import {
   createRoute,
   createRouter,
   redirect,
+  useLocation,
   useNavigate,
 } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
@@ -40,29 +41,11 @@ const RootRouteComponent = RootLayout;
 
 const ChatRouteComponent = () => {
   const search = chatRoute.useSearch();
+  const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate({ from: chatRoute.fullPath });
-  return (
-    <ChatPage
-      sessionId={undefined}
-      search={search}
-      onSearchChange={(nextSearch) =>
-        navigate({ search: (currentSearch) => ({ ...currentSearch, ...nextSearch }) })
-      }
-      onNavigate={(sessionId) =>
-        navigate(
-          sessionId === undefined
-            ? { to: "/chat" }
-            : { to: "/chat/$sessionId", params: { sessionId } },
-        )
-      }
-    />
-  );
-};
-
-const ChatSessionRouteComponent = () => {
-  const { sessionId } = chatSessionRoute.useParams();
-  const search = chatSessionRoute.useSearch();
-  const navigate = useNavigate({ from: chatSessionRoute.fullPath });
+  const encodedSessionId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
+  const sessionId =
+    encodedSessionId === undefined ? undefined : decodeURIComponent(encodedSessionId);
   return (
     <ChatPage
       sessionId={sessionId}
@@ -80,6 +63,8 @@ const ChatSessionRouteComponent = () => {
     />
   );
 };
+
+const EmptyRouteComponent = () => null;
 
 const AuthRouteComponent = () => {
   const search = authRoute.useSearch();
@@ -104,10 +89,10 @@ const chatRoute = createRoute({
 });
 
 const chatSessionRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/chat/$sessionId",
+  getParentRoute: () => chatRoute,
+  path: "$sessionId",
   validateSearch: validateChatSearch,
-  component: ChatSessionRouteComponent,
+  component: EmptyRouteComponent,
 });
 
 const authRoute = createRoute({

@@ -177,6 +177,17 @@ export const createChatStream = async ({
   });
 };
 
+export const toUiMessageStream = ({
+  result,
+}: {
+  result: Awaited<ReturnType<typeof createChatStream>>;
+}) =>
+  result.toUIMessageStream({
+    generateMessageId: () => crypto.randomUUID(),
+    sendReasoning: true,
+    onError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  });
+
 export interface SuggestionsRequest {
   apiKey: string;
   baseUrl?: string | undefined;
