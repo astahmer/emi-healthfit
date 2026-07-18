@@ -1,0 +1,21 @@
+id: require-explicit-schema-declare-type-guard
+language: TypeScript
+files:
+  - apps/**/*.ts
+  - packages/**/*.ts
+ignores: ["**/*.test.ts"]
+message: Schema.declare predicates must explicitly narrow to their declared type.
+severity: error
+rule:
+  pattern: Schema.declare<$TYPE>(($VALUE) => $BODY)
+---
+id: require-explicit-schema-declare-type-guard-tsx
+language: Tsx
+files:
+  - apps/**/*.tsx
+  - packages/**/*.tsx
+ignores: ["**/*.test.tsx"]
+message: Schema.declare predicates must explicitly narrow to their declared type.
+severity: error
+rule:
+  pattern: Schema.declare<$TYPE>(($VALUE) => $BODY)
