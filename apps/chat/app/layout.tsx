@@ -7,6 +7,7 @@ import { ThemeProvider } from "./theme-provider";
 import { QueryProvider } from "./query-provider";
 import { ServiceWorkerReload } from "./service-worker-reload";
 import { AuthBoundary } from "./auth-boundary";
+import { ActionFeedbackProvider } from "./action-feedback";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -50,16 +51,18 @@ export default function RootLayout({
         <ServiceWorkerReload />
         <QueryProvider>
           <ThemeProvider>
-            <TooltipProvider>
-              <Suspense>
-                <AuthBoundary>
-                  <div className="flex h-dvh flex-col bg-background text-foreground">
-                    <NavHeader />
-                    <div className="flex-1 overflow-hidden">{children}</div>
-                  </div>
-                </AuthBoundary>
-              </Suspense>
-            </TooltipProvider>
+            <ActionFeedbackProvider>
+              <TooltipProvider>
+                <Suspense>
+                  <AuthBoundary>
+                    <div className="flex h-dvh flex-col bg-background text-foreground">
+                      <NavHeader />
+                      <div className="flex-1 overflow-hidden">{children}</div>
+                    </div>
+                  </AuthBoundary>
+                </Suspense>
+              </TooltipProvider>
+            </ActionFeedbackProvider>
           </ThemeProvider>
         </QueryProvider>
       </body>

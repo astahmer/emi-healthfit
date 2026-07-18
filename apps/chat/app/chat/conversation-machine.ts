@@ -12,6 +12,7 @@ import {
   restoreThread as restoreThreadApi,
 } from "../conversations";
 import { searchMessages } from "./conversation-tree";
+import { conversationMarkdown } from "./conversation-markdown";
 
 type ViewMode = "inline" | "sidebar" | "columns";
 
@@ -120,20 +121,7 @@ const readSidebarWidth = (): number => {
 };
 
 const exportMarkdown = (conversationId: string, messages: MessageNode[]): void => {
-  const md = messages
-    .map((msg) => {
-      const role = msg.role === "user" ? "User" : "Assistant";
-      const text = msg.parts
-        .filter(
-          (p): p is { type: "text"; text: string } =>
-            p.type === "text" && typeof p.text === "string",
-        )
-        .map((p) => p.text)
-        .join("\n");
-      return `## ${role}\n\n${text}`;
-    })
-    .join("\n\n---\n\n");
-  const blob = new Blob([md], { type: "text/markdown" });
+  const blob = new Blob([conversationMarkdown(messages)], { type: "text/markdown" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsageProvider } from "@/app/usage-context";
+import { ActionFeedbackProvider } from "@/app/action-feedback";
 import type { MessageWithUsage } from "@/app/sessions";
 import { chatModels } from "@/app/models";
 import { useChatRuntime } from "@/app/chat/chat-runtime";
@@ -26,9 +27,11 @@ const controls: ComposerControls = {
 const renderThread = (messages: MessageWithUsage[]) =>
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <UsageProvider messages={messages}>
-        <Thread composerControls={controls} />
-      </UsageProvider>
+      <ActionFeedbackProvider>
+        <UsageProvider messages={messages}>
+          <Thread composerControls={controls} />
+        </UsageProvider>
+      </ActionFeedbackProvider>
     </QueryClientProvider>,
   );
 
@@ -217,6 +220,47 @@ describe("Thread", () => {
     await user.click(screen.getByRole("button", { name: "Update" }));
 
     expect(runtime.revise).toHaveBeenCalledWith({ messageId: "user-1", text: "Edited" });
+  });
+
+  it("cancels an edit with Escape", async () => {
+    const user = userEvent.setup();
+    const message: MessageWithUsage = {
+      id: "user-1",
+      role: "user",
+      parts: [{ type: "text", text: "Original" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+    });
+    renderThread([message]);
+
+    await user.click(screen.getByLabelText("Edit message"));
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("button", { name: "Update" })).not.toBeInTheDocument();
+    expect(vi.mocked(useChatRuntime)().revise).not.toHaveBeenCalled();
+  });
+
+  it("copies a message and confirms the action", async () => {
+    const user = userEvent.setup();
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Answer" }],
+    };
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+    });
+    renderThread([message]);
+
+    await user.click(screen.getByLabelText("Copy message"));
+
+    expect(writeText).toHaveBeenCalledWith("Answer");
+    expect(screen.getByRole("status")).toHaveTextContent("Message copied.");
   });
 
   it("attaches a retry action to the failed user turn", async () => {

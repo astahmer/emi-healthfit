@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -17,12 +17,22 @@ import { SessionSidebar } from "./session-sidebar";
 import { useSessionFlag, useSessionParam } from "./use-session-params";
 import { ConversationUsage, UsageProvider } from "../usage-context";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
-import { DownloadIcon, KeyRoundIcon, PencilIcon, CheckIcon, XIcon, PlusIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  KeyRoundIcon,
+  PencilIcon,
+  PlusIcon,
+  XIcon,
+} from "lucide-react";
 import { useConversationMachine } from "./use-conversation-machine";
 import { composerConfigMachine } from "./composer-config-machine";
 import type { MessageNode } from "./conversation-machine";
 import { getConversationViewMessages } from "./conversation-tree";
 import { ThreadNavigation } from "./thread-navigation";
+import { useActionFeedback } from "../action-feedback";
+import { conversationMarkdown } from "./conversation-markdown";
 
 const HEADER_HEIGHT = 56;
 type RuntimeMessage = MessageNode & { role: UIMessage["role"] };
@@ -61,6 +71,8 @@ function ChatPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const feedback = useActionFeedback();
+  const previousBranchCountRef = useRef<number | undefined>(undefined);
   const sessionId = sessionIdFromPath(pathname);
 
   const [urlModel, setUrlModel] = useSessionParam("model", settings.model);
@@ -109,6 +121,37 @@ function ChatPageInner() {
       ),
     );
   }, [conversation, queryClient]);
+
+  useEffect(() => {
+    if (!historyMatchesSelection || isLoading) {
+      previousBranchCountRef.current = undefined;
+      return;
+    }
+    const branchCount = conversationState.context.threads.length;
+    if (
+      previousBranchCountRef.current !== undefined &&
+      branchCount > previousBranchCountRef.current
+    ) {
+      feedback.show({ kind: "success", message: "Branch created." });
+      void queryClient.invalidateQueries({ queryKey: ["threads"] });
+    }
+    previousBranchCountRef.current = branchCount;
+  }, [
+    conversationState.context.threads.length,
+    feedback,
+    historyMatchesSelection,
+    isLoading,
+    queryClient,
+  ]);
+
+  const copyConversation = async () => {
+    try {
+      await navigator.clipboard.writeText(conversationMarkdown(conversationState.context.messages));
+      feedback.show({ kind: "success", message: "Conversation copied as Markdown." });
+    } catch {
+      feedback.show({ kind: "error", message: "Could not copy conversation." });
+    }
+  };
 
   return (
     <SidebarProvider
@@ -229,20 +272,36 @@ function ChatPageInner() {
                     }
                   />
                   {activeConversationId && (
-                    <TooltipIconButton
-                      tooltip="Export as Markdown"
-                      side="bottom"
-                      type="button"
-                      variant="ghost"
-                      onClick={() => sendConversation({ type: "export" })}
-                    >
-                      <DownloadIcon className="size-4" />
-                    </TooltipIconButton>
+                    <>
+                      <TooltipIconButton
+                        tooltip="Copy conversation as Markdown"
+                        side="bottom"
+                        type="button"
+                        variant="ghost"
+                        aria-label="Copy conversation as Markdown"
+                        onClick={() => void copyConversation()}
+                      >
+                        <CopyIcon className="size-4" />
+                      </TooltipIconButton>
+                      <TooltipIconButton
+                        tooltip="Export as Markdown"
+                        side="bottom"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          sendConversation({ type: "export" });
+                          feedback.show({ kind: "success", message: "Markdown download started." });
+                        }}
+                      >
+                        <DownloadIcon className="size-4" />
+                      </TooltipIconButton>
+                    </>
                   )}
                 </div>
               </div>
               {activeConversationId !== undefined && !configState.context.temporary && (
                 <ThreadNavigation
+                  key={conversationState.context.threads.map((thread) => thread.id).join(",")}
                   threads={conversationState.context.threads}
                   focusedThreadId={conversationState.context.focusedThreadId}
                   searchQuery={conversationState.context.searchQuery}
@@ -266,9 +325,10 @@ function ChatPageInner() {
                   </div>
                 ) : hasOpenAiKey ? (
                   <Thread
-                    onForkMessage={(messageId) =>
-                      sendConversation({ type: "thread.fork", anchorMessageId: messageId })
-                    }
+                    onForkMessage={(messageId) => {
+                      feedback.show({ kind: "info", message: "Creating branch…" });
+                      sendConversation({ type: "thread.fork", anchorMessageId: messageId });
+                    }}
                     onReferenceMessage={(messageId) => {
                       const referencedThread = conversationState.context.threads.find((thread) =>
                         thread.messageIds.includes(messageId),

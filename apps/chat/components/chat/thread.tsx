@@ -19,7 +19,7 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { assign, setup } from "xstate";
 import ReactMarkdown from "react-markdown";
@@ -45,6 +45,7 @@ import { useSettings } from "@/app/settings-store";
 import { useUsage } from "@/app/usage-context";
 import { chatModels } from "@/app/models";
 import { extractMemories } from "@/app/memories";
+import { useActionFeedback } from "@/app/action-feedback";
 
 export interface ComposerControls {
   model: string;
@@ -365,6 +366,7 @@ const ChatMessage = ({
   onRetry?: (messageId: string) => void;
 }) => {
   const isUser = message.role === "user";
+  const feedback = useActionFeedback();
   const usage = useUsage();
   const metadata = usage.metaByMessageId.get(message.id);
   const tokens = usage.usageByMessageId.get(message.id)?.totalTokens;
@@ -378,6 +380,14 @@ const ChatMessage = ({
     anchor.download = `message-${message.id}.md`;
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(getText(message));
+      feedback.show({ kind: "success", message: "Message copied." });
+    } catch {
+      feedback.show({ kind: "error", message: "Could not copy message." });
+    }
   };
   return (
     <Message
@@ -426,6 +436,9 @@ const ChatMessage = ({
             <textarea
               value={editingDraft}
               onChange={(event) => onEditChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") onEditCancel();
+              }}
               aria-label="Edit message"
               className="min-h-20 resize-y bg-transparent p-2 outline-none"
               autoFocus
@@ -473,7 +486,7 @@ const ChatMessage = ({
             side="top"
             type="button"
             aria-label="Copy message"
-            onClick={() => void navigator.clipboard.writeText(getText(message))}
+            onClick={() => void copyMessage()}
           >
             <CopyIcon className="size-3.5" />
           </TooltipIconButton>
@@ -549,6 +562,8 @@ export const Thread = ({
 }) => {
   const runtime = useChatRuntime();
   const settings = useSettings((state) => state.settings);
+  const feedback = useActionFeedback();
+  const queryClient = useQueryClient();
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -566,15 +581,27 @@ export const Thread = ({
   const rememberMessage = async (message: UIMessage) => {
     const text = getText(message).trim();
     if (text === "") return;
-    await extractMemories({
-      text,
-      threadId: runtime.sessionId,
-      config: {
-        apiKey: settings.apiKey,
-        baseUrl: settings.baseUrl || undefined,
-        model: settings.model,
-      },
-    });
+    try {
+      const ids = await extractMemories({
+        text,
+        threadId: runtime.sessionId,
+        config: {
+          apiKey: settings.apiKey,
+          baseUrl: settings.baseUrl || undefined,
+          model: settings.model,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: ["memories"] });
+      feedback.show({
+        kind: "success",
+        message:
+          ids.length === 0
+            ? "No new memories found."
+            : `Saved ${ids.length} memor${ids.length === 1 ? "y" : "ies"}.`,
+      });
+    } catch {
+      feedback.show({ kind: "error", message: "Could not save memories." });
+    }
   };
 
   return (
