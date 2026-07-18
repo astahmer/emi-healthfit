@@ -6,5 +6,7 @@ export const notifyMemoriesChanged = () => {
 
 export const subscribeToMemoryChanges = (listener: () => void) => {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 };

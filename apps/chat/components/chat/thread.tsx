@@ -603,7 +603,7 @@ export const Thread = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const { data: conversationMemories = [] } = useQuery({
     queryKey: ["memories", "message-sources"],
-    queryFn: fetchMemories,
+    queryFn: () => fetchMemories(),
     enabled: runtime.sessionId !== undefined,
   });
   const savedMemoryMessageIds = new Set(
