@@ -196,52 +196,67 @@ const RenderComponent = Tool.make("render_component", {
   failure: Schema.Unknown,
 });
 
-const componentSchemas: Record<string, Schema.Top> = {
-  WorkoutTable: Schema.Struct({
-    workouts: Schema.Array(
-      Schema.Struct({
-        session_id: Schema.String,
-        title: Schema.NullOr(Schema.String),
-        start_time: Schema.String,
-        total_volume_kg: Schema.NullOr(Schema.Number),
-        exercise_count: Schema.Number,
-        set_count: Schema.Number,
-      }),
-    ),
-  }),
-  ExerciseProgress: Schema.Struct({
-    exercise_title: Schema.String,
-    weeks: Schema.Number,
-    workouts: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
-    personalRecord: Schema.Record(Schema.String, Schema.Unknown),
-  }),
-  RecoveryCard: Schema.Struct({
-    today: Schema.optional(Schema.String),
-    label: Schema.optional(Schema.String),
-    explanation: Schema.optional(Schema.String),
-    lastWorkout: Schema.optional(Schema.NullOr(Schema.String)),
-    sleepAverageHours: Schema.optional(Schema.NullOr(Schema.Number)),
-    recentWorkoutCount: Schema.optional(Schema.Number),
-    recentVolume: Schema.optional(Schema.NullOr(Schema.Number)),
-  }),
-  MetricCard: Schema.Struct({
-    label: Schema.String,
-    value: Schema.Union([Schema.String, Schema.Number]),
-    unit: Schema.optional(Schema.String),
-    trend: Schema.optional(Schema.Literals(["up", "down", "flat"])),
-  }),
-  SetList: Schema.Struct({
-    sets: Schema.Array(
-      Schema.Struct({
-        exercise: Schema.String,
-        weightKg: Schema.NullOr(Schema.Number),
-        reps: Schema.NullOr(Schema.Number),
-        rpe: Schema.optional(Schema.NullOr(Schema.Number)),
-        setType: Schema.optional(Schema.NullOr(Schema.String)),
-      }),
-    ),
-  }),
-};
+const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
+  [
+    "WorkoutTable",
+    Schema.Struct({
+      workouts: Schema.Array(
+        Schema.Struct({
+          session_id: Schema.String,
+          title: Schema.NullOr(Schema.String),
+          start_time: Schema.String,
+          total_volume_kg: Schema.NullOr(Schema.Number),
+          exercise_count: Schema.Number,
+          set_count: Schema.Number,
+        }),
+      ),
+    }),
+  ],
+  [
+    "ExerciseProgress",
+    Schema.Struct({
+      exercise_title: Schema.String,
+      weeks: Schema.Number,
+      workouts: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
+      personalRecord: Schema.Record(Schema.String, Schema.Unknown),
+    }),
+  ],
+  [
+    "RecoveryCard",
+    Schema.Struct({
+      today: Schema.optional(Schema.String),
+      label: Schema.optional(Schema.String),
+      explanation: Schema.optional(Schema.String),
+      lastWorkout: Schema.optional(Schema.NullOr(Schema.String)),
+      sleepAverageHours: Schema.optional(Schema.NullOr(Schema.Number)),
+      recentWorkoutCount: Schema.optional(Schema.Number),
+      recentVolume: Schema.optional(Schema.NullOr(Schema.Number)),
+    }),
+  ],
+  [
+    "MetricCard",
+    Schema.Struct({
+      label: Schema.String,
+      value: Schema.Union([Schema.String, Schema.Number]),
+      unit: Schema.optional(Schema.String),
+      trend: Schema.optional(Schema.Literals(["up", "down", "flat"])),
+    }),
+  ],
+  [
+    "SetList",
+    Schema.Struct({
+      sets: Schema.Array(
+        Schema.Struct({
+          exercise: Schema.String,
+          weightKg: Schema.NullOr(Schema.Number),
+          reps: Schema.NullOr(Schema.Number),
+          rpe: Schema.optional(Schema.NullOr(Schema.Number)),
+          setType: Schema.optional(Schema.NullOr(Schema.String)),
+        }),
+      ),
+    }),
+  ],
+]);
 
 const FitnessToolkit = Toolkit.make(
   GetSummary,
@@ -451,7 +466,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         }),
     ),
     render_component: Effect.fn("FitnessToolkit.renderComponent")(function* ({ component, props }) {
-      const schema = componentSchemas[component];
+      const schema = componentSchemas.get(component);
       if (schema === undefined) {
         return yield* toolError({
           tool: "render_component",

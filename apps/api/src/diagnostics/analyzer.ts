@@ -31,7 +31,7 @@ const decodeErrorOutput = Schema.decodeUnknownOption(ErrorOutput);
 const isToolPart = (part: typeof PersistedPart.Type): boolean =>
   part.type === "dynamic-tool" || part.type?.startsWith("tool-") === true;
 
-const decodeParts = (parts: unknown[]): (typeof PersistedPart.Type)[] =>
+const decodeParts = (parts: ReadonlyArray<unknown>): (typeof PersistedPart.Type)[] =>
   parts.flatMap((part) => {
     const decoded = decodePersistedPart(part);
     return Option.isSome(decoded) ? [decoded.value] : [];

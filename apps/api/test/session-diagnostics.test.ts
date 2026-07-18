@@ -130,11 +130,20 @@ describe("session diagnostics", () => {
 
   it("redacts secrets and owned tool payloads by default", () => {
     const bundle = session9745Bundle();
-    bundle.events[0]!.payload = {
-      authorization: "Bearer secret",
-      args: { sessionId: "private-health-session" },
-    };
-    const redacted = redactDiagnosticBundle(bundle);
+    const redacted = redactDiagnosticBundle({
+      ...bundle,
+      events: bundle.events.map((event, index) =>
+        index === 0
+          ? {
+              ...event,
+              payload: {
+                authorization: "Bearer secret",
+                args: { sessionId: "private-health-session" },
+              },
+            }
+          : event,
+      ),
+    });
     const serialized = JSON.stringify(redacted);
 
     assert.strictEqual(redacted.redacted, true);

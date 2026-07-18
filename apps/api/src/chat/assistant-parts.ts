@@ -2,7 +2,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 const ToolOutput = Schema.Struct({
-  type: Schema.Literal("json", "text"),
+  type: Schema.Literals(["json", "text"]),
   value: Schema.Unknown,
 });
 

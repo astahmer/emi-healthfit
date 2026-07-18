@@ -28,7 +28,7 @@ const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
 const AssetsBinding = Schema.Struct({
   fetch: Schema.declare<(request: Request) => Promise<Response>>(
-    (value) => typeof value === "function",
+    (value): value is (request: Request) => Promise<Response> => typeof value === "function",
   ),
 });
 const cors = <E, R>({
@@ -98,7 +98,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         if (request.method === "GET") return handleAssetRequest({ assetsFetcher, request });
         return Effect.succeed(HttpServerResponse.text("Not Found", { status: 404 }));
       });
-    }).pipe(Effect.asVoid);
+    }) as Effect.Effect<void>;
 
     return {
       fetch: Effect.gen(function* () {

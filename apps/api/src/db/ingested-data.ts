@@ -19,7 +19,7 @@ type OwnedBodyMetricRow = Omit<BodyMetricRow, "user_id">;
 export const upsertDailyActivity = (
   db: QueryDatabaseClient,
   userId: string,
-  rows: OwnedDailyActivityRow[],
+  rows: ReadonlyArray<OwnedDailyActivityRow>,
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
@@ -54,7 +54,7 @@ export const upsertDailyActivity = (
 export const insertHealthWorkouts = (
   db: QueryDatabaseClient,
   userId: string,
-  rows: OwnedHealthWorkoutRow[],
+  rows: ReadonlyArray<OwnedHealthWorkoutRow>,
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
@@ -97,7 +97,7 @@ export const insertHealthWorkouts = (
 export const upsertHevySessions = (
   db: QueryDatabaseClient,
   userId: string,
-  rows: OwnedHevySessionRow[],
+  rows: ReadonlyArray<OwnedHevySessionRow>,
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
@@ -128,7 +128,11 @@ export const upsertHevySessions = (
     return rows.length;
   });
 
-export const upsertHevySets = (db: QueryDatabaseClient, userId: string, rows: OwnedHevySetRow[]) =>
+export const upsertHevySets = (
+  db: QueryDatabaseClient,
+  userId: string,
+  rows: ReadonlyArray<OwnedHevySetRow>,
+) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
 
@@ -168,7 +172,7 @@ export const upsertHevySets = (db: QueryDatabaseClient, userId: string, rows: Ow
 export const upsertSleepSessions = (
   db: QueryDatabaseClient,
   userId: string,
-  rows: OwnedSleepSessionRow[],
+  rows: ReadonlyArray<OwnedSleepSessionRow>,
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
@@ -204,7 +208,7 @@ export const upsertSleepSessions = (
 export const upsertBodyMetrics = (
   db: QueryDatabaseClient,
   userId: string,
-  rows: OwnedBodyMetricRow[],
+  rows: ReadonlyArray<OwnedBodyMetricRow>,
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;

@@ -4,6 +4,7 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { safeValidateUIMessages, type UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
@@ -206,7 +207,7 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
       ...parsed.value,
       messages: validatedMessages.data,
     };
-    const requestWithKey: ChatStreamRequest = chatRequest;
+    const apiKey = chatRequest.config.apiKey;
 
     const isTemporary = chatRequest.temporary === true;
 
@@ -321,7 +322,7 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
     );
 
     const requestWithHistory: ChatStreamRequest = {
-      ...requestWithKey,
+      ...chatRequest,
       messages: getProviderMessages({
         existingRows,
         existingMessages,

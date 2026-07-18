@@ -186,7 +186,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
     if (Option.isNone(handler)) throw new Error(`Missing routes for ${group.identifier}`);
     return handler.value.routes;
   });
-  yield* router.addAll(routes);
+  yield* router.addAll(routes) as Effect.Effect<void>;
   yield* router.add(
     "GET",
     "/api/openapi.json",
