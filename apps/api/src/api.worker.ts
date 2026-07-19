@@ -45,7 +45,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   {
     main: import.meta.url,
-    assets: "./assets",
+    assets: {
+      directory: "./assets",
+      notFoundHandling: "single-page-application",
+    },
     compatibility: { flags: ["nodejs_compat"] },
     env: {
       BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
