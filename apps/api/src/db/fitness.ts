@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect";
+import { sql } from "kysely";
 import type { QueryDatabaseClient } from "./client.ts";
 
 export interface WorkoutHistoryItem {
@@ -16,41 +17,26 @@ const average = (values: number[]): number | null =>
 export const getWorkoutHistory = (db: QueryDatabaseClient, userId: string, limit = 10) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const [sessions, sets] = yield* Effect.all([
-      Effect.promise(() =>
-        kysely
-          .selectFrom("hevy_sessions")
-          .select(["session_id", "title", "start_time", "total_volume_kg"])
-          .where("user_id", "=", userId)
-          .orderBy("start_time", "desc")
-          .limit(limit)
-          .execute(),
-      ),
-      Effect.promise(() =>
-        kysely
-          .selectFrom("hevy_sets")
-          .select(["session_id", "exercise_title"])
-          .where("user_id", "=", userId)
-          .execute(),
-      ),
-    ]);
-    const setsBySession = new Map<string, Array<{ exercise_title: string }>>();
-    for (const set of sets) {
-      const sessionSets = setsBySession.get(set.session_id) ?? [];
-      sessionSets.push(set);
-      setsBySession.set(set.session_id, sessionSets);
-    }
-    return sessions.map((session) => {
-      const sessionSets = setsBySession.get(session.session_id) ?? [];
-      return {
-        session_id: session.session_id,
-        title: session.title,
-        start_time: session.start_time,
-        total_volume_kg: session.total_volume_kg,
-        exercise_count: new Set(sessionSets.map((set) => set.exercise_title)).size,
-        set_count: sessionSets.length,
-      } satisfies WorkoutHistoryItem;
-    });
+    return yield* Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sessions as s")
+        .leftJoin("hevy_sets as st", (join) =>
+          join.onRef("st.user_id", "=", "s.user_id").onRef("st.session_id", "=", "s.session_id"),
+        )
+        .select((eb) => [
+          "s.session_id",
+          "s.title",
+          "s.start_time",
+          "s.total_volume_kg",
+          eb.fn.count<number>("st.exercise_title").distinct().as("exercise_count"),
+          eb.fn.count<number>("st.set_index").as("set_count"),
+        ])
+        .where("s.user_id", "=", userId)
+        .groupBy(["s.session_id", "s.title", "s.start_time", "s.total_volume_kg"])
+        .orderBy("s.start_time", "desc")
+        .limit(limit)
+        .execute(),
+    );
   });
 
 interface WorkoutDetailSetRow {
@@ -184,17 +170,27 @@ export const getExerciseProgress = (
   Effect.gen(function* () {
     const since = isoDateDaysAgo(weeks * 7);
     const kysely = yield* db.kysely;
-    const [workoutRows, personalRecordRows] = yield* Effect.all([
+    const [workouts, prSet] = yield* Effect.all([
       Effect.promise(() =>
         kysely
           .selectFrom("hevy_sets as st")
           .innerJoin("hevy_sessions as s", (join) =>
             join.onRef("s.user_id", "=", "st.user_id").onRef("s.session_id", "=", "st.session_id"),
           )
-          .select(["s.session_id", "s.title", "s.start_time", "st.weight_kg", "st.reps"])
+          .select((eb) => [
+            "s.session_id",
+            "s.title",
+            "s.start_time",
+            eb.fn.max("st.weight_kg").as("max_weight_kg"),
+            eb.fn.max(sql<number>`st.weight_kg * st.reps`).as("max_volume_kg"),
+            eb.fn.sum<number>(sql`st.weight_kg * st.reps`).as("total_volume_kg"),
+            eb.fn.sum<number>("st.reps").as("total_reps"),
+            eb.fn.countAll<number>().as("sets"),
+          ])
           .where("st.user_id", "=", userId)
           .where("st.exercise_title", "=", exerciseTitle)
           .where("s.start_time", ">=", since)
+          .groupBy(["s.session_id", "s.title", "s.start_time"])
           .orderBy("s.start_time", "asc")
           .execute(),
       ),
@@ -204,46 +200,13 @@ export const getExerciseProgress = (
           .select(["weight_kg", "reps"])
           .where("user_id", "=", userId)
           .where("exercise_title", "=", exerciseTitle)
-          .execute(),
+          .where("weight_kg", "is not", null)
+          .where("reps", "is not", null)
+          .orderBy(sql`weight_kg * reps`, "desc")
+          .limit(1)
+          .executeTakeFirst(),
       ),
     ]);
-    const workoutSets = new Map<string, typeof workoutRows>();
-    for (const row of workoutRows) {
-      const sets = workoutSets.get(row.session_id) ?? [];
-      sets.push(row);
-      workoutSets.set(row.session_id, sets);
-    }
-    const workouts = [...workoutSets.values()].map((sets) => {
-      const first = sets[0];
-      const weights = sets.flatMap((set) => (set.weight_kg === null ? [] : [set.weight_kg]));
-      const volumes = sets.flatMap((set) =>
-        set.weight_kg === null || set.reps === null ? [] : [set.weight_kg * set.reps],
-      );
-      const reps = sets.flatMap((set) => (set.reps === null ? [] : [set.reps]));
-      return {
-        session_id: first.session_id,
-        title: first.title,
-        start_time: first.start_time,
-        max_weight_kg: weights.length === 0 ? null : Math.max(...weights),
-        max_volume_kg: volumes.length === 0 ? null : Math.max(...volumes),
-        total_volume_kg:
-          volumes.length === 0 ? null : volumes.reduce((total, value) => total + value, 0),
-        total_reps: reps.length === 0 ? null : reps.reduce((total, value) => total + value, 0),
-        sets: sets.length,
-      } satisfies ExerciseProgressSet;
-    });
-    const prSet = personalRecordRows.reduce<{
-      weight_kg: number;
-      reps: number;
-      volume_kg: number;
-    } | null>((current, row) => {
-      if (row.weight_kg === null || row.reps === null) return current;
-      const volume_kg = row.weight_kg * row.reps;
-      if (current === null || volume_kg > current.volume_kg) {
-        return { weight_kg: row.weight_kg, reps: row.reps, volume_kg };
-      }
-      return current;
-    }, null);
 
     return {
       exercise_title: exerciseTitle,
@@ -252,7 +215,10 @@ export const getExerciseProgress = (
       personalRecord: {
         weight_kg: prSet?.weight_kg ?? null,
         reps: prSet?.reps ?? null,
-        volume_kg: prSet?.volume_kg ?? null,
+        volume_kg:
+          prSet === undefined || prSet.weight_kg === null || prSet.reps === null
+            ? null
+            : prSet.weight_kg * prSet.reps,
       },
     } satisfies ExerciseProgress;
   });
@@ -269,27 +235,26 @@ export const getSleepTrend = (db: QueryDatabaseClient, userId: string, days = 7)
   Effect.gen(function* () {
     const since = isoDateDaysAgo(days);
     const kysely = yield* db.kysely;
-    const rows = yield* Effect.promise(() =>
+    const row = yield* Effect.promise(() =>
       kysely
         .selectFrom("sleep_sessions")
-        .select(["in_bed_min", "asleep_min", "awake_min"])
+        .select((eb) => [
+          eb.fn.countAll<number>().as("days"),
+          eb.fn.avg<number>("in_bed_min").as("avg_in_bed_min"),
+          eb.fn.avg<number>("asleep_min").as("avg_asleep_min"),
+          eb.fn.avg<number>("awake_min").as("avg_awake_min"),
+        ])
         .where("user_id", "=", userId)
         .where("date", ">=", since)
-        .execute(),
+        .executeTakeFirst(),
     );
-    const asleepMin = average(
-      rows.flatMap((row) => (row.asleep_min === null ? [] : [row.asleep_min])),
-    );
+    const asleepMin = row?.avg_asleep_min ?? null;
 
     return {
-      days: rows.length,
-      avg_in_bed_min: average(
-        rows.flatMap((row) => (row.in_bed_min === null ? [] : [row.in_bed_min])),
-      ),
+      days: row?.days ?? 0,
+      avg_in_bed_min: row?.avg_in_bed_min ?? null,
       avg_asleep_min: asleepMin,
-      avg_awake_min: average(
-        rows.flatMap((row) => (row.awake_min === null ? [] : [row.awake_min])),
-      ),
+      avg_awake_min: row?.avg_awake_min ?? null,
       avg_sleep_hours: asleepMin !== null ? Number((asleepMin / 60).toFixed(2)) : null,
     } satisfies SleepTrend;
   });
@@ -339,12 +304,13 @@ export const getWorkoutStreak = (db: QueryDatabaseClient, userId: string) =>
     const rows = yield* Effect.promise(() =>
       kysely
         .selectFrom("hevy_sessions")
-        .select("start_time")
+        .select(sql<string>`date(start_time)`.as("workout_date"))
         .where("user_id", "=", userId)
-        .orderBy("start_time", "asc")
+        .groupBy(sql`date(start_time)`)
+        .orderBy(sql`date(start_time)`, "asc")
         .execute(),
     );
-    const streaks = computeStreaks(rows.map((row) => row.start_time.slice(0, 10)));
+    const streaks = computeStreaks(rows.map((row) => row.workout_date));
 
     return {
       current_streak: streaks.current,
@@ -367,29 +333,21 @@ export interface DataSummary {
 export const getDataSummary = (db: QueryDatabaseClient, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const [daily, workouts, sessions, sets, sleep, body, cursors] = yield* Effect.all([
-      Effect.promise(() =>
-        kysely.selectFrom("daily_activity").select("date").where("user_id", "=", userId).execute(),
-      ),
-      Effect.promise(() =>
-        kysely.selectFrom("health_workouts").select("id").where("user_id", "=", userId).execute(),
-      ),
+    const countFor = (table: "daily_activity" | "health_workouts" | "hevy_sessions" | "hevy_sets" | "sleep_sessions" | "body_metrics") =>
       Effect.promise(() =>
         kysely
-          .selectFrom("hevy_sessions")
-          .select("session_id")
+          .selectFrom(table)
+          .select((eb) => eb.fn.countAll<number>().as("c"))
           .where("user_id", "=", userId)
-          .execute(),
-      ),
-      Effect.promise(() =>
-        kysely.selectFrom("hevy_sets").select("id").where("user_id", "=", userId).execute(),
-      ),
-      Effect.promise(() =>
-        kysely.selectFrom("sleep_sessions").select("date").where("user_id", "=", userId).execute(),
-      ),
-      Effect.promise(() =>
-        kysely.selectFrom("body_metrics").select("date").where("user_id", "=", userId).execute(),
-      ),
+          .executeTakeFirst(),
+      );
+    const [daily, workouts, sessions, sets, sleep, body, cursors] = yield* Effect.all([
+      countFor("daily_activity"),
+      countFor("health_workouts"),
+      countFor("hevy_sessions"),
+      countFor("hevy_sets"),
+      countFor("sleep_sessions"),
+      countFor("body_metrics"),
       Effect.promise(() =>
         kysely
           .selectFrom("sync_cursors")
@@ -402,12 +360,12 @@ export const getDataSummary = (db: QueryDatabaseClient, userId: string) =>
     const cursorMap = new Map(cursors.map((row) => [row.source, row.last_sync]));
 
     return {
-      dailyActivity: daily.length,
-      healthWorkouts: workouts.length,
-      hevySessions: sessions.length,
-      hevySets: sets.length,
-      sleepSessions: sleep.length,
-      bodyMetrics: body.length,
+      dailyActivity: daily?.c ?? 0,
+      healthWorkouts: workouts?.c ?? 0,
+      hevySessions: sessions?.c ?? 0,
+      hevySets: sets?.c ?? 0,
+      sleepSessions: sleep?.c ?? 0,
+      bodyMetrics: body?.c ?? 0,
       lastHealthSync: cursorMap.get("apple_health") ?? null,
       lastHevySync: cursorMap.get("hevy") ?? null,
     } satisfies DataSummary;
@@ -516,11 +474,6 @@ interface ExportRange {
   last: string | null;
 }
 
-const toExportRange = (values: Array<string | null>): ExportRange => {
-  const present = values.filter((value): value is string => value !== null).toSorted();
-  return { count: values.length, first: present[0] ?? null, last: present.at(-1) ?? null };
-};
-
 export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(function* ({
   db,
   userId,
@@ -529,37 +482,52 @@ export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(
   userId: string;
 }) {
   const kysely = yield* db.kysely;
+  const rangeFor = (
+    table: "daily_activity" | "health_workouts" | "sleep_sessions" | "body_metrics",
+  ) =>
+    Effect.promise(() =>
+      kysely
+        .selectFrom(table)
+        .select((eb) => [
+          eb.fn.countAll<number>().as("count"),
+          eb.fn.min("date").as("first"),
+          eb.fn.max("date").as("last"),
+        ])
+        .where("user_id", "=", userId)
+        .executeTakeFirst(),
+    );
   const [activity, workouts, sleep, body, hevySessions, hevySets] = yield* Effect.all([
-    Effect.promise(() =>
-      kysely.selectFrom("daily_activity").select("date").where("user_id", "=", userId).execute(),
-    ),
-    Effect.promise(() =>
-      kysely.selectFrom("health_workouts").select("date").where("user_id", "=", userId).execute(),
-    ),
-    Effect.promise(() =>
-      kysely.selectFrom("sleep_sessions").select("date").where("user_id", "=", userId).execute(),
-    ),
-    Effect.promise(() =>
-      kysely.selectFrom("body_metrics").select("date").where("user_id", "=", userId).execute(),
-    ),
+    rangeFor("daily_activity"),
+    rangeFor("health_workouts"),
+    rangeFor("sleep_sessions"),
+    rangeFor("body_metrics"),
     Effect.promise(() =>
       kysely
         .selectFrom("hevy_sessions")
-        .select("start_time")
+        .select((eb) => [
+          eb.fn.countAll<number>().as("count"),
+          eb.fn.min("start_time").as("first"),
+          eb.fn.max("start_time").as("last"),
+        ])
         .where("user_id", "=", userId)
-        .execute(),
+        .executeTakeFirst(),
     ),
     Effect.promise(() =>
-      kysely.selectFrom("hevy_sets").select("id").where("user_id", "=", userId).execute(),
+      kysely
+        .selectFrom("hevy_sets")
+        .select((eb) => eb.fn.countAll<number>().as("count"))
+        .where("user_id", "=", userId)
+        .executeTakeFirst(),
     ),
   ]);
+  const emptyRange: ExportRange = { count: 0, first: null, last: null };
   const sources = {
-    dailyActivity: toExportRange(activity.map((row) => row.date)),
-    healthWorkouts: toExportRange(workouts.map((row) => row.date)),
-    sleepSessions: toExportRange(sleep.map((row) => row.date)),
-    bodyMetrics: toExportRange(body.map((row) => row.date)),
-    hevySessions: toExportRange(hevySessions.map((row) => row.start_time)),
-    hevySets: { count: hevySets.length, first: null, last: null },
+    dailyActivity: activity ?? emptyRange,
+    healthWorkouts: workouts ?? emptyRange,
+    sleepSessions: sleep ?? emptyRange,
+    bodyMetrics: body ?? emptyRange,
+    hevySessions: hevySessions ?? emptyRange,
+    hevySets: { count: hevySets?.count ?? 0, first: null, last: null },
   };
   return {
     sources,
@@ -590,7 +558,7 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
 }) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const kysely = yield* db.kysely;
-  const [activity, sleepRows, body, trainingRows, exerciseRows] = yield* Effect.all([
+  const [activity, sleep, body, training, exercises] = yield* Effect.all([
     Effect.promise(() =>
       kysely
         .selectFrom("daily_activity")
@@ -603,9 +571,14 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
     Effect.promise(() =>
       kysely
         .selectFrom("sleep_sessions")
-        .select(["date", "asleep_min", "in_bed_min"])
+        .select((eb) => [
+          "date",
+          eb.fn.sum<number>("asleep_min").as("asleep_min"),
+          eb.fn.sum<number>("in_bed_min").as("in_bed_min"),
+        ])
         .where("user_id", "=", userId)
         .where("date", ">=", since)
+        .groupBy("date")
         .orderBy("date")
         .execute(),
     ),
@@ -621,10 +594,16 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
     Effect.promise(() =>
       kysely
         .selectFrom("hevy_sessions")
-        .select(["start_time", "total_volume_kg", "duration_sec"])
+        .select((eb) => [
+          sql<string>`substr(start_time, 1, 10)`.as("date"),
+          eb.fn.countAll<number>().as("workouts"),
+          eb.fn.sum<number>("total_volume_kg").as("volume_kg"),
+          eb.fn.sum<number>("duration_sec").as("duration_sec"),
+        ])
         .where("user_id", "=", userId)
         .where("start_time", ">=", since)
-        .orderBy("start_time")
+        .groupBy(sql`substr(start_time, 1, 10)`)
+        .orderBy("date")
         .execute(),
     ),
     Effect.promise(() =>
@@ -633,64 +612,19 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
         .innerJoin("hevy_sessions as h", (join) =>
           join.onRef("h.user_id", "=", "s.user_id").onRef("h.session_id", "=", "s.session_id"),
         )
-        .select(["s.exercise_title", "s.weight_kg", "s.reps"])
+        .select((eb) => [
+          "s.exercise_title",
+          eb.fn.countAll<number>().as("sets"),
+          sql<number>`sum(coalesce(s.weight_kg, 0) * coalesce(s.reps, 0))`.as("volume_kg"),
+        ])
         .where("s.user_id", "=", userId)
         .where("h.start_time", ">=", since)
+        .groupBy("s.exercise_title")
+        .orderBy("sets", "desc")
+        .limit(8)
         .execute(),
     ),
   ]);
-  const sleepByDate = new Map<string, { asleep: number[]; inBed: number[] }>();
-  for (const row of sleepRows) {
-    if (row.date === null) continue;
-    const values = sleepByDate.get(row.date) ?? { asleep: [], inBed: [] };
-    if (row.asleep_min !== null) values.asleep.push(row.asleep_min);
-    if (row.in_bed_min !== null) values.inBed.push(row.in_bed_min);
-    sleepByDate.set(row.date, values);
-  }
-  const sleep = [...sleepByDate.entries()]
-    .map(([date, values]) => ({
-      date,
-      asleep_min:
-        values.asleep.length === 0 ? null : values.asleep.reduce((sum, value) => sum + value, 0),
-      in_bed_min:
-        values.inBed.length === 0 ? null : values.inBed.reduce((sum, value) => sum + value, 0),
-    }))
-    .toSorted((left, right) => left.date.localeCompare(right.date));
-  const trainingByDate = new Map<
-    string,
-    { workouts: number; volume: number[]; duration: number[] }
-  >();
-  for (const row of trainingRows) {
-    const date = row.start_time.slice(0, 10);
-    const values = trainingByDate.get(date) ?? { workouts: 0, volume: [], duration: [] };
-    values.workouts += 1;
-    if (row.total_volume_kg !== null) values.volume.push(row.total_volume_kg);
-    if (row.duration_sec !== null) values.duration.push(row.duration_sec);
-    trainingByDate.set(date, values);
-  }
-  const training = [...trainingByDate.entries()]
-    .map(([date, values]) => ({
-      date,
-      workouts: values.workouts,
-      volume_kg:
-        values.volume.length === 0 ? null : values.volume.reduce((sum, value) => sum + value, 0),
-      duration_sec:
-        values.duration.length === 0
-          ? null
-          : values.duration.reduce((sum, value) => sum + value, 0),
-    }))
-    .toSorted((left, right) => left.date.localeCompare(right.date));
-  const exercisesByTitle = new Map<string, { sets: number; volume_kg: number }>();
-  for (const row of exerciseRows) {
-    const exercise = exercisesByTitle.get(row.exercise_title) ?? { sets: 0, volume_kg: 0 };
-    exercise.sets += 1;
-    exercise.volume_kg += (row.weight_kg ?? 0) * (row.reps ?? 0);
-    exercisesByTitle.set(row.exercise_title, exercise);
-  }
-  const exercises = [...exercisesByTitle.entries()]
-    .map(([exercise_title, values]) => ({ exercise_title, ...values }))
-    .toSorted((left, right) => right.sets - left.sets)
-    .slice(0, 8);
   const weights = body.flatMap((row) => (row.weight_kg === null ? [] : [row.weight_kg]));
   return {
     days,
