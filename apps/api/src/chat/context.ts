@@ -49,74 +49,72 @@ export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
     const sevenDaysAgo = daysAgo(7);
     const twoDaysAgo = daysAgo(2);
 
-    const lastSets = yield* db
-      .prepare(`
-      SELECT s.*, ses.start_time as session_start
-      FROM hevy_sets s
-      JOIN hevy_sessions ses ON s.user_id = ses.user_id AND s.session_id = ses.session_id
-      WHERE s.user_id = ?
-      ORDER BY ses.start_time DESC
-      LIMIT 30
-    `)
-      .bind(userId)
-      .all<HevySetRow & { session_start: string }>();
+    const kysely = yield* db.kysely;
+    const lastSets = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sets as s")
+        .innerJoin("hevy_sessions as ses", (join) =>
+          join.onRef("s.user_id", "=", "ses.user_id").onRef("s.session_id", "=", "ses.session_id"),
+        )
+        .selectAll("s")
+        .select("ses.start_time as session_start")
+        .where("s.user_id", "=", userId)
+        .orderBy("ses.start_time", "desc")
+        .limit(30)
+        .execute(),
+    );
 
-    const lastSessions = yield* db
-      .prepare(`
-      SELECT *
-      FROM hevy_sessions
-      WHERE user_id = ?
-      ORDER BY start_time DESC
-      LIMIT 3
-    `)
-      .bind(userId)
-      .all<{
-        session_id: string;
-        title: string;
-        start_time: string;
-        total_volume_kg: number;
-      }>();
+    const lastSessions = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sessions")
+        .select(["session_id", "title", "start_time", "total_volume_kg"])
+        .where("user_id", "=", userId)
+        .orderBy("start_time", "desc")
+        .limit(3)
+        .execute(),
+    );
 
-    const recentSets = yield* db
-      .prepare(`
-      SELECT s.*
-      FROM hevy_sets s
-      JOIN hevy_sessions ses ON s.user_id = ses.user_id AND s.session_id = ses.session_id
-      WHERE s.user_id = ? AND ses.start_time >= ?
-    `)
-      .bind(userId, sevenDaysAgo)
-      .all<HevySetRow>();
+    const recentSets = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sets as s")
+        .innerJoin("hevy_sessions as ses", (join) =>
+          join.onRef("s.user_id", "=", "ses.user_id").onRef("s.session_id", "=", "ses.session_id"),
+        )
+        .selectAll("s")
+        .where("s.user_id", "=", userId)
+        .where("ses.start_time", ">=", sevenDaysAgo)
+        .execute(),
+    );
 
-    const sleepRows = yield* db
-      .prepare(`
-      SELECT *
-      FROM sleep_sessions
-      WHERE user_id = ? AND date >= ?
-      ORDER BY date DESC
-    `)
-      .bind(userId, sevenDaysAgo)
-      .all<SleepSessionRow>();
+    const sleepRows = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("sleep_sessions")
+        .selectAll()
+        .where("user_id", "=", userId)
+        .where("date", ">=", sevenDaysAgo)
+        .orderBy("date", "desc")
+        .execute(),
+    );
 
-    const recentVolume = recentSets.results.reduce((sum: number, set: HevySetRow) => {
+    const recentVolume = recentSets.reduce((sum: number, set: HevySetRow) => {
       if (set.weight_kg !== null && set.reps !== null) {
         return sum + set.weight_kg * set.reps;
       }
       return sum;
     }, 0);
 
-    const recentWorkoutCount = new Set(recentSets.results.map((set: HevySetRow) => set.session_id))
-      .size;
+    const recentWorkoutCount = new Set(recentSets.map((set: HevySetRow) => set.session_id)).size;
 
-    const lastSessionDate = lastSessions.results[0]?.start_time.slice(0, 10) ?? null;
+    const lastSessionDate = lastSessions[0]?.start_time.slice(0, 10) ?? null;
 
     const lastSessionSummary =
-      lastSessions.results.length > 0
-        ? lastSessions.results
+      lastSessions.length > 0
+        ? lastSessions
             .map((session) => `${session.title} on ${session.start_time.slice(0, 10)}`)
             .join("; ")
         : "No recent workouts found";
 
-    const sleepMinutes = sleepRows.results
+    const sleepMinutes = sleepRows
       .map((s: SleepSessionRow) => s.asleep_min ?? s.in_bed_min)
       .filter((m): m is number => m !== null);
 
@@ -125,7 +123,7 @@ export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
         ? sleepMinutes.reduce((a: number, b: number) => a + b, 0) / sleepMinutes.length
         : null;
 
-    const strain48h = lastSets.results
+    const strain48h = lastSets
       .filter((set: HevySetRow & { session_start: string }) => set.session_start >= twoDaysAgo)
       .reduce((sum: number, set: HevySetRow) => {
         if (set.weight_kg !== null && set.reps !== null) {
@@ -148,11 +146,11 @@ export const buildChatContext = (db: QueryDatabaseClient, userId: string) =>
         lastSessionSummary,
         recentVolume,
         recentWorkoutCount,
-        recentSets: lastSets.results,
+        recentSets: lastSets,
       },
       sleep: {
         averageMinutes: sevenDaySleepAvg,
-        lastNight: sleepRows.results[0] ?? null,
+        lastNight: sleepRows[0] ?? null,
         sevenDayAverage: sevenDaySleepAvg,
       },
       recentWorkoutCount,

@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect";
-import type { MemoryRow, NoteRow } from "./schema.ts";
 import { runTransaction, type QueryDatabaseClient } from "./client.ts";
 
 const nowIso = (): string => new Date().toISOString();
@@ -29,16 +28,11 @@ export const insertMemories = (db: QueryDatabaseClient, userId: string, inputs: 
     const candidates = [...unique.values()];
     if (candidates.length === 0) return [];
 
-    const placeholders = candidates.map(() => "?").join(", ");
-    const existing = yield* db
-      .prepare(`
-        SELECT LOWER(TRIM(content)) AS normalized
-        FROM memories
-        WHERE user_id = ? AND LOWER(TRIM(content)) IN (${placeholders})
-      `)
-      .bind(userId, ...candidates.map((candidate) => normalizeMemoryKey(candidate.content)))
-      .all<{ normalized: string }>();
-    const existingKeys = new Set(existing.results.map((row) => row.normalized));
+    const kysely = yield* db.kysely;
+    const existing = yield* Effect.promise(() =>
+      kysely.selectFrom("memories").select("content").where("user_id", "=", userId).execute(),
+    );
+    const existingKeys = new Set(existing.map((memory) => normalizeMemoryKey(memory.content)));
     const createdAt = nowIso();
     const inserted = candidates
       .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
@@ -46,19 +40,14 @@ export const insertMemories = (db: QueryDatabaseClient, userId: string, inputs: 
     yield* runTransaction(
       db,
       inserted.map((memory) =>
-        db
-          .prepare(`
-            INSERT INTO memories (id, user_id, content, source, thread_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `)
-          .bind(
-            memory.id,
-            userId,
-            memory.content,
-            persistedSource(memory),
-            memory.threadId ?? null,
-            createdAt,
-          ),
+        kysely.insertInto("memories").values({
+          content: memory.content,
+          created_at: createdAt,
+          id: memory.id,
+          source: persistedSource(memory),
+          thread_id: memory.threadId ?? null,
+          user_id: userId,
+        }),
       ),
     );
     return inserted.map((memory) => memory.id);
@@ -105,39 +94,57 @@ export const searchMemories = (
   Effect.gen(function* () {
     const limit = options.limit ?? 10;
     const term = query.trim();
+    const kysely = yield* db.kysely;
     if (term === "") {
-      const result = yield* db
-        .prepare(`
-        SELECT id, content, source, thread_id, created_at
-        FROM memories
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-        LIMIT ?
-      `)
-        .bind(userId, limit)
-        .all<MemorySearchRow>();
-      return result.results.map(toMemorySearchResult);
+      const result = yield* Effect.promise(() =>
+        kysely
+          .selectFrom("memories")
+          .select(["id", "content", "source", "thread_id", "created_at"])
+          .where("user_id", "=", userId)
+          .orderBy("created_at", "desc")
+          .limit(limit)
+          .execute(),
+      );
+      return result.map(toMemorySearchResult);
     }
 
-    const pattern = `%${term.toLowerCase()}%`;
-    const result = yield* db
-      .prepare(`
-      SELECT id, content, source, thread_id, created_at,
-        CASE
-          WHEN LOWER(content) = ? THEN 3
-          WHEN LOWER(content) LIKE ? THEN 2
-          WHEN LOWER(content) LIKE ? THEN 1
-          ELSE 0
-        END as rank
-      FROM memories
-      WHERE user_id = ? AND LOWER(content) LIKE ?
-      ORDER BY rank DESC, created_at DESC
-      LIMIT ?
-    `)
-      .bind(term.toLowerCase(), `${term.toLowerCase()} %`, pattern, userId, pattern, limit)
-      .all<MemorySearchRow>();
+    const lowerTerm = term.toLowerCase();
+    const result = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("memories")
+        .select((expressionBuilder) => [
+          "id",
+          "content",
+          "source",
+          "thread_id",
+          "created_at",
+          expressionBuilder
+            .case()
+            .when(expressionBuilder.fn<string>("lower", ["content"]), "=", lowerTerm)
+            .then(3)
+            .when(expressionBuilder.fn<string>("lower", ["content"]), "like", `${lowerTerm} %`)
+            .then(2)
+            .when(expressionBuilder.fn<string>("lower", ["content"]), "like", `%${lowerTerm}%`)
+            .then(1)
+            .else(0)
+            .end()
+            .as("rank"),
+        ])
+        .where("user_id", "=", userId)
+        .where((expressionBuilder) =>
+          expressionBuilder(
+            expressionBuilder.fn<string>("lower", ["content"]),
+            "like",
+            `%${lowerTerm}%`,
+          ),
+        )
+        .orderBy("rank", "desc")
+        .orderBy("created_at", "desc")
+        .limit(limit)
+        .execute(),
+    );
 
-    return result.results.map(toMemorySearchResult);
+    return result.map(toMemorySearchResult);
   });
 
 export const getMemories = (
@@ -146,18 +153,16 @@ export const getMemories = (
   options: { limit?: number } = {},
 ) =>
   Effect.gen(function* () {
-    const limit = options.limit ?? 100;
-    const result = yield* db
-      .prepare(`
-      SELECT id, content, source, thread_id, created_at
-      FROM memories
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT ?
-    `)
-      .bind(userId, limit)
-      .all<MemoryRow>();
-    return result.results;
+    const kysely = yield* db.kysely;
+    return yield* Effect.promise(() =>
+      kysely
+        .selectFrom("memories")
+        .select(["id", "content", "source", "thread_id", "created_at"])
+        .where("user_id", "=", userId)
+        .orderBy("created_at", "desc")
+        .limit(options.limit ?? 100)
+        .execute(),
+    );
   });
 
 export const listMemoryIdsForMessage = (
@@ -166,16 +171,24 @@ export const listMemoryIdsForMessage = (
   messageId: string,
 ) =>
   Effect.gen(function* () {
-    const result = yield* db
-      .prepare("SELECT id FROM memories WHERE user_id = ? AND source LIKE ?")
-      .bind(userId, `%:${messageId}`)
-      .all<{ id: string }>();
-    return result.results.map((row) => row.id);
+    const kysely = yield* db.kysely;
+    const result = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("memories")
+        .select("id")
+        .where("user_id", "=", userId)
+        .where("source", "like", `%:${messageId}`)
+        .execute(),
+    );
+    return result.map((row) => row.id);
   });
 
 export const deleteMemory = (db: QueryDatabaseClient, userId: string, id: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`DELETE FROM memories WHERE user_id = ? AND id = ?`).bind(userId, id).run();
+    const kysely = yield* db.kysely;
+    yield* Effect.promise(() =>
+      kysely.deleteFrom("memories").where("user_id", "=", userId).where("id", "=", id).execute(),
+    );
   });
 
 export const deleteMemoriesByMessage = (
@@ -184,10 +197,14 @@ export const deleteMemoriesByMessage = (
   messageId: string,
 ) =>
   Effect.gen(function* () {
-    yield* db
-      .prepare("DELETE FROM memories WHERE user_id = ? AND source LIKE ?")
-      .bind(userId, `%:${messageId}`)
-      .run();
+    const kysely = yield* db.kysely;
+    yield* Effect.promise(() =>
+      kysely
+        .deleteFrom("memories")
+        .where("user_id", "=", userId)
+        .where("source", "like", `%:${messageId}`)
+        .execute(),
+    );
   });
 
 export const insertNote = (db: QueryDatabaseClient, userId: string, content: string) =>
@@ -195,15 +212,21 @@ export const insertNote = (db: QueryDatabaseClient, userId: string, content: str
     const trimmed = content.trim();
     if (trimmed === "") return null;
 
+    const kysely = yield* db.kysely;
     const id = crypto.randomUUID();
     const createdAt = nowIso();
-    yield* db
-      .prepare(`
-      INSERT INTO notes (id, user_id, content, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-    `)
-      .bind(id, userId, trimmed, createdAt, createdAt)
-      .run();
+    yield* Effect.promise(() =>
+      kysely
+        .insertInto("notes")
+        .values({
+          content: trimmed,
+          created_at: createdAt,
+          id,
+          updated_at: createdAt,
+          user_id: userId,
+        })
+        .execute(),
+    );
 
     return id;
   });
@@ -213,32 +236,37 @@ export const updateNote = (db: QueryDatabaseClient, userId: string, id: string, 
     const trimmed = content.trim();
     if (trimmed === "") return;
 
-    yield* db
-      .prepare(`
-      UPDATE notes SET content = ?, updated_at = ? WHERE user_id = ? AND id = ?
-    `)
-      .bind(trimmed, nowIso(), userId, id)
-      .run();
+    const kysely = yield* db.kysely;
+    yield* Effect.promise(() =>
+      kysely
+        .updateTable("notes")
+        .set({ content: trimmed, updated_at: nowIso() })
+        .where("user_id", "=", userId)
+        .where("id", "=", id)
+        .execute(),
+    );
   });
 
 export const deleteNote = (db: QueryDatabaseClient, userId: string, id: string) =>
   Effect.gen(function* () {
-    yield* db.prepare(`DELETE FROM notes WHERE user_id = ? AND id = ?`).bind(userId, id).run();
+    const kysely = yield* db.kysely;
+    yield* Effect.promise(() =>
+      kysely.deleteFrom("notes").where("user_id", "=", userId).where("id", "=", id).execute(),
+    );
   });
 
 export const getNotes = (db: QueryDatabaseClient, userId: string, limit = 100) =>
   Effect.gen(function* () {
-    const result = yield* db
-      .prepare(`
-      SELECT id, content, created_at, updated_at
-      FROM notes
-      WHERE user_id = ?
-      ORDER BY updated_at DESC
-      LIMIT ?
-    `)
-      .bind(userId, limit)
-      .all<NoteRow>();
-    return result.results;
+    const kysely = yield* db.kysely;
+    return yield* Effect.promise(() =>
+      kysely
+        .selectFrom("notes")
+        .select(["id", "content", "created_at", "updated_at"])
+        .where("user_id", "=", userId)
+        .orderBy("updated_at", "desc")
+        .limit(limit)
+        .execute(),
+    );
   });
 
 export const searchNotes = (db: QueryDatabaseClient, userId: string, query: string, limit = 10) =>
@@ -246,16 +274,21 @@ export const searchNotes = (db: QueryDatabaseClient, userId: string, query: stri
     const term = query.trim();
     if (term === "") return yield* getNotes(db, userId, limit);
 
-    const pattern = `%${term.toLowerCase()}%`;
-    const result = yield* db
-      .prepare(`
-      SELECT id, content, created_at, updated_at
-      FROM notes
-      WHERE user_id = ? AND LOWER(content) LIKE ?
-      ORDER BY updated_at DESC
-      LIMIT ?
-    `)
-      .bind(userId, pattern, limit)
-      .all<NoteRow>();
-    return result.results;
+    const kysely = yield* db.kysely;
+    return yield* Effect.promise(() =>
+      kysely
+        .selectFrom("notes")
+        .select(["id", "content", "created_at", "updated_at"])
+        .where("user_id", "=", userId)
+        .where((expressionBuilder) =>
+          expressionBuilder(
+            expressionBuilder.fn<string>("lower", ["content"]),
+            "like",
+            `%${term.toLowerCase()}%`,
+          ),
+        )
+        .orderBy("updated_at", "desc")
+        .limit(limit)
+        .execute(),
+    );
   });

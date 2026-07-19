@@ -71,54 +71,6 @@ export const diagnosticBundleSchema = Schema.Struct({
 
 export type DiagnosticBundle = typeof diagnosticBundleSchema.Type;
 
-interface ConversationRow {
-  id: string;
-  title: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface MessageRow {
-  id: string;
-  parent_id: string | null;
-  role: string;
-  parts: string;
-  prompt_tokens: number | null;
-  completion_tokens: number | null;
-  total_tokens: number | null;
-  model: string | null;
-  created_at: string;
-}
-
-interface GenerationRow {
-  id: string;
-  request_id: string;
-  trace_id: string;
-  status: DiagnosticBundle["generations"][number]["status"];
-  error: string | null;
-  finish_reason: string | null;
-  model: string | null;
-  input_tokens: number | null;
-  output_tokens: number | null;
-  retry_count: number;
-  started_at: string;
-  finished_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface EventRow {
-  id: string;
-  generation_id: string;
-  request_id: string;
-  trace_id: string;
-  type: string;
-  schema_version: number;
-  payload: string;
-  created_at: string;
-}
-
 const sensitiveKey = /authorization|cookie|secret|token|api.?key|oauth|header/i;
 const healthPayloadKey = /^(input|output|args|result|props|payload|value)$/i;
 
@@ -168,33 +120,82 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
   conversationId: string;
   includeSensitive?: boolean;
 }) {
-  const conversation = yield* db
-    .prepare(
-      "SELECT id, title, status, created_at, updated_at FROM conversations WHERE user_id = ? AND id = ?",
-    )
-    .bind(userId, conversationId)
-    .first<ConversationRow>();
-  if (conversation === null) return null;
+  const kysely = yield* db.kysely;
+  const conversation = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("conversations")
+      .select(["id", "title", "status", "created_at", "updated_at"])
+      .where("user_id", "=", userId)
+      .where("id", "=", conversationId)
+      .executeTakeFirst(),
+  );
+  if (conversation === undefined) return null;
 
-  const [messageResult, generationResult, eventResult] = yield* Effect.all([
-    db
-      .prepare(
-        "SELECT id, parent_id, role, parts, prompt_tokens, completion_tokens, total_tokens, model, created_at FROM messages WHERE user_id = ? AND conversation_id = ? ORDER BY created_at, id",
-      )
-      .bind(userId, conversationId)
-      .all<MessageRow>(),
-    db
-      .prepare(
-        "SELECT id, request_id, trace_id, status, error, finish_reason, model, input_tokens, output_tokens, retry_count, started_at, finished_at, created_at, updated_at FROM chat_generations WHERE user_id = ? AND conversation_id = ? ORDER BY created_at, id",
-      )
-      .bind(userId, conversationId)
-      .all<GenerationRow>(),
-    db
-      .prepare(
-        "SELECT id, generation_id, request_id, trace_id, type, schema_version, payload, created_at FROM chat_events WHERE user_id = ? AND conversation_id = ? ORDER BY created_at, id",
-      )
-      .bind(userId, conversationId)
-      .all<EventRow>(),
+  const [messages, generations, events] = yield* Effect.all([
+    Effect.promise(() =>
+      kysely
+        .selectFrom("messages")
+        .select([
+          "id",
+          "parent_id",
+          "role",
+          "parts",
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens",
+          "model",
+          "created_at",
+        ])
+        .where("user_id", "=", userId)
+        .where("conversation_id", "=", conversationId)
+        .orderBy("created_at")
+        .orderBy("id")
+        .execute(),
+    ),
+    Effect.promise(() =>
+      kysely
+        .selectFrom("chat_generations")
+        .select([
+          "id",
+          "request_id",
+          "trace_id",
+          "status",
+          "error",
+          "finish_reason",
+          "model",
+          "input_tokens",
+          "output_tokens",
+          "retry_count",
+          "started_at",
+          "finished_at",
+          "created_at",
+          "updated_at",
+        ])
+        .where("user_id", "=", userId)
+        .where("conversation_id", "=", conversationId)
+        .orderBy("created_at")
+        .orderBy("id")
+        .execute(),
+    ),
+    Effect.promise(() =>
+      kysely
+        .selectFrom("chat_events")
+        .select([
+          "id",
+          "generation_id",
+          "request_id",
+          "trace_id",
+          "type",
+          "schema_version",
+          "payload",
+          "created_at",
+        ])
+        .where("user_id", "=", userId)
+        .where("conversation_id", "=", conversationId)
+        .orderBy("created_at")
+        .orderBy("id")
+        .execute(),
+    ),
   ]);
 
   const redact = (value: unknown): unknown =>
@@ -210,7 +211,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
       createdAt: conversation.created_at,
       updatedAt: conversation.updated_at,
     },
-    messages: messageResult.results.map((message) => ({
+    messages: messages.map((message) => ({
       id: message.id,
       parentId: message.parent_id,
       role: message.role,
@@ -221,7 +222,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
       model: message.model,
       createdAt: message.created_at,
     })),
-    generations: generationResult.results.map((generation) => ({
+    generations: generations.map((generation) => ({
       id: generation.id,
       requestId: generation.request_id,
       traceId: generation.trace_id,
@@ -237,7 +238,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
       createdAt: generation.created_at,
       updatedAt: generation.updated_at,
     })),
-    events: eventResult.results.map((event) => ({
+    events: events.map((event) => ({
       id: event.id,
       generationId: event.generation_id,
       requestId: event.request_id,

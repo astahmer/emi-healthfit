@@ -1,9 +1,30 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import * as Schema from "effect/Schema";
+import type { Compilable } from "kysely";
+import { makeD1Kysely } from "../db/client.ts";
 
 export const anonymousSignInPath = "/api/auth/sign-in/anonymous";
 
 const sessionDurationSeconds = 60 * 60 * 24 * 7;
+
+const toD1Value = (value: unknown): string | number | null => {
+  if (value === null || typeof value === "string" || typeof value === "number") return value;
+  if (typeof value === "boolean") return Number(value);
+  if (value instanceof Date) return value.getTime();
+  throw new Error("Unsupported D1 parameter");
+};
+
+const compile = ({
+  database,
+  statement,
+}: {
+  database: D1Database;
+  statement: Compilable<unknown>;
+}) => {
+  const compiled = statement.compile();
+  return database.prepare(compiled.sql).bind(...compiled.parameters.map(toD1Value));
+};
+
 const AnonymousEmail = Schema.String.check(
   Schema.isPattern(
     /^guest-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}@anonymous\.emi\.invalid$/,
@@ -84,27 +105,33 @@ export const createAnonymousSessionResponse = async ({
   const token = `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
   const now = Date.now();
   const expiresAt = now + sessionDurationSeconds * 1000;
+  const kysely = makeD1Kysely(database);
 
   await database.batch([
-    database
-      .prepare(
-        "INSERT INTO auth_user (id, name, email, email_verified, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-      )
-      .bind(userId, "Guest", createAnonymousEmail({ id: userId }), 0, now, now),
-    database
-      .prepare(
-        "INSERT INTO auth_session (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      )
-      .bind(
-        sessionId,
-        expiresAt,
+    compile({
+      database,
+      statement: kysely.insertInto("auth_user").values({
+        id: userId,
+        name: "Guest",
+        email: createAnonymousEmail({ id: userId }),
+        email_verified: false,
+        created_at: new Date(now),
+        updated_at: new Date(now),
+      }),
+    }),
+    compile({
+      database,
+      statement: kysely.insertInto("auth_session").values({
+        id: sessionId,
+        expires_at: new Date(expiresAt),
         token,
-        now,
-        now,
-        request.headers.get("cf-connecting-ip"),
-        request.headers.get("user-agent"),
-        userId,
-      ),
+        created_at: new Date(now),
+        updated_at: new Date(now),
+        ip_address: request.headers.get("cf-connecting-ip"),
+        user_agent: request.headers.get("user-agent"),
+        user_id: userId,
+      }),
+    }),
   ]);
 
   const cookie = await createSessionCookie({ baseUrl, secret, token });

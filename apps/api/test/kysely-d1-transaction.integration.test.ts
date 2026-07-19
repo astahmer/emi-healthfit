@@ -9,11 +9,14 @@ describe("Kysely D1 transaction integration", () => {
     const { db } = makeSqliteDatabase();
     const userId = "user-a";
     const createdAt = "2026-07-19T12:00:00.000Z";
-    const note = db
-      .prepare(
-        "INSERT INTO notes (id, user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-      )
-      .bind("note-a", userId, "Atomic note", createdAt, createdAt);
+    const kysely = await run(db.kysely);
+    const note = kysely.insertInto("notes").values({
+      id: "note-a",
+      user_id: userId,
+      content: "Atomic note",
+      created_at: createdAt,
+      updated_at: createdAt,
+    });
 
     await assert.rejects(run(runTransaction(db, [note, note])));
 

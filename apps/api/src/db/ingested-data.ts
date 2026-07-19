@@ -1,4 +1,6 @@
 import * as Effect from "effect/Effect";
+import type { Compilable } from "kysely";
+import { runBatches, runTransaction, type QueryDatabaseClient } from "./client.ts";
 import type {
   BodyMetricRow,
   DailyActivityRow,
@@ -7,7 +9,6 @@ import type {
   HevySetRow,
   SleepSessionRow,
 } from "./schema.ts";
-import { runBatches, runTransaction, type QueryDatabaseClient } from "./client.ts";
 
 type OwnedDailyActivityRow = Omit<DailyActivityRow, "user_id">;
 type OwnedHealthWorkoutRow = Omit<HealthWorkoutRow, "user_id">;
@@ -23,30 +24,21 @@ export const upsertDailyActivity = (
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
-
+    const kysely = yield* db.kysely;
     const statements = rows.map((row) =>
-      db
-        .prepare(`
-        INSERT INTO daily_activity (user_id, date, active_kcal, steps, distance_km, exercise_min, flights_climbed)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, date) DO UPDATE SET
-          active_kcal = excluded.active_kcal,
-          steps = excluded.steps,
-          distance_km = excluded.distance_km,
-          exercise_min = excluded.exercise_min,
-          flights_climbed = excluded.flights_climbed
-      `)
-        .bind(
-          userId,
-          row.date,
-          row.active_kcal,
-          row.steps,
-          row.distance_km,
-          row.exercise_min,
-          row.flights_climbed,
+      kysely
+        .insertInto("daily_activity")
+        .values({ user_id: userId, ...row })
+        .onConflict((conflict) =>
+          conflict.columns(["user_id", "date"]).doUpdateSet((expressionBuilder) => ({
+            active_kcal: expressionBuilder.ref("excluded.active_kcal"),
+            distance_km: expressionBuilder.ref("excluded.distance_km"),
+            exercise_min: expressionBuilder.ref("excluded.exercise_min"),
+            flights_climbed: expressionBuilder.ref("excluded.flights_climbed"),
+            steps: expressionBuilder.ref("excluded.steps"),
+          })),
         ),
     );
-
     yield* runBatches(db, statements);
     return rows.length;
   });
@@ -58,38 +50,26 @@ export const insertHealthWorkouts = (
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
-
+    const kysely = yield* db.kysely;
     const statements = rows.map((row) =>
-      db
-        .prepare(`
-        INSERT INTO health_workouts (user_id, date, type, start_raw, duration_sec, active_kcal, avg_hr, max_hr, min_hr, distance_km, source, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, date, type, start_raw) DO UPDATE SET
-          duration_sec = excluded.duration_sec,
-          active_kcal = excluded.active_kcal,
-          avg_hr = excluded.avg_hr,
-          max_hr = excluded.max_hr,
-          min_hr = excluded.min_hr,
-          distance_km = excluded.distance_km,
-          source = excluded.source,
-          raw_json = excluded.raw_json
-      `)
-        .bind(
-          userId,
-          row.date,
-          row.type,
-          row.start_raw,
-          row.duration_sec,
-          row.active_kcal,
-          row.avg_hr,
-          row.max_hr,
-          row.min_hr,
-          row.distance_km,
-          row.source,
-          row.raw_json,
+      kysely
+        .insertInto("health_workouts")
+        .values({ user_id: userId, ...row })
+        .onConflict((conflict) =>
+          conflict
+            .columns(["user_id", "date", "type", "start_raw"])
+            .doUpdateSet((expressionBuilder) => ({
+              active_kcal: expressionBuilder.ref("excluded.active_kcal"),
+              avg_hr: expressionBuilder.ref("excluded.avg_hr"),
+              distance_km: expressionBuilder.ref("excluded.distance_km"),
+              duration_sec: expressionBuilder.ref("excluded.duration_sec"),
+              max_hr: expressionBuilder.ref("excluded.max_hr"),
+              min_hr: expressionBuilder.ref("excluded.min_hr"),
+              raw_json: expressionBuilder.ref("excluded.raw_json"),
+              source: expressionBuilder.ref("excluded.source"),
+            })),
         ),
     );
-
     yield* runBatches(db, statements);
     return rows.length;
   });
@@ -101,29 +81,20 @@ export const upsertHevySessions = (
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
-
+    const kysely = yield* db.kysely;
     const statements = rows.map((row) =>
-      db
-        .prepare(`
-        INSERT INTO hevy_sessions (user_id, session_id, title, start_time, end_time, duration_sec, total_volume_kg)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, session_id) DO UPDATE SET
-          title = excluded.title,
-          end_time = excluded.end_time,
-          duration_sec = excluded.duration_sec,
-          total_volume_kg = excluded.total_volume_kg
-      `)
-        .bind(
-          userId,
-          row.session_id,
-          row.title,
-          row.start_time,
-          row.end_time,
-          row.duration_sec,
-          row.total_volume_kg,
+      kysely
+        .insertInto("hevy_sessions")
+        .values({ user_id: userId, ...row })
+        .onConflict((conflict) =>
+          conflict.columns(["user_id", "session_id"]).doUpdateSet((expressionBuilder) => ({
+            duration_sec: expressionBuilder.ref("excluded.duration_sec"),
+            end_time: expressionBuilder.ref("excluded.end_time"),
+            title: expressionBuilder.ref("excluded.title"),
+            total_volume_kg: expressionBuilder.ref("excluded.total_volume_kg"),
+          })),
         ),
     );
-
     yield* runBatches(db, statements);
     return rows.length;
   });
@@ -135,36 +106,25 @@ export const upsertHevySets = (
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
-
+    const kysely = yield* db.kysely;
     const statements = rows.map((row) =>
-      db
-        .prepare(`
-        INSERT INTO hevy_sets (user_id, session_id, exercise_title, set_index, set_type, weight_kg, reps, rpe, distance_km, duration_seconds, exercise_notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, session_id, exercise_title, set_index) DO UPDATE SET
-          set_type = excluded.set_type,
-          weight_kg = excluded.weight_kg,
-          reps = excluded.reps,
-          rpe = excluded.rpe,
-          distance_km = excluded.distance_km,
-          duration_seconds = excluded.duration_seconds,
-          exercise_notes = excluded.exercise_notes
-      `)
-        .bind(
-          userId,
-          row.session_id,
-          row.exercise_title,
-          row.set_index,
-          row.set_type,
-          row.weight_kg,
-          row.reps,
-          row.rpe,
-          row.distance_km,
-          row.duration_seconds,
-          row.exercise_notes,
+      kysely
+        .insertInto("hevy_sets")
+        .values({ user_id: userId, ...row })
+        .onConflict((conflict) =>
+          conflict
+            .columns(["user_id", "session_id", "exercise_title", "set_index"])
+            .doUpdateSet((expressionBuilder) => ({
+              distance_km: expressionBuilder.ref("excluded.distance_km"),
+              duration_seconds: expressionBuilder.ref("excluded.duration_seconds"),
+              exercise_notes: expressionBuilder.ref("excluded.exercise_notes"),
+              reps: expressionBuilder.ref("excluded.reps"),
+              rpe: expressionBuilder.ref("excluded.rpe"),
+              set_type: expressionBuilder.ref("excluded.set_type"),
+              weight_kg: expressionBuilder.ref("excluded.weight_kg"),
+            })),
         ),
     );
-
     yield* runBatches(db, statements);
     return rows.length;
   });
@@ -176,31 +136,21 @@ export const upsertSleepSessions = (
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
-
+    const kysely = yield* db.kysely;
     const statements = rows.map((row) =>
-      db
-        .prepare(`
-        INSERT INTO sleep_sessions (user_id, date, start, end, in_bed_min, asleep_min, awake_min, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, date, start) DO UPDATE SET
-          end = excluded.end,
-          in_bed_min = excluded.in_bed_min,
-          asleep_min = excluded.asleep_min,
-          awake_min = excluded.awake_min,
-          source = excluded.source
-      `)
-        .bind(
-          userId,
-          row.date,
-          row.start,
-          row.end,
-          row.in_bed_min,
-          row.asleep_min,
-          row.awake_min,
-          row.source,
+      kysely
+        .insertInto("sleep_sessions")
+        .values({ user_id: userId, ...row })
+        .onConflict((conflict) =>
+          conflict.columns(["user_id", "date", "start"]).doUpdateSet((expressionBuilder) => ({
+            asleep_min: expressionBuilder.ref("excluded.asleep_min"),
+            awake_min: expressionBuilder.ref("excluded.awake_min"),
+            end: expressionBuilder.ref("excluded.end"),
+            in_bed_min: expressionBuilder.ref("excluded.in_bed_min"),
+            source: expressionBuilder.ref("excluded.source"),
+          })),
         ),
     );
-
     yield* runBatches(db, statements);
     return rows.length;
   });
@@ -212,21 +162,20 @@ export const upsertBodyMetrics = (
 ) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
-
+    const kysely = yield* db.kysely;
     const statements = rows.map((row) =>
-      db
-        .prepare(`
-        INSERT INTO body_metrics (user_id, date, weight_kg, body_fat_pct, lean_mass_kg, source)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, date) DO UPDATE SET
-          weight_kg = excluded.weight_kg,
-          body_fat_pct = excluded.body_fat_pct,
-          lean_mass_kg = excluded.lean_mass_kg,
-          source = excluded.source
-      `)
-        .bind(userId, row.date, row.weight_kg, row.body_fat_pct, row.lean_mass_kg, row.source),
+      kysely
+        .insertInto("body_metrics")
+        .values({ user_id: userId, ...row })
+        .onConflict((conflict) =>
+          conflict.columns(["user_id", "date"]).doUpdateSet((expressionBuilder) => ({
+            body_fat_pct: expressionBuilder.ref("excluded.body_fat_pct"),
+            lean_mass_kg: expressionBuilder.ref("excluded.lean_mass_kg"),
+            source: expressionBuilder.ref("excluded.source"),
+            weight_kg: expressionBuilder.ref("excluded.weight_kg"),
+          })),
+        ),
     );
-
     yield* runBatches(db, statements);
     return rows.length;
   });
@@ -238,15 +187,16 @@ export const updateSyncCursor = (
   lastSync: string,
 ) =>
   Effect.gen(function* () {
-    yield* db
-      .prepare(`
-      INSERT INTO sync_cursors (user_id, source, last_sync)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id, source) DO UPDATE SET
-        last_sync = excluded.last_sync
-    `)
-      .bind(userId, source, lastSync)
-      .run();
+    const kysely = yield* db.kysely;
+    yield* Effect.promise(() =>
+      kysely
+        .insertInto("sync_cursors")
+        .values({ user_id: userId, source, last_sync: lastSync })
+        .onConflict((conflict) =>
+          conflict.columns(["user_id", "source"]).doUpdateSet({ last_sync: lastSync }),
+        )
+        .execute(),
+    );
   });
 
 export const getRawUploadRetentionDays = Effect.fn("privacy.readRetention")(function* ({
@@ -256,10 +206,14 @@ export const getRawUploadRetentionDays = Effect.fn("privacy.readRetention")(func
   db: QueryDatabaseClient;
   userId: string;
 }) {
-  const row = yield* db
-    .prepare("SELECT raw_upload_retention_days days FROM privacy_preferences WHERE user_id = ?")
-    .bind(userId)
-    .first<{ days: number }>();
+  const kysely = yield* db.kysely;
+  const row = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("privacy_preferences")
+      .select("raw_upload_retention_days as days")
+      .where("user_id", "=", userId)
+      .executeTakeFirst(),
+  );
   return row?.days ?? 30;
 });
 
@@ -272,16 +226,23 @@ export const updateRawUploadRetentionDays = Effect.fn("privacy.updateRetention")
   userId: string;
   days: number;
 }) {
-  yield* db
-    .prepare(`
-      INSERT INTO privacy_preferences (user_id, raw_upload_retention_days, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(user_id) DO UPDATE SET
-        raw_upload_retention_days = excluded.raw_upload_retention_days,
-        updated_at = CURRENT_TIMESTAMP
-    `)
-    .bind(userId, days)
-    .run();
+  const kysely = yield* db.kysely;
+  yield* Effect.promise(() =>
+    kysely
+      .insertInto("privacy_preferences")
+      .values({
+        raw_upload_retention_days: days,
+        updated_at: new Date().toISOString(),
+        user_id: userId,
+      })
+      .onConflict((conflict) =>
+        conflict.column("user_id").doUpdateSet({
+          raw_upload_retention_days: days,
+          updated_at: new Date().toISOString(),
+        }),
+      )
+      .execute(),
+  );
 });
 
 export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* ({
@@ -293,14 +254,24 @@ export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* 
   userId: string;
   source: "health" | "hevy";
 }) {
-  const tables =
+  const kysely = yield* db.kysely;
+  const statements: Array<Compilable<unknown>> =
     source === "health"
-      ? ["daily_activity", "health_workouts", "sleep_sessions", "body_metrics"]
-      : ["hevy_sets", "hevy_sessions"];
-  yield* runTransaction(db, [
-    ...tables.map((table) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId)),
-    db
-      .prepare("DELETE FROM sync_cursors WHERE user_id = ? AND source = ?")
-      .bind(userId, source === "health" ? "apple_health" : "hevy"),
-  ]);
+      ? [
+          kysely.deleteFrom("daily_activity").where("user_id", "=", userId),
+          kysely.deleteFrom("health_workouts").where("user_id", "=", userId),
+          kysely.deleteFrom("sleep_sessions").where("user_id", "=", userId),
+          kysely.deleteFrom("body_metrics").where("user_id", "=", userId),
+        ]
+      : [
+          kysely.deleteFrom("hevy_sets").where("user_id", "=", userId),
+          kysely.deleteFrom("hevy_sessions").where("user_id", "=", userId),
+        ];
+  statements.push(
+    kysely
+      .deleteFrom("sync_cursors")
+      .where("user_id", "=", userId)
+      .where("source", "=", source === "health" ? "apple_health" : "hevy"),
+  );
+  yield* runTransaction(db, statements);
 });

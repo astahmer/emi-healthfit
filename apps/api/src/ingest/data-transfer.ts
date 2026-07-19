@@ -132,42 +132,51 @@ export const previewIngestedDataImport = Effect.fn("dataImport.preview")(functio
   userId: string;
   data: IngestedDataExport;
 }) {
+  const kysely = yield* db.kysely;
   const [daily, workouts, sleep, body, sessions, sets] = yield* Effect.all([
-    db
-      .prepare("SELECT date FROM daily_activity WHERE user_id = ?")
-      .bind(userId)
-      .all<{ date: string }>(),
-    db
-      .prepare("SELECT date, type, start_raw FROM health_workouts WHERE user_id = ?")
-      .bind(userId)
-      .all<{ date: string; type: string; start_raw: string | null }>(),
-    db
-      .prepare("SELECT date, start FROM sleep_sessions WHERE user_id = ?")
-      .bind(userId)
-      .all<{ date: string | null; start: string | null }>(),
-    db
-      .prepare("SELECT date FROM body_metrics WHERE user_id = ?")
-      .bind(userId)
-      .all<{ date: string }>(),
-    db
-      .prepare("SELECT session_id FROM hevy_sessions WHERE user_id = ?")
-      .bind(userId)
-      .all<{ session_id: string }>(),
-    db
-      .prepare("SELECT session_id, exercise_title, set_index FROM hevy_sets WHERE user_id = ?")
-      .bind(userId)
-      .all<{ session_id: string; exercise_title: string; set_index: number }>(),
+    Effect.promise(() =>
+      kysely.selectFrom("daily_activity").select("date").where("user_id", "=", userId).execute(),
+    ),
+    Effect.promise(() =>
+      kysely
+        .selectFrom("health_workouts")
+        .select(["date", "type", "start_raw"])
+        .where("user_id", "=", userId)
+        .execute(),
+    ),
+    Effect.promise(() =>
+      kysely
+        .selectFrom("sleep_sessions")
+        .select(["date", "start"])
+        .where("user_id", "=", userId)
+        .execute(),
+    ),
+    Effect.promise(() =>
+      kysely.selectFrom("body_metrics").select("date").where("user_id", "=", userId).execute(),
+    ),
+    Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sessions")
+        .select("session_id")
+        .where("user_id", "=", userId)
+        .execute(),
+    ),
+    Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sets")
+        .select(["session_id", "exercise_title", "set_index"])
+        .where("user_id", "=", userId)
+        .execute(),
+    ),
   ]);
   const keys = {
-    daily: new Set(daily.results.map((row) => row.date)),
-    workouts: new Set(
-      workouts.results.map((row) => combinedKey(row.date, row.type, row.start_raw)),
-    ),
-    sleep: new Set(sleep.results.map((row) => combinedKey(row.date, row.start))),
-    body: new Set(body.results.map((row) => row.date)),
-    sessions: new Set(sessions.results.map((row) => row.session_id)),
+    daily: new Set(daily.map((row) => row.date)),
+    workouts: new Set(workouts.map((row) => combinedKey(row.date, row.type, row.start_raw))),
+    sleep: new Set(sleep.map((row) => combinedKey(row.date, row.start))),
+    body: new Set(body.map((row) => row.date)),
+    sessions: new Set(sessions.map((row) => row.session_id)),
     sets: new Set(
-      sets.results.map((row) => combinedKey(row.session_id, row.exercise_title, row.set_index)),
+      sets.map((row) => combinedKey(row.session_id, row.exercise_title, row.set_index)),
     ),
   };
   const groups = {

@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect";
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
+import * as Effect from "effect/Effect";
 import { runTransaction, type QueryDatabaseClient } from "../db/client.ts";
 import { decodeJson } from "../json-codec.ts";
 
@@ -28,7 +28,6 @@ interface ChatGenerationChunkRow {
 
 const nowIso = (): string => new Date().toISOString();
 const generationStaleMilliseconds = 5 * 60 * 1_000;
-const generationStaleSqlModifier = "-5 minutes";
 
 export const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => {
   const parsed = decodeJson(value);
@@ -60,23 +59,25 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
   traceId?: string;
   model?: string;
 }) {
+  const kysely = yield* db.kysely;
   const timestamp = nowIso();
-  yield* db
-    .prepare(
-      "INSERT INTO chat_generations (id, user_id, conversation_id, request_id, trace_id, status, model, started_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)",
-    )
-    .bind(
-      generationId,
-      userId,
-      conversationId,
-      requestId,
-      traceId,
-      model ?? null,
-      timestamp,
-      timestamp,
-      timestamp,
-    )
-    .run();
+  yield* Effect.promise(() =>
+    kysely
+      .insertInto("chat_generations")
+      .values({
+        conversation_id: conversationId,
+        created_at: timestamp,
+        id: generationId,
+        model: model ?? null,
+        request_id: requestId,
+        started_at: timestamp,
+        status: "pending",
+        trace_id: traceId,
+        updated_at: timestamp,
+        user_id: userId,
+      })
+      .execute(),
+  );
 });
 
 export const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* ({
@@ -88,12 +89,16 @@ export const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")
   userId: string;
   generationId: string;
 }) {
-  yield* db
-    .prepare(
-      "UPDATE chat_generations SET status = 'streaming', updated_at = ? WHERE user_id = ? AND id = ? AND status = 'pending'",
-    )
-    .bind(nowIso(), userId, generationId)
-    .run();
+  const kysely = yield* db.kysely;
+  yield* Effect.promise(() =>
+    kysely
+      .updateTable("chat_generations")
+      .set({ status: "streaming", updated_at: nowIso() })
+      .where("user_id", "=", userId)
+      .where("id", "=", generationId)
+      .where("status", "=", "pending")
+      .execute(),
+  );
 });
 
 export const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(function* ({
@@ -111,12 +116,20 @@ export const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata
   inputTokens: number;
   outputTokens: number;
 }) {
-  yield* db
-    .prepare(
-      "UPDATE chat_generations SET finish_reason = ?, input_tokens = ?, output_tokens = ?, updated_at = ? WHERE user_id = ? AND id = ?",
-    )
-    .bind(finishReason, inputTokens, outputTokens, nowIso(), userId, generationId)
-    .run();
+  const kysely = yield* db.kysely;
+  yield* Effect.promise(() =>
+    kysely
+      .updateTable("chat_generations")
+      .set({
+        finish_reason: finishReason,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        updated_at: nowIso(),
+      })
+      .where("user_id", "=", userId)
+      .where("id", "=", generationId)
+      .execute(),
+  );
 });
 
 export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* ({
@@ -132,16 +145,22 @@ export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(fun
   sequence: number;
   chunk: UIMessageChunk;
 }) {
+  const kysely = yield* db.kysely;
   const timestamp = nowIso();
-  const insert = db
-    .prepare(
-      "INSERT INTO chat_generation_chunks (user_id, generation_id, sequence, chunk, created_at) VALUES (?, ?, ?, ?, ?)",
-    )
-    .bind(userId, generationId, sequence, JSON.stringify(chunk), timestamp);
-  const update = db
-    .prepare("UPDATE chat_generations SET updated_at = ? WHERE user_id = ? AND id = ?")
-    .bind(timestamp, userId, generationId);
-  yield* runTransaction(db, [insert, update]);
+  yield* runTransaction(db, [
+    kysely.insertInto("chat_generation_chunks").values({
+      chunk: JSON.stringify(chunk),
+      created_at: timestamp,
+      generation_id: generationId,
+      sequence,
+      user_id: userId,
+    }),
+    kysely
+      .updateTable("chat_generations")
+      .set({ updated_at: timestamp })
+      .where("user_id", "=", userId)
+      .where("id", "=", generationId),
+  ]);
 });
 
 export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({
@@ -163,23 +182,24 @@ export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({
   inputTokens?: number;
   outputTokens?: number;
 }) {
+  const kysely = yield* db.kysely;
   const timestamp = nowIso();
-  yield* db
-    .prepare(
-      "UPDATE chat_generations SET status = ?, error = ?, finish_reason = COALESCE(?, finish_reason), input_tokens = COALESCE(?, input_tokens), output_tokens = COALESCE(?, output_tokens), finished_at = ?, updated_at = ? WHERE user_id = ? AND id = ?",
-    )
-    .bind(
-      status,
-      error ?? null,
-      finishReason ?? null,
-      inputTokens ?? null,
-      outputTokens ?? null,
-      timestamp,
-      timestamp,
-      userId,
-      generationId,
-    )
-    .run();
+  yield* Effect.promise(() =>
+    kysely
+      .updateTable("chat_generations")
+      .set({
+        error: error ?? null,
+        ...(finishReason === undefined ? {} : { finish_reason: finishReason }),
+        finished_at: timestamp,
+        ...(inputTokens === undefined ? {} : { input_tokens: inputTokens }),
+        ...(outputTokens === undefined ? {} : { output_tokens: outputTokens }),
+        status,
+        updated_at: timestamp,
+      })
+      .where("user_id", "=", userId)
+      .where("id", "=", generationId)
+      .execute(),
+  );
 });
 
 export const recordChatEvent = Effect.fn("chatEvent.record")(function* ({
@@ -201,22 +221,24 @@ export const recordChatEvent = Effect.fn("chatEvent.record")(function* ({
   type: string;
   payload?: Record<string, unknown>;
 }) {
-  yield* db
-    .prepare(
-      "INSERT INTO chat_events (id, user_id, conversation_id, generation_id, request_id, trace_id, type, schema_version, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-    )
-    .bind(
-      crypto.randomUUID(),
-      userId,
-      conversationId,
-      generationId,
-      requestId,
-      traceId,
-      type,
-      JSON.stringify(payload),
-      nowIso(),
-    )
-    .run();
+  const kysely = yield* db.kysely;
+  yield* Effect.promise(() =>
+    kysely
+      .insertInto("chat_events")
+      .values({
+        conversation_id: conversationId,
+        created_at: nowIso(),
+        generation_id: generationId,
+        id: crypto.randomUUID(),
+        payload: JSON.stringify(payload),
+        request_id: requestId,
+        schema_version: 1,
+        trace_id: traceId,
+        type,
+        user_id: userId,
+      })
+      .execute(),
+  );
 });
 
 export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function* ({
@@ -226,24 +248,64 @@ export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(fu
   db: QueryDatabaseClient;
   userId: string;
 }) {
-  const result = yield* db
-    .prepare(
-      "UPDATE chat_generations SET status = 'timed_out', error = 'Generation timed out', finish_reason = 'timeout', finished_at = ?, updated_at = ? WHERE user_id = ? AND status IN ('pending', 'streaming') AND datetime(updated_at) < datetime('now', ?)",
-    )
-    .bind(nowIso(), nowIso(), userId, generationStaleSqlModifier)
-    .run();
-  return result.meta.changes;
+  const kysely = yield* db.kysely;
+  const timestamp = nowIso();
+  const result = yield* Effect.promise(() =>
+    kysely
+      .updateTable("chat_generations")
+      .set({
+        error: "Generation timed out",
+        finish_reason: "timeout",
+        finished_at: timestamp,
+        status: "timed_out",
+        updated_at: timestamp,
+      })
+      .where("user_id", "=", userId)
+      .where("status", "in", ["pending", "streaming"])
+      .where("updated_at", "<", new Date(Date.now() - generationStaleMilliseconds).toISOString())
+      .executeTakeFirst(),
+  );
+  return Number(result.numUpdatedRows);
 });
 
 export const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished")(
   function* ({ db, userId }: { db: QueryDatabaseClient; userId: string }) {
-    const result = yield* db
-      .prepare(
-        "UPDATE chat_generations SET status = 'completed', error = NULL, finish_reason = COALESCE(finish_reason, 'stop'), finished_at = ?, updated_at = ? WHERE user_id = ? AND status IN ('pending', 'streaming') AND EXISTS (SELECT 1 FROM chat_generation_chunks WHERE user_id = chat_generations.user_id AND generation_id = chat_generations.id AND json_extract(chunk, '$.type') = 'finish')",
-      )
-      .bind(nowIso(), nowIso(), userId)
-      .run();
-    return result.meta.changes;
+    const kysely = yield* db.kysely;
+    const timestamp = nowIso();
+    const result = yield* Effect.promise(() =>
+      kysely
+        .updateTable("chat_generations")
+        .set({
+          error: null,
+          finish_reason: "stop",
+          finished_at: timestamp,
+          status: "completed",
+          updated_at: timestamp,
+        })
+        .where("user_id", "=", userId)
+        .where("status", "in", ["pending", "streaming"])
+        .where((expressionBuilder) =>
+          expressionBuilder.exists(
+            expressionBuilder
+              .selectFrom("chat_generation_chunks")
+              .select("sequence")
+              .whereRef("chat_generation_chunks.user_id", "=", "chat_generations.user_id")
+              .whereRef("generation_id", "=", "chat_generations.id")
+              .where((chunkExpressionBuilder) =>
+                chunkExpressionBuilder(
+                  chunkExpressionBuilder.fn<string>("json_extract", [
+                    "chunk",
+                    chunkExpressionBuilder.val("$.type"),
+                  ]),
+                  "=",
+                  "finish",
+                ),
+              ),
+          ),
+        )
+        .executeTakeFirst(),
+    );
+    return Number(result.numUpdatedRows);
   },
 );
 
@@ -256,14 +318,17 @@ export const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory
   userId: string;
   retentionDays?: number;
 }) {
+  const kysely = yield* db.kysely;
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1_000).toISOString();
-  const result = yield* db
-    .prepare(
-      "DELETE FROM chat_generations WHERE user_id = ? AND status NOT IN ('pending', 'streaming') AND updated_at < ?",
-    )
-    .bind(userId, cutoff)
-    .run();
-  return result.meta.changes;
+  const result = yield* Effect.promise(() =>
+    kysely
+      .deleteFrom("chat_generations")
+      .where("user_id", "=", userId)
+      .where("status", "not in", ["pending", "streaming"])
+      .where("updated_at", "<", cutoff)
+      .executeTakeFirst(),
+  );
+  return Number(result.numDeletedRows);
 });
 
 export const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* ({
@@ -275,12 +340,17 @@ export const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(funct
   userId: string;
   conversationId: string;
 }) {
-  const result = yield* db
-    .prepare(
-      "SELECT * FROM chat_generations WHERE user_id = ? AND conversation_id = ? AND status IN ('pending', 'streaming') ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(userId, conversationId)
-    .first<ChatGeneration>();
+  const kysely = yield* db.kysely;
+  const result = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("chat_generations")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("conversation_id", "=", conversationId)
+      .where("status", "in", ["pending", "streaming"])
+      .orderBy("created_at", "desc")
+      .executeTakeFirst(),
+  );
   return result ?? null;
 });
 
@@ -293,13 +363,17 @@ export const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(f
   userId: string;
   conversationId: string;
 }) {
-  const result = yield* db
-    .prepare(
-      "SELECT * FROM chat_generations WHERE user_id = ? AND conversation_id = ? ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(userId, conversationId)
-    .first<ChatGeneration>();
-  if (result === null || result.status === "completed" || result.status === "cancelled")
+  const kysely = yield* db.kysely;
+  const result = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("chat_generations")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("conversation_id", "=", conversationId)
+      .orderBy("created_at", "desc")
+      .executeTakeFirst(),
+  );
+  if (result === undefined || result.status === "completed" || result.status === "cancelled")
     return null;
   return result;
 });
@@ -313,10 +387,15 @@ export const getGeneration = Effect.fn("chatGeneration.get")(function* ({
   userId: string;
   generationId: string;
 }) {
-  const result = yield* db
-    .prepare("SELECT * FROM chat_generations WHERE user_id = ? AND id = ?")
-    .bind(userId, generationId)
-    .first<ChatGeneration>();
+  const kysely = yield* db.kysely;
+  const result = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("chat_generations")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("id", "=", generationId)
+      .executeTakeFirst(),
+  );
   return result ?? null;
 });
 
@@ -331,13 +410,18 @@ export const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(functio
   generationId: string;
   afterSequence: number;
 }) {
-  const result = yield* db
-    .prepare(
-      "SELECT sequence, chunk FROM chat_generation_chunks WHERE user_id = ? AND generation_id = ? AND sequence > ? ORDER BY sequence ASC",
-    )
-    .bind(userId, generationId, afterSequence)
-    .all<ChatGenerationChunkRow>();
-  return yield* Effect.forEach(result.results, (row) =>
+  const kysely = yield* db.kysely;
+  const result = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("chat_generation_chunks")
+      .select(["sequence", "chunk"])
+      .where("user_id", "=", userId)
+      .where("generation_id", "=", generationId)
+      .where("sequence", ">", afterSequence)
+      .orderBy("sequence", "asc")
+      .execute(),
+  );
+  return yield* Effect.forEach(result satisfies ChatGenerationChunkRow[], (row) =>
     Effect.promise(async () => ({
       sequence: row.sequence,
       chunk: await decodeGenerationChunk(row.chunk),
