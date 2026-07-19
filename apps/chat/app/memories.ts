@@ -38,7 +38,14 @@ export const createMemory = async (
   messageId?: string,
 ): Promise<string> => {
   const data = await runApi((client) =>
-    client.memories.create({ payload: { content, source, threadId, messageId } }),
+    client.memories.create({
+      payload: {
+        content,
+        ...(source === undefined ? {} : { source }),
+        ...(threadId === undefined ? {} : { threadId }),
+        ...(messageId === undefined ? {} : { messageId }),
+      },
+    }),
   );
   return data.id;
 };
