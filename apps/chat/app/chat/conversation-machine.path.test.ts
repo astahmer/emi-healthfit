@@ -1,49 +1,73 @@
 import { createActor, fromPromise, setup, waitFor } from "xstate";
 import { getShortestPaths } from "xstate/graph";
 import { describe, expect, it } from "vitest";
-import { conversationMachine } from "./conversation-machine.ts";
+import {
+  conversationMachine,
+  type Conversation,
+  type MessageNode,
+  type ThreadView,
+} from "./conversation-machine.ts";
 
-const conversation = {
+const conversation: Conversation = {
   id: "one",
   title: "Session One",
-  status: "regular" as const,
+  status: "regular",
   createdAt: "2026-07-14T10:00:00.000Z",
   updatedAt: "2026-07-14T12:00:00.000Z",
 };
 
-const messages = [
+const messages: MessageNode[] = [
   {
     id: "one-user",
     conversationId: "one",
     parentId: null,
-    role: "user" as const,
-    parts: [{ type: "text" as const, text: "hello" }],
+    role: "user",
+    parts: [{ type: "text", text: "hello" }],
     createdAt: "2026-07-14T10:00:00.000Z",
   },
 ];
 
-const thread = {
+const thread: ThreadView = {
   id: "branch-1",
   conversationId: "one",
   anchorMessageId: "one-user",
   title: "Branch",
-  status: "regular" as const,
+  status: "regular",
   pinned: false,
   messageIds: ["one-user"],
   createdAt: "2026-07-14T10:02:00.000Z",
   updatedAt: "2026-07-14T10:02:00.000Z",
 };
 
+type LoadOutput = {
+  conversation: Conversation;
+  messages: MessageNode[];
+  threads: ThreadView[];
+  source?: "cache" | "network";
+};
+
 const stubMachine = conversationMachine.provide({
   actors: {
-    loadConversation: fromPromise(async () => ({
-      conversation,
-      messages,
-      threads: [thread],
-      source: "network" as const,
+    loadConversation: fromPromise<LoadOutput, { conversationId: string | undefined }>(
+      async () => ({
+        conversation,
+        messages,
+        threads: [thread],
+        source: "network",
+      }),
+    ),
+    refreshConversation: fromPromise<
+      LoadOutput | undefined,
+      { conversationId: string | undefined; enabled: boolean }
+    >(async () => undefined),
+    forkThread: fromPromise<
+      ThreadView,
+      { conversationId: string; anchorMessageId: string; title?: string }
+    >(async () => ({
+      ...thread,
+      id: "branch-2",
+      title: "Forked",
     })),
-    refreshConversation: fromPromise(async () => undefined),
-    forkThread: fromPromise(async () => ({ ...thread, id: "branch-2", title: "Forked" })),
     renameConversation: fromPromise(async ({ input }) => ({
       conversationId: input.conversationId,
       title: input.title,

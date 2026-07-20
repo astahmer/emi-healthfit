@@ -140,15 +140,22 @@ Scenario tests override handlers for one test without copying the whole if-chain
 - Path suites replacing behavior unit tests.
 - MSW service-worker interception in Playwright.
 
-## Next wave (not done)
-
-High value leftover E2E / behavior gaps — covered:
+## Coverage status (2026-07-20)
 
 Wave-2 (`chat-scenarios-wave2.spec.ts`): temporary, web search, compact, attachment send, concurrent submit, guest, branch discard/restore, restore archived, copy/export, multi-tool/error stream.
 
 Gaps + BDD (`chat-scenarios-gaps.spec.ts`, `e2e/features/*.feature`): message→memory, branch rename/pin/focus, header rename (fixed `editingConversationTitle`), sidebar search/sync/diagnostics, remove attachment + validation, stream fail retry, compact/copy failure toasts, reasoning + message refs, empty/file-only send, unpin/delete-cancel/new chat, Google denial + guest fail, share URL + download markdown, fork failure.
 
-View mode: still machine-only (no chat UI) — Layer A only.
+`chat.spec.ts`: recovery / notes / memories / data pages — migrated to `createChatMock` (no local `page.route` if-chains).
+
+### Still missing / thin
+
+| Item | Status |
+|---|---|
+| View mode UI | **Missing E2E** — machine-only (`view.select`); no chat UI yet → Layer A only |
+| Google OAuth happy path | **Thin** — denial + guest covered; real Google redirect not in CI |
+| Share native `navigator.share` | **Thin** — clipboard URL path covered; share sheet disabled in E2E init |
+| Live LLM / real API | Out of scope (deterministic mock) |
 
 ## UI & UX
 

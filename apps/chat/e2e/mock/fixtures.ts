@@ -2,7 +2,7 @@ export const conversations = [
   {
     id: "one",
     title: "Session One",
-    status: "regular",
+    status: "regular" as const,
     pinned: false,
     created_at: "2026-07-14T10:00:00.000Z",
     updated_at: "2026-07-14T12:00:00.000Z",
@@ -10,7 +10,7 @@ export const conversations = [
   {
     id: "two",
     title: "Session Two",
-    status: "regular",
+    status: "regular" as const,
     pinned: false,
     created_at: "2026-07-14T09:00:00.000Z",
     updated_at: "2026-07-14T11:00:00.000Z",

@@ -8,7 +8,14 @@ import {
   emptyAnalyticsOverview,
 } from "./fixtures.ts";
 
-export type MockConversation = (typeof defaultConversations)[number];
+export type MockConversation = {
+  id: string;
+  title: string | null;
+  status: "regular" | "archived";
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 export type MockMessage = {
   id: string;
@@ -67,8 +74,8 @@ export type MockApiState = {
   notes: Array<{
     id: string;
     content: string;
-    createdAt: string;
-    updatedAt: string;
+    created_at: string;
+    updated_at: string;
   }>;
   memories: MockMemory[];
   authSession: typeof authSessionBody | null;
@@ -78,10 +85,13 @@ export type MockApiState = {
     lastBody: MockChatBody | undefined;
     stream: ChatStreamFactory;
     streamBody: string | null;
+    resumeStreamBody: string | null;
+    resumeCalls: number;
     replyText: string;
     persist: boolean;
     persistAssistantParts: unknown[] | null;
     failStatus: number | null;
+    failBody: string;
     gate: Promise<void> | null;
   };
   compact: {
@@ -375,6 +385,15 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
 
   app.all("/api/conversations/:id/stream", (context) => context.body(null, 204));
 
+  app.get("/api/chat/:conversationId/stream", (context) => {
+    state.chat.resumeCalls += 1;
+    if (state.chat.resumeStreamBody === null) return context.body(null, 204);
+    return sse(context, {
+      body: state.chat.resumeStreamBody,
+      threadId: context.req.param("conversationId"),
+    });
+  });
+
   app.patch("/api/conversations/:id/messages/:messageId", (context) =>
     json(context, { ok: true }),
   );
@@ -385,7 +404,7 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     if (state.chat.failStatus !== null) {
       const status = state.chat.failStatus;
       state.chat.failStatus = null;
-      return json(context, { message: "Upstream failed" }, status as 500);
+      return context.newResponse(state.chat.failBody, { status: status as 500 });
     }
     if (state.chat.gate !== null) await state.chat.gate;
 
@@ -416,31 +435,37 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return sse(context, { body, threadId: sessionId });
   });
 
-  app.get("/api/notes", (context) => json(context, { notes: state.notes }));
+  app.get("/api/notes", (context) => {
+    const search = context.req.query("search")?.trim().toLowerCase();
+    const notes =
+      search === undefined || search === ""
+        ? state.notes
+        : state.notes.filter((note) => note.content.toLowerCase().includes(search));
+    return json(context, { notes });
+  });
   app.post("/api/notes", async (context) => {
     const body = await context.req.json<{ content: string }>();
     const note = {
       id: `note-${state.notes.length + 1}`,
       content: body.content,
-      createdAt: now,
-      updatedAt: now,
+      created_at: now,
+      updated_at: now,
     };
-    state.notes = [...state.notes, note];
-    return json(context, { note }, 201);
+    state.notes = [note, ...state.notes];
+    return json(context, { id: note.id }, 201);
   });
   app.patch("/api/notes/:id", async (context) => {
     const id = context.req.param("id");
     const body = await context.req.json<{ content: string }>();
     state.notes = state.notes.map((note) =>
-      note.id === id ? { ...note, content: body.content, updatedAt: now } : note,
+      note.id === id ? { ...note, content: body.content, updated_at: now } : note,
     );
-    const note = state.notes.find((entry) => entry.id === id);
-    return json(context, { note });
+    return json(context, { success: true });
   });
   app.delete("/api/notes/:id", (context) => {
     const id = context.req.param("id");
     state.notes = state.notes.filter((note) => note.id !== id);
-    return context.body(null, 204);
+    return json(context, { success: true });
   });
 
   app.get("/api/suggestions", (context) => json(context, { suggestions: state.suggestions }));
@@ -449,7 +474,14 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
   app.get("/api/analytics/overview", (context) => json(context, emptyAnalyticsOverview));
   app.get("/api/workouts", (context) => json(context, { workouts: [] }));
 
-  app.get("/api/memories", (context) => json(context, { memories: state.memories }));
+  app.get("/api/memories", (context) => {
+    const search = context.req.query("search")?.trim().toLowerCase();
+    const memories =
+      search === undefined || search === ""
+        ? state.memories
+        : state.memories.filter((memory) => memory.content.toLowerCase().includes(search));
+    return json(context, { memories });
+  });
   app.post("/api/memories/extract", async (context) => {
     const body = await context.req.json<{
       text: string;
@@ -542,10 +574,13 @@ export const createMockApi = ({
       lastBody: undefined,
       stream: partial?.chat?.stream ?? assistantStream,
       streamBody: partial?.chat?.streamBody ?? null,
+      resumeStreamBody: partial?.chat?.resumeStreamBody ?? null,
+      resumeCalls: 0,
       replyText: partial?.chat?.replyText ?? "Mock answer",
       persist: partial?.chat?.persist ?? false,
       persistAssistantParts: partial?.chat?.persistAssistantParts ?? null,
       failStatus: partial?.chat?.failStatus ?? null,
+      failBody: partial?.chat?.failBody ?? "Generation timed out",
       gate: partial?.chat?.gate ?? null,
     },
     compact: {

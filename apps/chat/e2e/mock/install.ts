@@ -38,7 +38,7 @@ const requestFromRoute = (route: Route): Request => {
   if (method !== "GET" && method !== "HEAD") {
     const buffer = request.postDataBuffer();
     if (buffer !== null) {
-      init.body = buffer;
+      init.body = new Uint8Array(buffer);
       init.duplex = "half";
     }
   }

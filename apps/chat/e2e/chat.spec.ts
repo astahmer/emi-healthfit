@@ -1,25 +1,17 @@
 import { expect, test } from "@playwright/test";
-import type { Memory } from "@emi/api-contract";
-import * as Schema from "effect/Schema";
 import {
   assistantStream,
-  conversationPayload,
   conversations,
-  fulfillApi,
+  createChatMock,
+  fulfillMockApi,
+  installMockApi,
   openMockedChat,
-  setTestSettings,
+  sessionOneSnapshot,
 } from "./mock/install.ts";
 
-const NoteRequest = Schema.Struct({ content: Schema.String });
-const MemoryRequest = Schema.Struct({
-  content: Schema.String,
-  source: Schema.optional(Schema.String),
-  threadId: Schema.optional(Schema.String),
-  messageId: Schema.optional(Schema.String),
-});
-
 test("requires an OpenAI API key before showing the chat composer", async ({ page }) => {
-  await page.route("**/api/**", fulfillApi);
+  const mock = createChatMock();
+  await installMockApi({ page, app: mock.app });
   await page.goto("/chat");
 
   await expect(page.getByText("Add your OpenAI API key")).toBeVisible();
@@ -44,83 +36,28 @@ test("switches sessions, renders tools, and starts a new chat", async ({ page })
 });
 
 test("sends the first message from a new empty conversation", async ({ page }) => {
-  let submittedRequest: unknown;
-  let releaseChatResponse: () => void = () => {};
-  let signalChatRequestStarted: () => void = () => {};
-  const chatResponseReady = new Promise<void>((resolve) => {
-    releaseChatResponse = resolve;
-  });
-  const chatRequestStarted = new Promise<void>((resolve) => {
-    signalChatRequestStarted = resolve;
-  });
-  const freshConversation = {
-    id: "fresh",
-    title: null,
-    status: "regular",
-    pinned: false,
-    created_at: "2026-07-17T00:00:00.000Z",
-    updated_at: "2026-07-17T00:00:00.000Z",
-  };
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === "POST" && url.pathname === "/api/conversations") {
-      await route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: JSON.stringify({ id: freshConversation.id }),
-      });
-      return;
-    }
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      submittedRequest = request.postDataJSON();
-      signalChatRequestStarted();
-      await chatResponseReady;
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "cache-control": "no-cache, no-transform",
-          "content-type": "text/event-stream",
-          "x-thread-id": freshConversation.id,
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-        body: assistantStream({ messageId: "fresh-assistant", text: "Fresh answer" }),
-      });
-      return;
-    }
-    if (url.pathname === `/api/conversations/${freshConversation.id}/messages`) {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          conversation: freshConversation,
-          messages: [
-            {
-              id: "fresh-user",
-              conversationId: freshConversation.id,
-              parentId: null,
-              role: "user",
-              parts: [{ type: "text", text: "First message" }],
-              createdAt: "2026-07-17T00:00:00.000Z",
-            },
-            {
-              id: "fresh-assistant",
-              conversationId: freshConversation.id,
-              parentId: null,
-              role: "assistant",
-              parts: [{ type: "text", text: "Fresh answer" }],
-              createdAt: "2026-07-17T00:00:01.000Z",
-            },
-          ],
+  const mock = createChatMock({
+    state: {
+      createConversationId: "fresh",
+      chat: { persist: true, replyText: "Fresh answer" },
+      snapshots: {
+        fresh: {
+          conversation: {
+            id: "fresh",
+            title: null,
+            status: "regular",
+            pinned: false,
+            created_at: "2026-07-17T00:00:00.000Z",
+            updated_at: "2026-07-17T00:00:00.000Z",
+          },
+          messages: [],
           threads: [],
-        }),
-      });
-      return;
-    }
-    await fulfillApi(route);
+        },
+      },
+    },
   });
-  await page.goto("/chat");
+  mock.holdChat();
+  await mock.open(page, "/chat");
 
   await page.getByLabel("Message input").fill("First message");
   const chatResponse = page.waitForResponse(
@@ -128,17 +65,16 @@ test("sends the first message from a new empty conversation", async ({ page }) =
   );
   await page.getByLabel("Send message").click();
 
-  await chatRequestStarted;
   await expect(page).toHaveURL(/\/chat\/fresh$/);
   await expect(page.getByText("First message")).toBeVisible();
   await expect(page.getByLabel("Assistant is working")).toBeVisible();
-  releaseChatResponse();
+  mock.releaseChat();
 
   expect((await chatResponse).ok()).toBe(true);
   await expect(page.getByText("Fresh answer")).toBeVisible();
-  expect(submittedRequest).toEqual(
+  expect(mock.state.chat.lastBody).toEqual(
     expect.objectContaining({
-      sessionId: freshConversation.id,
+      sessionId: "fresh",
       messages: [
         expect.objectContaining({
           role: "user",
@@ -150,15 +86,18 @@ test("sends the first message from a new empty conversation", async ({ page }) =
 });
 
 test("shows cached sidebar and messages when refresh loses the API", async ({ page }) => {
-  await openMockedChat(page, "/chat/one");
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
+  });
+  await mock.open(page, "/chat/one");
   await expect(page.getByText("one message answer")).toBeVisible();
   await expect(page.getByRole("link", { name: /Session One/ })).toBeVisible();
   await page.waitForTimeout(250);
 
-  await page.unroute("**/api/**", fulfillApi);
+  await page.unroute("**/api/**");
   await page.route("**/api/**", async (route) => {
     if (new URL(route.request().url()).pathname === "/api/auth/get-session") {
-      await fulfillApi(route);
+      await fulfillMockApi({ route, app: mock.app });
       return;
     }
     await route.abort("internetdisconnected");
@@ -185,79 +124,28 @@ test("sends the first message in an existing conversation with empty history", a
   const emptyConversation = {
     id: "empty",
     title: "Empty conversation",
-    status: "regular",
+    status: "regular" as const,
     pinned: false,
     created_at: "2026-07-17T00:00:00.000Z",
     updated_at: "2026-07-17T00:00:00.000Z",
   };
-  let submittedRequest: unknown;
-  let generated = false;
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ conversations: [...conversations, emptyConversation] }),
-      });
-      return;
-    }
-    if (url.pathname === "/api/conversations/empty/messages") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          conversation: emptyConversation,
-          messages: generated
-            ? [
-                {
-                  id: "empty-user",
-                  conversationId: "empty",
-                  parentId: null,
-                  role: "user",
-                  parts: [{ type: "text", text: "Start this chat" }],
-                  createdAt: "2026-07-17T00:00:00.000Z",
-                },
-                {
-                  id: "empty-assistant",
-                  conversationId: "empty",
-                  parentId: null,
-                  role: "assistant",
-                  parts: [{ type: "text", text: "Chat started" }],
-                  createdAt: "2026-07-17T00:00:01.000Z",
-                },
-              ]
-            : [],
-          threads: [],
-        }),
-      });
-      return;
-    }
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      submittedRequest = request.postDataJSON();
-      generated = true;
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "x-thread-id": "empty",
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-        body: assistantStream({ messageId: "empty-assistant", text: "Chat started" }),
-      });
-      return;
-    }
-    await fulfillApi(route);
+  const mock = createChatMock({
+    state: {
+      conversations: [...conversations, emptyConversation],
+      snapshots: {
+        empty: { conversation: emptyConversation, messages: [], threads: [] },
+      },
+      chat: { persist: true, replyText: "Chat started" },
+    },
   });
-  await page.goto("/chat/empty");
+  await mock.open(page, "/chat/empty");
 
   await expect(page.getByText("What are we working on?")).toBeVisible();
   await page.getByLabel("Message input").fill("Start this chat");
   await page.getByLabel("Send message").click();
 
   await expect(page.getByText("Chat started")).toBeVisible();
-  expect(submittedRequest).toEqual(
+  expect(mock.state.chat.lastBody).toEqual(
     expect.objectContaining({
       sessionId: "empty",
       messages: [
@@ -271,75 +159,18 @@ test("sends the first message in an existing conversation with empty history", a
 });
 
 test("attaches retry to a timed-out user request", async ({ page }) => {
-  let generationAttempts = 0;
-  let revised = false;
-  let retrySucceeded = false;
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (
-      request.method() === "PATCH" &&
-      url.pathname.startsWith("/api/conversations/one/messages/")
-    ) {
-      revised = true;
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ ok: true }),
-      });
-      return;
-    }
-    if (url.pathname === "/api/conversations/one/messages" && retrySucceeded) {
-      const payload = conversationPayload({ id: "one", text: "one message" });
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          ...payload,
-          messages: [
-            ...payload.messages,
-            {
-              id: "retry-user",
-              conversationId: "one",
-              parentId: null,
-              role: "user",
-              parts: [{ type: "text", text: "Try this request" }],
-              createdAt: "2026-07-17T00:00:02.000Z",
-            },
-            {
-              id: "retry-assistant",
-              conversationId: "one",
-              parentId: null,
-              role: "assistant",
-              parts: [{ type: "text", text: "Retry succeeded" }],
-              createdAt: "2026-07-17T00:00:03.000Z",
-            },
-          ],
-        }),
-      });
-      return;
-    }
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      generationAttempts += 1;
-      if (generationAttempts === 1) {
-        await route.fulfill({ status: 503, body: "Generation timed out" });
-        return;
-      }
-      retrySucceeded = true;
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "x-thread-id": "one",
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-        body: assistantStream({ messageId: "retry-assistant", text: "Retry succeeded" }),
-      });
-      return;
-    }
-    await fulfillApi(route);
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: {
+        failStatus: 503,
+        failBody: "Generation timed out",
+        persist: true,
+        replyText: "Retry succeeded",
+      },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await expect(page.getByText("one message answer")).toBeVisible();
   await expect(page.getByLabel("Send message")).toBeVisible();
@@ -349,88 +180,47 @@ test("attaches retry to a timed-out user request", async ({ page }) => {
   await page.getByRole("button", { name: "Retry this request" }).click();
 
   await expect(page.getByText("Retry succeeded")).toBeVisible();
-  expect(generationAttempts).toBe(2);
-  expect(revised).toBe(true);
+  expect(mock.state.chat.calls).toBe(2);
 });
 
 test("accepts a new request after a persisted orphaned turn", async ({ page }) => {
   const orphanMessageId = "30dd4f3b-02af-4168-83cc-f70d395c715c";
-  let submittedRequest: Record<string, unknown> | undefined;
-  let generated = false;
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations/one/messages") {
-      const payload = conversationPayload({ id: "one", text: "one message" });
-      const messages = [
-        ...payload.messages,
-        {
-          id: orphanMessageId,
-          conversationId: "one",
-          parentId: null,
-          role: "user",
-          parts: [{ type: "text", text: "Previous request" }],
-          createdAt: "2026-07-17T00:00:02.000Z",
+  const base = sessionOneSnapshot();
+  const mock = createChatMock({
+    state: {
+      snapshots: {
+        one: {
+          ...base,
+          messages: [
+            ...base.messages,
+            {
+              id: orphanMessageId,
+              conversationId: "one",
+              parentId: null,
+              role: "user",
+              parts: [{ type: "text", text: "Previous request" }],
+              createdAt: "2026-07-17T00:00:02.000Z",
+            },
+          ],
         },
-        ...(generated
-          ? [
-              {
-                id: "continued-user",
-                conversationId: "one",
-                parentId: null,
-                role: "user" as const,
-                parts: [{ type: "text", text: "Continue with a new request" }],
-                createdAt: "2026-07-17T00:00:03.000Z",
-              },
-              {
-                id: "continued-assistant",
-                conversationId: "one",
-                parentId: null,
-                role: "assistant" as const,
-                parts: [{ type: "text", text: "Continued response" }],
-                createdAt: "2026-07-17T00:00:04.000Z",
-              },
-            ]
-          : []),
-      ];
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ ...payload, messages }),
-      });
-      return;
-    }
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      submittedRequest = request.postDataJSON();
-      generated = true;
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "x-thread-id": "one",
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-        body: assistantStream({ messageId: "continued-assistant", text: "Continued response" }),
-      });
-      return;
-    }
-    await fulfillApi(route);
+      },
+      chat: { persist: true, replyText: "Continued response" },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Message input").fill("Continue with a new request");
   await page.getByLabel("Send message").click();
 
   await expect(page.getByText("Continued response")).toBeVisible();
-  expect(submittedRequest).toEqual(
+  expect(mock.state.chat.lastBody).toEqual(
     expect.objectContaining({
       messages: [
         expect.objectContaining({ parts: [{ type: "text", text: "Continue with a new request" }] }),
       ],
     }),
   );
-  expect(submittedRequest).not.toHaveProperty("replaceMessageId");
+  expect(mock.state.chat.lastBody).not.toHaveProperty("replaceMessageId");
 });
 
 test("navigates production-built data pages and renders empty states", async ({ page }) => {
@@ -450,82 +240,40 @@ test("navigates production-built data pages and renders empty states", async ({ 
 });
 
 test("resumes an unfinished generation after refresh", async ({ page }) => {
-  let reconnectRequested = false;
-  await setTestSettings(page);
-  await page.route("**/api/**", fulfillApi);
-  await page.route("**/api/conversations/one/messages", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify(conversationPayload({ id: "one", text: "Resumed" })),
-    }),
-  );
-  await page.route("**/api/chat/one/stream", async (route) => {
-    reconnectRequested = true;
-    await route.fulfill({
-      status: 200,
-      headers: {
-        "cache-control": "no-cache, no-transform",
-        "content-type": "text/event-stream",
-        "x-vercel-ai-ui-message-stream": "v1",
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot({ text: "Resumed" }) },
+      chat: {
+        resumeStreamBody: assistantStream({
+          messageId: "resumed-assistant",
+          text: "Resumed answer",
+        }),
       },
-      body: assistantStream({ messageId: "resumed-assistant", text: "Resumed answer" }),
-    });
+    },
   });
-
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await expect(page.getByText("Resumed answer")).toBeVisible();
-  expect(reconnectRequested).toBe(true);
+  expect(mock.state.chat.resumeCalls).toBeGreaterThan(0);
 });
 
 test("shows persisted completion after a stream ends without finish", async ({ page }) => {
-  let providerFinished = false;
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations/one/messages") {
-      const payload = conversationPayload({ id: "one", text: "one message" });
-      const messages = providerFinished
-        ? [
-            ...payload.messages,
-            {
-              id: "persisted-assistant",
-              conversationId: "one",
-              parentId: null,
-              role: "assistant",
-              parts: [{ type: "text", text: "Persisted completion" }],
-              createdAt: "2026-07-17T00:00:03.000Z",
-            },
-          ]
-        : payload.messages;
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ ...payload, messages }),
-      });
-      return;
-    }
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      providerFinished = true;
-      await route.fulfill({
-        status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "x-thread-id": "one",
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-        body: [
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: {
+        persist: true,
+        replyText: "Persisted completion",
+        streamBody: [
           'data: {"type":"start","messageId":"persisted-assistant"}',
           'data: {"type":"text-start","id":"persisted-text"}',
           'data: {"type":"text-delta","id":"persisted-text","delta":"Persisted completion"}',
           "",
         ].join("\n\n"),
-      });
-      return;
-    }
-    await fulfillApi(route);
+      },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Message input").fill("Complete despite truncation");
   const truncatedResponse = page.waitForResponse(
@@ -540,66 +288,19 @@ test("shows persisted completion after a stream ends without finish", async ({ p
 });
 
 test("creates, edits, searches, and deletes notes through the notes page", async ({ page }) => {
-  const notes = [
-    {
-      id: "note-existing",
-      content: "Keep one full rest day",
-      created_at: "2026-07-18T10:00:00.000Z",
-      updated_at: "2026-07-18T10:00:00.000Z",
+  const mock = createChatMock({
+    state: {
+      notes: [
+        {
+          id: "note-existing",
+          content: "Keep one full rest day",
+          created_at: "2026-07-18T10:00:00.000Z",
+          updated_at: "2026-07-18T10:00:00.000Z",
+        },
+      ],
     },
-  ];
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/api/notes") {
-      if (route.request().method() === "GET") {
-        const search = url.searchParams.get("search")?.toLowerCase();
-        const filtered =
-          search === undefined
-            ? notes
-            : notes.filter((note) => note.content.toLowerCase().includes(search));
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ notes: filtered }),
-        });
-        return;
-      }
-      const body = Schema.decodeUnknownSync(NoteRequest)(route.request().postDataJSON());
-      const note = {
-        id: "note-created",
-        content: body.content,
-        created_at: "2026-07-19T10:00:00.000Z",
-        updated_at: "2026-07-19T10:00:00.000Z",
-      };
-      notes.unshift(note);
-      await route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: JSON.stringify({ id: note.id }),
-      });
-      return;
-    }
-    const noteMatch = url.pathname.match(/^\/api\/notes\/([^/]+)$/);
-    if (noteMatch !== null) {
-      const note = notes.find((candidate) => candidate.id === noteMatch[1]);
-      if (route.request().method() === "PATCH" && note !== undefined) {
-        const body = Schema.decodeUnknownSync(NoteRequest)(route.request().postDataJSON());
-        note.content = body.content;
-        note.updated_at = "2026-07-19T10:05:00.000Z";
-      }
-      if (route.request().method() === "DELETE") {
-        const index = notes.findIndex((candidate) => candidate.id === noteMatch[1]);
-        if (index >= 0) notes.splice(index, 1);
-      }
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      });
-      return;
-    }
-    await fulfillApi(route);
   });
-  await page.goto("/notes");
+  await mock.open(page, "/notes");
 
   await expect(page.getByText("Keep one full rest day")).toBeVisible();
   await page.getByPlaceholder("Add a note…").fill("Track sleep before hard sessions");
@@ -624,60 +325,20 @@ test("creates, edits, searches, and deletes notes through the notes page", async
 });
 
 test("creates, filters, and deletes manually saved memories", async ({ page }) => {
-  const memories: Memory[] = [
-    {
-      id: "memory-existing",
-      content: "Enjoys early training",
-      source: "manual",
-      thread_id: null,
-      created_at: "2026-07-18T10:00:00.000Z",
+  const mock = createChatMock({
+    state: {
+      memories: [
+        {
+          id: "memory-existing",
+          content: "Enjoys early training",
+          source: "manual",
+          thread_id: null,
+          created_at: "2026-07-18T10:00:00.000Z",
+        },
+      ],
     },
-  ];
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/api/memories") {
-      if (route.request().method() === "GET") {
-        const search = url.searchParams.get("search")?.toLowerCase();
-        const filtered =
-          search === undefined
-            ? memories
-            : memories.filter((memory) => memory.content.toLowerCase().includes(search));
-        await route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({ memories: filtered }),
-        });
-        return;
-      }
-      const body = Schema.decodeUnknownSync(MemoryRequest)(route.request().postDataJSON());
-      const memory = {
-        id: "memory-created",
-        content: body.content,
-        source: body.source ?? null,
-        thread_id: body.threadId ?? null,
-        created_at: "2026-07-19T10:00:00.000Z",
-      };
-      memories.unshift(memory);
-      await route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: JSON.stringify({ id: memory.id }),
-      });
-      return;
-    }
-    const memoryMatch = url.pathname.match(/^\/api\/memories\/([^/]+)$/);
-    if (memoryMatch !== null && route.request().method() === "DELETE") {
-      const index = memories.findIndex((memory) => memory.id === memoryMatch[1]);
-      if (index >= 0) memories.splice(index, 1);
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      });
-      return;
-    }
-    await fulfillApi(route);
   });
-  await page.goto("/memory");
+  await mock.open(page, "/memory");
 
   await expect(page.getByText("Enjoys early training")).toBeVisible();
   await page.getByPlaceholder("Save a memory…").fill("Prefers Wednesday rest days");
