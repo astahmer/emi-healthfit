@@ -100,7 +100,7 @@ const conversationReadyPathMachine = setup({
         "thread.restore": "restoring",
         "search.query": undefined,
         "view.select": undefined,
-        "conversation.rename.start": "renamingConversation",
+        "conversation.rename.start": "editingConversationTitle",
         export: "exporting",
       },
     },
@@ -109,10 +109,14 @@ const conversationReadyPathMachine = setup({
     pinning: { on: { done: "idle" } },
     discarding: { on: { done: "idle" } },
     restoring: { on: { done: "idle" } },
-    renamingConversation: {
+    editingConversationTitle: {
       on: {
         "conversation.rename.cancel": "idle",
-        "conversation.rename.submit": "idle",
+        "conversation.rename.submit": "renamingConversation",
+      },
+    },
+    renamingConversation: {
+      on: {
         done: "idle",
       },
     },

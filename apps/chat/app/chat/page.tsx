@@ -122,7 +122,9 @@ export const ChatPage = ({
     : [];
   const isLoading = conversationState.matches("loading");
   const loadError = conversationState.matches("error") ? conversationState.context.error : null;
-  const isRenaming = conversationState.matches({ ready: "renamingConversation" });
+  const isRenaming =
+    conversationState.matches({ ready: "editingConversationTitle" }) ||
+    conversationState.matches({ ready: "renamingConversation" });
   const hasOpenAiKey = settings.apiKey.trim() !== "";
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);

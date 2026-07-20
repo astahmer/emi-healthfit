@@ -349,11 +349,22 @@ export const conversationMachine = setup({
               actions: assign({ viewMode: ({ event }) => event.viewMode }),
             },
             "conversation.rename.start": {
-              target: "renamingConversation",
+              target: "editingConversationTitle",
               actions: assign({
                 renameDraft: ({ context }) => context.conversation?.title ?? "",
               }),
             },
+            export: { target: "exporting" },
+            "sidebar.widthChanged": {
+              actions: [
+                assign({ sidebarWidth: ({ event }) => event.width }),
+                "persistSidebarWidth",
+              ],
+            },
+          },
+        },
+        editingConversationTitle: {
+          on: {
             "conversation.rename.change": {
               actions: assign({ renameDraft: ({ event }) => event.value }),
             },
@@ -362,14 +373,8 @@ export const conversationMachine = setup({
               guard: "canRenameConversation",
             },
             "conversation.rename.cancel": {
+              target: "idle",
               actions: assign({ renameDraft: () => "" }),
-            },
-            export: { target: "exporting" },
-            "sidebar.widthChanged": {
-              actions: [
-                assign({ sidebarWidth: ({ event }) => event.width }),
-                "persistSidebarWidth",
-              ],
             },
           },
         },
