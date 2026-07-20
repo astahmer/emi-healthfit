@@ -12,6 +12,11 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
+const isWorkoutListUrl = (url: string) => {
+  const pathname = new URL(url).pathname;
+  return url.includes("/v1/workouts?") || pathname.endsWith("/v1/workouts");
+};
+
 const workout = ({ id, title, updatedAt }: { id: string; title: string; updatedAt: string }) => ({
   id,
   title,
@@ -30,12 +35,10 @@ const workout = ({ id, title, updatedAt }: { id: string; title: string; updatedA
 const seedConnectedUser = async ({
   db,
   userId,
-  environment,
   keyBytes,
 }: {
   db: ReturnType<typeof makeSqliteDatabase>["db"];
   userId: string;
-  environment: { HEVY_CREDENTIAL_ENCRYPTION_KEY: string };
   keyBytes: Uint8Array;
 }) => {
   const envelope = await Effect.runPromise(
@@ -66,7 +69,7 @@ describe("Hevy sync edge cases", () => {
       if (url.includes("/v1/workouts/events")) {
         return Response.json({ page: 1, page_count: 1, events: [] });
       }
-      if (url.includes("/v1/workouts?") || /\/v1\/workouts$/.test(new URL(url).pathname)) {
+      if (isWorkoutListUrl(url)) {
         const page = Number(new URL(url).searchParams.get("page") ?? "1");
         pages.push(page);
         if (page === 1) {
@@ -116,7 +119,7 @@ describe("Hevy sync edge cases", () => {
     const environment = {
       HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
     };
-    await seedConnectedUser({ db, userId: "user-1", environment, keyBytes });
+    await seedConnectedUser({ db, userId: "user-1", keyBytes });
 
     const kysely = await run(db.kysely);
     await kysely
@@ -150,11 +153,11 @@ describe("Hevy sync edge cases", () => {
     const environment = {
       HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
     };
-    await seedConnectedUser({ db, userId: "user-1", environment, keyBytes });
+    await seedConnectedUser({ db, userId: "user-1", keyBytes });
 
     globalThis.fetch = async (input) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/v1/workouts?") || /\/v1\/workouts$/.test(new URL(url).pathname)) {
+      if (isWorkoutListUrl(url)) {
         const page = Number(new URL(url).searchParams.get("page") ?? "1");
         if (page === 1) {
           return Response.json({
@@ -196,7 +199,7 @@ describe("Hevy sync edge cases", () => {
     const environment = {
       HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
     };
-    await seedConnectedUser({ db, userId: "user-1", environment, keyBytes });
+    await seedConnectedUser({ db, userId: "user-1", keyBytes });
 
     const kysely = await run(db.kysely);
     await kysely

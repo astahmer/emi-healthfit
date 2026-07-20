@@ -56,7 +56,7 @@ describe("Hevy sync service", () => {
       if (url.includes("/v1/workouts/events")) {
         return Response.json({ page: 1, page_count: 1, events: [] });
       }
-      if (url.includes("/v1/workouts?") || /\/v1\/workouts$/.test(new URL(url).pathname)) {
+      if (url.includes("/v1/workouts?") || new URL(url).pathname.endsWith("/v1/workouts")) {
         workoutListCalls += 1;
         return Response.json({
           page: 1,
