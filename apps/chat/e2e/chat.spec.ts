@@ -354,3 +354,58 @@ test("creates, filters, and deletes manually saved memories", async ({ page }) =
   await expect(page.getByText("Memory removed.")).toBeVisible();
   await expect(page.getByText("Prefers Wednesday rest days")).toHaveCount(0);
 });
+
+const manyNotes = Array.from({ length: 40 }, (_, index) => ({
+  id: `note-scroll-${index}`,
+  content: `Scrollable note ${index} with enough text to force overflow on the notes page.`,
+  created_at: "2026-07-18T10:00:00.000Z",
+  updated_at: "2026-07-18T10:00:00.000Z",
+}));
+
+const manyMemories = Array.from({ length: 40 }, (_, index) => ({
+  id: `memory-scroll-${index}`,
+  content: `Scrollable memory ${index} with enough text to force overflow on the memory page.`,
+  source: "manual",
+  thread_id: null,
+  created_at: "2026-07-18T10:00:00.000Z",
+}));
+
+const assertPageScrollsToBottom = async ({
+  page,
+  lastText,
+}: {
+  page: import("@playwright/test").Page;
+  lastText: string;
+}) => {
+  const scrollRegion = page.getByTestId("app-scroll-region");
+  const lastItem = page.getByText(lastText);
+  await expect(lastItem).toBeAttached();
+  await expect(scrollRegion).toBeVisible();
+  const metrics = await scrollRegion.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight + 1);
+  await lastItem.scrollIntoViewIfNeeded();
+  await expect(lastItem).toBeInViewport();
+  const scrollTop = await scrollRegion.evaluate((element) => element.scrollTop);
+  expect(scrollTop).toBeGreaterThan(0);
+};
+
+test("notes page can scroll to the bottom when content overflows", async ({ page }) => {
+  const mock = createChatMock({ state: { notes: manyNotes } });
+  await mock.open(page, "/notes");
+  await assertPageScrollsToBottom({
+    page,
+    lastText: "Scrollable note 39 with enough text to force overflow on the notes page.",
+  });
+});
+
+test("memory page can scroll to the bottom when content overflows", async ({ page }) => {
+  const mock = createChatMock({ state: { memories: manyMemories } });
+  await mock.open(page, "/memory");
+  await assertPageScrollsToBottom({
+    page,
+    lastText: "Scrollable memory 39 with enough text to force overflow on the memory page.",
+  });
+});

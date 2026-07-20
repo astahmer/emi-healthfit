@@ -16,7 +16,7 @@ export const RootLayout = () => (
           <AuthBoundary>
             <div className="flex h-dvh flex-col bg-background text-foreground">
               <NavHeader />
-              <div className="flex-1 overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-auto" data-testid="app-scroll-region">
                 <Outlet />
               </div>
             </div>
