@@ -1,6 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { invalidateQueryResource, queryKeys } from "./query-cache";
+import {
+  invalidateQueryResource,
+  notifyHevyWorkoutDataChanged,
+  queryKeys,
+  subscribeToQueryResourceChanges,
+} from "./query-cache";
 
 describe("query cache", () => {
   it("keeps memory views distinct and invalidates them as one resource", async () => {
@@ -15,5 +20,15 @@ describe("query cache", () => {
     expect(listKey).not.toEqual(messageSourcesKey);
     expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(messageSourcesKey)?.isInvalidated).toBe(true);
+  });
+
+  it("notifies workouts and analytics after Hevy data changes", () => {
+    const seen: string[] = [];
+    const unsubscribe = subscribeToQueryResourceChanges((resource) => {
+      seen.push(resource);
+    });
+    notifyHevyWorkoutDataChanged();
+    unsubscribe();
+    expect(seen).toEqual(["workouts", "analytics"]);
   });
 });

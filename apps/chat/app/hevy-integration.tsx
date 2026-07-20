@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link2Icon, RefreshCwIcon, UnplugIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { runApi } from "./api-client";
+import { notifyHevyWorkoutDataChanged } from "./query-cache";
 
 type HevyStatus = {
   connected: boolean;
@@ -52,6 +53,7 @@ export const HevyIntegration = () => {
       const result = await runApi((client) => client.hevy.connect({ payload: { apiKey } }));
       setStatus(result.status);
       setApiKey("");
+      notifyHevyWorkoutDataChanged();
       setMessage(
         `Connected${result.providerUserName ? ` as ${result.providerUserName}` : ""}. Imported ${result.sync.imported} workout(s).`,
       );
@@ -68,6 +70,7 @@ export const HevyIntegration = () => {
     try {
       const sync = await runApi((client) => client.hevy.sync());
       await refreshStatus();
+      if (sync.mode !== "skipped_fresh") notifyHevyWorkoutDataChanged();
       setMessage(
         sync.mode === "skipped_fresh"
           ? "Already up to date."
@@ -108,6 +111,7 @@ export const HevyIntegration = () => {
     try {
       const result = await runApi((client) => client.hevy.removeData());
       await refreshStatus();
+      notifyHevyWorkoutDataChanged();
       setMessage(`Hevy data removed (${result.deletedRawUploads} raw upload(s)).`);
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Could not remove Hevy data");

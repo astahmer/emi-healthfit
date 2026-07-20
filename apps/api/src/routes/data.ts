@@ -8,6 +8,7 @@ import { CurrentUser } from "../auth/request-auth.ts";
 import { buildChatContext } from "../chat/context.ts";
 import { TtlCache } from "../cache.ts";
 import type { QueryDatabaseClient } from "../db/client.ts";
+import { ensureHevyFresh } from "../integrations/hevy/hevy-sync.ts";
 import {
   type DataSummary,
   getAnalyticsOverview,
@@ -169,9 +170,10 @@ export const handleIngest = (
     Effect.catch((error) => HttpServerResponse.json({ error: String(error) }, { status: 500 })),
   );
 
-export const handleRecovery = (db: QueryDatabaseClient) =>
+export const handleRecovery = (db: QueryDatabaseClient, environment: Record<string, unknown>) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
+    yield* ensureHevyFresh({ db, userId: user.id, environment });
     const ctx = yield* buildChatContext(db, user.id);
     return yield* HttpServerResponse.json({
       today: ctx.today,
@@ -189,7 +191,7 @@ export const handleRecovery = (db: QueryDatabaseClient) =>
 const summaryCache = new TtlCache<DataSummary>();
 const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
-export const handleSummary = (db: QueryDatabaseClient) =>
+export const handleSummary = (db: QueryDatabaseClient, environment: Record<string, unknown>) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
     const cached = summaryCache.get(user.id);
@@ -197,6 +199,7 @@ export const handleSummary = (db: QueryDatabaseClient) =>
       return yield* HttpServerResponse.json(cached);
     }
 
+    yield* ensureHevyFresh({ db, userId: user.id, environment });
     const summary = yield* getDataSummary(db, user.id);
     summaryCache.set(user.id, summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);

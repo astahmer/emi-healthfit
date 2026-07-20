@@ -34,11 +34,13 @@ export const queryKeys = {
   },
 };
 
-type QueryResource = "memories" | "notes";
+type QueryResource = "analytics" | "memories" | "notes" | "workouts";
 
 const resourceQueryKeys = {
+  analytics: ["analytics-overview"] as const,
   memories: queryKeys.memories.all,
   notes: queryKeys.notes.all,
+  workouts: queryKeys.workouts.all,
 } satisfies Record<QueryResource, readonly unknown[]>;
 
 const listeners = new Set<(resource: QueryResource) => void>();
@@ -53,6 +55,11 @@ export const invalidateQueryResource = ({
 
 export const notifyQueryResourceChanged = (resource: QueryResource) => {
   for (const listener of listeners) listener(resource);
+};
+
+export const notifyHevyWorkoutDataChanged = () => {
+  notifyQueryResourceChanged("workouts");
+  notifyQueryResourceChanged("analytics");
 };
 
 export const subscribeToQueryResourceChanges = (listener: (resource: QueryResource) => void) => {

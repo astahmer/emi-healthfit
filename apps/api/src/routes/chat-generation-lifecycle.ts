@@ -43,6 +43,7 @@ import {
 } from "../db/conversations.ts";
 import type { QueryDatabaseClient } from "../db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
+import { ensureHevyFresh } from "../integrations/hevy/hevy-sync.ts";
 import { corsHeaders } from "./http.ts";
 import { persistGenerationStream } from "./chat-stream-persistence.ts";
 import { ChatStreamRequestSchema, getFirstUserText } from "./chat-request-codec.ts";
@@ -173,7 +174,11 @@ export const handleConversationDiagnosticEvent = (
     return yield* HttpServerResponse.json({ recorded: true }, { status: 201 });
   });
 
-export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequest) =>
+export const handleAiSdkChat = (
+  db: QueryDatabaseClient,
+  request: HttpServerRequest,
+  environment: Record<string, unknown>,
+) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
     const requestStartedAt = performance.now();
@@ -258,6 +263,8 @@ export const handleAiSdkChat = (db: QueryDatabaseClient, request: HttpServerRequ
     const generationId = crypto.randomUUID();
     const requestId = request.headers["x-request-id"] ?? crypto.randomUUID();
     const traceId = request.headers["x-trace-id"] ?? requestId;
+    yield* ensureHevyFresh({ db, userId: user.id, environment });
+
     const { recordEvent, executeToolWithServices } = createChatToolExecutor({
       db,
       userId: user.id,

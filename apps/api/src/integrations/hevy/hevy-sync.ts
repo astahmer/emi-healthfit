@@ -478,12 +478,11 @@ export const ensureHevyFresh = Effect.fn("hevy.ensureFresh")(function* ({
   userId: string;
   environment: Record<string, unknown>;
 }) {
-  const connection = yield* getHevyConnection({ db, userId });
-  if (connection === undefined) return null;
-
-  return yield* syncHevy({ db, userId, environment, force: false }).pipe(
-    Effect.catch(() => Effect.succeed(null)),
-  );
+  return yield* Effect.gen(function* () {
+    const connection = yield* getHevyConnection({ db, userId });
+    if (connection === undefined) return null;
+    return yield* syncHevy({ db, userId, environment, force: false });
+  }).pipe(Effect.catch(() => Effect.succeed(null)));
 });
 
 export const disconnectHevy = Effect.fn("hevy.disconnect")(function* ({

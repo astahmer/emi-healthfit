@@ -77,7 +77,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("POST", "/ingest", (request) =>
         cors({ request, effect: handleIngest(db, bucket, request) }),
       );
-      yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, request));
+      yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, request, env));
       yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>
         Effect.gen(function* () {
           const params = yield* HttpRouter.params;
@@ -85,10 +85,10 @@ export default class Api extends Cloudflare.Worker<Api>()(
         }),
       );
       yield* router.add("GET", "/api/recovery", (request) =>
-        cors({ request, effect: handleRecovery(db) }),
+        cors({ request, effect: handleRecovery(db, env) }),
       );
       yield* router.add("GET", "/api/summary", (request) =>
-        cors({ request, effect: handleSummary(db) }),
+        cors({ request, effect: handleSummary(db, env) }),
       );
       yield* router.add("GET", "/api/export/ingested-data", (request) =>
         cors({ request, effect: handleIngestedDataExport(db) }),

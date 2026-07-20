@@ -82,9 +82,11 @@ export const suggestionsHandlers = ({
 
 export const analyticsHandlers = ({
   db,
+  environment,
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
+  environment: Record<string, unknown>;
   runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "analytics", (handlers) =>
@@ -93,6 +95,7 @@ export const analyticsHandlers = ({
       Effect.fn("httpApi.analytics.overview")(
         function* ({ query }) {
           const user = yield* CurrentUser;
+          yield* ensureHevyFresh({ db, userId: user.id, environment });
           return yield* getAnalyticsOverview({ db, userId: user.id, days: query.days ?? 90 });
         },
         withInternalError,

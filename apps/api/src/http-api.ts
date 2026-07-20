@@ -185,7 +185,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
       messagesHandlers({ db, runtimeContext }),
       memoryExtractionHandlers({ db, runtimeContext }),
       suggestionsHandlers({ db, runtimeContext }),
-      analyticsHandlers({ db, runtimeContext }),
+      analyticsHandlers({ db, environment, runtimeContext }),
       dataHandlers({ db, runtimeContext }),
       privacyHandlers({ bucket, db, runtimeContext }),
       workoutsHandlers({ db, environment, runtimeContext }),
