@@ -1,1 +1,1 @@
-{"kind":"cut","id":"pc_4jaj6sauhq7u","ts":"2026-07-17T00:00:42.291Z","agent":"unknown","text":"Chat Playwright fixture returns empty object for Better Auth get-session, crashing AccountMenu before every authenticated E2E; shared fixture needs valid session shape","tags":["tooling"],"severity":"minor"}
+

@@ -58,6 +58,7 @@ a rule-backed finding. Never approximate the fix.
 
 - **Mechanical**:
   - `npx react-doctor@latest --scope changed` clears the targeted diagnostic and
+    (scopes are only `full` / `changed` / `files` / `lines` — never a file path)
     the score does not regress.
   - Run the repository's typecheck, lint, and focused/full tests.
 - **Behavior check**: Interact with `<specific route/control>` and confirm
