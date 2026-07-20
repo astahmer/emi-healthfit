@@ -254,8 +254,12 @@ test("toggles coach, temporary, and model composer controls", async ({ page }) =
 
 const openSessionActions = async (page: Page) => {
   const link = page.getByRole("link", { name: /Session One|Renamed One|New chat/ }).first();
+  await expect(link).toBeVisible();
   await link.hover();
-  await page.getByLabel("Session actions").first().click();
+  const actions = page.getByLabel("Session actions").first();
+  await expect(actions).toBeVisible();
+  await actions.click();
+  await expect(page.getByText("Renommer").or(page.getByText("Archiver")).or(page.getByText("Restaurer")).first()).toBeVisible();
 };
 
 test("renames, pins, archives, clones, copies, shares, and deletes from the sidebar", async ({
