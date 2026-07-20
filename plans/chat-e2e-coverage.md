@@ -142,18 +142,13 @@ Scenario tests override handlers for one test without copying the whole if-chain
 
 ## Next wave (not done)
 
-High value leftover E2E / behavior gaps — covered in `chat-scenarios-wave2.spec.ts`:
+High value leftover E2E / behavior gaps — covered:
 
-1. Temporary chat — no persistence after refresh ✅
-2. Web search on when model supports it ✅
-3. Compact conversation ✅
-4. Send attachment (not only preview) ✅
-5. Concurrent submit blocked while streaming (UI) ✅
-6. Guest continue → chat ✅
-7. Thread discard / restore from branch nav ✅
-8. Restore archived session from sidebar ✅
-9. Message action bar copy / export ✅
-10. Multi-tool / tool-error stream rendering ✅
+Wave-2 (`chat-scenarios-wave2.spec.ts`): temporary, web search, compact, attachment send, concurrent submit, guest, branch discard/restore, restore archived, copy/export, multi-tool/error stream.
+
+Gaps + BDD (`chat-scenarios-gaps.spec.ts`, `e2e/features/*.feature`): message→memory, branch rename/pin/focus, header rename (fixed `editingConversationTitle`), sidebar search/sync/diagnostics, remove attachment + validation, stream fail retry, compact/copy failure toasts, reasoning + message refs, empty/file-only send, unpin/delete-cancel/new chat, Google denial + guest fail, share URL + download markdown, fork failure.
+
+View mode: still machine-only (no chat UI) — Layer A only.
 
 ## UI & UX
 
