@@ -8,24 +8,25 @@ import {
   emptyAnalyticsOverview,
 } from "./fixtures.ts";
 
+export type MockMemory = {
+  id: string;
+  content: string;
+  source: string | null;
+  thread_id: string | null;
+  created_at: string;
+};
+
 export type MockApiState = {
   suggestions: string[];
   chatStream: ({ messageId, text }: { messageId: string; text: string }) => string;
+  conversations: typeof conversations;
   notes: Array<{
     id: string;
     content: string;
     createdAt: string;
     updatedAt: string;
   }>;
-  memories: Array<{
-    id: string;
-    content: string;
-    source: string | null;
-    threadId: string | null;
-    messageId: string | null;
-    createdAt: string;
-    updatedAt: string;
-  }>;
+  memories: MockMemory[];
 };
 
 const json = (context: Context, body: unknown, status = 200) =>
@@ -39,6 +40,7 @@ export const createMockApi = ({
   const mockState: MockApiState = {
     suggestions: state?.suggestions ?? [],
     chatStream: state?.chatStream ?? assistantStream,
+    conversations: state?.conversations ?? [...conversations],
     notes: state?.notes ?? [],
     memories: state?.memories ?? [],
   };
@@ -47,14 +49,54 @@ export const createMockApi = ({
 
   app.get("/api/auth/get-session", (context) => json(context, authSessionBody));
   app.post("/api/auth/sign-in/anonymous", (context) => json(context, {}));
+  app.post("/api/auth/sign-in/social", (context) =>
+    json(context, { error: "Social sign-in is not available in tests." }, 400),
+  );
 
-  app.get("/api/conversations", (context) => json(context, { conversations }));
+  app.get("/api/conversations", (context) => {
+    const search = context.req.query("search")?.trim().toLowerCase();
+    const list =
+      search === undefined || search === ""
+        ? mockState.conversations
+        : mockState.conversations.filter((conversation) =>
+            (conversation.title ?? "").toLowerCase().includes(search),
+          );
+    return json(context, { conversations: list });
+  });
+
+  app.post("/api/conversations", (context) =>
+    json(context, { id: `fresh-${mockState.conversations.length + 1}` }, 201),
+  );
 
   app.patch("/api/threads/:id", (context) => json(context, { success: true }));
 
   app.get("/api/conversations/:id/messages", (context) => {
     const id = context.req.param("id");
-    return json(context, conversationPayload({ id, text: `${id} message` }));
+    const known = mockState.conversations.find((conversation) => conversation.id === id);
+    const payload = conversationPayload({ id, text: `${id} message` });
+    return json(context, {
+      ...payload,
+      conversation: known ?? payload.conversation ?? {
+        id,
+        title: null,
+        status: "regular",
+        pinned: false,
+        created_at: "2026-07-14T10:00:00.000Z",
+        updated_at: "2026-07-14T12:00:00.000Z",
+      },
+    });
+  });
+
+  app.get("/api/conversations/:id/diagnostics", (context) => {
+    const id = context.req.param("id");
+    return json(context, {
+      schemaVersion: 1,
+      conversationId: id,
+      redacted: true,
+      messages: [],
+      generations: [],
+      events: [],
+    });
   });
 
   app.all("/api/conversations/:id/stream", (context) => context.body(null, 204));
@@ -116,6 +158,28 @@ export const createMockApi = ({
   app.get("/api/workouts", (context) => json(context, { workouts: [] }));
 
   app.get("/api/memories", (context) => json(context, { memories: mockState.memories }));
+  app.post("/api/memories/extract", async (context) => {
+    const body = await context.req.json<{
+      text: string;
+      threadId?: string;
+      messageId?: string;
+      source?: "auto" | "manual";
+    }>();
+    const id = `memory-${mockState.memories.length + 1}`;
+    const sourceKind = body.source ?? "manual";
+    mockState.memories = [
+      ...mockState.memories,
+      {
+        id,
+        content: body.text.slice(0, 120),
+        source:
+          body.messageId === undefined ? sourceKind : `${sourceKind}:${body.messageId}`,
+        thread_id: body.threadId ?? null,
+        created_at: "2026-07-17T00:00:00.000Z",
+      },
+    ];
+    return json(context, { ids: [id], count: 1 });
+  });
   app.post("/api/memories", async (context) => {
     const body = await context.req.json<{
       content: string;
@@ -123,22 +187,31 @@ export const createMockApi = ({
       threadId?: string;
       messageId?: string;
     }>();
-    const memory = {
-      id: `memory-${mockState.memories.length + 1}`,
+    const id = `memory-${mockState.memories.length + 1}`;
+    const memory: MockMemory = {
+      id,
       content: body.content,
-      source: body.source ?? null,
-      threadId: body.threadId ?? null,
-      messageId: body.messageId ?? null,
-      createdAt: "2026-07-17T00:00:00.000Z",
-      updatedAt: "2026-07-17T00:00:00.000Z",
+      source:
+        body.messageId === undefined
+          ? (body.source ?? null)
+          : `${body.source ?? "manual"}:${body.messageId}`,
+      thread_id: body.threadId ?? null,
+      created_at: "2026-07-17T00:00:00.000Z",
     };
     mockState.memories = [...mockState.memories, memory];
-    return json(context, { memory }, 201);
+    return json(context, { id }, 201);
+  });
+  app.delete("/api/memories/message/:messageId", (context) => {
+    const messageId = context.req.param("messageId");
+    mockState.memories = mockState.memories.filter(
+      (memory) => !memory.source?.endsWith(`:${messageId}`),
+    );
+    return json(context, { success: true });
   });
   app.delete("/api/memories/:id", (context) => {
     const id = context.req.param("id");
     mockState.memories = mockState.memories.filter((memory) => memory.id !== id);
-    return context.body(null, 204);
+    return json(context, { success: true });
   });
 
   app.all("/api/*", (context) => json(context, {}));
