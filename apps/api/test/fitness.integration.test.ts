@@ -162,7 +162,7 @@ describe("fitness SQLite integration", () => {
         {
           session_id: "session-b",
           exercise_template_id: null,
-          exercise_index: 0,
+          exercise_index: 1,
           exercise_title: "Squat",
           set_index: 1,
           set_type: "normal",
@@ -253,8 +253,6 @@ describe("fitness SQLite integration", () => {
       workouts: [
         {
           session_id: "session-a",
-          provider_workout_id: null,
-          source_updated_at: null,
           title: "Upper",
           start_time: "2026-07-18T10:00:00Z",
           max_weight_kg: 80,
@@ -265,8 +263,6 @@ describe("fitness SQLite integration", () => {
         },
         {
           session_id: "session-b",
-          provider_workout_id: null,
-          source_updated_at: null,
           title: "Strength",
           start_time: "2026-07-19T10:00:00Z",
           max_weight_kg: 85,
