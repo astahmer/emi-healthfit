@@ -427,9 +427,9 @@ Do not enable Cron while still on Free; it will time out and look like flaky syn
 - [x] Contract decoders, mapper tests, pagination/deletion/retry tests, real SQLite ownership and
   migration tests, focused UI tests, and final `pnpm release:check` pass.
 
-Covered by `apps/api/test/hevy-*.test.ts`, `apps/chat/app/hevy-integration.test.tsx`, live smoke
-(`HEVY_API_KEY`), and `pnpm release:check`. Deferred intentionally: Workers Paid cron and
-`typed-openapi --runtime effect`.
+Covered by `apps/api/test/hevy-*.test.ts`, `apps/chat/app/hevy-integration.test.tsx`, Playwright
+`apps/chat/e2e/hevy.spec.ts` (mocked API), live smoke (`HEVY_API_KEY`), and `pnpm release:check`.
+Deferred intentionally: Workers Paid cron and `typed-openapi --runtime effect`.
 
 ## Decisions log
 

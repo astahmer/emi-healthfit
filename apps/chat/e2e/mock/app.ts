@@ -67,6 +67,42 @@ export type MockChatBody = {
 
 type ChatStreamFactory = ({ messageId, text }: { messageId: string; text: string }) => string;
 
+export type MockHevyStatus = {
+  connected: boolean;
+  status: string;
+  providerUserId: string | null;
+  lastCheckedAt: string | null;
+  lastSuccessAt: string | null;
+  lastDataChangeAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorAt: string | null;
+  fresh: boolean;
+};
+
+export type MockWorkout = {
+  session_id: string;
+  title: string | null;
+  start_time: string;
+  end_time: string | null;
+  duration_sec: number | null;
+  total_volume_kg: number | null;
+  sets: number;
+  exercises: number;
+  exerciseDetails: Array<{
+    exercise_title: string;
+    sets: Array<{
+      set_index: number;
+      set_type: string | null;
+      weight_kg: number | null;
+      reps: number | null;
+      rpe: number | null;
+      distance_km: number | null;
+      duration_seconds: number | null;
+      exercise_notes: string | null;
+    }>;
+  }>;
+};
+
 export type MockApiState = {
   suggestions: string[];
   conversations: MockConversation[];
@@ -105,7 +141,90 @@ export type MockApiState = {
     thread: MockThread | null;
   };
   createConversationId: string | null;
+  hevy: {
+    status: MockHevyStatus;
+    workouts: MockWorkout[];
+    lastConnectApiKey: string | null;
+    syncCalls: number;
+  };
 };
+
+export const disconnectedHevyStatus = (
+  overrides: Partial<MockHevyStatus> = {},
+): MockHevyStatus => ({
+  connected: false,
+  status: "disconnected",
+  providerUserId: null,
+  lastCheckedAt: null,
+  lastSuccessAt: null,
+  lastDataChangeAt: null,
+  lastErrorCode: null,
+  lastErrorAt: null,
+  fresh: false,
+  ...overrides,
+});
+
+export const connectedHevyStatus = (overrides: Partial<MockHevyStatus> = {}): MockHevyStatus => ({
+  connected: true,
+  status: "connected",
+  providerUserId: "hevy-user-1",
+  lastCheckedAt: "2026-07-20T10:00:00.000Z",
+  lastSuccessAt: "2026-07-20T10:00:00.000Z",
+  lastDataChangeAt: "2026-07-20T10:00:00.000Z",
+  lastErrorCode: null,
+  lastErrorAt: null,
+  fresh: true,
+  ...overrides,
+});
+
+export const sampleHevyWorkout = (): MockWorkout => ({
+  session_id: "hevy:w-e2e",
+  title: "E2E Push Day",
+  start_time: "2026-07-18T10:00:00.000Z",
+  end_time: "2026-07-18T11:00:00.000Z",
+  duration_sec: 3600,
+  total_volume_kg: 640,
+  sets: 1,
+  exercises: 1,
+  exerciseDetails: [
+    {
+      exercise_title: "Bench press",
+      sets: [
+        {
+          set_index: 1,
+          set_type: "normal",
+          weight_kg: 80,
+          reps: 8,
+          rpe: 8,
+          distance_km: null,
+          duration_seconds: null,
+          exercise_notes: null,
+        },
+      ],
+    },
+  ],
+});
+
+const hevySyncSummary = ({
+  mode,
+  imported = 0,
+  updated = 0,
+  deleted = 0,
+}: {
+  mode: "initial" | "incremental" | "skipped_fresh" | "skipped_busy";
+  imported?: number;
+  updated?: number;
+  deleted?: number;
+}) => ({
+  mode,
+  imported,
+  updated,
+  deleted,
+  ambiguousLegacy: 0,
+  startedAt: "2026-07-20T10:00:00.000Z",
+  completedAt: "2026-07-20T10:00:01.000Z",
+  lastErrorCode: null as string | null,
+});
 
 const json = (context: Context, body: unknown, status = 200) => context.json(body, status as 200);
 
@@ -481,7 +600,60 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
   app.post("/api/suggestions", (context) => json(context, { suggestions: state.suggestions }));
 
   app.get("/api/analytics/overview", (context) => json(context, emptyAnalyticsOverview));
-  app.get("/api/workouts", (context) => json(context, { workouts: [] }));
+  app.get("/api/workouts", (context) => json(context, { workouts: state.hevy.workouts }));
+
+  app.get("/api/export/ingested-data/summary", (context) =>
+    json(context, {
+      summary: {
+        totalRecords: state.hevy.workouts.length,
+        healthRange: { first: null, last: null },
+        hevyRange: {
+          first: state.hevy.workouts[0]?.start_time ?? null,
+          last: state.hevy.workouts[0]?.start_time ?? null,
+        },
+      },
+    }),
+  );
+  app.get("/api/privacy", (context) => json(context, { rawUploadRetentionDays: 30 }));
+
+  app.get("/api/integrations/hevy", (context) => json(context, state.hevy.status));
+  app.put("/api/integrations/hevy", async (context) => {
+    const body = await context.req.json<{ apiKey?: string }>();
+    const apiKey = body.apiKey?.trim() ?? "";
+    if (apiKey === "") return json(context, { message: "apiKey required" }, 400);
+    state.hevy.lastConnectApiKey = apiKey;
+    state.hevy.status = connectedHevyStatus();
+    state.hevy.workouts = [sampleHevyWorkout()];
+    return json(context, {
+      status: state.hevy.status,
+      sync: hevySyncSummary({ mode: "initial", imported: state.hevy.workouts.length }),
+      providerUserName: "Ada",
+    });
+  });
+  app.post("/api/integrations/hevy/sync", (context) => {
+    state.hevy.syncCalls += 1;
+    state.hevy.status = connectedHevyStatus({
+      lastCheckedAt: "2026-07-20T12:00:00.000Z",
+      lastSuccessAt: "2026-07-20T12:00:00.000Z",
+      fresh: true,
+    });
+    return json(context, hevySyncSummary({ mode: "incremental", updated: 1 }));
+  });
+  app.delete("/api/integrations/hevy/data", (context) => {
+    state.hevy.status = disconnectedHevyStatus();
+    state.hevy.workouts = [];
+    state.hevy.lastConnectApiKey = null;
+    return json(context, { deletedRawUploads: 2 });
+  });
+  app.delete("/api/integrations/hevy", (context) => {
+    state.hevy.status = disconnectedHevyStatus({
+      lastCheckedAt: state.hevy.status.lastCheckedAt,
+      lastSuccessAt: state.hevy.status.lastSuccessAt,
+      lastDataChangeAt: state.hevy.status.lastDataChangeAt,
+    });
+    state.hevy.lastConnectApiKey = null;
+    return json(context, { success: true as const });
+  });
 
   app.get("/api/memories", (context) => {
     const search = context.req.query("search")?.trim().toLowerCase();
@@ -560,10 +732,11 @@ export const createMockApi = ({
   extend,
 }: {
   state?: Partial<
-    Omit<MockApiState, "chat" | "compact" | "fork"> & {
+    Omit<MockApiState, "chat" | "compact" | "fork" | "hevy"> & {
       chat?: Partial<MockApiState["chat"]>;
       compact?: Partial<MockApiState["compact"]>;
       fork?: Partial<MockApiState["fork"]>;
+      hevy?: Partial<MockApiState["hevy"]>;
     }
   >;
   extend?: (app: Hono, state: MockApiState) => void;
@@ -601,6 +774,12 @@ export const createMockApi = ({
     fork: {
       failStatus: partial?.fork?.failStatus ?? null,
       thread: partial?.fork?.thread ?? null,
+    },
+    hevy: {
+      status: partial?.hevy?.status ?? disconnectedHevyStatus(),
+      workouts: partial?.hevy?.workouts ?? [],
+      lastConnectApiKey: partial?.hevy?.lastConnectApiKey ?? null,
+      syncCalls: partial?.hevy?.syncCalls ?? 0,
     },
   };
 

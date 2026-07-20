@@ -3,15 +3,20 @@ import type { Hono } from "hono";
 import { createMockApi, defaultMockApi, sessionOneSnapshot, type MockApi } from "./app.ts";
 
 export {
+  connectedHevyStatus,
   createMockApi,
   defaultMockApi,
+  disconnectedHevyStatus,
+  sampleHevyWorkout,
   sessionOneSnapshot,
   type MockApi,
   type MockApiState,
   type MockConversation,
+  type MockHevyStatus,
   type MockMessage,
   type MockSnapshot,
   type MockThread,
+  type MockWorkout,
 } from "./app.ts";
 export {
   assistantStream,
