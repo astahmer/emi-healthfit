@@ -1,22 +1,25 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { decodeJson } from "../src/json-codec.ts";
 
 const HEVY_SWAGGER_UI_INIT_URL = "https://api.hevyapp.com/docs/swagger-ui-init.js";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 const normalizeOpenApiDocument = (value: unknown, path = "$"): unknown => {
   if (Array.isArray(value)) {
     return value.map((entry, index) => normalizeOpenApiDocument(entry, `${path}[${index}]`));
   }
 
-  if (!value || typeof value !== "object") {
+  if (!isRecord(value)) {
     return value;
   }
 
-  const record = value as Record<string, unknown>;
   const normalized: Record<string, unknown> = {};
 
-  for (const [key, nested] of Object.entries(record)) {
+  for (const [key, nested] of Object.entries(value)) {
     normalized[key] = normalizeOpenApiDocument(nested, `${path}.${key}`);
   }
 
@@ -103,30 +106,29 @@ const main = async () => {
 
   const source = await response.text();
   const swaggerDocJson = extractSwaggerDoc(source);
-  const document = normalizeOpenApiDocument(JSON.parse(swaggerDocJson)) as {
-    openapi?: string;
-    info?: { title?: string; version?: string };
-    paths?: Record<string, unknown>;
-  };
-
-  if (
-    document.openapi !== "3.0.0" &&
-    document.openapi !== "3.0.1" &&
-    document.openapi !== "3.1.0"
-  ) {
-    throw new Error(`Unexpected OpenAPI version: ${String(document.openapi)}`);
+  const document = normalizeOpenApiDocument(decodeJson(swaggerDocJson));
+  if (!isRecord(document)) {
+    throw new Error("Extracted OpenAPI document is not an object");
   }
 
-  if (!document.paths || Object.keys(document.paths).length === 0) {
+  const openapi = document.openapi;
+  if (openapi !== "3.0.0" && openapi !== "3.0.1" && openapi !== "3.1.0") {
+    throw new Error(`Unexpected OpenAPI version: ${String(openapi)}`);
+  }
+
+  const paths = document.paths;
+  if (!isRecord(paths) || Object.keys(paths).length === 0) {
     throw new Error("Extracted OpenAPI document has no paths");
   }
+
+  const info = isRecord(document.info) ? document.info : undefined;
+  const title = typeof info?.title === "string" ? info.title : "unknown";
+  const version = typeof info?.version === "string" ? info.version : "";
 
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
 
-  console.log(
-    `Wrote ${outputPath} (${Object.keys(document.paths).length} paths, ${document.info?.title ?? "unknown"} ${document.info?.version ?? ""})`,
-  );
+  console.log(`Wrote ${outputPath} (${Object.keys(paths).length} paths, ${title} ${version})`);
 };
 
 await main();
