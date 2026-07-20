@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { MessageNode } from "./conversation-machine";
-import { conversationMarkdown } from "./conversation-markdown";
+import type { ConversationMessageNode } from "../src/conversation/types.ts";
+import { conversationMarkdown } from "../src/conversation/conversation-markdown.ts";
 
-const message = (overrides: Partial<MessageNode>): MessageNode => ({
+const message = (overrides: Partial<ConversationMessageNode>): ConversationMessageNode => ({
   id: "message-1",
-  conversationId: "conversation-1",
   parentId: null,
   role: "user",
   parts: [{ type: "text", text: "Question" }],

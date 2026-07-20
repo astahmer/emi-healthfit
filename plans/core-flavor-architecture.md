@@ -105,7 +105,9 @@ README states that application logic comes from versioned packages.
    implementations as adapters. **DONE**
    (`@emi/core-server` with RequestContext-bound `ConversationStore`; `@emi/platform-cloudflare`
    D1 client; list/create handlers wired; in-memory store ownership test).
-5. Extract `core-web` shell and accept typed navigation/page/tool-renderer contributions.
+5. Extract `core-web` shell and accept typed navigation/page/tool-renderer contributions. **DONE**
+   (`@emi/core-web` with CoreWebProvider + contribution slots; conversation helpers/attachments
+   moved; HealthFit registers nav/tool renderers; thread.tsx deferred to deeper shell move).
 6. Move fitness prompt, tools, ingestion, analytics, and screens into `flavor-healthfit`.
 7. Add generic composition roots and verify local development plus a free-tier deployment.
 8. Add `create-chat-app`, package releases, generated-template CI, and an upgrade test.

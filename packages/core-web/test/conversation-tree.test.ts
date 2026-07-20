@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MessageNode, ThreadView } from "./conversation-machine";
+import type { ConversationMessageNode, ConversationThreadView } from "../src/conversation/types.ts";
 import {
   getChildMessages,
   getConversationViewMessages,
@@ -8,11 +8,10 @@ import {
   getRootMessages,
   getThreadMessages,
   searchMessages,
-} from "./conversation-tree";
+} from "../src/conversation/conversation-tree.ts";
 
-const makeMessage = (overrides?: Partial<MessageNode>): MessageNode => ({
+const makeMessage = (overrides?: Partial<ConversationMessageNode>): ConversationMessageNode => ({
   id: "msg-1",
-  conversationId: "conv-1",
   parentId: null,
   role: "user",
   parts: [{ type: "text", text: "hello" }],
@@ -20,16 +19,9 @@ const makeMessage = (overrides?: Partial<MessageNode>): MessageNode => ({
   ...overrides,
 });
 
-const makeThread = (overrides?: Partial<ThreadView>): ThreadView => ({
-  id: "thread-1",
-  conversationId: "conv-1",
+const makeThread = (overrides?: Partial<ConversationThreadView>): ConversationThreadView => ({
   anchorMessageId: "msg-1",
-  title: null,
-  status: "regular",
-  pinned: false,
   messageIds: ["msg-1"],
-  createdAt: "2026-07-14T10:00:00.000Z",
-  updatedAt: "2026-07-14T10:00:00.000Z",
   ...overrides,
 });
 

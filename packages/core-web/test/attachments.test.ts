@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AttachmentValidationError, validateAttachments } from "./attachments";
+import { AttachmentValidationError, validateAttachments } from "../src/attachments/attachments.ts";
 
 describe("attachment validation", () => {
   it("enforces the ten-file conversation limit", () => {

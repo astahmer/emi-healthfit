@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useToolRenderer } from "@emi/core-web";
 import { cn } from "@/lib/utils";
 import { GenUIRenderer } from "./gen-ui/registry";
 import { ErrorBoundary } from "../error-boundary";
@@ -326,6 +327,45 @@ const WebSearchCitations: FC<{ citations: ReadonlyArray<Citation> }> = ({ citati
   );
 };
 
+const FallbackResult: FC<{ value: unknown; className?: string }> = ({ value, className }) => (
+  <pre
+    className={cn(
+      "bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap",
+      className,
+    )}
+  >
+    {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
+  </pre>
+);
+
+export const WorkoutHistoryToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const workoutHistory = Schema.decodeUnknownOption(WorkoutHistory)(result);
+  if (Option.isNone(workoutHistory)) return <FallbackResult value={result} className={className} />;
+  return <WorkoutHistoryTable items={workoutHistory.value} />;
+};
+
+export const ExerciseProgressToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const exerciseProgress = Schema.decodeUnknownOption(ExerciseProgressSchema)(result);
+  if (Option.isNone(exerciseProgress))
+    return <FallbackResult value={result} className={className} />;
+  return <ExerciseProgressView data={exerciseProgress.value} />;
+};
+
+export const RecoveryToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const recoveryResult = Schema.decodeUnknownOption(RecoveryResultSchema)(result);
+  if (Option.isNone(recoveryResult)) return <FallbackResult value={result} className={className} />;
+  return <RecoveryCard data={recoveryResult.value} />;
+};
+
 export interface ToolResultContentProps {
   toolName: string;
   result?: unknown;
@@ -333,6 +373,7 @@ export interface ToolResultContentProps {
 }
 
 const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, className }) => {
+  const registeredRenderer = useToolRenderer(toolName);
   const parsed = parseResult(result);
   const errorText = Schema.decodeUnknownOption(ErrorText)(parsed);
   if (Option.isSome(errorText)) {
@@ -343,19 +384,9 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, c
     );
   }
 
-  const workoutHistory = Schema.decodeUnknownOption(WorkoutHistory)(parsed);
-  if (toolName === "get_workout_history" && Option.isSome(workoutHistory)) {
-    return <WorkoutHistoryTable items={workoutHistory.value} />;
-  }
-
-  const exerciseProgress = Schema.decodeUnknownOption(ExerciseProgressSchema)(parsed);
-  if (toolName === "get_exercise_progress" && Option.isSome(exerciseProgress)) {
-    return <ExerciseProgressView data={exerciseProgress.value} />;
-  }
-
-  const recoveryResult = Schema.decodeUnknownOption(RecoveryResultSchema)(parsed);
-  if (toolName === "get_recovery" && Option.isSome(recoveryResult)) {
-    return <RecoveryCard data={recoveryResult.value} />;
+  if (registeredRenderer !== undefined) {
+    const RegisteredRenderer = registeredRenderer;
+    return <RegisteredRenderer result={parsed} className={className} />;
   }
 
   const citations = getCitations(parsed);
@@ -367,33 +398,13 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({ toolName, result, c
   if (toolName === "render_component" && Option.isSome(renderComponent)) {
     const spec = renderComponent.value.spec;
     return (
-      <ErrorBoundary
-        fallback={
-          <pre
-            className={cn(
-              "bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap",
-              className,
-            )}
-          >
-            {JSON.stringify(parsed, null, 2)}
-          </pre>
-        }
-      >
+      <ErrorBoundary fallback={<FallbackResult value={parsed} className={className} />}>
         <GenUIRenderer spec={spec} />
       </ErrorBoundary>
     );
   }
 
-  return (
-    <pre
-      className={cn(
-        "bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap",
-        className,
-      )}
-    >
-      {typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2)}
-    </pre>
-  );
+  return <FallbackResult value={parsed} className={className} />;
 };
 
 export const ToolResultContent = memo(ToolResultContentImpl);

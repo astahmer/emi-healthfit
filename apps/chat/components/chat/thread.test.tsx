@@ -119,7 +119,7 @@ describe("Thread", () => {
 
     const view = renderThread([message]);
 
-    expect(screen.getByText("query database")).toBeInTheDocument();
+    expect(screen.getByText("get workout history")).toBeInTheDocument();
     expect(view.container.querySelector(".animate-spin")).toBeNull();
   });
 
