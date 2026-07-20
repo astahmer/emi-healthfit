@@ -53,6 +53,8 @@ export default Api.make(
     assets: {
       directory: "./assets",
       notFoundHandling: "single-page-application",
+      // SPA fallback must not swallow /api/* (esp. Better Auth Google callback).
+      runWorkerFirst: ["/api/*", "/ingest"],
     },
     compatibility: { flags: ["nodejs_compat"] },
     env: {

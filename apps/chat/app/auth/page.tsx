@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import { startAnonymousSession } from "../anonymous-auth";
 import { authClient } from "../auth-client";
 
-const safeNextPath = (value: string | null): string =>
-  value !== null && value.startsWith("/") && !value.startsWith("//") ? value : "/chat";
+const safeNextPath = (value: string | null): string => {
+  if (value === null || !value.startsWith("/") || value.startsWith("//")) return "/chat";
+  if (value.startsWith("/api/") || value === "/ingest" || value.startsWith("/auth")) return "/chat";
+  return value;
+};
 
 const AuthPage = ({
   error,
