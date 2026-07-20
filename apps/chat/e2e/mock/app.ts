@@ -46,8 +46,11 @@ export const createMockApi = ({
   const app = new Hono();
 
   app.get("/api/auth/get-session", (context) => json(context, authSessionBody));
+  app.post("/api/auth/sign-in/anonymous", (context) => json(context, {}));
 
   app.get("/api/conversations", (context) => json(context, { conversations }));
+
+  app.patch("/api/threads/:id", (context) => json(context, { success: true }));
 
   app.get("/api/conversations/:id/messages", (context) => {
     const id = context.req.param("id");

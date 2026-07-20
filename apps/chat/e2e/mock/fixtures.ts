@@ -61,6 +61,21 @@ export const assistantStream = ({ messageId, text }: { messageId: string; text: 
     "",
   ].join("\n\n");
 
+export const multiToolStream = ({ messageId }: { messageId: string }) =>
+  [
+    `data: {"type":"start","messageId":"${messageId}"}`,
+    `data: {"type":"tool-input-available","toolCallId":"call-1","toolName":"get_recovery","input":{}}`,
+    `data: {"type":"tool-output-available","toolCallId":"call-1","output":{"label":"Ready","explanation":"Recovered well"}}`,
+    `data: {"type":"tool-input-available","toolCallId":"call-2","toolName":"query_database","input":{}}`,
+    `data: {"type":"tool-output-error","toolCallId":"call-2","errorText":"Only one SELECT query is allowed."}`,
+    `data: {"type":"text-start","id":"${messageId}-text"}`,
+    `data: {"type":"text-delta","id":"${messageId}-text","delta":"Mixed tools done"}`,
+    `data: {"type":"text-end","id":"${messageId}-text"}`,
+    'data: {"type":"finish"}',
+    "data: [DONE]",
+    "",
+  ].join("\n\n");
+
 export const authSessionBody = {
   session: {
     id: "test-session",

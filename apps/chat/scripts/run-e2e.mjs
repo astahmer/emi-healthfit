@@ -84,7 +84,8 @@ try {
     env: process.env,
   });
   const serverUrl = await waitForServer({ child: server });
-  playwright = spawn(process.execPath, [playwrightPath, "test"], {
+  const playwrightArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+  playwright = spawn(process.execPath, [playwrightPath, "test", ...playwrightArgs], {
     env: { ...process.env, E2E_BASE_URL: serverUrl },
     stdio: "inherit",
   });
