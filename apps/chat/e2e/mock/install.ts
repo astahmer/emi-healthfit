@@ -69,12 +69,31 @@ export const fulfillApi = async (route: Route) => {
   await fulfillMockApi({ route, app: defaultMockApi.app });
 };
 
-export const setTestSettings = async (page: Page) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "share", {
-      configurable: true,
-      value: undefined,
-    });
+export type TestSettingsOptions = {
+  share?: "off" | "mock";
+};
+
+export const setTestSettings = async (page: Page, options: TestSettingsOptions = {}) => {
+  const share = options.share ?? "off";
+  await page.addInitScript((shareMode: "off" | "mock") => {
+    if (shareMode === "off") {
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: undefined,
+      });
+    } else {
+      const calls: ShareData[] = [];
+      Object.defineProperty(window, "__emiShareCalls", {
+        configurable: true,
+        value: calls,
+      });
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: async (data: ShareData) => {
+          calls.push(data);
+        },
+      });
+    }
     localStorage.setItem(
       "emi-chat-settings",
       JSON.stringify({
@@ -91,7 +110,7 @@ export const setTestSettings = async (page: Page) => {
         version: 0,
       }),
     );
-  });
+  }, share);
 };
 
 export const installMockApi = async ({
@@ -110,12 +129,14 @@ export const openWithMock = async ({
   page,
   app,
   path = "/chat",
+  settings,
 }: {
   page: Page;
   app: Hono;
   path?: string;
+  settings?: TestSettingsOptions;
 }) => {
-  await setTestSettings(page);
+  await setTestSettings(page, settings);
   await installMockApi({ page, app });
   await page.goto(path);
 };
@@ -144,18 +165,18 @@ export const openSessionOne = async ({
 export const createChatMock = (
   options?: Parameters<typeof createMockApi>[0],
 ): MockApi & {
-  open: (page: Page, path?: string) => Promise<void>;
-  install: (page: Page) => Promise<void>;
+  open: (page: Page, path?: string, settings?: TestSettingsOptions) => Promise<void>;
+  install: (page: Page, settings?: TestSettingsOptions) => Promise<void>;
 } => {
   const mock = createMockApi(options);
   return {
     ...mock,
-    install: async (page) => {
-      await setTestSettings(page);
+    install: async (page, settings) => {
+      await setTestSettings(page, settings);
       await installMockApi({ page, app: mock.app });
     },
-    open: async (page, path = "/chat") => {
-      await openWithMock({ page, app: mock.app, path });
+    open: async (page, path = "/chat", settings) => {
+      await openWithMock({ page, app: mock.app, path, settings });
     },
   };
 };

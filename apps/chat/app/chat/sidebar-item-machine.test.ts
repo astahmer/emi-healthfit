@@ -112,6 +112,45 @@ describe("sidebarItemMachine", () => {
     expect(actor.getSnapshot().matches("idle")).toBe(true);
   });
 
+  it("shares via navigator.share when available", async () => {
+    const share = vi.fn(async () => undefined);
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const actor = createActor(sidebarItemMachine, { input: { thread: makeThread() } });
+    actor.start();
+
+    actor.send({ type: "share" });
+    await vi.waitFor(() => expect(actor.getSnapshot().matches("idle")).toBe(true));
+
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Squat Session",
+        url: expect.stringContaining("/chat/thread-1"),
+      }),
+    );
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("falls back to clipboard when navigator.share is unavailable", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const actor = createActor(sidebarItemMachine, { input: { thread: makeThread() } });
+    actor.start();
+
+    actor.send({ type: "share" });
+    await vi.waitFor(() => expect(actor.getSnapshot().matches("idle")).toBe(true));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/chat/thread-1"));
+  });
+
   it("sets copiedId after successful copy and clears after delay", async () => {
     vi.useFakeTimers();
     const thread = makeThread();

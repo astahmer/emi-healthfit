@@ -80,6 +80,7 @@ export type MockApiState = {
   memories: MockMemory[];
   authSession: typeof authSessionBody | null;
   anonymousOk: boolean;
+  socialOk: boolean;
   chat: {
     calls: number;
     lastBody: MockChatBody | undefined;
@@ -204,9 +205,19 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     state.authSession = authSessionBody;
     return json(context, {});
   });
-  app.post("/api/auth/sign-in/social", (context) =>
-    json(context, { error: "Social sign-in is not available in tests." }, 400),
-  );
+  app.post("/api/auth/sign-in/social", async (context) => {
+    if (!state.socialOk) {
+      return json(context, { error: "Social sign-in is not available in tests." }, 400);
+    }
+    const body = await context.req.json<{ callbackURL?: string }>().catch(() => ({}) as {
+      callbackURL?: string;
+    });
+    state.authSession = authSessionBody;
+    return json(context, {
+      url: body.callbackURL ?? "/chat",
+      redirect: true,
+    });
+  });
 
   app.get("/api/conversations", (context) => {
     const search = context.req.query("search")?.trim().toLowerCase();
@@ -568,6 +579,7 @@ export const createMockApi = ({
     memories: partial?.memories ?? [],
     authSession: partial?.authSession === undefined ? authSessionBody : partial.authSession,
     anonymousOk: partial?.anonymousOk ?? true,
+    socialOk: partial?.socialOk ?? false,
     createConversationId: partial?.createConversationId ?? null,
     chat: {
       calls: 0,

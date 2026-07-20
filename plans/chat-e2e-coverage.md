@@ -152,9 +152,10 @@ Gaps + BDD (`chat-scenarios-gaps.spec.ts`, `e2e/features/*.feature`): message→
 
 | Item | Status |
 |---|---|
-| View mode UI | **Missing E2E** — machine-only (`view.select`); no chat UI yet → Layer A only |
-| Google OAuth happy path | **Thin** — denial + guest covered; real Google redirect not in CI |
-| Share native `navigator.share` | **Thin** — clipboard URL path covered; share sheet disabled in E2E init |
+| View mode UI | **Layer A only** — no chat UI wiring; unit covers inline/sidebar/columns |
+| Google OAuth | **Covered (mocked)** — denial + guest fail + social redirect happy path |
+| Share `navigator.share` | **Covered** — E2E mock share + unit share/clipboard fallback |
+| Stream fail Dismiss / Retry last turn | **Layer A** — composer controls in `thread.test` (message-bound retry stays E2E) |
 | Live LLM / real API | Out of scope (deterministic mock) |
 
 ## UI & UX

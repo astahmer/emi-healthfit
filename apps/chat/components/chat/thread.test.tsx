@@ -289,6 +289,32 @@ describe("Thread", () => {
     expect(vi.mocked(useChatRuntime)().revise).toHaveBeenCalledWith({ messageId: message.id });
   });
 
+  it("shows composer retry-last-turn and dismiss when error is not bound to a message", async () => {
+    const user = userEvent.setup();
+    const clearError = vi.fn();
+    const revise = vi.fn();
+    const message: MessageWithUsage = {
+      id: "user-1",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      error: new Error("Upstream failed"),
+      errorMessageId: undefined,
+      clearError,
+      revise,
+    });
+    renderThread([message]);
+
+    expect(screen.getByText("Upstream failed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry last turn" }));
+    expect(revise).toHaveBeenCalledWith({ messageId: message.id });
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(clearError).toHaveBeenCalled();
+  });
+
   it("confirms when an assistant message has no new memories", async () => {
     const user = userEvent.setup();
     vi.mocked(extractMemories).mockResolvedValue([]);

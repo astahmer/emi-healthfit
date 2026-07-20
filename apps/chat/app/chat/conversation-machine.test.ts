@@ -330,13 +330,17 @@ describe("conversationMachine", () => {
     expect(snapshot.context.searchResults.map((m) => m.id)).toEqual(["a"]);
   });
 
-  it("switches view mode", async () => {
+  it("switches view mode across inline, sidebar, and columns", async () => {
     const actor = createActor(conversationMachine, { input: {} });
     actor.start();
 
+    expect(actor.getSnapshot().context.viewMode).toBe("inline");
+    actor.send({ type: "view.select", viewMode: "sidebar" });
+    expect(actor.getSnapshot().context.viewMode).toBe("sidebar");
     actor.send({ type: "view.select", viewMode: "columns" });
-
     expect(actor.getSnapshot().context.viewMode).toBe("columns");
+    actor.send({ type: "view.select", viewMode: "inline" });
+    expect(actor.getSnapshot().context.viewMode).toBe("inline");
   });
 
   it("reloads when conversation id changes", async () => {

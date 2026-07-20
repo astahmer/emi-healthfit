@@ -185,6 +185,7 @@ test("shows stream failure controls on the failed user turn", async ({ page }) =
   await page.getByLabel("Message input").fill("Please fail");
   await page.getByLabel("Send message").click();
   await expect(page.getByText("Retry this request")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry this request" })).toBeVisible();
 });
 
 test("shows failure toasts for compact and conversation copy", async ({ page }) => {
@@ -311,6 +312,18 @@ test("shows Google auth denial and guest start failure", async ({ page }) => {
   await expect(page.getByText("Guest session could not be started. Try again.")).toBeVisible();
 });
 
+test("continues with Google into chat when social sign-in succeeds", async ({ page }) => {
+  const mock = createChatMock({
+    state: { authSession: null, socialOk: true },
+  });
+  await mock.install(page);
+  await page.goto("/auth?next=/chat");
+
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page).toHaveURL(/\/chat\/?$/);
+  await expect(page.getByLabel("Message input")).toBeVisible();
+});
+
 test("shares copies a session URL and downloads markdown from the sidebar", async ({ page }) => {
   const mock = createChatMock({
     state: { snapshots: { one: sessionOneSnapshot() } },
@@ -329,6 +342,28 @@ test("shares copies a session URL and downloads markdown from the sidebar", asyn
   await page.getByText("Télécharger").click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/session-one\.md|conversation\.md/);
+});
+
+test("shares a session via navigator.share when available", async ({ page }) => {
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
+  });
+  await mock.open(page, "/chat/one", { share: "mock" });
+
+  await openSessionActions(page);
+  await page.getByText("Partager").click();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.length ?? 0),
+    )
+    .toBe(1);
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () => (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.[0]?.url ?? "",
+      ),
+    )
+    .toContain("/chat/one");
 });
 
 test("fork failure does not create a branch", async ({ page }) => {
