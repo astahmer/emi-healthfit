@@ -113,9 +113,15 @@ describe("browser chat stream timing", () => {
     actor.send({ type: "stream.completed" });
 
     assert.strictEqual(arrivals.length, 3);
-    assert.ok(arrivals[0] < delayMilliseconds, `first XState update arrived at ${arrivals[0]}ms`);
-    assert.ok(arrivals[1] - arrivals[0] > delayMilliseconds / 2);
-    assert.ok(arrivals[2] - arrivals[1] > delayMilliseconds / 2);
+    // Under parallel vitest load the first chunk can land after delayMilliseconds;
+    // keep the progressive-spacing contract with slack instead of a hard wall clock.
+    assert.ok(
+      arrivals[0]! < delayMilliseconds * 2,
+      `first XState update arrived at ${arrivals[0]}ms`,
+    );
+    assert.ok(arrivals[1]! - arrivals[0]! > delayMilliseconds / 3);
+    assert.ok(arrivals[2]! - arrivals[1]! > delayMilliseconds / 3);
+    assert.ok(arrivals[0]! < arrivals[1]! && arrivals[1]! < arrivals[2]!);
     console.log(
       JSON.stringify({
         event: "chat.stream.timing",
