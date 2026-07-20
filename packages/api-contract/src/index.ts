@@ -3,6 +3,7 @@ import { ConversationsApi, MessagesApi, ThreadsApi } from "./conversations.ts";
 import {
   AnalyticsApi,
   DataApi,
+  HevyIntegrationApi,
   MemoriesExtraApi,
   PrivacyApi,
   SuggestionsApi,
@@ -26,4 +27,5 @@ export class EmiApi extends HttpApi.make("emi-api")
   .add(AnalyticsApi)
   .add(DataApi)
   .add(PrivacyApi)
-  .add(WorkoutsApi) {}
+  .add(WorkoutsApi)
+  .add(HevyIntegrationApi) {}

@@ -118,6 +118,7 @@ export const parseHevyCsv = (
 
     const sessionsById = new Map<string, HevySessionRow>();
     const sets: HevySetRow[] = [];
+    const exerciseIndexBySession = new Map<string, Map<string, number>>();
 
     for (const row of rows) {
       const startDate = yield* parseHevyDate(row.start_time);
@@ -134,16 +135,29 @@ export const parseHevyCsv = (
 
         sessionsById.set(sessionId, {
           session_id: sessionId,
+          provider_workout_id: null,
+          source_updated_at: null,
           title: row.title,
           start_time: toDateTimeLocal(startDate),
           end_time: endDate !== null ? toDateTimeLocal(endDate) : null,
           duration_sec: durationSec,
           total_volume_kg: null,
         });
+        exerciseIndexBySession.set(sessionId, new Map());
+      }
+
+      const exerciseIndexes = exerciseIndexBySession.get(sessionId) ?? new Map<string, number>();
+      let exerciseIndex = exerciseIndexes.get(row.exercise_title);
+      if (exerciseIndex === undefined) {
+        exerciseIndex = exerciseIndexes.size;
+        exerciseIndexes.set(row.exercise_title, exerciseIndex);
+        exerciseIndexBySession.set(sessionId, exerciseIndexes);
       }
 
       sets.push({
         session_id: sessionId,
+        exercise_template_id: null,
+        exercise_index: exerciseIndex,
         exercise_title: row.exercise_title,
         set_index: Number(row.set_index),
         set_type: Option.getOrNull(row.set_type),

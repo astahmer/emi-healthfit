@@ -85,6 +85,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySessions(db, userId, [
         {
           session_id: "session-a",
+          provider_workout_id: null,
+          source_updated_at: null,
           title: "Push",
           start_time: "2026-07-01T10:00:00Z",
           end_time: "2026-07-01T11:00:00Z",
@@ -97,6 +99,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySets(db, userId, [
         {
           session_id: "session-a",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Bench press",
           set_index: 1,
           set_type: "normal",
@@ -113,6 +117,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySets(db, userId, [
         {
           session_id: "session-a",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Bench press",
           set_index: 1,
           set_type: "normal",
@@ -231,6 +237,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySessions(db, alice, [
         {
           session_id: "session-a",
+          provider_workout_id: null,
+          source_updated_at: null,
           title: null,
           start_time: "2026-07-01T10:00:00Z",
           end_time: null,
@@ -243,6 +251,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySets(db, alice, [
         {
           session_id: "session-a",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Row",
           set_index: 1,
           set_type: null,

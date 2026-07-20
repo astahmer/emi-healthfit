@@ -8,6 +8,7 @@ import { useSettings } from "./settings-store";
 import { settingsSyncMachine } from "./settings-sync-machine";
 import { DataImport } from "./data-import";
 import { DataExport } from "./data-export";
+import { HevyIntegration } from "./hevy-integration";
 import { PrivacyControls } from "./privacy-controls";
 
 export function SettingsPanel() {
@@ -137,6 +138,8 @@ export function SettingsPanel() {
             {syncStatus}
           </p>
         )}
+
+        <HevyIntegration />
 
         <DataExport />
 

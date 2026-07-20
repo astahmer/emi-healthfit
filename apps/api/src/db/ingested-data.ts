@@ -90,6 +90,8 @@ export const upsertHevySessions = (
           conflict.columns(["user_id", "session_id"]).doUpdateSet((expressionBuilder) => ({
             duration_sec: expressionBuilder.ref("excluded.duration_sec"),
             end_time: expressionBuilder.ref("excluded.end_time"),
+            provider_workout_id: expressionBuilder.ref("excluded.provider_workout_id"),
+            source_updated_at: expressionBuilder.ref("excluded.source_updated_at"),
             title: expressionBuilder.ref("excluded.title"),
             total_volume_kg: expressionBuilder.ref("excluded.total_volume_kg"),
           })),
@@ -113,11 +115,13 @@ export const upsertHevySets = (
         .values({ user_id: userId, ...row })
         .onConflict((conflict) =>
           conflict
-            .columns(["user_id", "session_id", "exercise_title", "set_index"])
+            .columns(["user_id", "session_id", "exercise_index", "set_index"])
             .doUpdateSet((expressionBuilder) => ({
               distance_km: expressionBuilder.ref("excluded.distance_km"),
               duration_seconds: expressionBuilder.ref("excluded.duration_seconds"),
               exercise_notes: expressionBuilder.ref("excluded.exercise_notes"),
+              exercise_template_id: expressionBuilder.ref("excluded.exercise_template_id"),
+              exercise_title: expressionBuilder.ref("excluded.exercise_title"),
               reps: expressionBuilder.ref("excluded.reps"),
               rpe: expressionBuilder.ref("excluded.rpe"),
               set_type: expressionBuilder.ref("excluded.set_type"),
@@ -266,6 +270,8 @@ export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* 
       : [
           kysely.deleteFrom("hevy_sets").where("user_id", "=", userId),
           kysely.deleteFrom("hevy_sessions").where("user_id", "=", userId),
+          kysely.deleteFrom("hevy_connections").where("user_id", "=", userId),
+          kysely.deleteFrom("hevy_sync_state").where("user_id", "=", userId),
         ];
   statements.push(
     kysely

@@ -50,13 +50,21 @@ export const hevySessions = sqliteTable(
   {
     user_id: text().notNull(),
     session_id: text().notNull(),
+    provider_workout_id: text(),
+    source_updated_at: text(),
     title: text(),
     start_time: text().notNull(),
     end_time: text(),
     duration_sec: integer(),
     total_volume_kg: real(),
   },
-  (table) => [primaryKey({ columns: [table.user_id, table.session_id] })],
+  (table) => [
+    primaryKey({ columns: [table.user_id, table.session_id] }),
+    uniqueIndex("hevy_sessions_user_provider_workout_uidx").on(
+      table.user_id,
+      table.provider_workout_id,
+    ),
+  ],
 );
 
 export const hevySets = sqliteTable(
@@ -65,6 +73,8 @@ export const hevySets = sqliteTable(
     id: integer().primaryKey({ autoIncrement: true }),
     user_id: text().notNull(),
     session_id: text().notNull(),
+    exercise_template_id: text(),
+    exercise_index: integer().notNull().default(0),
     exercise_title: text().notNull(),
     set_index: integer().notNull(),
     set_type: text(),
@@ -80,9 +90,31 @@ export const hevySets = sqliteTable(
       columns: [table.user_id, table.session_id],
       foreignColumns: [hevySessions.user_id, hevySessions.session_id],
     }),
-    unique().on(table.user_id, table.session_id, table.exercise_title, table.set_index),
+    unique().on(table.user_id, table.session_id, table.exercise_index, table.set_index),
   ],
 );
+
+export const hevyConnections = sqliteTable("hevy_connections", {
+  user_id: text().primaryKey(),
+  provider_user_id: text(),
+  encrypted_api_key: text().notNull(),
+  encryption_iv: text().notNull(),
+  encryption_version: text().notNull(),
+  status: text().notNull(),
+  created_at: text().notNull(),
+  updated_at: text().notNull(),
+});
+
+export const hevySyncState = sqliteTable("hevy_sync_state", {
+  user_id: text().primaryKey(),
+  event_watermark: text(),
+  last_checked_at: text(),
+  last_success_at: text(),
+  last_data_change_at: text(),
+  lease_until: text(),
+  last_error_code: text(),
+  last_error_at: text(),
+});
 
 export const sleepSessions = sqliteTable(
   "sleep_sessions",

@@ -68,6 +68,8 @@ export const ingestedDataExportSchema = Schema.Struct({
     sessions: Schema.Array(
       Schema.Struct({
         session_id: Schema.String,
+        provider_workout_id: Schema.optional(NullableString),
+        source_updated_at: Schema.optional(NullableString),
         title: NullableString,
         start_time: Schema.String,
         end_time: NullableString,
@@ -79,6 +81,8 @@ export const ingestedDataExportSchema = Schema.Struct({
       Schema.Struct({
         id: Schema.optional(Schema.Number),
         session_id: Schema.String,
+        exercise_template_id: Schema.optional(NullableString),
+        exercise_index: Schema.optional(Schema.Int),
         exercise_title: Schema.String,
         set_index: Schema.Int,
         set_type: NullableString,
@@ -164,7 +168,7 @@ export const previewIngestedDataImport = Effect.fn("dataImport.preview")(functio
     Effect.promise(() =>
       kysely
         .selectFrom("hevy_sets")
-        .select(["session_id", "exercise_title", "set_index"])
+        .select(["session_id", "exercise_index", "set_index"])
         .where("user_id", "=", userId)
         .execute(),
     ),
@@ -176,7 +180,7 @@ export const previewIngestedDataImport = Effect.fn("dataImport.preview")(functio
     body: new Set(body.map((row) => row.date)),
     sessions: new Set(sessions.map((row) => row.session_id)),
     sets: new Set(
-      sets.map((row) => combinedKey(row.session_id, row.exercise_title, row.set_index)),
+      sets.map((row) => combinedKey(row.session_id, row.exercise_index, row.set_index)),
     ),
   };
   const groups = {
@@ -206,7 +210,7 @@ export const previewIngestedDataImport = Effect.fn("dataImport.preview")(functio
     hevySets: count(
       data.hevy.sets.length,
       data.hevy.sets.filter((row) =>
-        keys.sets.has(combinedKey(row.session_id, row.exercise_title, row.set_index)),
+        keys.sets.has(combinedKey(row.session_id, row.exercise_index ?? 0, row.set_index)),
       ).length,
     ),
   } satisfies IngestedDataImportPreview["groups"];
@@ -229,12 +233,28 @@ export const importIngestedData = Effect.fn("dataImport.apply")(function* ({
   userId: string;
   data: IngestedDataExport;
 }) {
-  yield* upsertHevySessions(db, userId, data.hevy.sessions);
+  yield* upsertHevySessions(
+    db,
+    userId,
+    data.hevy.sessions.map((session) => ({
+      ...session,
+      provider_workout_id: session.provider_workout_id ?? null,
+      source_updated_at: session.source_updated_at ?? null,
+    })),
+  );
   yield* Effect.all([
     upsertDailyActivity(db, userId, data.health.dailyActivity),
     insertHealthWorkouts(db, userId, data.health.workouts),
     upsertSleepSessions(db, userId, data.health.sleepSessions),
     upsertBodyMetrics(db, userId, data.health.bodyMetrics),
-    upsertHevySets(db, userId, data.hevy.sets),
+    upsertHevySets(
+      db,
+      userId,
+      data.hevy.sets.map((set) => ({
+        ...set,
+        exercise_template_id: set.exercise_template_id ?? null,
+        exercise_index: set.exercise_index ?? 0,
+      })),
+    ),
   ]);
 });

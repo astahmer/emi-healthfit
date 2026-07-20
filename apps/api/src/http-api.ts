@@ -35,6 +35,7 @@ import {
   suggestionsHandlers,
   workoutsHandlers,
 } from "./http-api-data.ts";
+import { hevyHandlers } from "./http-api-hevy.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 const HttpApiHandler = Schema.Struct({
@@ -166,10 +167,12 @@ const memoriesHandlers = ({
 export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   bucket,
   db,
+  environment,
   router,
 }: {
   bucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
+  environment: Record<string, unknown>;
   router: HttpRouter.HttpRouter;
 }) {
   const runtimeContext = Context.empty();
@@ -185,7 +188,8 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
       analyticsHandlers({ db, runtimeContext }),
       dataHandlers({ db, runtimeContext }),
       privacyHandlers({ bucket, db, runtimeContext }),
-      workoutsHandlers({ db, runtimeContext }),
+      workoutsHandlers({ db, environment, runtimeContext }),
+      hevyHandlers({ bucket, db, environment, runtimeContext }),
     ),
   ).pipe(Effect.scoped);
   const routes = Object.values(EmiApi.groups).flatMap((group) => {

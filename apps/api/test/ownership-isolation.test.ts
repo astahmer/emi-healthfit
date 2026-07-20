@@ -165,6 +165,8 @@ describe("per-user ownership", () => {
       upsertHevySessions(db, "user-alice", [
         {
           session_id: "session-1",
+          provider_workout_id: null,
+          source_updated_at: null,
           title: "Upper",
           start_time: "2026-07-15T10:00:00.000Z",
           end_time: "2026-07-15T11:00:00.000Z",
@@ -177,6 +179,8 @@ describe("per-user ownership", () => {
       upsertHevySets(db, "user-alice", [
         {
           session_id: "session-1",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Bench Press",
           set_index: 1,
           set_type: "normal",

@@ -21,6 +21,15 @@ Hevy embeds the spec in `swagger-ui-init.js`. The fetch script also rewrites
 non-standard `{ "type": "enum", ... }` schemas to `{ "type": "string", "enum": ... }`
 so typed-openapi can generate.
 
+## Sync (Workers Free)
+
+Shipped paths: connect + initial import, Settings **Sync now**, stale-on-demand
+(15 min) on workout list. No Cron Trigger — Free Cron CPU is 10ms.
+
+See [SCHEDULING.md](./SCHEDULING.md) for the Workers Paid twice-daily cron upgrade.
+
+Worker secret: `HEVY_CREDENTIAL_ENCRYPTION_KEY` (32-byte hex or base64).
+
 ## TODO
 
 Regenerate with `typed-openapi --runtime effect` once Effect Schema runtime is

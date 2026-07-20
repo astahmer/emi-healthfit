@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a7963d2c-2c50-47ab-bed6-b88c3cbb37a5",
-  "prevId": "814b5067-6d49-4641-80bf-202a229d350a",
+  "id": "b4bb90ac-f37a-4c0f-ad52-7c348240595c",
+  "prevId": "a7963d2c-2c50-47ab-bed6-b88c3cbb37a5",
   "tables": {
     "body_metrics": {
       "name": "body_metrics",
@@ -58,6 +58,117 @@
           "name": "body_metrics_user_id_date_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "chat_events": {
+      "name": "chat_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "conversation_id": {
+          "name": "conversation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "generation_id": {
+          "name": "generation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_chat_events_generation_created": {
+          "name": "idx_chat_events_generation_created",
+          "columns": ["generation_id", "created_at"],
+          "isUnique": false
+        },
+        "idx_chat_events_retention": {
+          "name": "idx_chat_events_retention",
+          "columns": ["created_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "chat_events_conversation_id_conversations_id_fk": {
+          "name": "chat_events_conversation_id_conversations_id_fk",
+          "tableFrom": "chat_events",
+          "tableTo": "conversations",
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "chat_events_generation_id_chat_generations_id_fk": {
+          "name": "chat_events_generation_id_chat_generations_id_fk",
+          "tableFrom": "chat_events",
+          "tableTo": "chat_generations",
+          "columnsFrom": ["generation_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -520,6 +631,72 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "hevy_connections": {
+      "name": "hevy_connections",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "encrypted_api_key": {
+          "name": "encrypted_api_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "encryption_iv": {
+          "name": "encryption_iv",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "encryption_version": {
+          "name": "encryption_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "hevy_sessions": {
       "name": "hevy_sessions",
       "columns": {
@@ -535,6 +712,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "provider_workout_id": {
+          "name": "provider_workout_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_updated_at": {
+          "name": "source_updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "title": {
@@ -573,7 +764,13 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "hevy_sessions_user_provider_workout_uidx": {
+          "name": "hevy_sessions_user_provider_workout_uidx",
+          "columns": ["user_id", "provider_workout_id"],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "hevy_sessions_user_id_session_id_pk": {
@@ -607,6 +804,21 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "exercise_template_id": {
+          "name": "exercise_template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "exercise_index": {
+          "name": "exercise_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "exercise_title": {
           "name": "exercise_title",
@@ -673,12 +885,88 @@
         }
       },
       "indexes": {
-        "hevy_sets_user_id_session_id_exercise_title_set_index_unique": {
-          "name": "hevy_sets_user_id_session_id_exercise_title_set_index_unique",
-          "columns": ["user_id", "session_id", "exercise_title", "set_index"],
+        "hevy_sets_user_id_session_id_exercise_index_set_index_unique": {
+          "name": "hevy_sets_user_id_session_id_exercise_index_set_index_unique",
+          "columns": ["user_id", "session_id", "exercise_index", "set_index"],
           "isUnique": true
         }
       },
+      "foreignKeys": {
+        "hevy_sets_user_id_session_id_hevy_sessions_user_id_session_id_fk": {
+          "name": "hevy_sets_user_id_session_id_hevy_sessions_user_id_session_id_fk",
+          "tableFrom": "hevy_sets",
+          "tableTo": "hevy_sessions",
+          "columnsFrom": ["user_id", "session_id"],
+          "columnsTo": ["user_id", "session_id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "hevy_sync_state": {
+      "name": "hevy_sync_state",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event_watermark": {
+          "name": "event_watermark",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_success_at": {
+          "name": "last_success_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_data_change_at": {
+          "name": "last_data_change_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lease_until": {
+          "name": "lease_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_error_code": {
+          "name": "last_error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_error_at": {
+          "name": "last_error_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -1249,117 +1537,6 @@
           "tableFrom": "threads",
           "tableTo": "messages",
           "columnsFrom": ["anchor_message_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "chat_events": {
-      "name": "chat_events",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "conversation_id": {
-          "name": "conversation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "generation_id": {
-          "name": "generation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "request_id": {
-          "name": "request_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "trace_id": {
-          "name": "trace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "schema_version": {
-          "name": "schema_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
-        },
-        "payload": {
-          "name": "payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_chat_events_generation_created": {
-          "name": "idx_chat_events_generation_created",
-          "columns": ["generation_id", "created_at"],
-          "isUnique": false
-        },
-        "idx_chat_events_retention": {
-          "name": "idx_chat_events_retention",
-          "columns": ["created_at"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "chat_events_conversation_id_conversations_id_fk": {
-          "name": "chat_events_conversation_id_conversations_id_fk",
-          "tableFrom": "chat_events",
-          "tableTo": "conversations",
-          "columnsFrom": ["conversation_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "chat_events_generation_id_chat_generations_id_fk": {
-          "name": "chat_events_generation_id_chat_generations_id_fk",
-          "tableFrom": "chat_events",
-          "tableTo": "chat_generations",
-          "columnsFrom": ["generation_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

@@ -50,8 +50,8 @@ copy, derived analytics, and its read API; it does not become a competing workou
 - A public/self-hosted MCP endpoint. A future MCP server must call the same Emi D1-backed domain
   service, never expose the Hevy key or bypass synchronization.
 - Workout, routine, template, or body-measurement writes from Emi to Hevy.
-- A scheduled Cloudflare sync in the first release. The on-demand and manual paths give fresh data
-  whenever it is used without a globally privileged job polling every user's credential.
+- Cloudflare Cron Trigger periodic sync while the account is on **Workers Free** (see
+  [Scheduling / free tier](#scheduling--free-tier)).
 - Syncing routines, folders, exercise templates, exercise history, and body measurements. They can
   become separately versioned provider resources after workout sync has proven stable.
 
@@ -128,8 +128,8 @@ local data; it returns a stale/degraded status alongside the data where appropri
 |---|---|---|
 | Runtime reads | D1 only | Fast, provider-independent, owner-scoped, and composable with existing Apple Health data. |
 | Change detection | Hevy workout event feed | It is purpose-built for incremental cache synchronization; do not use workout count or polling every data query. |
-| Freshness | connect + manual + stale-on-demand | Current data when needed, no duplicate cron system or permanent provider dependency. |
-| Scheduled sync | Defer | No user value proven yet; it adds credential-wide background execution and failure operations. |
+| Freshness | connect + manual + stale-on-demand | Works on Workers Free; current data when the app is used. |
+| Scheduled sync | Defer on Free; document Paid upgrade | Free Cron CPU is 10ms — too small for decrypt + Hevy pages + D1 writes. |
 | Provider boundary | Internal Effect service with Effect Schema decoders | Hevy describes the API as unstable; isolates API changes and protects database/UI contracts. |
 | Credential storage | AES-GCM encrypted value in D1, key from Worker secret | The API key is long-lived and must not be in the browser or plaintext database. |
 | External MCP | No dependency in MVP | Own API/DB control; a later MCP layer reuses local data and auth instead of forwarding the key to a third party. |
@@ -326,6 +326,30 @@ make it an unbounded request middleware: only call it on data that actually depe
 honour a central timeout/freshness policy. Existing clients continue to consume their typed workout
 and analytics responses from D1.
 
+## Scheduling / free tier
+
+**Current account plan: Cloudflare Workers Free.**
+
+| Path | Free tier | Notes |
+| --- | --- | --- |
+| Connect + initial sync | Yes | User-initiated HTTP request; wall time OK while client waits. |
+| Manual Sync now | Yes | Same as above. |
+| Stale-on-demand (`ensureHevyFresh`, 15 min) | Yes | Runs inside workout/analytics/chat reads when cache is stale. |
+| Cloudflare Cron Trigger (e.g. twice daily) | No (not useful) | Free Cron CPU hard-cap is **10 ms**. Decrypt + JSON + D1 exceeds that. Cron *triggers* exist on Free (≤5/account) but cannot run real sync work. |
+
+### Upgrade path (later, Workers Paid)
+
+When the account moves to **Workers Paid** (~$5/month):
+
+1. Cron Triggers with interval **≥ 1 hour** get **15 minutes** of CPU (vs 10 ms on Free).
+2. Add one Alchemy/Wrangler cron, e.g. `0 0,12 * * *` (00:00 and 12:00 UTC).
+3. Handler enumerates connected users, respects per-user lease + interval, calls the **same**
+   `HevySync` service as manual/stale paths (no second implementation).
+4. Bound concurrency and skip users synced recently; record redacted failures only.
+5. Keep connect / manual / stale-on-demand — cron becomes a background complement, not a replacement.
+
+Do not enable Cron while still on Free; it will time out and look like flaky sync.
+
 ## Privacy, security, and reliability
 
 - Add `HEVY_CREDENTIAL_ENCRYPTION_KEY` as a redacted Worker secret. Use a versioned AES-GCM
@@ -416,3 +440,5 @@ and analytics responses from D1.
 | 2026-07-20 | Vendor Hevy OpenAPI from `swagger-ui-init.js` (no public `openapi.json`). | Spec is embedded in Swagger UI; pin a normalized snapshot for codegen. |
 | 2026-07-20 | Use `typed-openapi --runtime none` for the Hevy HTTP client; Effect-wrap promises. | Typesafe calls now; switch to `--runtime effect` when typed-openapi publishes Effect Schema support (`typedapi/plans/effect-schema-runtime.md`). |
 | 2026-07-20 | Provider HTTP goes only through `apps/api/src/integrations/hevy/hevy-client.ts`. | Keeps `api-key`, timeouts/spans, and tagged errors behind one adapter. |
+| 2026-07-20 | Ship free-tier sync only: connect, manual Sync, stale-on-demand (15m). No Cron. | Workers Free Cron CPU is 10ms; real sync cannot finish. |
+| 2026-07-20 | Document Paid upgrade for twice-daily Cron (`0 0,12 * * *`). | Workers Paid gives ≥1h cron schedules 15 min CPU — enough for per-user sync loops. |

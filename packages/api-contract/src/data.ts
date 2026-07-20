@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
-import { Content, Identifier, StandardErrors } from "./common.ts";
+import { Content, Deleted, Identifier, StandardErrors } from "./common.ts";
 
 const NullableNumber = Schema.NullOr(Schema.Number);
 
@@ -183,6 +183,79 @@ export class WorkoutsApi extends HttpApiGroup.make("workouts")
   .add(
     HttpApiEndpoint.get("list", "/workouts", {
       success: Schema.Struct({ workouts: Schema.Array(Workout) }),
+      error: StandardErrors,
+    }),
+  )
+  .prefix("/api") {}
+
+const NullableString = Schema.NullOr(Schema.String);
+
+const HevySyncSummary = Schema.Struct({
+  mode: Schema.Literals(["initial", "incremental", "skipped_fresh", "skipped_busy"]),
+  imported: Schema.Number,
+  updated: Schema.Number,
+  deleted: Schema.Number,
+  ambiguousLegacy: Schema.Number,
+  startedAt: Schema.String,
+  completedAt: Schema.String,
+  lastErrorCode: NullableString,
+});
+
+export class HevyIntegrationApi extends HttpApiGroup.make("hevy")
+  .add(
+    HttpApiEndpoint.get("status", "/integrations/hevy", {
+      success: Schema.Struct({
+        connected: Schema.Boolean,
+        status: Schema.String,
+        providerUserId: NullableString,
+        lastCheckedAt: NullableString,
+        lastSuccessAt: NullableString,
+        lastDataChangeAt: NullableString,
+        lastErrorCode: NullableString,
+        lastErrorAt: NullableString,
+        fresh: Schema.Boolean,
+      }),
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.put("connect", "/integrations/hevy", {
+      payload: Schema.Struct({ apiKey: Content }),
+      success: Schema.Struct({
+        status: Schema.Struct({
+          connected: Schema.Boolean,
+          status: Schema.String,
+          providerUserId: NullableString,
+          lastCheckedAt: NullableString,
+          lastSuccessAt: NullableString,
+          lastDataChangeAt: NullableString,
+          lastErrorCode: NullableString,
+          lastErrorAt: NullableString,
+          fresh: Schema.Boolean,
+        }),
+        sync: HevySyncSummary,
+        providerUserName: NullableString,
+      }),
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("sync", "/integrations/hevy/sync", {
+      success: HevySyncSummary,
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.delete("disconnect", "/integrations/hevy", {
+      success: Deleted,
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.delete("removeData", "/integrations/hevy/data", {
+      success: Schema.Struct({
+        deletedRawUploads: Schema.Number,
+      }),
       error: StandardErrors,
     }),
   )

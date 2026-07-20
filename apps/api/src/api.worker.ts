@@ -56,6 +56,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       GOOGLE_CLIENT_ID: Config.redacted("GOOGLE_CLIENT_ID"),
       GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET"),
       ALLOWED_EMAILS: Config.redacted("ALLOWED_EMAILS"),
+      HEVY_CREDENTIAL_ENCRYPTION_KEY: Config.redacted("HEVY_CREDENTIAL_ENCRYPTION_KEY"),
     },
     observability: {
       enabled: true,
@@ -98,7 +99,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
       yield* router.add("GET", "/api/conversations/:conversationId/diagnostics", (request) =>
         cors({ request, effect: handleConversationDiagnostics(db, request) }),
       );
-      yield* registerHttpApi({ bucket, db, router });
+      yield* registerHttpApi({ bucket, db, environment: env, router });
       yield* router.add("*", "/*", (request) => {
         if (request.method === "OPTIONS") return handleCorsPreflight(request);
         if (request.method === "GET") return handleAssetRequest({ assetsFetcher, request });

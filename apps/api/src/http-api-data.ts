@@ -14,10 +14,11 @@ import {
   updateRawUploadRetentionDays,
 } from "./db/ingested-data.ts";
 import { withInternalError } from "./http-api-errors.ts";
+import { ensureHevyFresh } from "./integrations/hevy/hevy-sync.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
-const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
+export const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
   prefix,
   olderThan,
@@ -189,9 +190,11 @@ export const privacyHandlers = ({
 
 export const workoutsHandlers = ({
   db,
+  environment,
   runtimeContext,
 }: {
   db: QueryDatabaseClient;
+  environment: Record<string, unknown>;
   runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(EmiApi, "workouts", (handlers) =>
@@ -200,6 +203,7 @@ export const workoutsHandlers = ({
       Effect.fn("httpApi.workouts.list")(
         function* () {
           const user = yield* CurrentUser;
+          yield* ensureHevyFresh({ db, userId: user.id, environment });
           const workouts = yield* getWorkouts(db, user.id);
           return { workouts };
         },

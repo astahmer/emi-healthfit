@@ -13,8 +13,10 @@ import {
   conversations,
   dailyActivity,
   healthWorkouts,
+  hevyConnections,
   hevySessions,
   hevySets,
+  hevySyncState,
   memories,
   messages,
   notes,
@@ -40,8 +42,10 @@ export interface DatabaseSchema {
   conversations: Kyselify<typeof conversations>;
   daily_activity: Kyselify<typeof dailyActivity>;
   health_workouts: Kyselify<typeof healthWorkouts>;
+  hevy_connections: Kyselify<typeof hevyConnections>;
   hevy_sessions: Kyselify<typeof hevySessions>;
   hevy_sets: Kyselify<typeof hevySets>;
+  hevy_sync_state: Kyselify<typeof hevySyncState>;
   memories: Kyselify<typeof memories>;
   messages: Kyselify<typeof messages>;
   notes: Kyselify<typeof notes>;
