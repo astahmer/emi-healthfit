@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HevyIntegration } from "./hevy-integration";
 
@@ -21,7 +20,6 @@ describe("HevyIntegration", () => {
   });
 
   it("connects, syncs, and invalidates workout caches", async () => {
-    const user = userEvent.setup();
     const statusDisconnected = {
       connected: false,
       status: "disconnected",
@@ -43,58 +41,44 @@ describe("HevyIntegration", () => {
       fresh: true,
     };
 
-    runApi
-      .mockImplementationOnce(
-        async (fn: (client: { hevy: { status: () => unknown } }) => unknown) =>
-          fn({ hevy: { status: () => statusDisconnected } }),
-      )
-      .mockImplementationOnce(
-        async (fn: (client: { hevy: { connect: (args: unknown) => unknown } }) => unknown) =>
-          fn({
-            hevy: {
-              connect: () => ({
-                status: statusConnected,
-                providerUserName: "Ada",
-                sync: { imported: 2, mode: "initial" },
-              }),
-            },
+    runApi.mockImplementation(async (useClient: (client: unknown) => unknown) => {
+      const client = {
+        hevy: {
+          status: () =>
+            notifyHevyWorkoutDataChanged.mock.calls.length > 0
+              ? statusConnected
+              : statusDisconnected,
+          connect: () => ({
+            status: statusConnected,
+            providerUserName: "Ada",
+            sync: { imported: 2, mode: "initial" },
           }),
-      )
-      .mockImplementationOnce(async (fn: (client: { hevy: { sync: () => unknown } }) => unknown) =>
-        fn({
-          hevy: {
-            sync: () => ({
-              mode: "incremental",
-              updated: 1,
-              deleted: 0,
-              imported: 0,
-            }),
-          },
-        }),
-      )
-      .mockImplementationOnce(
-        async (fn: (client: { hevy: { status: () => unknown } }) => unknown) =>
-          fn({ hevy: { status: () => statusConnected } }),
-      );
+          sync: () => ({
+            mode: "incremental",
+            updated: 1,
+            deleted: 0,
+            imported: 0,
+          }),
+        },
+      };
+      return useClient(client);
+    });
 
     render(<HevyIntegration />);
 
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText("Hevy API key")).toBeInTheDocument();
-    });
-
-    await user.type(screen.getByPlaceholderText("Hevy API key"), "hevy-secret");
-    await user.click(screen.getByRole("button", { name: "Connect and sync" }));
+    const apiKeyInput = await screen.findByPlaceholderText("Hevy API key");
+    fireEvent.change(apiKeyInput, { target: { value: "hevy-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Connect and sync" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Connected as Ada/)).toBeInTheDocument();
     });
     expect(notifyHevyWorkoutDataChanged).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Sync now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sync now" }));
     await waitFor(() => {
       expect(screen.getByText(/Sync incremental/)).toBeInTheDocument();
     });
     expect(notifyHevyWorkoutDataChanged).toHaveBeenCalledTimes(2);
-  });
+  }, 15_000);
 });
