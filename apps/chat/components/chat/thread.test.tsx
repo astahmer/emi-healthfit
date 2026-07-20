@@ -225,7 +225,7 @@ describe("Thread", () => {
     await user.click(screen.getByRole("button", { name: "Update" }));
 
     expect(runtime.revise).toHaveBeenCalledWith({ messageId: "user-1", text: "Edited" });
-  });
+  }, 15_000);
 
   it("cancels an edit with Escape", async () => {
     const user = userEvent.setup();
@@ -245,7 +245,7 @@ describe("Thread", () => {
 
     expect(screen.queryByRole("button", { name: "Update" })).not.toBeInTheDocument();
     expect(vi.mocked(useChatRuntime)().revise).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("copies a message and confirms the action", async () => {
     const user = userEvent.setup();
@@ -266,7 +266,7 @@ describe("Thread", () => {
 
     expect(writeText).toHaveBeenCalledWith("Answer");
     expect(screen.getByRole("status")).toHaveTextContent("Message copied.");
-  });
+  }, 15_000);
 
   it("attaches a retry action to the failed user turn", async () => {
     const user = userEvent.setup();

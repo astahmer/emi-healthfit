@@ -9,6 +9,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./test/setup.ts"],
     include: ["app/**/*.test.{ts,tsx}", "components/**/*.test.{ts,tsx}"],
+    // Parallel suite load makes userEvent interactions occasionally exceed 5s.
+    testTimeout: 15_000,
   },
   resolve: {
     alias: {
