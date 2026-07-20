@@ -137,8 +137,8 @@ const refreshAlchemyOauth = async ({
 const resolveCloudflareApiToken = async () => {
   const oauthPath = resolve(homedir(), ".alchemy/credentials/default/cf-oauth.json");
   if (existsSync(oauthPath)) {
-    const credentials = Schema.decodeUnknownSync(AlchemyOauthCredentials)(
-      JSON.parse(readFileSync(oauthPath, "utf8")),
+    const credentials = Schema.decodeUnknownSync(Schema.fromJsonString(AlchemyOauthCredentials))(
+      readFileSync(oauthPath, "utf8"),
     );
     if (credentials.expires > Date.now() + 10_000) {
       return { apiToken: credentials.access, source: "alchemy-oauth" as const };
@@ -174,7 +174,7 @@ const wranglerJson = (arguments_: string[]): unknown => {
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  return JSON.parse(output);
+  return Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown))(output);
 };
 
 const wranglerQuery = ({
