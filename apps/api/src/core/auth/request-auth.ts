@@ -4,6 +4,12 @@ import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import {
+  CurrentRequestContext,
+  makeRequestContext as makeCoreRequestContext,
+  withRequestContext,
+  type RequestContext,
+} from "@emi/core-server";
 import type { QueryDatabaseClient } from "../../platform/db/client.ts";
 import { anonymousSignInPath, createAnonymousSessionResponse } from "./anonymous-session.ts";
 import {
@@ -12,6 +18,8 @@ import {
   parseAllowedEmails,
   type AuthConfiguration,
 } from "./auth.ts";
+
+export { CurrentRequestContext, withRequestContext, type RequestContext };
 
 const AuthEnvironment = Schema.Struct({
   BETTER_AUTH_SECRET: Schema.String.check(Schema.isMinLength(32)),
@@ -28,17 +36,8 @@ export interface AuthPrincipal {
   image: string | null;
 }
 
-export interface RequestContext {
-  userId: string;
-  requestId: string;
-}
-
 export const CurrentUser = Context.Reference<AuthPrincipal>("CurrentUser", {
   defaultValue: () => ({ id: "", email: "", name: "", image: null }),
-});
-
-export const CurrentRequestContext = Context.Reference<RequestContext>("RequestContext", {
-  defaultValue: () => ({ userId: "", requestId: "" }),
 });
 
 export const withCurrentUser = <A, E, R>({
@@ -49,24 +48,13 @@ export const withCurrentUser = <A, E, R>({
   principal: AuthPrincipal;
 }) => Effect.provideService(effect, CurrentUser, principal);
 
-export const withRequestContext = <A, E, R>({
-  effect,
-  requestContext,
-}: {
-  effect: Effect.Effect<A, E, R>;
-  requestContext: RequestContext;
-}) => Effect.provideService(effect, CurrentRequestContext, requestContext);
-
 export const makeRequestContext = ({
   principal,
   requestId = crypto.randomUUID(),
 }: {
   principal: AuthPrincipal;
   requestId?: string;
-}): RequestContext => ({
-  userId: principal.id,
-  requestId,
-});
+}): RequestContext => makeCoreRequestContext({ userId: principal.id, requestId });
 
 export const isProtectedPath = (pathname: string): boolean =>
   pathname === "/ingest" || pathname === "/chat" || pathname.startsWith("/api/");

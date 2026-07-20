@@ -12,7 +12,8 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
-import { CurrentUser } from "../auth/request-auth.ts";
+import { makeConversationStore } from "@emi/core-server";
+import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
 import { extractMemories, generateThreadSummary } from "../chat/ai-sdk.ts";
 import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";
 import {
@@ -24,7 +25,6 @@ import {
   discardThread,
   getConversation,
   getConversationMessages,
-  getConversations,
   getMessage,
   getThread,
   getThreadByAnchor,
@@ -122,8 +122,9 @@ export const conversationsHandlers = ({
         "list",
         Effect.fn("httpApi.conversations.list")(
           function* ({ query }) {
-            const user = yield* CurrentUser;
-            const conversations = yield* getConversations(db, user.id, query.search);
+            const requestContext = yield* CurrentRequestContext;
+            const store = makeConversationStore({ db, requestContext });
+            const conversations = yield* store.list(query.search);
             return { conversations: conversations.map(toApiConversation) };
           },
           withInternalError,
@@ -134,8 +135,9 @@ export const conversationsHandlers = ({
         "create",
         Effect.fn("httpApi.conversations.create")(
           function* () {
-            const user = yield* CurrentUser;
-            const id = yield* createConversation(db, user.id);
+            const requestContext = yield* CurrentRequestContext;
+            const store = makeConversationStore({ db, requestContext });
+            const id = yield* store.create();
             return { id };
           },
           withInternalError,

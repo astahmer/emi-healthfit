@@ -1,34 +1,41 @@
-import * as Cloudflare from "alchemy/Cloudflare";
-import * as Effect from "effect/Effect";
 import type { Kyselify } from "drizzle-orm/kysely";
-import { Kysely, type Compilable } from "kysely";
-import { D1Dialect } from "kysely-d1";
-
-import { authAccount, authSession, authUser, authVerification } from "../../core/auth/schema.ts";
 import {
-  bodyMetrics,
+  authAccount,
+  authSession,
+  authUser,
+  authVerification,
   chatEvents,
   chatGenerationChunks,
   chatGenerations,
   conversations,
+  memories,
+  messages,
+  notes,
+  suggestions,
+  threadMessages,
+  threads,
+} from "@emi/core-server";
+import {
+  makeD1Kysely as makePlatformD1Kysely,
+  makeQueryDatabaseClient as makePlatformQueryDatabaseClient,
+  type CloudflareQueryDatabaseClient,
+  type RawQueryDatabaseClient,
+} from "@emi/platform-cloudflare";
+import {
+  bodyMetrics,
   dailyActivity,
   healthWorkouts,
   hevyConnections,
   hevySessions,
   hevySets,
   hevySyncState,
-  memories,
-  messages,
-  notes,
   privacyPreferences,
   sleepSessions,
-  suggestions,
   syncCursors,
-  threadMessages,
-  threads,
-} from "../../db/schema.ts";
+} from "../../healthfit/db/schema.ts";
 
-export type RawQueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
+export { runTransaction, runBatches } from "@emi/core-server";
+export type { RawQueryDatabaseClient } from "@emi/platform-cloudflare";
 
 export interface DatabaseSchema {
   auth_account: Kyselify<typeof authAccount>;
@@ -57,66 +64,13 @@ export interface DatabaseSchema {
   threads: Kyselify<typeof threads>;
 }
 
-type QueryDatabaseEnvironment =
-  ReturnType<RawQueryDatabaseClient["batch"]> extends Effect.Effect<
-    unknown,
-    unknown,
-    infer Environment
-  >
-    ? Environment
-    : never;
-
-export interface QueryDatabaseClient {
-  readonly raw: RawQueryDatabaseClient["raw"];
-  readonly kysely: Effect.Effect<Kysely<DatabaseSchema>, never, QueryDatabaseEnvironment>;
-  batch: (
-    statements: ReadonlyArray<Compilable<unknown>>,
-  ) => Effect.Effect<Array<{ meta: { changes: number } }>, never, QueryDatabaseEnvironment>;
-}
+export type QueryDatabaseClient = CloudflareQueryDatabaseClient<DatabaseSchema>;
 
 export const makeD1Kysely = (database: D1Database) =>
-  new Kysely<DatabaseSchema>({ dialect: new D1Dialect({ database }) });
+  makePlatformD1Kysely<DatabaseSchema>(database);
 
 export const makeQueryDatabaseClient = ({
   query,
 }: {
   query: RawQueryDatabaseClient;
-}): QueryDatabaseClient => ({
-  raw: query.raw,
-  kysely: query.raw.pipe(Effect.map(makeD1Kysely)),
-  batch: (statements) =>
-    query
-      .batch(
-        statements.map((statement) => {
-          const compiled = statement.compile();
-          return query.prepare(compiled.sql).bind(...compiled.parameters);
-        }),
-      )
-      .pipe(
-        Effect.map((results) =>
-          results.map((result) => ({ meta: { changes: Number(result.meta.changes) } })),
-        ),
-      ),
-});
-
-const batchSize = 100;
-
-const chunk = <T>(items: ReadonlyArray<T>, size: number): Array<ReadonlyArray<T>> => {
-  const chunks: Array<ReadonlyArray<T>> = [];
-  for (let index = 0; index < items.length; index += size)
-    chunks.push(items.slice(index, index + size));
-  return chunks;
-};
-
-export const runTransaction = (
-  db: QueryDatabaseClient,
-  statements: ReadonlyArray<Compilable<unknown>>,
-) => db.batch(statements);
-
-export const runBatches = (
-  db: QueryDatabaseClient,
-  statements: ReadonlyArray<Compilable<unknown>>,
-) =>
-  Effect.gen(function* () {
-    for (const batch of chunk(statements, batchSize)) yield* runTransaction(db, batch);
-  });
+}): QueryDatabaseClient => makePlatformQueryDatabaseClient<DatabaseSchema>({ query });

@@ -102,7 +102,9 @@ README states that application logic comes from versioned packages.
    (`packages/core-contract` renamed from `api-contract`; chat forbids `apps/api/src` imports;
    contract encode/platform-isolation tests).
 4. Extract `core-server` repositories and services behind ports, keeping the existing Cloudflare
-   implementations as adapters.
+   implementations as adapters. **DONE**
+   (`@emi/core-server` with RequestContext-bound `ConversationStore`; `@emi/platform-cloudflare`
+   D1 client; list/create handlers wired; in-memory store ownership test).
 5. Extract `core-web` shell and accept typed navigation/page/tool-renderer contributions.
 6. Move fitness prompt, tools, ingestion, analytics, and screens into `flavor-healthfit`.
 7. Add generic composition roots and verify local development plus a free-tier deployment.
