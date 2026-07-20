@@ -1,6 +1,14 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import type { Memory } from "@emi/api-contract";
 import * as Schema from "effect/Schema";
+import {
+  assistantStream,
+  conversationPayload,
+  conversations,
+  fulfillApi,
+  openMockedChat,
+  setTestSettings,
+} from "./mock/install.ts";
 
 const NoteRequest = Schema.Struct({ content: Schema.String });
 const MemoryRequest = Schema.Struct({
@@ -9,190 +17,6 @@ const MemoryRequest = Schema.Struct({
   threadId: Schema.optional(Schema.String),
   messageId: Schema.optional(Schema.String),
 });
-
-const conversations = [
-  {
-    id: "one",
-    title: "Session One",
-    status: "regular",
-    pinned: false,
-    created_at: "2026-07-14T10:00:00.000Z",
-    updated_at: "2026-07-14T12:00:00.000Z",
-  },
-  {
-    id: "two",
-    title: "Session Two",
-    status: "regular",
-    pinned: false,
-    created_at: "2026-07-14T09:00:00.000Z",
-    updated_at: "2026-07-14T11:00:00.000Z",
-  },
-];
-
-const conversationPayload = ({ id, text }: { id: string; text: string }) => ({
-  conversation: conversations.find((conversation) => conversation.id === id),
-  messages: [
-    {
-      id: `${id}-user`,
-      conversationId: id,
-      parentId: null,
-      role: "user",
-      parts: [{ type: "text", text }],
-      createdAt: "2026-07-14T10:00:00.000Z",
-    },
-    {
-      id: `${id}-assistant`,
-      conversationId: id,
-      parentId: null,
-      role: "assistant",
-      parts: [
-        { type: "text", text: `${text} answer` },
-        {
-          type: "dynamic-tool",
-          toolName: "get_recovery",
-          state: "output-available",
-          output: { label: "Ready", explanation: "Recovered well" },
-        },
-      ],
-      model: "gpt-5",
-      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-      createdAt: "2026-07-14T10:01:00.000Z",
-    },
-  ],
-  threads: [],
-});
-
-const assistantStream = ({ messageId, text }: { messageId: string; text: string }) =>
-  [
-    `data: {"type":"start","messageId":"${messageId}"}`,
-    `data: {"type":"text-start","id":"${messageId}-text"}`,
-    `data: {"type":"text-delta","id":"${messageId}-text","delta":"${text}"}`,
-    `data: {"type":"text-end","id":"${messageId}-text"}`,
-    'data: {"type":"finish"}',
-    "data: [DONE]",
-    "",
-  ].join("\n\n");
-
-const fulfillApi = async (route: Route) => {
-  const url = new URL(route.request().url());
-  if (url.pathname === "/api/auth/get-session") {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        session: {
-          id: "test-session",
-          token: "test-token",
-          userId: "test-user",
-          expiresAt: "2026-07-18T00:00:00.000Z",
-          createdAt: "2026-07-17T00:00:00.000Z",
-          updatedAt: "2026-07-17T00:00:00.000Z",
-        },
-        user: {
-          id: "test-user",
-          name: "Guest",
-          email: "8c75583b-0b8d-4bda-97e4-6cd7286f1378@anonymous.emi.invalid",
-          emailVerified: false,
-          createdAt: "2026-07-17T00:00:00.000Z",
-          updatedAt: "2026-07-17T00:00:00.000Z",
-        },
-      }),
-    });
-    return;
-  }
-  const messageMatch = url.pathname.match(/^\/api\/conversations\/([^/]+)\/messages$/);
-  if (messageMatch !== null) {
-    const id = decodeURIComponent(messageMatch[1]);
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify(conversationPayload({ id, text: `${id} message` })),
-    });
-    return;
-  }
-  if (url.pathname === "/api/conversations") {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ conversations }),
-    });
-    return;
-  }
-  if (url.pathname.endsWith("/stream")) {
-    await route.fulfill({ status: 204, body: "" });
-    return;
-  }
-  if (url.pathname === "/api/notes") {
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes: [] }) });
-    return;
-  }
-  if (url.pathname === "/api/suggestions") {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ suggestions: [] }),
-    });
-    return;
-  }
-  if (url.pathname === "/api/analytics/overview") {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        activity: [],
-        sleep: [],
-        training: [],
-        body: [],
-        exercises: [],
-        highlights: {
-          averageSteps: null,
-          averageSleepMinutes: null,
-          workouts: 0,
-          trainingVolumeKg: 0,
-          weightChangeKg: null,
-        },
-      }),
-    });
-    return;
-  }
-  if (url.pathname === "/api/workouts") {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ workouts: [] }),
-    });
-    return;
-  }
-  if (url.pathname === "/api/memories") {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ memories: [] }),
-    });
-    return;
-  }
-  await route.fulfill({ contentType: "application/json", body: "{}" });
-};
-
-const setTestSettings = async (page: Page) => {
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      "emi-chat-settings",
-      JSON.stringify({
-        state: {
-          settings: {
-            provider: "openai",
-            baseUrl: "",
-            apiKey: "sk-test",
-            model: "gpt-5.2-chat-latest",
-            systemPrompt: "You are a test assistant.",
-            coachMode: false,
-          },
-        },
-        version: 0,
-      }),
-    );
-  });
-};
-
-const openMockedChat = async (page: Page, path = "/chat") => {
-  await setTestSettings(page);
-  await page.route("**/api/**", fulfillApi);
-  await page.goto(path);
-};
 
 test("requires an OpenAI API key before showing the chat composer", async ({ page }) => {
   await page.route("**/api/**", fulfillApi);
