@@ -16,7 +16,11 @@ export const RootLayout = () => (
           <AuthBoundary>
             <div className="flex h-dvh flex-col bg-background text-foreground">
               <NavHeader />
-              <div className="min-h-0 flex-1 overflow-auto" data-testid="app-scroll-region">
+              <div
+                className="min-h-0 flex-1 overflow-auto"
+                data-testid="app-scroll-region"
+                data-scroll-restoration-id="app-scroll-region"
+              >
                 <Outlet />
               </div>
             </div>

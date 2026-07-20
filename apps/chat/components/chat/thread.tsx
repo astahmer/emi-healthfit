@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
+import { createContext, useContext, useState, type FormEvent } from "react";
 import type { UIMessage } from "ai";
 import {
+  ArrowDownIcon,
   ArrowUpIcon,
   BookmarkIcon,
   BrainIcon,
@@ -38,8 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MessageRail } from "@/components/chat/message-rail";
 import { ToolResultContent } from "@/components/chat/tool-result-content";
 import { cn } from "@/lib/utils";
+import { CHAT_THREAD_SCROLL_ID } from "@/lib/chat-thread-scroll";
+import { useThreadViewportScroll } from "@/hooks/use-thread-viewport-scroll";
 import { useChatRuntime } from "@/app/chat/chat-runtime";
 import type { ChatModel } from "@/app/models";
 import { fetchSuggestions } from "@/app/suggestions";
@@ -615,8 +619,21 @@ export const Thread = ({
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const [memoryMessageId, setMemoryMessageId] = useState<string | null>(null);
   const [isKeepingTemporary, setIsKeepingTemporary] = useState(false);
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const {
+    viewportRef,
+    isAwayFromTop,
+    isAwayFromBottom,
+    scrollToTop,
+    scrollToBottom,
+    scrollToMessage,
+  } = useThreadViewportScroll({
+    sessionId: runtime.sessionId,
+    messageCount: runtime.messages.length,
+  });
   const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
+  const userRailMessages = runtime.messages
+    .filter((message) => message.role === "user")
+    .map((message) => ({ id: message.id, text: getText(message) }));
   const { data: conversationMemories = [] } = useQuery({
     queryKey: queryKeys.memories.messageSources,
     queryFn: () => fetchMemories(),
@@ -628,13 +645,6 @@ export const Thread = ({
       return messageId === undefined ? [] : [messageId];
     }),
   );
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) return;
-    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    if (distanceFromBottom < 160) viewport.scrollTo({ top: viewport.scrollHeight });
-  }, [runtime.messages]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -683,106 +693,147 @@ export const Thread = ({
           Assistant is responding
         </div>
       )}
-      <div
-        ref={viewportRef}
-        className="flex-1 overflow-y-auto"
-        role="log"
-        aria-relevant="additions"
-      >
-        <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
-          {contextSummary !== undefined && (
-            <aside
-              className="rounded-xl border bg-muted/40 px-4 py-3 text-sm"
-              aria-label="Compacted context"
-            >
-              <p className="font-medium">Compacted context</p>
-              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
-            </aside>
-          )}
-          {runtime.messages.length === 0 && contextSummary === undefined ? (
-            <div className="my-auto space-y-6 text-center">
-              <div>
-                <h1 className="text-2xl font-semibold">What are we working on?</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Ask about training, recovery, sleep, or progress.
-                </p>
+      <div className="relative min-h-0 flex-1">
+        <MessageRail
+          messages={userRailMessages}
+          onSelect={(messageId) => scrollToMessage({ messageId })}
+        />
+        {(isAwayFromTop || isAwayFromBottom) && (
+          <div className="pointer-events-none absolute right-3 bottom-3 z-10 flex flex-col gap-2 sm:right-4">
+            {isAwayFromTop && (
+              <TooltipIconButton
+                tooltip="Scroll to oldest"
+                side="left"
+                type="button"
+                data-testid="scroll-to-top"
+                className="pointer-events-auto size-8 rounded-full border bg-background/95 shadow-sm"
+                onClick={scrollToTop}
+              >
+                <ArrowUpIcon className="size-4" />
+              </TooltipIconButton>
+            )}
+            {isAwayFromBottom && (
+              <TooltipIconButton
+                tooltip="Scroll to newest"
+                side="left"
+                type="button"
+                data-testid="scroll-to-bottom"
+                className="pointer-events-auto size-8 rounded-full border bg-background/95 shadow-sm"
+                onClick={scrollToBottom}
+              >
+                <ArrowDownIcon className="size-4" />
+              </TooltipIconButton>
+            )}
+          </div>
+        )}
+        <div
+          ref={viewportRef}
+          className="h-full overflow-y-auto"
+          role="log"
+          aria-relevant="additions"
+          data-testid="chat-thread-viewport"
+          data-scroll-restoration-id={CHAT_THREAD_SCROLL_ID}
+        >
+          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
+            {contextSummary !== undefined && (
+              <aside
+                className="rounded-xl border bg-muted/40 px-4 py-3 text-sm"
+                aria-label="Compacted context"
+              >
+                <p className="font-medium">Compacted context</p>
+                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
+              </aside>
+            )}
+            {runtime.messages.length === 0 && contextSummary === undefined ? (
+              <div className="my-auto space-y-6 text-center">
+                <div>
+                  <h1 className="text-2xl font-semibold">What are we working on?</h1>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Ask about training, recovery, sleep, or progress.
+                  </p>
+                </div>
+                <div className="mx-auto grid max-w-xl gap-2 sm:grid-cols-2">
+                  {suggestions.map((suggestion) => (
+                    <Button
+                      key={suggestion}
+                      variant="outline"
+                      className="h-auto justify-start whitespace-normal p-3 text-left"
+                      onClick={() => void runtime.submit(suggestion)}
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <div className="mx-auto grid max-w-xl gap-2 sm:grid-cols-2">
-                {suggestions.map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    variant="outline"
-                    className="h-auto justify-start whitespace-normal p-3 text-left"
-                    onClick={() => void runtime.submit(suggestion)}
-                  >
-                    {suggestion}
-                  </Button>
+            ) : (
+              <>
+                {runtime.messages.map((message, index) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    isStreaming={
+                      runtime.isStreaming &&
+                      index === runtime.messages.length - 1 &&
+                      message.role === "assistant"
+                    }
+                    onFork={onForkMessage}
+                    onRemember={rememberMessage}
+                    isRemembered={savedMemoryMessageIds.has(message.id)}
+                    isRemembering={memoryMessageId === message.id}
+                    editingDraft={
+                      editorState.context.messageId === message.id
+                        ? editorState.context.draft
+                        : undefined
+                    }
+                    onEditStart={(selectedMessage) =>
+                      sendEditor({
+                        type: "edit.start",
+                        messageId: selectedMessage.id,
+                        draft: getText(selectedMessage),
+                      })
+                    }
+                    onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
+                    onEditCancel={() => sendEditor({ type: "edit.cancel" })}
+                    onEditSubmit={() => {
+                      void runtime.revise({
+                        messageId: message.id,
+                        text: editorState.context.draft,
+                      });
+                      sendEditor({ type: "edit.cancel" });
+                    }}
+                    onRegenerate={(messageId) => void runtime.revise({ messageId })}
+                    onReferenceMessage={onReferenceMessage}
+                    error={
+                      runtime.errorMessageId === message.id
+                        ? (runtime.error ?? undefined)
+                        : undefined
+                    }
+                    onRetry={(messageId) => void runtime.revise({ messageId })}
+                  />
                 ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {runtime.messages.map((message, index) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  isStreaming={
-                    runtime.isStreaming &&
-                    index === runtime.messages.length - 1 &&
-                    message.role === "assistant"
-                  }
-                  onFork={onForkMessage}
-                  onRemember={rememberMessage}
-                  isRemembered={savedMemoryMessageIds.has(message.id)}
-                  isRemembering={memoryMessageId === message.id}
-                  editingDraft={
-                    editorState.context.messageId === message.id
-                      ? editorState.context.draft
-                      : undefined
-                  }
-                  onEditStart={(selectedMessage) =>
-                    sendEditor({
-                      type: "edit.start",
-                      messageId: selectedMessage.id,
-                      draft: getText(selectedMessage),
-                    })
-                  }
-                  onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
-                  onEditCancel={() => sendEditor({ type: "edit.cancel" })}
-                  onEditSubmit={() => {
-                    void runtime.revise({ messageId: message.id, text: editorState.context.draft });
-                    sendEditor({ type: "edit.cancel" });
-                  }}
-                  onRegenerate={(messageId) => void runtime.revise({ messageId })}
-                  onReferenceMessage={onReferenceMessage}
-                  error={
-                    runtime.errorMessageId === message.id ? (runtime.error ?? undefined) : undefined
-                  }
-                  onRetry={(messageId) => void runtime.revise({ messageId })}
-                />
-              ))}
-              {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
-                <Message align="start" aria-live="polite" className="py-1">
-                  <MessageContent>
-                    <Bubble align="start" variant="ghost">
-                      <BubbleContent>
-                        <span
-                          className="typing-dots text-muted-foreground"
-                          role="status"
-                          aria-label="Assistant is working"
-                        >
-                          <span />
-                          <span />
-                          <span />
-                        </span>
-                      </BubbleContent>
-                    </Bubble>
-                  </MessageContent>
-                </Message>
-              )}
-            </>
-          )}
-          <FollowUpSuggestions />
+                {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
+                  <Message align="start" aria-live="polite" className="py-1">
+                    <MessageContent>
+                      <Bubble align="start" variant="ghost">
+                        <BubbleContent>
+                          <span
+                            className="typing-dots text-muted-foreground"
+                            role="status"
+                            aria-label="Assistant is working"
+                          >
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        </BubbleContent>
+                      </Bubble>
+                    </MessageContent>
+                  </Message>
+                )}
+              </>
+            )}
+            <FollowUpSuggestions />
+          </div>
         </div>
       </div>
 
