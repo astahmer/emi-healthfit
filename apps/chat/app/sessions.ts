@@ -1,4 +1,5 @@
 import { safeValidateUIMessages, type UIMessage } from "ai";
+import * as Schema from "effect/Schema";
 import { runApi } from "./api-client";
 import { notifyConversationsChanged } from "./conversation-events";
 import {
@@ -10,6 +11,12 @@ import {
   setCachedThreads,
   updateCachedThread,
 } from "./session-cache";
+
+const decodeJsonParts = Schema.decodeUnknownSync(
+  Schema.fromJsonString(Schema.Array(Schema.Unknown)),
+);
+
+const toWireMessageParts = (parts: UIMessage["parts"]) => decodeJsonParts(JSON.stringify(parts));
 
 export interface Thread {
   id: string;
@@ -85,7 +92,7 @@ export const createConversationWithMessages = async (
       payload: {
         messages: messages.map((message) => ({
           role: message.role,
-          parts: [...message.parts],
+          parts: toWireMessageParts(message.parts),
         })),
       },
     }),

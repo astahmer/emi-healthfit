@@ -13,7 +13,11 @@ const cache = vi.hoisted(() => ({
 
 vi.mock("./session-cache", () => cache);
 
-import { fetchConversationMessages, syncConversations } from "./sessions";
+import {
+  createConversationWithMessages,
+  fetchConversationMessages,
+  syncConversations,
+} from "./sessions";
 
 const thread: Thread = {
   id: "conversation-1",
@@ -55,5 +59,43 @@ describe("offline session browsing", () => {
     await expect(syncConversations("workout")).resolves.toEqual([thread]);
     expect(cache.mergeCachedThreads).toHaveBeenCalledWith([thread]);
     expect(cache.setCachedThreads).not.toHaveBeenCalled();
+  });
+
+  it("keeps temporary chats by stripping non-JSON message part fields", async () => {
+    cache.updateCachedThread.mockResolvedValue(undefined);
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ conversation: thread }), { status: 201 }),
+    );
+
+    await expect(
+      createConversationWithMessages([
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: "Ghost reply",
+              providerMetadata: undefined,
+              state: "done",
+            } as never,
+          ],
+        },
+      ]),
+    ).resolves.toEqual(thread);
+
+    const request = vi.mocked(fetch).mock.calls.at(-1)?.[1];
+    expect(request?.method).toBe("POST");
+    const body =
+      typeof request?.body === "string"
+        ? request.body
+        : new TextDecoder().decode(request?.body as Uint8Array);
+    expect(JSON.parse(body)).toEqual({
+      messages: [
+        {
+          role: "assistant",
+          parts: [{ type: "text", text: "Ghost reply", state: "done" }],
+        },
+      ],
+    });
   });
 });
