@@ -103,10 +103,12 @@ register `https://<your-worker-host>/api/auth/callback/google`, download its JSO
 the local `.env`, and run with the real deployed origin, for example:
 
 ```bash
-pnpm setup:google -- path/to/client.json you@example.com https://emi-healthfit.example.workers.dev
+pnpm setup:google -- path/to/client.json you@example.com https://emi-healthfit.astahmer.dev
 ```
 
-Use the same origin for `BETTER_AUTH_URL`; do not include a trailing slash. See Google's official
+Use the same origin for `BETTER_AUTH_URL`; do not include a trailing slash.
+Production uses the Alchemy custom domain `emi-healthfit.astahmer.dev` (stable; do not chase
+changing `*.workers.dev` hostnames). See Google's official
 [web OAuth client setup](https://developers.google.com/workspace/guides/create-credentials#web-client),
 [OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect#settingup),
 and [redirect URI rules](https://developers.google.com/identity/protocols/oauth2/web-server#uri-validation).
@@ -179,7 +181,9 @@ runbook so Alchemy state and Cloudflare state cannot drift.
 
 Create `.env.prod` with production values for every variable in `.env.example`:
 
-- `BETTER_AUTH_URL` is the exact public HTTPS Worker origin, without a trailing slash.
+- `BETTER_AUTH_URL` is the exact public HTTPS origin, without a trailing slash.
+  For production that is `https://emi-healthfit.astahmer.dev` (Alchemy binds this custom
+  domain to the `prod` Worker; `api.url` prefers it over `*.workers.dev`).
 - The Google production web client must authorize
   `<BETTER_AUTH_URL>/api/auth/callback/google` exactly.
 - Use a different `BETTER_AUTH_SECRET` from local development. A separate Google client is preferred;
@@ -210,11 +214,13 @@ Alchemy will create/update:
 
 The command prints the deployed Worker URL. Open that URL in a browser to use the chat UI.
 
-On the first production deployment, the generated Worker origin does not exist until Alchemy creates
-the stage. After that bootstrap deploy:
+On the first production deployment, Alchemy creates the `prod` stage Worker and attaches the custom
+domain `emi-healthfit.astahmer.dev` (zone `astahmer.dev` must already exist in the Cloudflare
+account). After that bootstrap deploy:
 
-1. Copy the printed HTTPS Worker origin into `BETTER_AUTH_URL` in `.env.prod`, without a trailing slash.
-2. Register `<BETTER_AUTH_URL>/api/auth/callback/google` on the matching Google OAuth web client.
+1. Keep `BETTER_AUTH_URL=https://emi-healthfit.astahmer.dev` in `.env.prod` (no trailing slash).
+2. Register `https://emi-healthfit.astahmer.dev/api/auth/callback/google` on the matching Google
+   OAuth web client.
 3. Redeploy the same `prod` stage with `.env.prod` before testing sign-in.
 
 Never assume a successful bare deployment updated production. Confirm both the stage and env file in

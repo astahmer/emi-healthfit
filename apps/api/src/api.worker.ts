@@ -1,5 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
+import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -26,6 +27,8 @@ import {
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./routes/http.ts";
 import { registerHttpApi } from "./http-api.ts";
 
+const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
+
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
 const AssetsBinding = Schema.Struct({
@@ -45,6 +48,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
   {
     main: import.meta.url,
+    domain: Stack.useSync(({ stage }) => (stage === "prod" ? PRODUCTION_DOMAIN : undefined)),
     assets: {
       directory: "./assets",
       notFoundHandling: "single-page-application",

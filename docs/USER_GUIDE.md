@@ -7,9 +7,9 @@ A step-by-step guide for using the gym assistant. No coding required.
 - Your iPhone
 - The **Hevy** app
 - The **HealthExportKit** app (to export Apple Health as JSON)
-- The Worker URL (the web address of your assistant — it looks like `https://emi-healthfit.xxx.workers.dev`)
+- The app URL: [https://emi-healthfit.astahmer.dev](https://emi-healthfit.astahmer.dev)
 
-> The Worker URL is printed in the terminal when the app is deployed. Ask the person who set it up for the link.
+> Personal / preview deploys may still print a `*.workers.dev` URL. Production uses the stable custom domain above.
 
 ---
 
@@ -27,7 +27,7 @@ The assistant remembers everything you upload, so you can chat right after uploa
 
 ### 1. Open the app
 
-Go to the Worker URL in any browser. You will see two tabs: **Upload data** and **Chat**.
+Go to [https://emi-healthfit.astahmer.dev](https://emi-healthfit.astahmer.dev) in any browser. You will see two tabs: **Upload data** and **Chat**.
 
 ### 2. Paste the Worker URL
 
