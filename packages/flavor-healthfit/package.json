@@ -1,0 +1,51 @@
+{
+  "name": "@emi/flavor-healthfit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "dependencies": {
+    "@emi/core-server": "workspace:*",
+    "@emi/core-web": "workspace:*",
+    "alchemy": "2.0.0-beta.59",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "0.45.2",
+    "effect": "catalog:",
+    "kysely": "0.29.3",
+    "lucide-react": "^1.21.0",
+    "recharts": "^3.9.2",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/json-schema": "catalog:",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "jsdom": "^29.1.1",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

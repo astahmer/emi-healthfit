@@ -32,9 +32,12 @@ import {
 } from "./healthfit/routes/data.ts";
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
-import { fitnessCoachV1 } from "./healthfit/chat/prompts/fitness-coach-v1.ts";
+import {
+  fitnessCoachV1,
+  executeTool as executeHealthfitTool,
+  tools as healthfitTools,
+} from "@emi/flavor-healthfit";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
-import { executeTool, tools as healthfitTools } from "./healthfit/tools/api.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -98,7 +101,15 @@ export default Api.make(
             ensureHevyFresh({ db: chatDb, userId, environment }),
           coachSystemPrompt: fitnessCoachV1,
           tools: healthfitTools,
-          executeTool,
+          // `executeHealthfitTool`'s `db` is scoped to the flavor package's own
+          // composed schema type; Kysely's `Transaction`/`withRecursive` typings make
+          // `QueryDatabaseClient<T>` invariant in `T`, so the app's wider `DatabaseSchema`
+          // client can't be passed structurally even though it's a superset. Narrow here.
+          executeTool: (args) =>
+            executeHealthfitTool({
+              ...args,
+              db: args.db as unknown as Parameters<typeof executeHealthfitTool>[0]["db"],
+            }),
         }),
       );
       yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>

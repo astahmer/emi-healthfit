@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
 import { getIngestedDataExport, getWorkouts } from "../src/healthfit/db/fitness.ts";
@@ -84,7 +86,12 @@ describe("Hevy secret hygiene and ownership", () => {
       }),
     );
     const status = await run(getHevyIntegrationStatus({ db, userId: "user-1" }));
-    const exported = await run(getIngestedDataExport({ db, userId: "user-1" }));
+    const exported = await run(
+      getIngestedDataExport({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+      }),
+    );
     const diagnostics = await run(
       getDiagnosticBundle({
         db,
@@ -144,8 +151,12 @@ describe("Hevy secret hygiene and ownership", () => {
     assert.equal(aliceStatus.providerUserId, "alice-hevy");
     assert.equal(bobStatus.providerUserId, "bob-hevy");
 
-    const aliceWorkouts = await run(getWorkouts(db, "alice"));
-    const bobWorkouts = await run(getWorkouts(db, "bob"));
+    const aliceWorkouts = await run(
+      getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "alice"),
+    );
+    const bobWorkouts = await run(
+      getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "bob"),
+    );
     assert.deepEqual(
       aliceWorkouts.map((workout) => workout.title),
       ["Alice Push"],
@@ -177,7 +188,9 @@ describe("Hevy secret hygiene and ownership", () => {
     });
     const aliceSync = await run(syncHevy({ db, userId: "alice", environment, force: true }));
     assert.ok(aliceSync.mode === "incremental" || aliceSync.mode === "skipped_fresh");
-    const bobAfterAliceSync = await run(getWorkouts(db, "bob"));
+    const bobAfterAliceSync = await run(
+      getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "bob"),
+    );
     assert.equal(bobAfterAliceSync.length, 1);
     assert.equal(bobAfterAliceSync[0]?.title, "Bob Pull");
   });

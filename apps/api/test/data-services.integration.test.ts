@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { buildChatContext } from "../src/healthfit/chat/context.ts";
 import { getDataSummary } from "../src/healthfit/db/fitness.ts";
 import {
@@ -7,6 +8,7 @@ import {
   type IngestedDataExport,
   previewIngestedDataImport,
 } from "../src/healthfit/ingest/data-transfer.ts";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 const data: IngestedDataExport = {
@@ -116,18 +118,23 @@ describe("data service SQLite integration", () => {
       },
       totals: { received: 6, existing: 6, new: 0 },
     });
-    assert.deepStrictEqual(await run(getDataSummary(db, userId)), {
-      dailyActivity: 1,
-      healthWorkouts: 1,
-      hevySessions: 1,
-      hevySets: 1,
-      sleepSessions: 1,
-      bodyMetrics: 1,
-      lastHealthSync: null,
-      lastHevySync: null,
-    });
+    assert.deepStrictEqual(
+      await run(getDataSummary(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId)),
+      {
+        dailyActivity: 1,
+        healthWorkouts: 1,
+        hevySessions: 1,
+        hevySets: 1,
+        sleepSessions: 1,
+        bodyMetrics: 1,
+        lastHealthSync: null,
+        lastHevySync: null,
+      },
+    );
 
-    const context = await run(buildChatContext(db, userId));
+    const context = await run(
+      buildChatContext(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId),
+    );
     assert.deepStrictEqual(
       {
         lastSessionDate: context.lastWorkout.lastSessionDate,

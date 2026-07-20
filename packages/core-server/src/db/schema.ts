@@ -228,3 +228,8 @@ export interface ConversationDatabaseSchema {
   thread_messages: Kyselify<typeof threadMessages>;
   suggestions: Kyselify<typeof suggestions>;
 }
+
+export interface MemoryDatabaseSchema {
+  memories: Kyselify<typeof memories>;
+  notes: Kyselify<typeof notes>;
+}

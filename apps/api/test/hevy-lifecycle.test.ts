@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 import { deleteIngestedSource } from "../src/healthfit/db/ingested-data.ts";
 import { getWorkouts } from "../src/healthfit/db/fitness.ts";
@@ -88,13 +90,21 @@ describe("Hevy lifecycle", () => {
         environment,
       }),
     );
-    assert.equal((await run(getWorkouts(db, "user-1"))).length, 1);
+    assert.equal(
+      (await run(getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "user-1")))
+        .length,
+      1,
+    );
 
     await run(disconnectHevy({ db, userId: "user-1" }));
     assert.equal(await run(getHevyConnection({ db, userId: "user-1" })), undefined);
     const status = await run(getHevyIntegrationStatus({ db, userId: "user-1" }));
     assert.equal(status.connected, false);
-    assert.equal((await run(getWorkouts(db, "user-1"))).length, 1);
+    assert.equal(
+      (await run(getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "user-1")))
+        .length,
+      1,
+    );
   });
 
   it("remove-data deletes sessions, sets, connection, and sync state", async () => {
@@ -282,7 +292,9 @@ describe("Hevy lifecycle", () => {
     const result = await run(ensureHevyFresh({ db, userId: "user-1", environment }));
     assert.equal(result, null);
 
-    const workouts = await run(getWorkouts(db, "user-1"));
+    const workouts = await run(
+      getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "user-1"),
+    );
     assert.equal(workouts.length, 1);
     assert.equal(workouts[0]?.title, "Cached");
   });

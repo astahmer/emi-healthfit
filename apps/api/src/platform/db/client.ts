@@ -14,6 +14,7 @@ import {
   suggestions,
   threadMessages,
   threads,
+  type QueryDatabaseClient as GenericQueryDatabaseClient,
 } from "@emi/core-server";
 import {
   makeD1Kysely as makePlatformD1Kysely,
@@ -32,7 +33,7 @@ import {
   privacyPreferences,
   sleepSessions,
   syncCursors,
-} from "../../healthfit/db/schema.ts";
+} from "@emi/flavor-healthfit";
 
 export { runTransaction, runBatches } from "@emi/core-server";
 export type { RawQueryDatabaseClient } from "@emi/platform-cloudflare";
@@ -74,3 +75,15 @@ export const makeQueryDatabaseClient = ({
 }: {
   query: RawQueryDatabaseClient;
 }): QueryDatabaseClient => makePlatformQueryDatabaseClient<DatabaseSchema>({ query });
+
+/**
+ * Kysely's `Transaction`/`withRecursive` typings make `Kysely<T>` (and thus
+ * `QueryDatabaseClient<T>`) structurally invariant in `T`: the app's `DatabaseSchema`
+ * client can't be passed directly where core-server/flavor packages expect a client
+ * typed for one of their own narrower composed schemas, even though `DatabaseSchema`
+ * is a strict superset. Narrow explicitly at these call boundaries instead of
+ * widening every downstream function's schema parameter.
+ */
+export const narrowQueryDatabaseClient = <TSchema>(
+  db: QueryDatabaseClient,
+): GenericQueryDatabaseClient<TSchema> => db as unknown as GenericQueryDatabaseClient<TSchema>;

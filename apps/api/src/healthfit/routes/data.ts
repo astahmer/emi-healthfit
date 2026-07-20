@@ -4,10 +4,11 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { CurrentUser } from "../../core/auth/request-auth.ts";
 import { buildChatContext } from "../chat/context.ts";
 import { TtlCache } from "../cache.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { ensureHevyFresh } from "../integrations/hevy/hevy-sync.ts";
 import {
   type DataSummary,
@@ -174,7 +175,10 @@ export const handleRecovery = (db: QueryDatabaseClient, environment: Record<stri
   Effect.gen(function* () {
     const user = yield* CurrentUser;
     yield* ensureHevyFresh({ db, userId: user.id, environment });
-    const ctx = yield* buildChatContext(db, user.id);
+    const ctx = yield* buildChatContext(
+      narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      user.id,
+    );
     return yield* HttpServerResponse.json({
       today: ctx.today,
       label: ctx.recoveryLabel,
@@ -200,7 +204,10 @@ export const handleSummary = (db: QueryDatabaseClient, environment: Record<strin
     }
 
     yield* ensureHevyFresh({ db, userId: user.id, environment });
-    const summary = yield* getDataSummary(db, user.id);
+    const summary = yield* getDataSummary(
+      narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      user.id,
+    );
     summaryCache.set(user.id, summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);
   }).pipe(
@@ -215,7 +222,11 @@ export const handleAnalyticsOverview = (db: QueryDatabaseClient, request: HttpSe
       Number.isInteger(requestedDays) && requestedDays >= 7 && requestedDays <= 365
         ? requestedDays
         : 90;
-    const overview = yield* getAnalyticsOverview({ db, userId: user.id, days });
+    const overview = yield* getAnalyticsOverview({
+      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      userId: user.id,
+      days,
+    });
     return yield* HttpServerResponse.json(overview);
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -224,7 +235,10 @@ export const handleAnalyticsOverview = (db: QueryDatabaseClient, request: HttpSe
 export const handleIngestedDataExport = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const data = yield* getIngestedDataExport({ db, userId: user.id });
+    const data = yield* getIngestedDataExport({
+      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      userId: user.id,
+    });
     return yield* HttpServerResponse.json(data);
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -233,7 +247,10 @@ export const handleIngestedDataExport = (db: QueryDatabaseClient) =>
 export const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const summary = yield* getIngestedDataExportSummary({ db, userId: user.id });
+    const summary = yield* getIngestedDataExportSummary({
+      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      userId: user.id,
+    });
     return yield* HttpServerResponse.json({ summary });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -330,7 +347,10 @@ export const handleSourceDelete = (
 export const handleWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    const workouts = yield* getWorkouts(db, user.id);
+    const workouts = yield* getWorkouts(
+      narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      user.id,
+    );
     return yield* HttpServerResponse.json({ workouts });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),

@@ -108,7 +108,27 @@ README states that application logic comes from versioned packages.
 5. Extract `core-web` shell and accept typed navigation/page/tool-renderer contributions. **DONE**
    (`@emi/core-web` with CoreWebProvider + contribution slots; conversation helpers/attachments
    moved; HealthFit registers nav/tool renderers; thread.tsx deferred to deeper shell move).
-6. Move fitness prompt, tools, ingestion, analytics, and screens into `flavor-healthfit`.
+6. Move fitness prompt, tools, ingestion, analytics, and screens into `flavor-healthfit`. **DONE**
+   (`packages/flavor-healthfit` with `fitnessCoachV1`, the fitness/thread `tools`+`executeTool`
+   toolkit, `db/fitness.ts` analytics queries, the healthfit Drizzle schema, pure health/Hevy ingest
+   parsers, `healthFitWebContributions`, and the workout/exercise/recovery tool-renderer components;
+   `@emi/core-server` gained a moved `db/memories.ts` so the toolkit's `search_memories` tool no
+   longer reaches into `apps/api`; old `apps/api`/`apps/chat` paths are thin re-export barrels;
+   `apps/api` and `apps/chat` depend on and import from `@emi/flavor-healthfit`; boundary tests on
+   `core-server`, `core-web`, and `core-contract` forbid importing `flavor-healthfit`/`healthfit`.
+   Deferred: Hevy OAuth/sync integrations, `db/ingested-data.ts`, `ingest/data-transfer.ts`,
+   `http/data.ts`, `http/hevy.ts`, `routes/data.ts`, and the `/upload`, `/workouts`, `/summary`
+   screens stay in the apps for now since they are Worker/Router-runtime coupled; the `render_component`
+   gen-ui catalog/registry also stays in `apps/chat` and continues to import the three moved tool
+   renderers through the `tool-result-content.tsx` barrel. The package exposes two entry points —
+   `@emi/flavor-healthfit` (server-safe: prompt, tools, ingest, analytics) and `@emi/flavor-healthfit/web`
+   (React contributions and tool renderers) — so `apps/api`'s non-JSX `tsc` config never resolves `.tsx`
+   files through the barrel. Kysely's `Transaction`/`withRecursive` typings make `QueryDatabaseClient<T>`
+   structurally invariant in `T`, so a wider app `DatabaseSchema` client can't be passed directly to
+   these narrower composed-schema functions (a pre-existing limitation already visible on
+   `ConversationDatabaseSchema` call sites before this phase); call sites narrow explicitly via a
+   documented `narrowQueryDatabaseClient`/`narrow` cast helper in `apps/api/src/platform/db/client.ts`
+   and `packages/flavor-healthfit/src/tools/api.ts` rather than widening every downstream signature.)
 7. Add generic composition roots and verify local development plus a free-tier deployment.
 8. Add `create-chat-app`, package releases, generated-template CI, and an upgrade test.
 9. Add Discord transport only after generic web and HealthFit both consume the same released core.

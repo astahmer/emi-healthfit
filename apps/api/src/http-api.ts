@@ -8,8 +8,9 @@ import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
+import type { MemoryDatabaseSchema } from "@emi/core-server";
 import { CurrentUser } from "./core/auth/request-auth.ts";
-import type { QueryDatabaseClient } from "./platform/db/client.ts";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "./platform/db/client.ts";
 import {
   deleteMemory,
   deleteMemoriesByMessage,
@@ -69,8 +70,9 @@ const notesHandlers = ({
 }: {
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "notes", (handlers) =>
+}) => {
+  const memoriesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "notes", (handlers) =>
     handlers
       .handle(
         "list",
@@ -79,8 +81,8 @@ const notesHandlers = ({
           const limit = query.limit ?? 100;
           const notes =
             query.search === undefined
-              ? yield* getNotes(db, user.id, limit)
-              : yield* searchNotes(db, user.id, query.search, limit);
+              ? yield* getNotes(memoriesDb, user.id, limit)
+              : yield* searchNotes(memoriesDb, user.id, query.search, limit);
           return { notes: notes.map(toApiNote) };
         }, Effect.provide(runtimeContext)),
       )
@@ -88,7 +90,7 @@ const notesHandlers = ({
         "create",
         Effect.fn("httpApi.notes.create")(function* ({ payload }) {
           const user = yield* CurrentUser;
-          const id = yield* insertNote(db, user.id, payload.content);
+          const id = yield* insertNote(memoriesDb, user.id, payload.content);
           return { id: requireIdentifier(id) };
         }, Effect.provide(runtimeContext)),
       )
@@ -96,7 +98,7 @@ const notesHandlers = ({
         "update",
         Effect.fn("httpApi.notes.update")(function* ({ params, payload }) {
           const user = yield* CurrentUser;
-          yield* updateNote(db, user.id, params.id, payload.content);
+          yield* updateNote(memoriesDb, user.id, params.id, payload.content);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       )
@@ -104,11 +106,12 @@ const notesHandlers = ({
         "remove",
         Effect.fn("httpApi.notes.remove")(function* ({ params }) {
           const user = yield* CurrentUser;
-          yield* deleteNote(db, user.id, params.id);
+          yield* deleteNote(memoriesDb, user.id, params.id);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       ),
   );
+};
 
 const memoriesHandlers = ({
   db,
@@ -116,8 +119,9 @@ const memoriesHandlers = ({
 }: {
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "memories", (handlers) =>
+}) => {
+  const memoriesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "memories", (handlers) =>
     handlers
       .handle(
         "list",
@@ -126,8 +130,8 @@ const memoriesHandlers = ({
           const limit = query.limit ?? 100;
           const memories =
             query.search === undefined
-              ? yield* getMemories(db, user.id, { limit })
-              : yield* searchMemories(db, user.id, query.search, { limit });
+              ? yield* getMemories(memoriesDb, user.id, { limit })
+              : yield* searchMemories(memoriesDb, user.id, query.search, { limit });
           return { memories: memories.map(toApiMemory) };
         }, Effect.provide(runtimeContext)),
       )
@@ -136,7 +140,7 @@ const memoriesHandlers = ({
         Effect.fn("httpApi.memories.create")(function* ({ payload }) {
           const user = yield* CurrentUser;
           const id = yield* insertMemory(
-            db,
+            memoriesDb,
             user.id,
             payload.content,
             payload.source,
@@ -150,7 +154,7 @@ const memoriesHandlers = ({
         "remove",
         Effect.fn("httpApi.memories.remove")(function* ({ params }) {
           const user = yield* CurrentUser;
-          yield* deleteMemory(db, user.id, params.id);
+          yield* deleteMemory(memoriesDb, user.id, params.id);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       )
@@ -158,11 +162,12 @@ const memoriesHandlers = ({
         "removeByMessage",
         Effect.fn("httpApi.memories.removeByMessage")(function* ({ params }) {
           const user = yield* CurrentUser;
-          yield* deleteMemoriesByMessage(db, user.id, params.messageId);
+          yield* deleteMemoriesByMessage(memoriesDb, user.id, params.messageId);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       ),
   );
+};
 
 export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   bucket,

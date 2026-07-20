@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import {
   getAnalyticsOverview,
   getDataSummary,
@@ -21,11 +22,13 @@ import {
   upsertHevySets,
   upsertSleepSessions,
 } from "../src/healthfit/db/ingested-data.ts";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("fitness SQLite integration", () => {
   it("returns owner-scoped history, progress, trends, exports, and analytics from persisted data", async () => {
     const { db, sqlite } = makeSqliteDatabase();
+    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const userId = "user-a";
 
     await run(
@@ -178,7 +181,7 @@ describe("fitness SQLite integration", () => {
     await run(updateSyncCursor(db, userId, "apple_health", "health-sync"));
     await run(updateSyncCursor(db, userId, "hevy", "hevy-sync"));
 
-    assert.deepStrictEqual(await run(getDataSummary(db, userId)), {
+    assert.deepStrictEqual(await run(getDataSummary(fitnessDb, userId)), {
       dailyActivity: 2,
       healthWorkouts: 1,
       hevySessions: 2,
@@ -189,7 +192,7 @@ describe("fitness SQLite integration", () => {
       lastHevySync: "hevy-sync",
     });
     assert.deepStrictEqual(
-      (await run(getWorkoutHistory(db, userId))).map((workout) => ({
+      (await run(getWorkoutHistory(fitnessDb, userId))).map((workout) => ({
         id: workout.session_id,
         exercises: workout.exercise_count,
         sets: workout.set_count,
@@ -199,55 +202,58 @@ describe("fitness SQLite integration", () => {
         { id: "session-a", exercises: 1, sets: 1 },
       ],
     );
-    assert.deepStrictEqual(await run(getWorkoutDetails({ db, userId, sessionId: "session-b" })), {
-      sessionId: "session-b",
-      title: "Strength",
-      startTime: "2026-07-19T10:00:00Z",
-      endTime: "2026-07-19T11:15:00Z",
-      durationSeconds: 4_500,
-      totalVolumeKg: 1_210,
-      exercises: [
-        {
-          title: "Bench press",
-          volumeKg: 510,
-          sets: [
-            {
-              session_id: "session-b",
-              session_title: "Strength",
-              start_time: "2026-07-19T10:00:00Z",
-              end_time: "2026-07-19T11:15:00Z",
-              duration_sec: 4_500,
-              session_volume_kg: 1_210,
-              set_index: 1,
-              set_type: "normal",
-              weight_kg: 85,
-              reps: 6,
-              rpe: 9,
-            },
-          ],
-        },
-        {
-          title: "Squat",
-          volumeKg: 680,
-          sets: [
-            {
-              session_id: "session-b",
-              session_title: "Strength",
-              start_time: "2026-07-19T10:00:00Z",
-              end_time: "2026-07-19T11:15:00Z",
-              duration_sec: 4_500,
-              session_volume_kg: 1_210,
-              set_index: 1,
-              set_type: "normal",
-              weight_kg: 85,
-              reps: 8,
-              rpe: 8,
-            },
-          ],
-        },
-      ],
-    });
-    assert.deepStrictEqual(await run(getExerciseProgress(db, userId, "Bench press", 4)), {
+    assert.deepStrictEqual(
+      await run(getWorkoutDetails({ db: fitnessDb, userId, sessionId: "session-b" })),
+      {
+        sessionId: "session-b",
+        title: "Strength",
+        startTime: "2026-07-19T10:00:00Z",
+        endTime: "2026-07-19T11:15:00Z",
+        durationSeconds: 4_500,
+        totalVolumeKg: 1_210,
+        exercises: [
+          {
+            title: "Bench press",
+            volumeKg: 510,
+            sets: [
+              {
+                session_id: "session-b",
+                session_title: "Strength",
+                start_time: "2026-07-19T10:00:00Z",
+                end_time: "2026-07-19T11:15:00Z",
+                duration_sec: 4_500,
+                session_volume_kg: 1_210,
+                set_index: 1,
+                set_type: "normal",
+                weight_kg: 85,
+                reps: 6,
+                rpe: 9,
+              },
+            ],
+          },
+          {
+            title: "Squat",
+            volumeKg: 680,
+            sets: [
+              {
+                session_id: "session-b",
+                session_title: "Strength",
+                start_time: "2026-07-19T10:00:00Z",
+                end_time: "2026-07-19T11:15:00Z",
+                duration_sec: 4_500,
+                session_volume_kg: 1_210,
+                set_index: 1,
+                set_type: "normal",
+                weight_kg: 85,
+                reps: 8,
+                rpe: 8,
+              },
+            ],
+          },
+        ],
+      },
+    );
+    assert.deepStrictEqual(await run(getExerciseProgress(fitnessDb, userId, "Bench press", 4)), {
       exercise_title: "Bench press",
       weeks: 4,
       workouts: [
@@ -274,14 +280,14 @@ describe("fitness SQLite integration", () => {
       ],
       personalRecord: { weight_kg: 80, reps: 8, volume_kg: 640 },
     });
-    assert.deepStrictEqual(await run(getSleepTrend(db, userId, 7)), {
+    assert.deepStrictEqual(await run(getSleepTrend(fitnessDb, userId, 7)), {
       days: 2,
       avg_in_bed_min: 495,
       avg_asleep_min: 450,
       avg_awake_min: 45,
       avg_sleep_hours: 7.5,
     });
-    const exported = await run(getIngestedDataExport({ db, userId }));
+    const exported = await run(getIngestedDataExport({ db: fitnessDb, userId }));
     assert.deepStrictEqual(
       {
         daily: exported.health.dailyActivity.length,
@@ -294,7 +300,7 @@ describe("fitness SQLite integration", () => {
       },
       { daily: 2, health: 1, sleep: 2, body: 2, sessions: 2, sets: 3, cursors: 2 },
     );
-    assert.deepStrictEqual(await run(getIngestedDataExportSummary({ db, userId })), {
+    assert.deepStrictEqual(await run(getIngestedDataExportSummary({ db: fitnessDb, userId })), {
       sources: {
         dailyActivity: { count: 2, first: "2026-07-18", last: "2026-07-19" },
         healthWorkouts: { count: 1, first: "2026-07-18", last: "2026-07-18" },
@@ -308,7 +314,7 @@ describe("fitness SQLite integration", () => {
       hevyRange: { first: "2026-07-18T10:00:00Z", last: "2026-07-19T10:00:00Z" },
     });
     assert.deepStrictEqual(
-      (await run(getWorkouts(db, userId))).map((workout) => ({
+      (await run(getWorkouts(fitnessDb, userId))).map((workout) => ({
         id: workout.session_id,
         exercises: workout.exercises,
         exerciseDetails: workout.exerciseDetails.map((exercise) => exercise.exercise_title),
@@ -318,7 +324,7 @@ describe("fitness SQLite integration", () => {
         { id: "session-a", exercises: 1, exerciseDetails: ["Bench press"] },
       ],
     );
-    const analytics = await run(getAnalyticsOverview({ db, userId, days: 7 }));
+    const analytics = await run(getAnalyticsOverview({ db: fitnessDb, userId, days: 7 }));
     assert.deepStrictEqual(analytics.highlights, {
       averageSteps: 2_000,
       averageSleepMinutes: 450,
@@ -354,7 +360,7 @@ describe("fitness SQLite integration", () => {
         },
       ]),
     );
-    assert.deepStrictEqual(await run(getWorkoutStreak(db, userId)), {
+    assert.deepStrictEqual(await run(getWorkoutStreak(fitnessDb, userId)), {
       current_streak: 2,
       longest_streak: 2,
       last_workout_date: today,

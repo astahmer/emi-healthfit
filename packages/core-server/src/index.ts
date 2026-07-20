@@ -4,5 +4,6 @@ export * from "./db/schema.ts";
 export * from "./db/auth-schema.ts";
 export * from "./db/conversation-revision.ts";
 export * from "./db/conversations.ts";
+export * from "./db/memories.ts";
 export * from "./ports/conversation-store.ts";
 export * from "./make-conversation-store.ts";
