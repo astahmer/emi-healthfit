@@ -44,11 +44,12 @@ const cors = <E, R>({
   effect: Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>;
 }) => withCors(effect, request);
 
-export default class Api extends Cloudflare.Worker<Api>()(
-  "Api",
-  {
+export class Api extends Cloudflare.Worker<Api, {}>()("Api") {}
+
+export default Api.make(
+  Stack.useSync(({ stage }) => ({
     main: import.meta.url,
-    domain: Stack.useSync(({ stage }) => (stage === "prod" ? PRODUCTION_DOMAIN : undefined)),
+    domain: stage === "prod" ? PRODUCTION_DOMAIN : undefined,
     assets: {
       directory: "./assets",
       notFoundHandling: "single-page-application",
@@ -65,7 +66,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     observability: {
       enabled: true,
     },
-  },
+  })),
   Effect.gen(function* () {
     const query = yield* Cloudflare.D1.QueryDatabase(DB);
     const db = makeQueryDatabaseClient({ query });
@@ -153,4 +154,4 @@ export default class Api extends Cloudflare.Worker<Api>()(
       Layer.mergeAll(Cloudflare.D1.QueryDatabaseBinding, Cloudflare.R2.ReadWriteBucketBinding),
     ),
   ),
-) {}
+);

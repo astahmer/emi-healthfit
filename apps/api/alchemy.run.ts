@@ -2,7 +2,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 
-import Api from "./src/api.worker.ts";
+import ApiLive, { Api } from "./src/api.worker.ts";
 
 export default Alchemy.Stack(
   "emi-healthfit",
@@ -24,5 +24,5 @@ export default Alchemy.Stack(
       databaseId: db.databaseId,
       bucketName: exportsBucket.bucketName,
     };
-  }),
+  }).pipe(Effect.provide(ApiLive)),
 );
