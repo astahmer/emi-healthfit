@@ -333,7 +333,15 @@ export interface DataSummary {
 export const getDataSummary = (db: QueryDatabaseClient, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const countFor = (table: "daily_activity" | "health_workouts" | "hevy_sessions" | "hevy_sets" | "sleep_sessions" | "body_metrics") =>
+    const countFor = (
+      table:
+        | "daily_activity"
+        | "health_workouts"
+        | "hevy_sessions"
+        | "hevy_sets"
+        | "sleep_sessions"
+        | "body_metrics",
+    ) =>
       Effect.promise(() =>
         kysely
           .selectFrom(table)
