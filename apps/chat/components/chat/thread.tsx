@@ -65,6 +65,7 @@ export interface ComposerControls {
   onWebSearchChange: (value: boolean) => void;
   temporary: boolean;
   onTemporaryChange: (value: boolean) => void;
+  onKeepTemporary: (messages: UIMessage[]) => Promise<void>;
   models: ChatModel[];
   canWebSearch: boolean;
 }
@@ -613,7 +614,9 @@ export const Thread = ({
   const feedback = useActionFeedback();
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const [memoryMessageId, setMemoryMessageId] = useState<string | null>(null);
+  const [isKeepingTemporary, setIsKeepingTemporary] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
   const { data: conversationMemories = [] } = useQuery({
     queryKey: queryKeys.memories.messageSources,
     queryFn: () => fetchMemories(),
@@ -936,10 +939,30 @@ export const Thread = ({
               size="sm"
               variant={composerControls.temporary ? "secondary" : "ghost"}
               className="shrink-0 px-2 sm:px-3"
-              disabled={runtime.isStreaming}
-              onClick={() => composerControls.onTemporaryChange(!composerControls.temporary)}
+              disabled={runtime.isStreaming || isKeepingTemporary}
+              onClick={() => {
+                if (canKeepTemporary) {
+                  setIsKeepingTemporary(true);
+                  void composerControls
+                    .onKeepTemporary(runtime.messages)
+                    .catch(() => {
+                      feedback.show({
+                        kind: "error",
+                        message: "Could not keep temporary chat.",
+                      });
+                    })
+                    .finally(() => setIsKeepingTemporary(false));
+                  return;
+                }
+                composerControls.onTemporaryChange(!composerControls.temporary);
+              }}
             >
-              <GhostIcon className="size-4" /> <span className="hidden sm:inline">Temporary</span>
+              {canKeepTemporary ? (
+                <BookmarkIcon className="size-4" />
+              ) : (
+                <GhostIcon className="size-4" />
+              )}{" "}
+              <span className="hidden sm:inline">{canKeepTemporary ? "Keep" : "Temporary"}</span>
             </Button>
             <TooltipIconButton
               tooltip={runtime.isStreaming ? "Stop generating" : "Send message"}

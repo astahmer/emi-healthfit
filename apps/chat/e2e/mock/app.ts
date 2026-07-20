@@ -369,6 +369,39 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, { id }, 201);
   });
 
+  app.post("/api/conversations/with-messages", async (context) => {
+    const body = await context.req.json<{
+      messages?: Array<{ role: string; parts: unknown[] }>;
+      title?: string;
+    }>();
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return context.json({ message: "Conversation requires at least one message" }, 400);
+    }
+    const id = state.createConversationId ?? `kept-${state.conversations.length + 1}`;
+    const conversation: MockConversation = {
+      id,
+      title: body.title ?? null,
+      status: "regular",
+      pinned: false,
+      created_at: now,
+      updated_at: now,
+    };
+    state.conversations = [conversation, ...state.conversations.filter((entry) => entry.id !== id)];
+    state.snapshots[id] = {
+      conversation,
+      messages: body.messages.map((message, index) => ({
+        id: `${id}-msg-${index}`,
+        conversationId: id,
+        parentId: null,
+        role: message.role,
+        parts: message.parts,
+        createdAt: now,
+      })),
+      threads: [],
+    };
+    return json(context, { conversation }, 201);
+  });
+
   app.patch("/api/conversations/:id/title", async (context) => {
     const id = context.req.param("id");
     const body = await context.req.json<{ title: string }>();

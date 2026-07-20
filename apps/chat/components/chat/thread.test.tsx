@@ -25,6 +25,7 @@ const controls: ComposerControls = {
   onWebSearchChange: vi.fn(),
   temporary: false,
   onTemporaryChange: vi.fn(),
+  onKeepTemporary: vi.fn(),
   models: chatModels,
   canWebSearch: true,
 };

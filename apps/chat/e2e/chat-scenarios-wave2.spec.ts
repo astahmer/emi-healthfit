@@ -39,6 +39,33 @@ test("temporary chat does not create a conversation and clears after refresh", a
   await expect(page.getByText("What are we working on?")).toBeVisible();
 });
 
+test("keeps a temporary chat as a normal conversation", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      createConversationId: "kept-ghost",
+      chat: { persist: true, replyText: "Ghost reply" },
+    },
+  });
+  await mock.open(page, "/chat");
+
+  await page.getByRole("button", { name: /Temporary/ }).click();
+  await page.getByLabel("Message input").fill("Ghost note");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByText("Ghost reply")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Keep/ })).toBeVisible();
+
+  await page.getByRole("button", { name: /Keep/ }).click();
+  await expect(page).toHaveURL(/\/chat\/kept-ghost/);
+  await expect(page.getByText("Temporary chat kept.")).toBeVisible();
+  await expect(page.getByText("Ghost note")).toBeVisible();
+  await expect(page.getByText("Ghost reply")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Temporary/ })).toBeVisible();
+  expect(mock.state.conversations.some((conversation) => conversation.id === "kept-ghost")).toBe(
+    true,
+  );
+  expect(mock.state.snapshots["kept-ghost"]?.messages.length).toBeGreaterThan(0);
+});
+
 test("enables web search for a web-capable model and sends it on chat", async ({ page }) => {
   const mock = createChatMock({
     state: {

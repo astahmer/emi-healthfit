@@ -77,6 +77,24 @@ export const createConversation = async (): Promise<string> => {
   return data.id;
 };
 
+export const createConversationWithMessages = async (
+  messages: Array<{ role: "user" | "assistant" | "system"; parts: UIMessage["parts"] }>,
+): Promise<Thread> => {
+  const data = await runApi((client) =>
+    client.conversations.createWithMessages({
+      payload: {
+        messages: messages.map((message) => ({
+          role: message.role,
+          parts: [...message.parts],
+        })),
+      },
+    }),
+  );
+  ignoreCacheError(updateCachedThread(data.conversation));
+  notifyConversationsChanged();
+  return data.conversation;
+};
+
 export const fetchConversationMessages = async (
   conversationId: string,
 ): Promise<ThreadWithMessages> => {
