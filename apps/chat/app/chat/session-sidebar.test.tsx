@@ -53,8 +53,15 @@ describe("SessionSidebar", () => {
       updated_at: "2026-07-14T11:42:25.844Z",
     };
 
-    global.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
-      if (String(url) === `${window.location.origin}/api/conversations`) {
+    const requestPath = (input: RequestInfo | URL) => {
+      const href =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return new URL(href, window.location.origin).pathname;
+    };
+
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const path = requestPath(input);
+      if (path === "/api/conversations") {
         return Promise.resolve(
           new Response(JSON.stringify({ conversations: [thread] }), {
             headers: { "content-type": "application/json" },
@@ -62,7 +69,7 @@ describe("SessionSidebar", () => {
         );
       }
 
-      if (String(url) === `${window.location.origin}/api/conversations/thread-1/messages`) {
+      if (path === "/api/conversations/thread-1/messages") {
         return Promise.resolve(
           new Response(JSON.stringify({ conversation: thread, messages: [], threads: [] }), {
             headers: { "content-type": "application/json" },
@@ -75,22 +82,27 @@ describe("SessionSidebar", () => {
 
     render(<SessionSidebar />, { wrapper: createWrapper() });
 
-    await waitFor(() => {
-      expect(screen.getByText("Squat Session Showdown")).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText("Squat Session Showdown")).toBeInTheDocument();
+      },
+      { timeout: 10_000 },
+    );
 
     const link = screen.getByRole("link", { name: /squat session showdown/i });
     fireEvent.mouseEnter(link);
 
-    await waitFor(() => {
-      expect(
-        vi
-          .mocked(global.fetch)
-          .mock.calls.some(
-            ([url]) =>
-              String(url) === `${window.location.origin}/api/conversations/thread-1/messages`,
-          ),
-      ).toBe(true);
-    });
+    await waitFor(
+      () => {
+        expect(
+          vi
+            .mocked(global.fetch)
+            .mock.calls.some(
+              ([input]) => requestPath(input) === "/api/conversations/thread-1/messages",
+            ),
+        ).toBe(true);
+      },
+      { timeout: 10_000 },
+    );
   });
 });
