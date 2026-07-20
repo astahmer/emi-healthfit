@@ -154,7 +154,9 @@ test("message rail previews and jumps to a user message", async ({ page }) => {
   await expect(railItems).toHaveCount(10);
 
   await railItems.nth(1).hover();
-  await expect(page.getByTestId("message-rail-preview")).toContainText("Session One user turn 1");
+  const preview = page.getByTestId("message-rail-preview");
+  await expect(preview).toContainText("Session One user turn 1");
+  await expect(preview.locator("time")).toHaveAttribute("datetime", "2026-07-14T10:01:00.000Z");
 
   await railItems.nth(0).click();
   await expect.poll(async () => (await viewportMetrics(page)).scrollTop).toBeLessThan(200);
@@ -164,6 +166,44 @@ test("message rail previews and jumps to a user message", async ({ page }) => {
     .poll(async () => {
       const metrics = await viewportMetrics(page);
       return metrics.scrollTop > metrics.maxScrollTop - 120;
+    })
+    .toBe(true);
+});
+
+test("message rail sheet jumps to a user message on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openTallChat({ page, path: "/chat/one" });
+  await expect(page.getByTestId("message-rail-sheet-trigger")).toBeVisible();
+  await expect(page.getByTestId("message-rail-item").first()).toBeHidden();
+
+  await page.getByTestId("message-rail-sheet-trigger").click();
+  const sheetItems = page.getByTestId("message-rail-sheet-item");
+  await expect(sheetItems).toHaveCount(10);
+  await expect(sheetItems.nth(1)).toContainText("Session One user turn 1");
+  await expect(sheetItems.nth(1).locator("time")).toHaveAttribute(
+    "datetime",
+    "2026-07-14T10:01:00.000Z",
+  );
+
+  await sheetItems.nth(0).click();
+  await expect.poll(async () => (await viewportMetrics(page)).scrollTop).toBeLessThan(200);
+  await expect(page.getByTestId("message-rail-sheet")).toBeHidden();
+});
+
+test("scroll to previous user message jumps above the viewport", async ({ page }) => {
+  await openTallChat({ page, path: "/chat/one" });
+  await expect(page.getByText("Session One assistant turn 9", { exact: true })).toBeVisible();
+
+  const before = await viewportMetrics(page);
+  expect(before.scrollTop).toBeGreaterThan(before.maxScrollTop - 80);
+
+  await expect(page.getByTestId("scroll-to-previous-user-message")).toBeVisible();
+  await page.getByTestId("scroll-to-previous-user-message").click();
+
+  await expect
+    .poll(async () => {
+      const metrics = await viewportMetrics(page);
+      return metrics.scrollTop < before.scrollTop - 80;
     })
     .toBe(true);
 });

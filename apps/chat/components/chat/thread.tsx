@@ -619,21 +619,29 @@ export const Thread = ({
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const [memoryMessageId, setMemoryMessageId] = useState<string | null>(null);
   const [isKeepingTemporary, setIsKeepingTemporary] = useState(false);
+  const usage = useUsage();
+  const userRailMessages = runtime.messages
+    .filter((message) => message.role === "user")
+    .map((message) => ({
+      id: message.id,
+      text: getText(message),
+      createdAt: usage.metaByMessageId.get(message.id)?.createdAt,
+    }));
   const {
     viewportRef,
     isAwayFromTop,
     isAwayFromBottom,
+    canScrollToPreviousUserMessage,
     scrollToTop,
     scrollToBottom,
     scrollToMessage,
+    scrollToPreviousUserMessage,
   } = useThreadViewportScroll({
     sessionId: runtime.sessionId,
     messageCount: runtime.messages.length,
+    userMessageIds: userRailMessages.map((message) => message.id),
   });
   const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
-  const userRailMessages = runtime.messages
-    .filter((message) => message.role === "user")
-    .map((message) => ({ id: message.id, text: getText(message) }));
   const { data: conversationMemories = [] } = useQuery({
     queryKey: queryKeys.memories.messageSources,
     queryFn: () => fetchMemories(),
@@ -697,6 +705,8 @@ export const Thread = ({
         <MessageRail
           messages={userRailMessages}
           onSelect={(messageId) => scrollToMessage({ messageId })}
+          canScrollToPreviousUserMessage={canScrollToPreviousUserMessage}
+          onScrollToPreviousUserMessage={scrollToPreviousUserMessage}
         />
         {(isAwayFromTop || isAwayFromBottom) && (
           <div className="pointer-events-none absolute right-3 bottom-3 z-10 flex flex-col gap-2 sm:right-4">
