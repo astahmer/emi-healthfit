@@ -56,6 +56,10 @@ export const fulfillApi = async (route: Route) => {
 
 export const setTestSettings = async (page: Page) => {
   await page.addInitScript(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: undefined,
+    });
     localStorage.setItem(
       "emi-chat-settings",
       JSON.stringify({
