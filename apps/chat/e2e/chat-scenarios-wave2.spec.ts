@@ -39,6 +39,38 @@ test("temporary chat does not create a conversation and clears after refresh", a
   await expect(page.getByText("What are we working on?")).toBeVisible();
 });
 
+test("temporary chat streams in-memory without fetching persisted messages", async ({ page }) => {
+  const messageFetches: string[] = [];
+  const mock = createChatMock({
+    state: { chat: { replyText: "Ephemeral reply" } },
+    extend: (app) => {
+      app.get("/api/conversations/:id/messages", (context) => {
+        const id = context.req.param("id");
+        messageFetches.push(id);
+        if (id.startsWith("temp_")) {
+          return context.json({ _tag: "NotFound", message: "Conversation not found" }, 404);
+        }
+        return context.json({ error: "unexpected conversation fetch" }, 500);
+      });
+    },
+  });
+  await mock.open(page, "/chat");
+
+  await page.getByRole("button", { name: /Temporary/ }).click();
+  await page.getByLabel("Message input").fill("Ephemeral note");
+  const chatResponse = page.waitForResponse(
+    (response) => response.url().endsWith("/api/chat") && response.request().method() === "POST",
+  );
+  await page.getByLabel("Send message").click();
+
+  await expect(page.getByText("Ephemeral note")).toBeVisible();
+  expect((await chatResponse).ok()).toBe(true);
+  await expect(page.getByText("Ephemeral reply")).toBeVisible();
+  expect(mock.state.chat.lastBody?.temporary).toBe(true);
+  expect(page.url()).toMatch(/\/chat\/?$/);
+  expect(messageFetches.filter((id) => id.startsWith("temp_"))).toEqual([]);
+});
+
 test("keeps a temporary chat as a normal conversation", async ({ page }) => {
   const mock = createChatMock({
     state: {
