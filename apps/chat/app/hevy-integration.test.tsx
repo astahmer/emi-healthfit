@@ -44,13 +44,12 @@ describe("HevyIntegration", () => {
     };
 
     runApi
-      .mockImplementationOnce(async (fn: (client: { hevy: { status: () => unknown } }) => unknown) =>
-        fn({ hevy: { status: () => statusDisconnected } }),
+      .mockImplementationOnce(
+        async (fn: (client: { hevy: { status: () => unknown } }) => unknown) =>
+          fn({ hevy: { status: () => statusDisconnected } }),
       )
       .mockImplementationOnce(
-        async (fn: (client: {
-          hevy: { connect: (args: unknown) => unknown };
-        }) => unknown) =>
+        async (fn: (client: { hevy: { connect: (args: unknown) => unknown } }) => unknown) =>
           fn({
             hevy: {
               connect: () => ({
@@ -73,8 +72,9 @@ describe("HevyIntegration", () => {
           },
         }),
       )
-      .mockImplementationOnce(async (fn: (client: { hevy: { status: () => unknown } }) => unknown) =>
-        fn({ hevy: { status: () => statusConnected } }),
+      .mockImplementationOnce(
+        async (fn: (client: { hevy: { status: () => unknown } }) => unknown) =>
+          fn({ hevy: { status: () => statusConnected } }),
       );
 
     render(<HevyIntegration />);

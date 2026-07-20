@@ -12,15 +12,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-const workout = ({
-  id,
-  title,
-  updatedAt,
-}: {
-  id: string;
-  title: string;
-  updatedAt: string;
-}) => ({
+const workout = ({ id, title, updatedAt }: { id: string; title: string; updatedAt: string }) => ({
   id,
   title,
   start_time: updatedAt,

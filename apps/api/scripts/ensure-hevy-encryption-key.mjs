@@ -11,7 +11,9 @@ const run = async () => {
     contents = await readFile(environmentPath, "utf8");
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      console.error(`.env missing at ${environmentPath}. Run pnpm setup:google first, or copy .env.example.`);
+      console.error(
+        `.env missing at ${environmentPath}. Run pnpm setup:google first, or copy .env.example.`,
+      );
       process.exitCode = 1;
       return;
     }
