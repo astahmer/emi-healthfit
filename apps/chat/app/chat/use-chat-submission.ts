@@ -152,6 +152,7 @@ export const useChatSubmission = ({
         });
         if (operationRef.current !== operation) return;
         send({ type: "stream.completed" });
+        if (config.temporary) return;
         const snapshot = await synchronizePersistedHistory(sessionId);
         notifyConversationsChanged();
         void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
