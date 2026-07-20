@@ -24,9 +24,21 @@ so typed-openapi can generate.
 ## Sync (Workers Free)
 
 Shipped paths: connect + initial import, Settings **Sync now**, stale-on-demand
-(15 min) on workout list. No Cron Trigger — Free Cron CPU is 10ms.
+(15 min) on workouts list, analytics overview, recovery, summary, and chat start.
+No Cron Trigger — Free Cron CPU is 10ms.
 
 See [SCHEDULING.md](./SCHEDULING.md) for the Workers Paid twice-daily cron upgrade.
+
+## Live smoke (optional)
+
+```bash
+# In repo-root .env (or export):
+# HEVY_API_KEY=<Hevy Pro developer key>
+# HEVY_CREDENTIAL_ENCRYPTION_KEY=<optional; ephemeral key used if unset>
+pnpm --filter @emi/api test:file test/hevy-live.integration.test.ts
+```
+
+Skipped when `HEVY_API_KEY` is unset.
 
 ## Secrets / agent setup
 
