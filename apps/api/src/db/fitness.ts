@@ -634,17 +634,28 @@ export const getAnalyticsOverview = Effect.fn("analytics.overview")(function* ({
     ),
   ]);
   const weights = body.flatMap((row) => (row.weight_kg === null ? [] : [row.weight_kg]));
+  const sleepDays = sleep.flatMap((row) =>
+    row.date === null
+      ? []
+      : [
+          {
+            date: row.date,
+            asleep_min: row.asleep_min,
+            in_bed_min: row.in_bed_min,
+          },
+        ],
+  );
   return {
     days,
     activity,
-    sleep,
+    sleep: sleepDays,
     body,
     training,
     exercises,
     highlights: {
       averageSteps: average(activity.flatMap((row) => (row.steps === null ? [] : [row.steps]))),
       averageSleepMinutes: average(
-        sleep.flatMap((row) => {
+        sleepDays.flatMap((row) => {
           const minutes = row.asleep_min ?? row.in_bed_min;
           return minutes === null ? [] : [minutes];
         }),

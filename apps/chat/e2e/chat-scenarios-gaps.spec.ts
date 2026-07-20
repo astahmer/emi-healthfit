@@ -351,15 +351,14 @@ test("shares a session via navigator.share when available", async ({ page }) => 
   await expect
     .poll(async () =>
       page.evaluate(
-        () => (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.length ?? 0,
+        () => (window as Window & { emiShareCalls?: ShareData[] }).emiShareCalls?.length ?? 0,
       ),
     )
     .toBe(1);
   await expect
     .poll(async () =>
       page.evaluate(
-        () =>
-          (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.[0]?.url ?? "",
+        () => (window as Window & { emiShareCalls?: ShareData[] }).emiShareCalls?.[0]?.url ?? "",
       ),
     )
     .toContain("/chat/one");

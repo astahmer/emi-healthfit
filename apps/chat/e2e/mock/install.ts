@@ -78,7 +78,7 @@ export const setTestSettings = async (page: Page, options: TestSettingsOptions =
       });
     } else {
       const calls: ShareData[] = [];
-      Object.defineProperty(window, "__emiShareCalls", {
+      Object.defineProperty(window, "emiShareCalls", {
         configurable: true,
         value: calls,
       });
