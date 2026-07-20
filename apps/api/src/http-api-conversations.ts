@@ -143,6 +143,49 @@ export const conversationsHandlers = ({
         ),
       )
       .handle(
+        "createWithMessages",
+        Effect.fn("httpApi.conversations.createWithMessages")(
+          function* ({ payload }) {
+            const user = yield* CurrentUser;
+            if (payload.messages.length === 0) {
+              return yield* new BadRequest({
+                message: "Conversation requires at least one message",
+              });
+            }
+            const validated = yield* Effect.promise(() =>
+              safeValidateUIMessages({
+                messages: payload.messages.map((message, index) => ({
+                  id: `import-${index}`,
+                  role: message.role,
+                  parts: message.parts,
+                })),
+              }),
+            );
+            if (!validated.success) {
+              return yield* new BadRequest({ message: validated.error.message });
+            }
+            const id = yield* createConversation(db, user.id, payload.title?.trim());
+            yield* saveConversationMessages(
+              db,
+              user.id,
+              id,
+              null,
+              validated.data.map((message) => ({
+                role: message.role,
+                parts: message.parts,
+              })),
+            );
+            const conversation = yield* getConversation(db, user.id, id);
+            if (conversation === null) {
+              return yield* new NotFound({ message: "Conversation not found" });
+            }
+            return { conversation: toApiConversation(conversation) };
+          },
+          withInternalError,
+          Effect.provide(runtimeContext),
+        ),
+      )
+      .handle(
         "remove",
         Effect.fn("httpApi.conversations.remove")(
           function* ({ params }) {

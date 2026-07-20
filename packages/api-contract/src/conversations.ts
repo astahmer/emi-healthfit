@@ -74,6 +74,21 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
     }),
   )
   .add(
+    HttpApiEndpoint.post("createWithMessages", "/conversations/with-messages", {
+      payload: Schema.Struct({
+        messages: Schema.Array(
+          Schema.Struct({
+            role: Schema.Literals(["user", "assistant", "system"]),
+            parts: Schema.Array(Schema.Unknown),
+          }),
+        ),
+        title: Schema.optional(Content),
+      }),
+      success: ConversationResponse.pipe(HttpApiSchema.status(201)),
+      error: StandardErrors,
+    }),
+  )
+  .add(
     HttpApiEndpoint.delete("remove", "/conversations/:id", {
       params: { id: Identifier },
       success: Deleted,

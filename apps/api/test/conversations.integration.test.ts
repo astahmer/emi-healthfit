@@ -151,6 +151,40 @@ describe("conversations SQLite integration", () => {
     );
   });
 
+  it("creates a conversation with a batch of root messages in order", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-a";
+    const conversationId = await run(createConversation(db, userId, "Kept ghost"));
+    await run(
+      saveConversationMessages(db, userId, conversationId, null, [
+        { role: "user", parts: [{ type: "text", text: "Ghost note" }] },
+        { role: "assistant", parts: [{ type: "text", text: "Ghost reply" }] },
+      ]),
+    );
+    const messages = await run(getConversationMessages(db, userId, conversationId));
+    assert.deepStrictEqual(
+      messages.map((message) => ({
+        role: message.role,
+        parent_id: message.parent_id,
+        parts: message.parts,
+      })),
+      [
+        {
+          role: "user",
+          parent_id: null,
+          parts: JSON.stringify([{ type: "text", text: "Ghost note" }]),
+        },
+        {
+          role: "assistant",
+          parent_id: null,
+          parts: JSON.stringify([{ type: "text", text: "Ghost reply" }]),
+        },
+      ],
+    );
+    assert.ok(messages[0] !== undefined && messages[1] !== undefined);
+    assert.ok(messages[0].created_at <= messages[1].created_at);
+  });
+
   it("clones linked messages and threads, then deletes only owned original conversation", async () => {
     const { db } = makeSqliteDatabase();
     const alice = "user-a";

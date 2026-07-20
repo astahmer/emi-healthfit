@@ -448,10 +448,10 @@ export const saveConversationMessages = (
   Effect.gen(function* () {
     if (messages.length === 0) return [];
 
-    const createdAt = nowIso();
+    const baseTime = Date.now();
     const ids: string[] = [];
     const kysely = yield* db.kysely;
-    const statements = messages.map((message) => {
+    const statements = messages.map((message, index) => {
       const id = crypto.randomUUID();
       ids.push(id);
       return kysely.insertInto("messages").values({
@@ -465,7 +465,7 @@ export const saveConversationMessages = (
         completion_tokens: message.usage?.completion_tokens ?? null,
         total_tokens: message.usage?.total_tokens ?? null,
         model: message.model ?? null,
-        created_at: createdAt,
+        created_at: new Date(baseTime + index).toISOString(),
       });
     });
 
