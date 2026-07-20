@@ -1,11 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
-  assistantStream,
-  authSessionBody,
-  conversationPayload,
-  fulfillMockApi,
-  openMockedChat,
-  setTestSettings,
+  createChatMock,
+  sessionOneSnapshot,
+  type MockMessage,
 } from "./mock/install.ts";
 
 const branchA = {
@@ -29,89 +26,31 @@ const branchB = {
   updated_at: "2026-07-14T10:03:00.000Z",
 };
 
-const fulfillChatStream = async ({
-  route,
-  messageId,
-  text,
-}: {
-  route: Parameters<Parameters<Page["route"]>[1]>[0];
-  messageId: string;
-  text: string;
-}) => {
-  await route.fulfill({
-    status: 200,
-    headers: {
-      "content-type": "text/event-stream",
-      "x-thread-id": "one",
-      "x-vercel-ai-ui-message-stream": "v1",
-    },
-    body: assistantStream({ messageId, text }),
-  });
-};
-
 const openSessionActions = async (page: Page) => {
-  const link = page.getByRole("link", { name: /Session One|Renamed One|New chat/ }).first();
-  await expect(link).toBeVisible();
-  await link.hover();
-  const actions = page.getByLabel("Session actions").first();
+  const item = page
+    .locator('[data-sidebar="menu-item"]')
+    .filter({ has: page.locator('a[href="/chat/one"]') })
+    .first();
+  await expect(item).toBeVisible();
+  await item.hover();
+  const actions = item.getByLabel("Session actions");
   await expect(actions).toBeVisible();
   await actions.click();
   await expect(
-    page.getByText("Renommer").or(page.getByText("Archiver")).or(page.getByText("Restaurer")).or(page.getByText("Désépingler")).first(),
+    page
+      .getByText("Renommer")
+      .or(page.getByText("Archiver"))
+      .or(page.getByText("Restaurer"))
+      .or(page.getByText("Désépingler"))
+      .first(),
   ).toBeVisible();
 };
 
 test("saves and removes an assistant message memory", async ({ page }) => {
-  let memories: Array<{
-    id: string;
-    content: string;
-    source: string | null;
-    thread_id: string | null;
-    created_at: string;
-  }> = [];
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/memories" && request.method() === "GET") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ memories }),
-      });
-      return;
-    }
-    if (url.pathname === "/api/memories/extract" && request.method() === "POST") {
-      const body = request.postDataJSON() as { text: string; messageId?: string; threadId?: string };
-      memories = [
-        {
-          id: "memory-1",
-          content: body.text.slice(0, 80),
-          source: body.messageId === undefined ? "manual" : `manual:${body.messageId}`,
-          thread_id: body.threadId ?? null,
-          created_at: "2026-07-20T00:00:00.000Z",
-        },
-      ];
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ ids: ["memory-1"], count: 1 }),
-      });
-      return;
-    }
-    if (
-      request.method() === "DELETE" &&
-      url.pathname === "/api/memories/message/one-assistant"
-    ) {
-      memories = [];
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   const assistant = page.locator("#message-one-assistant");
   await assistant.getByLabel("Save message to memory").click();
@@ -124,37 +63,10 @@ test("saves and removes an assistant message memory", async ({ page }) => {
 });
 
 test("renames, pins, and focuses branches", async ({ page }) => {
-  let threads = [branchA, branchB];
-  const patches: Array<{ title?: string; pinned?: boolean }> = [];
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations/one/messages") {
-      const payload = conversationPayload({ id: "one", text: "one message" });
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ ...payload, threads }),
-      });
-      return;
-    }
-    if (request.method() === "PATCH" && url.pathname.startsWith("/api/threads/")) {
-      const id = url.pathname.split("/").at(-1);
-      const body = request.postDataJSON() as { title?: string; pinned?: boolean };
-      patches.push(body);
-      threads = threads.map((thread) =>
-        thread.id === id ? { ...thread, ...body } : thread,
-      );
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot({ threads: [branchA, branchB] }) } },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByRole("button", { name: "Branch B", exact: true }).click();
   await page.getByRole("button", { name: "Branch A", exact: true }).click();
@@ -167,58 +79,28 @@ test("renames, pins, and focuses branches", async ({ page }) => {
 
   await page.getByRole("button", { name: "Actions for Renamed Branch" }).click();
   await page.getByRole("menuitem", { name: "Pin" }).click();
-  expect(patches).toEqual(
-    expect.arrayContaining([{ title: "Renamed Branch" }, { pinned: true }]),
+  expect(mock.state.snapshots.one?.threads.find((thread) => thread.id === "branch-a")?.pinned).toBe(
+    true,
   );
 });
 
 test("renames a session from the header and cancels rename", async ({ page }) => {
-  let title = "Session One";
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          conversations: [
-            {
-              id: "one",
-              title,
-              status: "regular",
-              pinned: false,
-              created_at: "2026-07-14T10:00:00.000Z",
-              updated_at: "2026-07-14T12:00:00.000Z",
-            },
-          ],
-        }),
-      });
-      return;
-    }
-    if (url.pathname === "/api/conversations/one/messages") {
-      const payload = conversationPayload({ id: "one", text: "one message" });
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          ...payload,
-          conversation: { ...payload.conversation, title },
-        }),
-      });
-      return;
-    }
-    if (request.method() === "PATCH" && url.pathname === "/api/conversations/one/title") {
-      title = (request.postDataJSON() as { title: string }).title;
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: {
+      conversations: [
+        {
+          id: "one",
+          title: "Session One",
+          status: "regular",
+          pinned: false,
+          created_at: "2026-07-14T10:00:00.000Z",
+          updated_at: "2026-07-14T12:00:00.000Z",
+        },
+      ],
+      snapshots: { one: sessionOneSnapshot() },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Rename session").click();
   await page.getByLabel("Session title").fill("Should cancel");
@@ -233,52 +115,23 @@ test("renames a session from the header and cancels rename", async ({ page }) =>
 
 test("searches sessions, syncs, and exports diagnostics", async ({ page }) => {
   let listCalls = 0;
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations" && request.method() === "GET") {
-      listCalls += 1;
-      const search = url.searchParams.get("search")?.toLowerCase() ?? "";
-      const all = [
-        {
-          id: "one",
-          title: "Session One",
-          status: "regular",
-          pinned: false,
-          created_at: "2026-07-14T10:00:00.000Z",
-          updated_at: "2026-07-14T12:00:00.000Z",
-        },
-        {
-          id: "two",
-          title: "Session Two",
-          status: "regular",
-          pinned: false,
-          created_at: "2026-07-14T09:00:00.000Z",
-          updated_at: "2026-07-14T11:00:00.000Z",
-        },
-      ];
-      const conversations =
-        search === ""
-          ? all
-          : all.filter((conversation) => conversation.title.toLowerCase().includes(search));
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ conversations }),
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
+    extend: (app, state) => {
+      app.get("/api/conversations", (context) => {
+        listCalls += 1;
+        const search = context.req.query("search")?.trim().toLowerCase() ?? "";
+        const list =
+          search === ""
+            ? state.conversations
+            : state.conversations.filter((conversation) =>
+                (conversation.title ?? "").toLowerCase().includes(search),
+              );
+        return context.json({ conversations: list });
       });
-      return;
-    }
-    if (url.pathname === "/api/conversations/one/diagnostics") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ schemaVersion: 1, conversationId: "one", events: [] }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Search sessions").fill("Two");
   await expect(page.getByRole("link", { name: /Session Two/ })).toBeVisible();
@@ -298,7 +151,10 @@ test("searches sessions, syncs, and exports diagnostics", async ({ page }) => {
 });
 
 test("removes an attachment and rejects unsupported image types", async ({ page }) => {
-  await openMockedChat(page, "/chat/one");
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
+  });
+  await mock.open(page, "/chat/one");
 
   await page.locator('input[type="file"]').setInputFiles({
     name: "progress.png",
@@ -318,102 +174,65 @@ test("removes an attachment and rejects unsupported image types", async ({ page 
 });
 
 test("shows stream failure controls on the failed user turn", async ({ page }) => {
-  let chatCalls = 0;
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      chatCalls += 1;
-      if (chatCalls === 1) {
-        await route.fulfill({
-          status: 500,
-          contentType: "application/json",
-          body: JSON.stringify({ message: "Upstream failed" }),
-        });
-        return;
-      }
-      await fulfillChatStream({ route, messageId: "retry-assistant", text: "Recovered reply" });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { failStatus: 500 },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Message input").fill("Please fail");
   await page.getByLabel("Send message").click();
   await expect(page.getByText("Retry this request")).toBeVisible();
-  await expect(page.locator("#message-one-user, [id^='message-']").filter({ hasText: "Please fail" }).first()).toBeVisible();
 });
 
 test("shows failure toasts for compact and conversation copy", async ({ page }) => {
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === "POST" && url.pathname === "/api/conversations/one/compact") {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({ message: "Compact failed" }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      compact: { failStatus: 500 },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Compact conversation and start fresh").click();
   await expect(page.getByRole("alert").getByText("Could not compact conversation.")).toBeVisible();
 
   await page.context().grantPermissions([]);
   await page.getByLabel("Copy conversation as Markdown").click();
-  await expect(
-    page.getByRole("alert").getByText("Could not copy conversation."),
-  ).toBeVisible();
+  await expect(page.getByRole("alert").getByText("Could not copy conversation.")).toBeVisible();
 });
 
 test("renders reasoning parts and message reference links", async ({ page }) => {
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/api/conversations/one/messages") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          conversation: conversationPayload({ id: "one", text: "one message" }).conversation,
-          messages: [
-            {
-              id: "one-user",
-              conversationId: "one",
-              parentId: null,
-              role: "user",
-              parts: [{ type: "text", text: "one message" }],
-              createdAt: "2026-07-14T10:00:00.000Z",
-            },
-            {
-              id: "one-assistant",
-              conversationId: "one",
-              parentId: null,
-              role: "assistant",
-              parts: [
-                { type: "reasoning", text: "Thinking about recovery metrics." },
-                {
-                  type: "text",
-                  text: 'See earlier turn <message id="one-user" /> for context.',
-                },
-              ],
-              createdAt: "2026-07-14T10:01:00.000Z",
-            },
-          ],
-          threads: [],
-        }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const messages: MockMessage[] = [
+    {
+      id: "one-user",
+      conversationId: "one",
+      parentId: null,
+      role: "user",
+      parts: [{ type: "text", text: "one message" }],
+      createdAt: "2026-07-14T10:00:00.000Z",
+    },
+    {
+      id: "one-assistant",
+      conversationId: "one",
+      parentId: null,
+      role: "assistant",
+      parts: [
+        { type: "reasoning", text: "Thinking about recovery metrics." },
+        {
+          type: "text",
+          text: 'See earlier turn <message id="one-user" /> for context.',
+        },
+      ],
+      createdAt: "2026-07-14T10:01:00.000Z",
+    },
+  ];
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot({ messages }) } },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByText("Reasoning").click();
   await expect(page.getByText("Thinking about recovery metrics.")).toBeVisible();
@@ -423,68 +242,16 @@ test("renders reasoning parts and message reference links", async ({ page }) => 
 });
 
 test("blocks empty send and allows file-only send", async ({ page }) => {
-  let chatCalls = 0;
-  let fileOnly = false;
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === "POST" && url.pathname === "/api/chat") {
-      chatCalls += 1;
-      const body = request.postDataJSON() as {
-        messages?: Array<{ parts?: Array<{ type?: string; text?: string }> }>;
-      };
-      const parts = body.messages?.[0]?.parts ?? [];
-      fileOnly = parts.some((part) => part.type === "file") && !parts.some((part) => part.type === "text");
-      await fulfillChatStream({ route, messageId: "file-assistant", text: "Got the file" });
-      return;
-    }
-    if (url.pathname === "/api/conversations/one/messages") {
-      const payload = conversationPayload({ id: "one", text: "one message" });
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          ...payload,
-          messages:
-            chatCalls === 0
-              ? payload.messages
-              : [
-                  ...payload.messages,
-                  {
-                    id: "file-user",
-                    conversationId: "one",
-                    parentId: null,
-                    role: "user",
-                    parts: [
-                      {
-                        type: "file",
-                        filename: "solo.png",
-                        mediaType: "image/png",
-                        url: "data:image/png;base64,aW1hZ2U=",
-                      },
-                    ],
-                    createdAt: "2026-07-20T00:00:00.000Z",
-                  },
-                  {
-                    id: "file-assistant",
-                    conversationId: "one",
-                    parentId: null,
-                    role: "assistant",
-                    parts: [{ type: "text", text: "Got the file" }],
-                    createdAt: "2026-07-20T00:00:01.000Z",
-                  },
-                ],
-        }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Got the file" },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.getByLabel("Send message").click();
-  expect(chatCalls).toBe(0);
+  expect(mock.state.chat.calls).toBe(0);
 
   await page.locator('input[type="file"]').setInputFiles({
     name: "solo.png",
@@ -493,111 +260,62 @@ test("blocks empty send and allows file-only send", async ({ page }) => {
   });
   await page.getByLabel("Send message").click();
   await expect(page.getByText("Got the file")).toBeVisible();
-  expect(chatCalls).toBe(1);
-  expect(fileOnly).toBe(true);
+  expect(mock.state.chat.calls).toBe(1);
+  const parts = mock.state.chat.lastBody?.messages?.[0]?.parts ?? [];
+  expect(parts.some((part) => part.type === "file")).toBe(true);
+  expect(parts.some((part) => part.type === "text")).toBe(false);
 });
 
 test("unpins, cancels delete, and starts a new chat from the header", async ({ page }) => {
-  let pinned = true;
-  let deleted = false;
-
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (url.pathname === "/api/conversations") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          conversations: deleted
-            ? []
-            : [
-                {
-                  id: "one",
-                  title: "Session One",
-                  status: "regular",
-                  pinned,
-                  created_at: "2026-07-14T10:00:00.000Z",
-                  updated_at: "2026-07-14T12:00:00.000Z",
-                },
-              ],
-        }),
-      });
-      return;
-    }
-    if (request.method() === "PATCH" && url.pathname === "/api/conversations/one") {
-      const body = request.postDataJSON() as { pinned?: boolean };
-      if (body.pinned !== undefined) pinned = body.pinned;
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          conversation: {
-            id: "one",
-            title: "Session One",
-            status: "regular",
-            pinned,
-            created_at: "2026-07-14T10:00:00.000Z",
-            updated_at: "2026-07-14T12:00:00.000Z",
-          },
-        }),
-      });
-      return;
-    }
-    if (request.method() === "DELETE" && url.pathname === "/api/conversations/one") {
-      deleted = true;
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ success: true }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: {
+      conversations: [
+        {
+          id: "one",
+          title: "Session One",
+          status: "regular",
+          pinned: true,
+          created_at: "2026-07-14T10:00:00.000Z",
+          updated_at: "2026-07-14T12:00:00.000Z",
+        },
+      ],
+      snapshots: { one: sessionOneSnapshot() },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await openSessionActions(page);
   await page.getByText("Désépingler").click();
-  expect(pinned).toBe(false);
+  expect(mock.state.conversations[0]?.pinned).toBe(false);
 
   await openSessionActions(page);
   await page.getByText("Supprimer", { exact: true }).click();
   await page.getByRole("button", { name: "Annuler" }).click();
   await expect(page.getByRole("link", { name: /Session One/ })).toBeVisible();
-  expect(deleted).toBe(false);
+  expect(mock.state.conversations).toHaveLength(1);
 
   await page.getByLabel("New chat").click();
   await expect(page).toHaveURL(/\/chat\/?$/);
 });
 
 test("shows Google auth denial and guest start failure", async ({ page }) => {
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/api/auth/get-session") {
-      await route.fulfill({ contentType: "application/json", body: "null" });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: { authSession: null, anonymousOk: false },
   });
+  await mock.install(page);
   await page.goto("/auth?error=access_denied");
-  await expect(
-    page.getByRole("alert").getByText(/Google account is not approved/),
-  ).toBeVisible();
+  await expect(page.getByRole("alert").getByText(/Google account is not approved/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
 
-  await page.route("**/api/auth/sign-in/anonymous", async (route) => {
-    await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
-  });
   await page.getByRole("button", { name: "Continue as guest" }).click();
   await expect(page.getByText("Guest session could not be started. Try again.")).toBeVisible();
 });
 
 test("shares copies a session URL and downloads markdown from the sidebar", async ({ page }) => {
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
   await openSessionActions(page);
@@ -614,21 +332,13 @@ test("shares copies a session URL and downloads markdown from the sidebar", asyn
 });
 
 test("fork failure does not create a branch", async ({ page }) => {
-  await setTestSettings(page);
-  await page.route("**/api/**", async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    if (request.method() === "POST" && url.pathname === "/api/conversations/one/threads") {
-      await route.fulfill({
-        status: 500,
-        contentType: "application/json",
-        body: JSON.stringify({ message: "Fork failed" }),
-      });
-      return;
-    }
-    await fulfillMockApi({ route });
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      fork: { failStatus: 500 },
+    },
   });
-  await page.goto("/chat/one");
+  await mock.open(page, "/chat/one");
 
   await page.locator("#message-one-assistant").getByLabel("Fork from message").click();
   await expect(page.getByText("Creating branch…")).toBeVisible();

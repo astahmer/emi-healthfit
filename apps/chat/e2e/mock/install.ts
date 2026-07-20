@@ -1,8 +1,23 @@
 import type { Page, Route } from "@playwright/test";
 import type { Hono } from "hono";
-import { createMockApi, defaultMockApi } from "./app.ts";
+import {
+  createMockApi,
+  defaultMockApi,
+  sessionOneSnapshot,
+  type MockApi,
+} from "./app.ts";
 
-export { createMockApi, defaultMockApi } from "./app.ts";
+export {
+  createMockApi,
+  defaultMockApi,
+  sessionOneSnapshot,
+  type MockApi,
+  type MockApiState,
+  type MockConversation,
+  type MockMessage,
+  type MockSnapshot,
+  type MockThread,
+} from "./app.ts";
 export {
   assistantStream,
   authSessionBody,
@@ -49,9 +64,9 @@ export const fulfillMockApi = async ({
   });
 };
 
-/** @deprecated Prefer fulfillMockApi — kept for gradual migration of existing specs. */
+/** @deprecated Prefer createChatMock / fulfillMockApi with a per-test app. */
 export const fulfillApi = async (route: Route) => {
-  await fulfillMockApi({ route });
+  await fulfillMockApi({ route, app: defaultMockApi.app });
 };
 
 export const setTestSettings = async (page: Page) => {
@@ -91,8 +106,56 @@ export const installMockApi = async ({
   });
 };
 
-export const openMockedChat = async (page: Page, path = "/chat") => {
+export const openWithMock = async ({
+  page,
+  app,
+  path = "/chat",
+}: {
+  page: Page;
+  app: Hono;
+  path?: string;
+}) => {
   await setTestSettings(page);
-  await installMockApi({ page });
+  await installMockApi({ page, app });
   await page.goto(path);
+};
+
+export const openMockedChat = async (page: Page, path = "/chat") => {
+  const mock = createMockApi();
+  await openWithMock({ page, app: mock.app, path });
+  return mock;
+};
+
+export const openSessionOne = async ({
+  page,
+  mock,
+  path = "/chat/one",
+}: {
+  page: Page;
+  mock?: MockApi;
+  path?: string;
+}) => {
+  const api = mock ?? createMockApi({ state: { snapshots: { one: sessionOneSnapshot() } } });
+  if (api.state.snapshots.one === undefined) api.setSnapshot("one", sessionOneSnapshot());
+  await openWithMock({ page, app: api.app, path });
+  return api;
+};
+
+export const createChatMock = (
+  options?: Parameters<typeof createMockApi>[0],
+): MockApi & {
+  open: (page: Page, path?: string) => Promise<void>;
+  install: (page: Page) => Promise<void>;
+} => {
+  const mock = createMockApi(options);
+  return {
+    ...mock,
+    install: async (page) => {
+      await setTestSettings(page);
+      await installMockApi({ page, app: mock.app });
+    },
+    open: async (page, path = "/chat") => {
+      await openWithMock({ page, app: mock.app, path });
+    },
+  };
 };
