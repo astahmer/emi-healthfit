@@ -1,4 +1,4 @@
-import { Content } from "@emi/api-contract";
+import { Content } from "@emi/core-contract";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 

@@ -1,4 +1,4 @@
-import { EmiApi } from "@emi/api-contract";
+import { EmiApi } from "@emi/core-contract";
 import * as Effect from "effect/Effect";
 import { FetchHttpClient } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";

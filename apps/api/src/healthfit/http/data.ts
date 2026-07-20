@@ -1,4 +1,4 @@
-import { EmiApi } from "@emi/api-contract";
+import { EmiApi } from "@emi/core-contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";

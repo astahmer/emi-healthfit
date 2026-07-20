@@ -5,7 +5,7 @@ import { createActor } from "xstate";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { DefaultChatTransport, readUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
-import { createChatStreamResponse } from "../../../api/src/core/chat/ui-message-stream-response";
+import { createChatStreamResponse } from "./create-chat-stream-response";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 
 const delayMilliseconds = 600;

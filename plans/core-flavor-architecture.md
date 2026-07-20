@@ -98,7 +98,9 @@ README states that application logic comes from versioned packages.
    (`apps/api/src/{core,healthfit,platform}/`, schema split, composition injects flavor hooks/tools;
    boundary test forbids `core → healthfit`).
 3. Move schemas and shared types into `core-contract`; remove imports from frontend source into
-   Worker implementation details.
+   Worker implementation details. **DONE**
+   (`packages/core-contract` renamed from `api-contract`; chat forbids `apps/api/src` imports;
+   contract encode/platform-isolation tests).
 4. Extract `core-server` repositories and services behind ports, keeping the existing Cloudflare
    implementations as adapters.
 5. Extract `core-web` shell and accept typed navigation/page/tool-renderer contributions.

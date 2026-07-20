@@ -1,4 +1,4 @@
-import { BadRequest, EmiApi } from "@emi/api-contract";
+import { BadRequest, EmiApi } from "@emi/core-contract";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";

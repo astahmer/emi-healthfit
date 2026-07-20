@@ -28,7 +28,7 @@ A personal gym assistant: Apple Health + Hevy data on Cloudflare, with a chat UI
 | --- | --- |
 | `apps/api` | Cloudflare Worker: auth, chat, ingest, fitness APIs, Hevy sync, tools |
 | `apps/chat` | Vite SPA: chat shell, data pages, settings; built assets served by the Worker |
-| `packages/api-contract` | Shared wire schemas for the typed HTTP API |
+| `packages/core-contract` | Shared wire schemas for the typed HTTP API |
 | `plans/` | Active product plans (not shipped docs) |
 | `docs/` | Product and architecture documentation |
 | `ADR/` | Accepted design decisions |

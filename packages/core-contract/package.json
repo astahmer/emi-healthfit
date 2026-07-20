@@ -1,13 +1,15 @@
 {
-  "name": "@emi/api-contract",
+  "name": "@emi/core-contract",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./healthfit": "./src/healthfit.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/**/*.test.ts",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
     "lint": "oxlint && oxfmt --check",

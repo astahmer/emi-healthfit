@@ -6,7 +6,7 @@ import {
   type Message as ApiMessage,
   type Thread as ApiThread,
   type ThreadWithMessages as ApiThreadWithMessages,
-} from "@emi/api-contract";
+} from "@emi/core-contract";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";

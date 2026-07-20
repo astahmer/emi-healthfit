@@ -1,4 +1,4 @@
-import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/api-contract";
+import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core-contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
