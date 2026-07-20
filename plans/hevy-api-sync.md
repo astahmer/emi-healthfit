@@ -409,23 +409,27 @@ Do not enable Cron while still on Free; it will time out and look like flaky syn
 
 ## Acceptance criteria
 
-- [ ] A user can connect a valid Hevy Pro key without it appearing in browser storage, logs,
+- [x] A user can connect a valid Hevy Pro key without it appearing in browser storage, logs,
   exports, R2, diagnostics, or any response.
-- [ ] Initial sync imports every paginated workout, preserves complete supported workout/set data,
+- [x] Initial sync imports every paginated workout, preserves complete supported workout/set data,
   and safely retains unmatched legacy CSV rows.
-- [ ] A stale or forced sync uses workout events, fetches only changed workout details, applies
+- [x] A stale or forced sync uses workout events, fetches only changed workout details, applies
   deletions, paginates completely, and does not advance its cursor on a partial failure.
-- [ ] A zero-event check makes no workout-row changes and subsequent UI/chat/tool reads use D1.
-- [ ] Workouts, analytics, and chat see current D1 data after successful sync and still return the
+- [x] A zero-event check makes no workout-row changes and subsequent UI/chat/tool reads use D1.
+- [x] Workouts, analytics, and chat see current D1 data after successful sync and still return the
   last successful D1 data if Hevy is temporarily unavailable.
-- [ ] Concurrent sync requests for one user are coalesced; users cannot read or affect each other's
+- [x] Concurrent sync requests for one user are coalesced; users cannot read or affect each other's
   connection, cursor, or workouts.
-- [ ] Settings exposes clear connect, sync, stale/error, disconnect, and destructive remove-data
+- [x] Settings exposes clear connect, sync, stale/error, disconnect, and destructive remove-data
   states on desktop and mobile.
-- [ ] Disconnect removes the credential but retains history; remove-data deletes all Hevy-derived
+- [x] Disconnect removes the credential but retains history; remove-data deletes all Hevy-derived
   records and credentials after confirmation.
-- [ ] Contract decoders, mapper tests, pagination/deletion/retry tests, real SQLite ownership and
+- [x] Contract decoders, mapper tests, pagination/deletion/retry tests, real SQLite ownership and
   migration tests, focused UI tests, and final `pnpm release:check` pass.
+
+Covered by `apps/api/test/hevy-*.test.ts`, `apps/chat/app/hevy-integration.test.tsx`, live smoke
+(`HEVY_API_KEY`), and `pnpm release:check`. Deferred intentionally: Workers Paid cron and
+`typed-openapi --runtime effect`.
 
 ## Decisions log
 
