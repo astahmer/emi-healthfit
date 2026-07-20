@@ -13,6 +13,7 @@ import {
   type ChatRuntimeValue,
 } from "./chat-runtime-context";
 import { recordDiagnosticEvent, useChatTransport } from "./chat-transport";
+import { runtimeSelectionMatches } from "./chat-runtime-selection";
 import { useChatHistorySync } from "./use-chat-history-sync";
 import { useChatSubmission } from "./use-chat-submission";
 import { OrphanTurnError } from "./orphan-turn-error";
@@ -89,10 +90,14 @@ export const ChatRuntimeProvider = ({
   });
 
   const value = useMemo<ChatRuntimeValue>(() => {
-    const selectionMatchesRuntime = state.context.sessionId === config.sessionId;
+    const selectionMatchesRuntime = runtimeSelectionMatches({
+      runtimeSessionId: state.context.sessionId,
+      selectedSessionId: config.sessionId,
+      temporary: config.temporary,
+    });
     return {
       messages: selectionMatchesRuntime ? state.context.messages : config.initialMessages,
-      sessionId: config.sessionId,
+      sessionId: selectionMatchesRuntime ? state.context.sessionId : config.sessionId,
       draft: selectionMatchesRuntime ? state.context.draft : "",
       files: selectionMatchesRuntime ? state.context.files : [],
       isStreaming: selectionMatchesRuntime && state.matches("streaming"),
@@ -146,6 +151,7 @@ export const ChatRuntimeProvider = ({
     attachmentError,
     config.initialMessages,
     config.sessionId,
+    config.temporary,
     isPreparingAttachments,
     recordClientEvent,
     retryOrphan,
