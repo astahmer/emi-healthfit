@@ -20,7 +20,9 @@
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt",
     "setup:google": "node scripts/setup-google-auth.mjs",
-    "verify": "node --experimental-strip-types scripts/verify-parsers.ts"
+    "verify": "node --experimental-strip-types scripts/verify-parsers.ts",
+    "hevy:openapi": "node --experimental-strip-types scripts/fetch-hevy-openapi.ts",
+    "hevy:client": "node --experimental-strip-types scripts/generate-hevy-client.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "catalog:",
@@ -43,6 +45,7 @@
     "miniflare": "4.20260710.0",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "typed-openapi": "^2.2.7",
     "typescript": "catalog:",
     "wrangler": "^4.111.0"
   }

@@ -413,3 +413,6 @@ and analytics responses from D1.
 | 2026-07-19 | Add a manual Sync now button. | Gives immediate control and transparent freshness status. |
 | 2026-07-19 | Do not adopt `hevy-mcp` as a production dependency. | Its scope validates the API opportunity, but Emi needs its own auth, data model, privacy, and D1-first boundary. |
 | 2026-07-19 | Keep MVP read-only from Emi to Hevy. | Avoids bidirectional conflicts and makes external mutation semantics explicit later. |
+| 2026-07-20 | Vendor Hevy OpenAPI from `swagger-ui-init.js` (no public `openapi.json`). | Spec is embedded in Swagger UI; pin a normalized snapshot for codegen. |
+| 2026-07-20 | Use `typed-openapi --runtime none` for the Hevy HTTP client; Effect-wrap promises. | Typesafe calls now; switch to `--runtime effect` when typed-openapi publishes Effect Schema support (`typedapi/plans/effect-schema-runtime.md`). |
+| 2026-07-20 | Provider HTTP goes only through `apps/api/src/integrations/hevy/hevy-client.ts`. | Keeps `api-key`, timeouts/spans, and tagged errors behind one adapter. |
