@@ -72,8 +72,18 @@ turn the downloaded client JSON into a complete local `.env`.
    ```
 
    The command checks the callback URI, imports the client ID and secret, generates a random
-   256-bit `BETTER_AUTH_SECRET`, lowercases the allowed email, and creates `.env` with owner-only
-   permissions. It refuses to overwrite an existing `.env`.
+   256-bit `BETTER_AUTH_SECRET`, a 32-byte `HEVY_CREDENTIAL_ENCRYPTION_KEY` (hex), lowercases the
+   allowed email, and creates `.env` with owner-only permissions. It refuses to overwrite an
+   existing `.env`.
+
+   If `.env` already exists from an older clone, add the Hevy encryption key with:
+
+   ```bash
+   pnpm --filter @emi/api setup:hevy-key
+   ```
+
+   Or generate manually: `openssl rand -hex 32` and set `HEVY_CREDENTIAL_ENCRYPTION_KEY` in `.env`
+   (and `.env.prod`). Required before Settings → Hevy → Connect works.
 
 8. Run `pnpm dev`, open the printed local URL, select **Continue with Google**, and verify that the
    allowed account reaches the app. A different account must be denied.
@@ -85,7 +95,8 @@ Rows are authorized by Better Auth user id, so multiple verified allowlisted acc
 after the ownership rollout below. Removing an email blocks its existing sessions on the next request.
 
 For a manual setup instead, copy `.env.example` to `.env`, generate at least 32 random bytes for
-`BETTER_AUTH_SECRET`, then fill in the client ID, client secret, base URL, and allowed email.
+`BETTER_AUTH_SECRET` and a separate 32-byte hex key for `HEVY_CREDENTIAL_ENCRYPTION_KEY`
+(`openssl rand -hex 32`), then fill in the client ID, client secret, base URL, and allowed email.
 
 For preview or production, create a separate web client in that environment's Google Cloud project,
 register `https://<your-worker-host>/api/auth/callback/google`, download its JSON, back up or remove
@@ -174,6 +185,8 @@ Create `.env.prod` with production values for every variable in `.env.example`:
 - Use a different `BETTER_AUTH_SECRET` from local development. A separate Google client is preferred;
   a personal deployment may reuse one client only when both local and production callback URIs are
   registered explicitly.
+- Use a different `HEVY_CREDENTIAL_ENCRYPTION_KEY` from local development (`openssl rand -hex 32`).
+  Changing it after users have connected Hevy makes stored keys undecryptable until they reconnect.
 - `ALLOWED_EMAILS` accepts a comma-separated list. Keep exactly one address through the legacy-data
   migration, then add accounts only after the isolation smoke test passes.
 

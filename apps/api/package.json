@@ -20,6 +20,7 @@
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt",
     "setup:google": "node scripts/setup-google-auth.mjs",
+    "setup:hevy-key": "node scripts/ensure-hevy-encryption-key.mjs",
     "verify": "node --experimental-strip-types scripts/verify-parsers.ts",
     "hevy:openapi": "node --experimental-strip-types scripts/fetch-hevy-openapi.ts",
     "hevy:client": "node --experimental-strip-types scripts/generate-hevy-client.ts"

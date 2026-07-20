@@ -28,7 +28,22 @@ Shipped paths: connect + initial import, Settings **Sync now**, stale-on-demand
 
 See [SCHEDULING.md](./SCHEDULING.md) for the Workers Paid twice-daily cron upgrade.
 
-Worker secret: `HEVY_CREDENTIAL_ENCRYPTION_KEY` (32-byte hex or base64).
+## Secrets / agent setup
+
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `HEVY_CREDENTIAL_ENCRYPTION_KEY` | `.env`, `.env.prod`, Worker via Alchemy `Config.redacted` | AES-GCM key for per-user Hevy API keys (32 bytes hex or base64) |
+| `HEVY_API_KEY` | local `.env` only (optional) | Live sync smoke test against Hevy |
+
+**Clone / existing `.env` without the key:**
+
+```bash
+pnpm --filter @emi/api setup:hevy-key
+# or: openssl rand -hex 32  → paste into HEVY_CREDENTIAL_ENCRYPTION_KEY=
+```
+
+`pnpm setup:google` generates the encryption key on first `.env` create. Redeploy after changing
+`.env.prod` so Alchemy rebinds the Worker secret.
 
 ## TODO
 
