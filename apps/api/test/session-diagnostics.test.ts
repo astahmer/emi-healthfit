@@ -7,9 +7,9 @@ import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
-} from "../src/diagnostics/bundle.ts";
-import { analyzeDiagnosticBundle } from "../src/diagnostics/analyzer.ts";
-import { decodeJson } from "../src/json-codec.ts";
+} from "../src/core/diagnostics/bundle.ts";
+import { analyzeDiagnosticBundle } from "../src/core/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/core/lib/json-codec.ts";
 
 const timestamp = "2026-07-16T12:00:00.000Z";
 const SessionFixture = Schema.Struct({

@@ -16,19 +16,25 @@ import {
   makeRequestContext,
   withCurrentUser,
   withRequestContext,
-} from "./auth/request-auth.ts";
-import { makeQueryDatabaseClient } from "./db/client.ts";
-import { handleAiSdkChat, handleChatResume, handleConversationDiagnostics } from "./routes/chat.ts";
+} from "./core/auth/request-auth.ts";
+import { makeQueryDatabaseClient } from "./platform/db/client.ts";
+import {
+  handleAiSdkChat,
+  handleChatResume,
+  handleConversationDiagnostics,
+} from "./core/routes/chat.ts";
 import {
   handleIngest,
   handleIngestedDataExport,
   handleIngestedDataImport,
   handleRecovery,
   handleSummary,
-} from "./routes/data.ts";
-import { handleAssetRequest, handleCorsPreflight, withCors } from "./routes/http.ts";
+} from "./healthfit/routes/data.ts";
+import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
-
+import { fitnessCoachV1 } from "./healthfit/chat/prompts/fitness-coach-v1.ts";
+import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
+import { executeTool, tools as healthfitTools } from "./healthfit/tools/api.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 
 const DB = Cloudflare.D1.Database("GymData");
@@ -86,7 +92,15 @@ export default Api.make(
       yield* router.add("POST", "/ingest", (request) =>
         cors({ request, effect: handleIngest(db, bucket, request) }),
       );
-      yield* router.add("POST", "/api/chat", (request) => handleAiSdkChat(db, request, env));
+      yield* router.add("POST", "/api/chat", (request) =>
+        handleAiSdkChat(db, request, env, {
+          beforeChat: ({ db: chatDb, userId, environment }) =>
+            ensureHevyFresh({ db: chatDb, userId, environment }),
+          coachSystemPrompt: fitnessCoachV1,
+          tools: healthfitTools,
+          executeTool,
+        }),
+      );
       yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>
         Effect.gen(function* () {
           const params = yield* HttpRouter.params;

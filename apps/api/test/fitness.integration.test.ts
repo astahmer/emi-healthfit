@@ -11,7 +11,7 @@ import {
   getWorkoutHistory,
   getWorkouts,
   getWorkoutStreak,
-} from "../src/db/fitness.ts";
+} from "../src/healthfit/db/fitness.ts";
 import {
   insertHealthWorkouts,
   updateSyncCursor,
@@ -20,7 +20,7 @@ import {
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../src/db/ingested-data.ts";
+} from "../src/healthfit/db/ingested-data.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("fitness SQLite integration", () => {

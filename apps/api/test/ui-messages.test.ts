@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import type { UIMessage } from "ai";
-import { validateStoredUIMessages } from "../src/chat/ui-messages.ts";
+import { validateStoredUIMessages } from "../src/core/chat/ui-messages.ts";
 
 describe("stored UI messages", () => {
   it("accepts an empty history before the first user message", async () => {

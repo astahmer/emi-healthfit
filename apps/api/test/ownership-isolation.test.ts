@@ -13,13 +13,13 @@ import {
   pinThread,
   saveConversationMessages,
   updateConversationState,
-} from "../src/db/conversations.ts";
-import { getIngestedDataExport, getWorkoutDetails } from "../src/db/fitness.ts";
+} from "../src/core/db/conversations.ts";
+import { getIngestedDataExport, getWorkoutDetails } from "../src/healthfit/db/fitness.ts";
 import {
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
-} from "../src/db/ingested-data.ts";
+} from "../src/healthfit/db/ingested-data.ts";
 import {
   getMemories,
   getNotes,
@@ -29,15 +29,15 @@ import {
   searchMemories,
   searchNotes,
   updateNote,
-} from "../src/db/memories.ts";
+} from "../src/core/db/memories.ts";
 import {
   appendGenerationChunk,
   createGeneration,
   getGeneration,
   getGenerationChunks,
   getResumableGeneration,
-} from "../src/chat/generation-store.ts";
-import { getDiagnosticBundle } from "../src/diagnostics/bundle.ts";
+} from "../src/core/chat/generation-store.ts";
+import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 const makeDatabase = () => makeSqliteDatabase().db;

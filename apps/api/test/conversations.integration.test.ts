@@ -26,7 +26,7 @@ import {
   saveSuggestions,
   summarizeThread,
   updateConversationState,
-} from "../src/db/conversations.ts";
+} from "../src/core/db/conversations.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("conversations SQLite integration", () => {

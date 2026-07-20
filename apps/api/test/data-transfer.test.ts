@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { ingestedDataExportSchema } from "../src/ingest/data-transfer.ts";
+import { ingestedDataExportSchema } from "../src/healthfit/ingest/data-transfer.ts";
 
 const emptyExport = {
   version: 1,

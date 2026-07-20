@@ -8,8 +8,8 @@ import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
-import { CurrentUser } from "./auth/request-auth.ts";
-import type { QueryDatabaseClient } from "./db/client.ts";
+import { CurrentUser } from "./core/auth/request-auth.ts";
+import type { QueryDatabaseClient } from "./platform/db/client.ts";
 import {
   deleteMemory,
   deleteMemoriesByMessage,
@@ -21,21 +21,21 @@ import {
   searchMemories,
   searchNotes,
   updateNote,
-} from "./db/memories.ts";
+} from "./core/db/memories.ts";
 import {
   conversationsHandlers,
   memoryExtractionHandlers,
   messagesHandlers,
   threadsHandlers,
-} from "./http-api-conversations.ts";
+} from "./core/http/conversations.ts";
 import {
   analyticsHandlers,
   dataHandlers,
   privacyHandlers,
   suggestionsHandlers,
   workoutsHandlers,
-} from "./http-api-data.ts";
-import { hevyHandlers } from "./http-api-hevy.ts";
+} from "./healthfit/http/data.ts";
+import { hevyHandlers } from "./healthfit/http/hevy.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 const HttpApiHandler = Schema.Struct({

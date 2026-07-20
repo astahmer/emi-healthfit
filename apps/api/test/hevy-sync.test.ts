@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
-import { encryptHevyApiKey } from "../src/integrations/hevy/credential-crypto.ts";
-import { mapHevyWorkoutToRows } from "../src/integrations/hevy/map-workout.ts";
+import { encryptHevyApiKey } from "../src/healthfit/integrations/hevy/credential-crypto.ts";
+import { mapHevyWorkoutToRows } from "../src/healthfit/integrations/hevy/map-workout.ts";
 import {
   connectHevy,
   getHevyIntegrationStatus,
   syncHevy,
-} from "../src/integrations/hevy/hevy-sync.ts";
-import { upsertHevyConnection } from "../src/integrations/hevy/hevy-store.ts";
+} from "../src/healthfit/integrations/hevy/hevy-sync.ts";
+import { upsertHevyConnection } from "../src/healthfit/integrations/hevy/hevy-store.ts";
 
 const originalFetch = globalThis.fetch;
 

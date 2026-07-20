@@ -94,7 +94,9 @@ README states that application logic comes from versioned packages.
 1. Finish per-user ownership and replace the raw database tool with owned domain queries. **DONE**
    (parent-verified child writes, RequestContext in auth gate, insert isolation tests; raw SQL tool gone).
 2. Split current Worker into route modules and current database file into repositories at the
-   core/health boundary without changing behavior.
+   core/health boundary without changing behavior. **DONE**
+   (`apps/api/src/{core,healthfit,platform}/`, schema split, composition injects flavor hooks/tools;
+   boundary test forbids `core → healthfit`).
 3. Move schemas and shared types into `core-contract`; remove imports from frontend source into
    Worker implementation details.
 4. Extract `core-server` repositories and services behind ports, keeping the existing Cloudflare

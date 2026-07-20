@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveGenerationTerminalState } from "../src/chat/generation-terminal-state.ts";
+import { resolveGenerationTerminalState } from "../src/core/chat/generation-terminal-state.ts";
 
 describe("generation terminal state", () => {
   it("fails a stream that closes mid-message without a terminal chunk", () => {

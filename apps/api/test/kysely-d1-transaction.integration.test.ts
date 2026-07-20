@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { runTransaction } from "../src/db/client.ts";
-import { getNotes } from "../src/db/memories.ts";
+import { runTransaction } from "../src/platform/db/client.ts";
+import { getNotes } from "../src/core/db/memories.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("Kysely D1 transaction integration", () => {

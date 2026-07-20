@@ -2,8 +2,8 @@ import assert from "node:assert";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { Effect } from "effect";
-import { assignYears, parseHealthExport } from "../src/ingest/health.ts";
-import { parseHevyCsv, parseHevyDate } from "../src/ingest/hevy.ts";
+import { assignYears, parseHealthExport } from "../src/healthfit/ingest/health.ts";
+import { parseHevyCsv, parseHevyDate } from "../src/healthfit/ingest/hevy.ts";
 
 describe("HealthExportKit parser", () => {
   it("parses the real health export file", async () => {

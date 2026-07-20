@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getOrphanUserMessageId } from "../src/chat/orphan-turn.ts";
-import { fitnessCoachV1 } from "../src/chat/prompts/fitness-coach-v1.ts";
-import { createToolCircuitBreaker } from "../src/chat/tool-circuit-breaker.ts";
+import { getOrphanUserMessageId } from "../src/core/chat/orphan-turn.ts";
+import { fitnessCoachV1 } from "../src/healthfit/chat/prompts/fitness-coach-v1.ts";
+import { createToolCircuitBreaker } from "../src/core/chat/tool-circuit-breaker.ts";
 
 describe("chat generation safety", () => {
   it("blocks equivalent calls only after a failure", () => {

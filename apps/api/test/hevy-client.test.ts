@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
-import { HevyHttpError, createHevyClient } from "../src/integrations/hevy/hevy-client.ts";
+import { HevyHttpError, createHevyClient } from "../src/healthfit/integrations/hevy/hevy-client.ts";
 
 const originalFetch = globalThis.fetch;
 

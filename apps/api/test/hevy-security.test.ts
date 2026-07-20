@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
-import { getDiagnosticBundle } from "../src/diagnostics/bundle.ts";
-import { getIngestedDataExport, getWorkouts } from "../src/db/fitness.ts";
-import { getHevyConnection } from "../src/integrations/hevy/hevy-store.ts";
+import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
+import { getIngestedDataExport, getWorkouts } from "../src/healthfit/db/fitness.ts";
+import { getHevyConnection } from "../src/healthfit/integrations/hevy/hevy-store.ts";
 import {
   connectHevy,
   getHevyIntegrationStatus,
   syncHevy,
-} from "../src/integrations/hevy/hevy-sync.ts";
+} from "../src/healthfit/integrations/hevy/hevy-sync.ts";
 
 const originalFetch = globalThis.fetch;
 

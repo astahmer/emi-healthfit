@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { decodeJson } from "../src/json-codec.ts";
+import { decodeJson } from "../src/core/lib/json-codec.ts";
 
 const HEVY_SWAGGER_UI_INIT_URL = "https://api.hevyapp.com/docs/swagger-ui-init.js";
 

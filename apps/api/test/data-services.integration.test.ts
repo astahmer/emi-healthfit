@@ -1,12 +1,12 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { buildChatContext } from "../src/chat/context.ts";
-import { getDataSummary } from "../src/db/fitness.ts";
+import { buildChatContext } from "../src/healthfit/chat/context.ts";
+import { getDataSummary } from "../src/healthfit/db/fitness.ts";
 import {
   importIngestedData,
   type IngestedDataExport,
   previewIngestedDataImport,
-} from "../src/ingest/data-transfer.ts";
+} from "../src/healthfit/ingest/data-transfer.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 const data: IngestedDataExport = {

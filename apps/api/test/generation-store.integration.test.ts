@@ -14,8 +14,8 @@ import {
   reconcileFinishedGenerations,
   recordChatEvent,
   updateGenerationMetadata,
-} from "../src/chat/generation-store.ts";
-import { createConversation } from "../src/db/conversations.ts";
+} from "../src/core/chat/generation-store.ts";
+import { createConversation } from "../src/core/db/conversations.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("generation store SQLite integration", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getProviderMessages } from "../src/chat/orphan-turn.ts";
+import { getProviderMessages } from "../src/core/chat/orphan-turn.ts";
 
 describe("getProviderMessages", () => {
   it("accepts a new turn after an orphan without replaying the orphaned prompt", () => {

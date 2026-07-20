@@ -13,7 +13,7 @@ import {
   searchMemories,
   searchNotes,
   updateNote,
-} from "../src/db/memories.ts";
+} from "../src/core/db/memories.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("memories SQLite integration", () => {

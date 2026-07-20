@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { getDataSummary } from "../src/db/fitness.ts";
+import { getDataSummary } from "../src/healthfit/db/fitness.ts";
 import {
   deleteIngestedSource,
   getRawUploadRetentionDays,
@@ -12,7 +12,7 @@ import {
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../src/db/ingested-data.ts";
+} from "../src/healthfit/db/ingested-data.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("ingested data SQLite integration", () => {

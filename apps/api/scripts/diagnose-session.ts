@@ -8,9 +8,12 @@ import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
-} from "../src/diagnostics/bundle.ts";
-import { analyzeDiagnosticBundle, renderDiagnosticMarkdown } from "../src/diagnostics/analyzer.ts";
-import { decodeJson } from "../src/json-codec.ts";
+} from "../src/core/diagnostics/bundle.ts";
+import {
+  analyzeDiagnosticBundle,
+  renderDiagnosticMarkdown,
+} from "../src/core/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/core/lib/json-codec.ts";
 
 const Options = Schema.Struct({
   url: Schema.String.check(Schema.isMinLength(1)),

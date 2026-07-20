@@ -9,9 +9,9 @@ import * as Schema from "effect/Schema";
 import {
   encryptHevyApiKey,
   resolveHevyEncryptionKey,
-} from "../src/integrations/hevy/credential-crypto.ts";
-import { createHevyClient } from "../src/integrations/hevy/hevy-client.ts";
-import { mapHevyWorkoutToRows } from "../src/integrations/hevy/map-workout.ts";
+} from "../src/healthfit/integrations/hevy/credential-crypto.ts";
+import { createHevyClient } from "../src/healthfit/integrations/hevy/hevy-client.ts";
+import { mapHevyWorkoutToRows } from "../src/healthfit/integrations/hevy/map-workout.ts";
 
 const WORKOUT_PAGE_SIZE = 10;
 const SESSION_INSERT_BATCH_SIZE = 8;

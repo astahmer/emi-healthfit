@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { readFile } from "node:fs/promises";
-import { parseHealthExport } from "../src/ingest/health.ts";
-import { parseHevyCsv } from "../src/ingest/hevy.ts";
+import { parseHealthExport } from "../src/healthfit/ingest/health.ts";
+import { parseHevyCsv } from "../src/healthfit/ingest/hevy.ts";
 
 const run = async () => {
   const healthText = await readFile(

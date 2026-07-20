@@ -3,20 +3,20 @@ import {
   makeRequestContext,
   withRequestContext,
   CurrentRequestContext,
-} from "../src/auth/request-auth.ts";
+} from "../src/core/auth/request-auth.ts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { Miniflare } from "miniflare";
 import * as Effect from "effect/Effect";
-import { isAuthorizedAuthEmail, makeAuth, parseAllowedEmails } from "../src/auth/auth.ts";
+import { isAuthorizedAuthEmail, makeAuth, parseAllowedEmails } from "../src/core/auth/auth.ts";
 import {
   createAnonymousEmail,
   createAnonymousSessionResponse,
   createSessionCookie,
   isAnonymousEmail,
   isTrustedAuthOrigin,
-} from "../src/auth/anonymous-session.ts";
+} from "../src/core/auth/anonymous-session.ts";
 
 describe("authentication boundaries", () => {
   it("builds RequestContext from the authenticated principal", async () => {

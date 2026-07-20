@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { tools } from "../src/tools/api.ts";
+import { tools } from "../src/healthfit/tools/api.ts";
 
 describe("conversation thread tools", () => {
   it("does not expose unscoped SQL", () => {

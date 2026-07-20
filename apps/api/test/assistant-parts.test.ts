@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { buildAssistantParts } from "../src/chat/assistant-parts.ts";
+import { buildAssistantParts } from "../src/core/chat/assistant-parts.ts";
 
 describe("buildAssistantParts", () => {
   it("preserves tool results from separate tool messages", () => {

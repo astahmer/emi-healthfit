@@ -8,7 +8,7 @@ import {
   connectHevy,
   getHevyIntegrationStatus,
   syncHevy,
-} from "../src/integrations/hevy/hevy-sync.ts";
+} from "../src/healthfit/integrations/hevy/hevy-sync.ts";
 
 const loadRepoDotEnv = () => {
   const envPath = fileURLToPath(new URL("../../../.env", import.meta.url));

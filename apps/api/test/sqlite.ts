@@ -7,7 +7,7 @@ import {
   makeQueryDatabaseClient,
   type QueryDatabaseClient,
   type RawQueryDatabaseClient,
-} from "../src/db/client.ts";
+} from "../src/platform/db/client.ts";
 
 const migrationsDirectory = fileURLToPath(new URL("../migrations", import.meta.url));
 
