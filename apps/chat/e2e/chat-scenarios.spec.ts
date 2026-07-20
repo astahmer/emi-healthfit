@@ -217,7 +217,7 @@ test("forks a branch from an assistant message", async ({ page }) => {
   });
   await page.goto("/chat/one");
 
-  await page.getByLabel("Fork from message").click();
+  await page.locator("#message-one-assistant").getByLabel("Fork from message").click();
   await expect(page.getByRole("button", { name: "Branch", exact: true })).toBeVisible();
   expect(forked).toBe(true);
 });
