@@ -73,6 +73,7 @@ describe("conversations SQLite integration", () => {
     const threadId = await run(
       createThread(db, userId, conversationId, questionId, "Recovery branch"),
     );
+    assert.ok(threadId);
     await run(addThreadMessage(db, userId, threadId, answerId));
     await run(renameThread(db, userId, threadId, "Recovery details"));
     await run(pinThread(db, userId, threadId, true));
@@ -201,6 +202,7 @@ describe("conversations SQLite integration", () => {
       ]),
     );
     const threadId = await run(createThread(db, alice, conversationId, rootId));
+    assert.ok(threadId);
     await run(addThreadMessage(db, alice, threadId, childId));
 
     const cloned = await run(cloneConversation({ db, userId: alice, conversationId }));

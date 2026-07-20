@@ -1,7 +1,14 @@
+import {
+  isProtectedPath,
+  makeRequestContext,
+  withRequestContext,
+  CurrentRequestContext,
+} from "../src/auth/request-auth.ts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { Miniflare } from "miniflare";
+import * as Effect from "effect/Effect";
 import { isAuthorizedAuthEmail, makeAuth, parseAllowedEmails } from "../src/auth/auth.ts";
 import {
   createAnonymousEmail,
@@ -10,9 +17,31 @@ import {
   isAnonymousEmail,
   isTrustedAuthOrigin,
 } from "../src/auth/anonymous-session.ts";
-import { isProtectedPath } from "../src/auth/request-auth.ts";
 
 describe("authentication boundaries", () => {
+  it("builds RequestContext from the authenticated principal", async () => {
+    const requestContext = makeRequestContext({
+      principal: {
+        id: "user-1",
+        email: "coach@example.com",
+        name: "Coach",
+        image: null,
+      },
+      requestId: "request-1",
+    });
+    assert.deepEqual(requestContext, { userId: "user-1", requestId: "request-1" });
+
+    const observed = await Effect.runPromise(
+      withRequestContext({
+        requestContext,
+        effect: Effect.gen(function* () {
+          return yield* CurrentRequestContext;
+        }),
+      }),
+    );
+    assert.deepEqual(observed, requestContext);
+  });
+
   it("normalizes and deduplicates configured emails", () => {
     assert.deepEqual(
       [...parseAllowedEmails(" Coach@Example.com,coach@example.com , second@example.com")],

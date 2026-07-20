@@ -284,7 +284,7 @@ test("renders multi-tool success and tool-error from a stream", async ({ page })
           },
           {
             type: "dynamic-tool",
-            toolName: "query_database",
+            toolName: "get_workout_history",
             toolCallId: "call-2",
             state: "output-error",
             input: {},

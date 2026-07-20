@@ -13,7 +13,9 @@ import {
   authenticateRequest,
   handleAuthRequest,
   isProtectedPath,
+  makeRequestContext,
   withCurrentUser,
+  withRequestContext,
 } from "./auth/request-auth.ts";
 import { makeQueryDatabaseClient } from "./db/client.ts";
 import { handleAiSdkChat, handleChatResume, handleConversationDiagnostics } from "./routes/chat.ts";
@@ -137,7 +139,11 @@ export default Api.make(
           );
         }
         if (principal !== null) {
-          return yield* withCurrentUser({ effect: router.asHttpEffect(), principal });
+          const requestContext = makeRequestContext({ principal });
+          return yield* withRequestContext({
+            requestContext,
+            effect: withCurrentUser({ effect: router.asHttpEffect(), principal }),
+          });
         }
         return yield* router.asHttpEffect();
       }).pipe(

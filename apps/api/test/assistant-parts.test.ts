@@ -108,7 +108,7 @@ describe("buildAssistantParts", () => {
       {
         role: "assistant",
         content: [
-          { type: "tool-call", toolCallId: "failed-1", toolName: "query_database", input: {} },
+          { type: "tool-call", toolCallId: "failed-1", toolName: "get_workout_history", input: {} },
         ],
       },
       {
@@ -125,7 +125,7 @@ describe("buildAssistantParts", () => {
 
     assert.deepStrictEqual(parts[0], {
       type: "dynamic-tool",
-      toolName: "query_database",
+      toolName: "get_workout_history",
       toolCallId: "failed-1",
       input: {},
       output: { type: "error-text", value: "Only one SELECT query is allowed." },

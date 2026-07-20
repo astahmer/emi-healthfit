@@ -448,6 +448,14 @@ export const saveConversationMessages = (
   Effect.gen(function* () {
     if (messages.length === 0) return [];
 
+    const conversation = yield* getConversation(db, userId, conversationId);
+    if (conversation === null) return [];
+
+    if (parentId !== null) {
+      const parent = yield* getMessage(db, userId, parentId);
+      if (parent === null || parent.conversation_id !== conversationId) return [];
+    }
+
     const baseTime = Date.now();
     const ids: string[] = [];
     const kysely = yield* db.kysely;
@@ -488,6 +496,12 @@ export const createThread = (
   title?: string,
 ) =>
   Effect.gen(function* () {
+    const conversation = yield* getConversation(db, userId, conversationId);
+    if (conversation === null) return null;
+
+    const anchor = yield* getMessage(db, userId, anchorMessageId);
+    if (anchor === null || anchor.conversation_id !== conversationId) return null;
+
     const id = crypto.randomUUID();
     const createdAt = nowIso();
     const kysely = yield* db.kysely;
@@ -520,7 +534,6 @@ export const createThread = (
     ]);
     return id;
   });
-
 export const getThreads = (db: QueryDatabaseClient, userId: string, conversationId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
@@ -671,6 +684,12 @@ export const addThreadMessage = (
   messageId: string,
 ) =>
   Effect.gen(function* () {
+    const thread = yield* getThread(db, userId, threadId);
+    if (thread === null) return false;
+
+    const message = yield* getMessage(db, userId, messageId);
+    if (message === null || message.conversation_id !== thread.conversation_id) return false;
+
     const kysely = yield* db.kysely;
     yield* Effect.promise(() =>
       kysely
@@ -684,8 +703,8 @@ export const addThreadMessage = (
         .onConflict((conflict) => conflict.doNothing())
         .execute(),
     );
+    return true;
   });
-
 export const getThreadMessages = (db: QueryDatabaseClient, userId: string, threadId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;

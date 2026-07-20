@@ -370,6 +370,9 @@ export const conversationsHandlers = ({
                 payload.anchorMessageId,
                 payload.title?.trim(),
               ));
+            if (id === null) {
+              return yield* new NotFound({ message: "Thread not found" });
+            }
             const thread = yield* getThread(db, user.id, id);
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });

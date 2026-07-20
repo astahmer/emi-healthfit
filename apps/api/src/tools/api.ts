@@ -454,6 +454,9 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         anchor_message_id,
         title,
       ).pipe(Effect.provideContext(services));
+      if (threadId === null) {
+        return yield* toolError({ tool: "create_thread", message: "Thread not found." });
+      }
       return yield* getThread(db, userId, threadId).pipe(Effect.provideContext(services));
     }),
     summarize_thread: Effect.fn("FitnessToolkit.summarizeThreadTool")(({ thread_id }) =>

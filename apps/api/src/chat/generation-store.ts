@@ -1,6 +1,7 @@
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import { runTransaction, type QueryDatabaseClient } from "../db/client.ts";
+import { getConversation } from "../db/conversations.ts";
 import { decodeJson } from "../json-codec.ts";
 
 export interface ChatGeneration {
@@ -59,6 +60,9 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
   traceId?: string;
   model?: string;
 }) {
+  const conversation = yield* getConversation(db, userId, conversationId);
+  if (conversation === null) return false;
+
   const kysely = yield* db.kysely;
   const timestamp = nowIso();
   yield* Effect.promise(() =>
@@ -78,6 +82,7 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
       })
       .execute(),
   );
+  return true;
 });
 
 export const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* ({
@@ -145,6 +150,9 @@ export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(fun
   sequence: number;
   chunk: UIMessageChunk;
 }) {
+  const generation = yield* getGeneration({ db, userId, generationId });
+  if (generation === null) return false;
+
   const kysely = yield* db.kysely;
   const timestamp = nowIso();
   yield* runTransaction(db, [
@@ -161,6 +169,7 @@ export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(fun
       .where("user_id", "=", userId)
       .where("id", "=", generationId),
   ]);
+  return true;
 });
 
 export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({

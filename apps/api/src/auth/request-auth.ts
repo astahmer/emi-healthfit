@@ -28,8 +28,17 @@ export interface AuthPrincipal {
   image: string | null;
 }
 
+export interface RequestContext {
+  userId: string;
+  requestId: string;
+}
+
 export const CurrentUser = Context.Reference<AuthPrincipal>("CurrentUser", {
   defaultValue: () => ({ id: "", email: "", name: "", image: null }),
+});
+
+export const CurrentRequestContext = Context.Reference<RequestContext>("RequestContext", {
+  defaultValue: () => ({ userId: "", requestId: "" }),
 });
 
 export const withCurrentUser = <A, E, R>({
@@ -39,6 +48,25 @@ export const withCurrentUser = <A, E, R>({
   effect: Effect.Effect<A, E, R>;
   principal: AuthPrincipal;
 }) => Effect.provideService(effect, CurrentUser, principal);
+
+export const withRequestContext = <A, E, R>({
+  effect,
+  requestContext,
+}: {
+  effect: Effect.Effect<A, E, R>;
+  requestContext: RequestContext;
+}) => Effect.provideService(effect, CurrentRequestContext, requestContext);
+
+export const makeRequestContext = ({
+  principal,
+  requestId = crypto.randomUUID(),
+}: {
+  principal: AuthPrincipal;
+  requestId?: string;
+}): RequestContext => ({
+  userId: principal.id,
+  requestId,
+});
 
 export const isProtectedPath = (pathname: string): boolean =>
   pathname === "/ingest" || pathname === "/chat" || pathname.startsWith("/api/");

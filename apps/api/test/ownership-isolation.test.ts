@@ -1,11 +1,13 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import {
+  addThreadMessage,
   cloneConversation,
   createConversation,
   createThread,
   deleteConversation,
   getConversation,
+  getConversationMessages,
   getConversations,
   getThread,
   pinThread,
@@ -64,6 +66,7 @@ describe("per-user ownership", () => {
       ]),
     );
     const threadId = await run(createThread(db, alice, conversationId, messageId));
+    assert.ok(threadId);
     assert.strictEqual((await run(getThread(db, alice, threadId)))?.pinned, false);
     await run(pinThread(db, alice, threadId, true));
     assert.strictEqual((await run(getThread(db, alice, threadId)))?.pinned, true);
@@ -139,6 +142,61 @@ describe("per-user ownership", () => {
     const aliceBundle = await run(getDiagnosticBundle({ db, userId: alice, conversationId }));
     assert.strictEqual(aliceBundle?.conversation.id, conversationId);
     assert.strictEqual(aliceBundle?.redacted, true);
+  });
+
+  it("rejects cross-user child inserts against owned parents", async () => {
+    const db = makeDatabase();
+    const alice = "user-alice";
+    const bob = "user-bob";
+    const conversationId = await run(createConversation(db, alice, "Alice chat"));
+    const [messageId] = await run(
+      saveConversationMessages(db, alice, conversationId, null, [
+        { role: "user", parts: [{ type: "text", text: "private" }] },
+      ]),
+    );
+    const threadId = await run(createThread(db, alice, conversationId, messageId));
+    assert.ok(threadId);
+
+    assert.deepStrictEqual(
+      await run(
+        saveConversationMessages(db, bob, conversationId, null, [
+          { role: "user", parts: [{ type: "text", text: "intrusion" }] },
+        ]),
+      ),
+      [],
+    );
+    assert.strictEqual(await run(createThread(db, bob, conversationId, messageId)), null);
+    assert.strictEqual(await run(addThreadMessage(db, bob, threadId, messageId)), false);
+    assert.strictEqual(
+      await run(
+        createGeneration({
+          db,
+          userId: bob,
+          generationId: "bob-generation",
+          conversationId,
+        }),
+      ),
+      false,
+    );
+    assert.strictEqual(
+      await run(
+        appendGenerationChunk({
+          db,
+          userId: bob,
+          generationId: "generation-missing",
+          sequence: 0,
+          chunk: { type: "text-start", id: "text-1" },
+        }),
+      ),
+      false,
+    );
+
+    assert.strictEqual((await run(getConversationMessages(db, alice, conversationId))).length, 1);
+    assert.ok(await run(getThread(db, alice, threadId)));
+    assert.strictEqual(
+      await run(getGeneration({ db, userId: alice, generationId: "bob-generation" })),
+      null,
+    );
   });
 
   it("allows identical health keys without sharing exports", async () => {

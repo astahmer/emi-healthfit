@@ -104,7 +104,7 @@ describe("Thread", () => {
       parts: [
         {
           type: "dynamic-tool",
-          toolName: "query_database",
+          toolName: "get_workout_history",
           toolCallId: "tool-1",
           state: "input-available",
           input: {},
@@ -127,7 +127,7 @@ describe("Thread", () => {
     const failedToolPart = JSON.parse(
       JSON.stringify({
         type: "dynamic-tool",
-        toolName: "query_database",
+        toolName: "get_workout_history",
         toolCallId: "tool-failed",
         state: "output-error",
         input: {},
