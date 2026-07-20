@@ -1,11 +1,7 @@
 import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { createChatMock, sessionOneSnapshot } from "../../mock/install.ts";
-import {
-  openMockedChat,
-  openSessionOne,
-  openSessionOneWithChatPersistence,
-} from "./helpers.ts";
+import { openMockedChat, openSessionOne, openSessionOneWithChatPersistence } from "./helpers.ts";
 
 const { Given, When, Then } = createBdd();
 

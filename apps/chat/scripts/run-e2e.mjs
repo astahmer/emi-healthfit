@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const serverPath = fileURLToPath(new URL("./serve-e2e.mjs", import.meta.url));
 const playwrightPath = fileURLToPath(import.meta.resolve("@playwright/test/cli"));
-const bddgenPath = join(dirname(require.resolve("playwright-bdd/package.json")), "dist/cli/index.js");
+const bddgenPath = join(
+  dirname(require.resolve("playwright-bdd/package.json")),
+  "dist/cli/index.js",
+);
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const runChild = async ({ command, args, env }) => {

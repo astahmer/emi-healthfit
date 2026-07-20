@@ -15,7 +15,10 @@ const assistantMessage = {
   parts: [{ type: "text" as const, text: "hi" }],
 };
 
-const input = { sessionId: undefined as string | undefined, messages: [] as typeof userMessage[] };
+const input = {
+  sessionId: undefined as string | undefined,
+  messages: [] as (typeof userMessage)[],
+};
 
 describe("chatRuntimeMachine paths", () => {
   const paths = getShortestPaths(chatRuntimeMachine, {

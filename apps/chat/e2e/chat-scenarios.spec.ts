@@ -1,9 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  createChatMock,
-  openMockedChat,
-  sessionOneSnapshot,
-} from "./mock/install.ts";
+import { createChatMock, openMockedChat, sessionOneSnapshot } from "./mock/install.ts";
 
 const branchThread = {
   id: "branch-1",
@@ -28,7 +24,11 @@ const openSessionActions = async (page: Page) => {
   await expect(actions).toBeVisible();
   await actions.click();
   await expect(
-    page.getByText("Renommer").or(page.getByText("Archiver")).or(page.getByText("Restaurer")).first(),
+    page
+      .getByText("Renommer")
+      .or(page.getByText("Archiver"))
+      .or(page.getByText("Restaurer"))
+      .first(),
   ).toBeVisible();
 };
 

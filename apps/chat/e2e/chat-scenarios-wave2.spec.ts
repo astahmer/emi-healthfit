@@ -13,9 +13,7 @@ const branchThread = {
   updated_at: "2026-07-14T10:02:00.000Z",
 };
 
-test("temporary chat does not create a conversation and clears after refresh", async ({
-  page,
-}) => {
+test("temporary chat does not create a conversation and clears after refresh", async ({ page }) => {
   let createdConversation = false;
   const mock = createChatMock({
     state: { chat: { persist: true, replyText: "Ghost reply" } },

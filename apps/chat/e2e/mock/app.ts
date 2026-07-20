@@ -107,8 +107,7 @@ export type MockApiState = {
   createConversationId: string | null;
 };
 
-const json = (context: Context, body: unknown, status = 200) =>
-  context.json(body, status as 200);
+const json = (context: Context, body: unknown, status = 200) => context.json(body, status as 200);
 
 const sse = (context: Context, { body, threadId }: { body: string; threadId: string }) =>
   context.newResponse(body, {
@@ -172,8 +171,7 @@ const persistChatTurn = ({
     body?.replaceMessageId === undefined
       ? -1
       : snapshot.messages.findIndex((message) => message.id === body.replaceMessageId);
-  const retained =
-    replaceIndex >= 0 ? snapshot.messages.slice(0, replaceIndex) : snapshot.messages;
+  const retained = replaceIndex >= 0 ? snapshot.messages.slice(0, replaceIndex) : snapshot.messages;
   snapshot.messages = [
     ...retained,
     {
@@ -209,9 +207,12 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     if (!state.socialOk) {
       return json(context, { error: "Social sign-in is not available in tests." }, 400);
     }
-    const body = await context.req.json<{ callbackURL?: string }>().catch(() => ({}) as {
-      callbackURL?: string;
-    });
+    const body = await context.req.json<{ callbackURL?: string }>().catch(
+      () =>
+        ({}) as {
+          callbackURL?: string;
+        },
+    );
     state.authSession = authSessionBody;
     return json(context, {
       url: body.callbackURL ?? "/chat",
@@ -405,13 +406,13 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     });
   });
 
-  app.patch("/api/conversations/:id/messages/:messageId", (context) =>
-    json(context, { ok: true }),
-  );
+  app.patch("/api/conversations/:id/messages/:messageId", (context) => json(context, { ok: true }));
 
   app.post("/api/chat", async (context) => {
     state.chat.calls += 1;
-    state.chat.lastBody = (await context.req.json().catch(() => undefined)) as MockChatBody | undefined;
+    state.chat.lastBody = (await context.req.json().catch(() => undefined)) as
+      | MockChatBody
+      | undefined;
     if (state.chat.failStatus !== null) {
       const status = state.chat.failStatus;
       state.chat.failStatus = null;
@@ -419,10 +420,7 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     }
     if (state.chat.gate !== null) await state.chat.gate;
 
-    const sessionId =
-      state.chat.lastBody?.sessionId ??
-      context.req.header("x-thread-id") ??
-      "chat";
+    const sessionId = state.chat.lastBody?.sessionId ?? context.req.header("x-thread-id") ?? "chat";
     const messageId = `${sessionId}-assistant-${state.chat.calls}`;
     const text = state.chat.replyText;
     const body =

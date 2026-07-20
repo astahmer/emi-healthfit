@@ -48,14 +48,12 @@ type LoadOutput = {
 
 const stubMachine = conversationMachine.provide({
   actors: {
-    loadConversation: fromPromise<LoadOutput, { conversationId: string | undefined }>(
-      async () => ({
-        conversation,
-        messages,
-        threads: [thread],
-        source: "network",
-      }),
-    ),
+    loadConversation: fromPromise<LoadOutput, { conversationId: string | undefined }>(async () => ({
+      conversation,
+      messages,
+      threads: [thread],
+      source: "network",
+    })),
     refreshConversation: fromPromise<
       LoadOutput | undefined,
       { conversationId: string | undefined; enabled: boolean }

@@ -1,11 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import type { Hono } from "hono";
-import {
-  createMockApi,
-  defaultMockApi,
-  sessionOneSnapshot,
-  type MockApi,
-} from "./app.ts";
+import { createMockApi, defaultMockApi, sessionOneSnapshot, type MockApi } from "./app.ts";
 
 export {
   createMockApi,

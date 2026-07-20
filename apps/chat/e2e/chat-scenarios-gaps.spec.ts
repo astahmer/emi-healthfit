@@ -1,9 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  createChatMock,
-  sessionOneSnapshot,
-  type MockMessage,
-} from "./mock/install.ts";
+import { createChatMock, sessionOneSnapshot, type MockMessage } from "./mock/install.ts";
 
 const branchA = {
   id: "branch-a",
@@ -354,13 +350,16 @@ test("shares a session via navigator.share when available", async ({ page }) => 
   await page.getByText("Partager").click();
   await expect
     .poll(async () =>
-      page.evaluate(() => (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.length ?? 0),
+      page.evaluate(
+        () => (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.length ?? 0,
+      ),
     )
     .toBe(1);
   await expect
     .poll(async () =>
       page.evaluate(
-        () => (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.[0]?.url ?? "",
+        () =>
+          (window as Window & { __emiShareCalls?: ShareData[] }).__emiShareCalls?.[0]?.url ?? "",
       ),
     )
     .toContain("/chat/one");
