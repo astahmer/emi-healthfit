@@ -9,14 +9,7 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import {
-  authenticateRequest,
-  handleAuthRequest,
-  isProtectedPath,
-  makeRequestContext,
-  withCurrentUser,
-  withRequestContext,
-} from "./core/auth/request-auth.ts";
+import { authenticateWorkerFetch, isProtectedPath } from "./core/auth/request-auth.ts";
 import { makeQueryDatabaseClient } from "./platform/db/client.ts";
 import {
   handleAiSdkChat,
@@ -141,33 +134,14 @@ export default Api.make(
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        const pathname = new URL(request.url, "http://localhost").pathname;
-        if (pathname.startsWith("/api/auth/")) {
-          return yield* handleAuthRequest({ db, environment: env, request });
-        }
-        const protectedPath = isProtectedPath(pathname);
-        const principal = protectedPath
-          ? yield* authenticateRequest({ db, environment: env, request })
-          : null;
-        if (protectedPath) {
-          if (principal === null) {
-            return yield* HttpServerResponse.json(
-              { error: "Authentication required" },
-              { status: 401 },
-            );
-          }
-          yield* Effect.logDebug("auth.request.authorized").pipe(
-            Effect.annotateLogs({ userId: principal.id, pathname }),
-          );
-        }
-        if (principal !== null) {
-          const requestContext = makeRequestContext({ principal });
-          return yield* withRequestContext({
-            requestContext,
-            effect: withCurrentUser({ effect: router.asHttpEffect(), principal }),
-          });
-        }
-        return yield* router.asHttpEffect();
+        return yield* authenticateWorkerFetch({
+          db,
+          environment: env,
+          isProtectedPath,
+          policy: "google-allowlist",
+          request,
+          route: router.asHttpEffect(),
+        });
       }).pipe(
         Effect.scoped,
         Effect.catch((error) =>

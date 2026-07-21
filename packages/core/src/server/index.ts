@@ -1,5 +1,6 @@
 export * from "./app-definition.ts";
 export * from "./request-context.ts";
+export * from "./auth/index.ts";
 export * from "./db/query-database.ts";
 export * from "./db/schema.ts";
 export * from "./db/auth-schema.ts";

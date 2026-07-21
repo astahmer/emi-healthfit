@@ -57,9 +57,14 @@ contains that package as a member.
 `;
 
 export const envExample = (): string =>
-  `# Copy to .env and fill in secrets once your flavor requires authentication or a model provider key.
-# The generated worker composition root does not require any secrets by default; it uses a demo
-# \`x-demo-user-id\` header instead of session auth (see worker/src/app.worker.ts).
+  `# Copy to .env and fill in secrets for session auth.
+# Required for the worker:
+#   BETTER_AUTH_SECRET   (min 32 chars)
+#   BETTER_AUTH_URL      (public origin, e.g. http://localhost:8787)
+# Optional local smoke only (never in production):
+#   ALLOW_DEMO_USER_HEADER=1   then send x-demo-user-id on API calls
+# Optional branding:
+#   AUTH_APP_NAME=Core Chat
 `;
 
 export const gitignore = (): string =>
@@ -306,56 +311,60 @@ export const workerTsconfig = (): string =>
 
 export const workerSchema = (): string =>
   `export {
+  authAccount,
+  authSession,
+  authUser,
+  authVerification,
   conversations,
   messages,
   suggestions,
   threadMessages,
   threads,
+  type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
 } from "@emi/core/server";
+
+import type { AuthDatabaseSchema, ConversationDatabaseSchema } from "@emi/core/server";
+
+export type AppDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema;
 `;
 
 export const workerAppWorker = (context: TemplateContext): string =>
   `import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import { Stack } from "alchemy/Stack";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import {
   coreAppDefinition,
+  CurrentUser,
+  isGenericProtectedPath,
   makeConversationStore,
   makeRequestContext,
+  type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
 } from "@emi/core/server";
 import {
+  authenticateWorkerFetch,
   makeQueryDatabaseClient,
   type CloudflareQueryDatabaseClient,
 } from "@emi/core/cloudflare";
 
 const DB = Cloudflare.D1.Database("AppData");
 
-/**
- * \`x-demo-user-id\` is a placeholder identity for this scaffold. It proves the
- * core conversation store and D1 adapter compose end to end without pulling
- * in any flavor. Real deployments must replace it with session-based auth
- * before exposing "${context.appName}" publicly.
- */
-const demoUserId = (request: HttpServerRequest): string | undefined =>
-  request.headers["x-demo-user-id"];
+type AppDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema;
 
-const conversationsRoute = (db: CloudflareQueryDatabaseClient<ConversationDatabaseSchema>) =>
-  Effect.fn("app.conversations")(function* (request: HttpServerRequest) {
-    const userId = demoUserId(request);
-    if (userId === undefined || userId === "") {
-      return yield* HttpServerResponse.json(
-        { error: "Missing x-demo-user-id header (demo identity only, not production auth)" },
-        { status: 401 },
-      );
-    }
-    const store = makeConversationStore({ db, requestContext: makeRequestContext({ userId }) });
-    if (request.method === "POST") {
+const conversationsRoute = (db: CloudflareQueryDatabaseClient<AppDatabaseSchema>) =>
+  Effect.fn("app.conversations")(function* (_request: HttpServerRequest) {
+    const user = yield* CurrentUser;
+    const store = makeConversationStore({
+      db: db as unknown as CloudflareQueryDatabaseClient<ConversationDatabaseSchema>,
+      requestContext: makeRequestContext({ userId: user.id }),
+    });
+    if (_request.method === "POST") {
       const id = yield* store.create();
       return yield* HttpServerResponse.json({ id }, { status: 201 });
     }
@@ -369,11 +378,22 @@ export default AppWorker.make(
   Stack.useSync(() => ({
     main: import.meta.url,
     compatibility: { flags: ["nodejs_compat"] },
+    env: {
+      BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
+      BETTER_AUTH_URL: Config.redacted("BETTER_AUTH_URL"),
+      AUTH_APP_NAME: Config.string("AUTH_APP_NAME").pipe(
+        Config.withDefault(${JSON.stringify(context.appName)}),
+      ),
+      ALLOW_DEMO_USER_HEADER: Config.string("ALLOW_DEMO_USER_HEADER").pipe(
+        Config.withDefault("0"),
+      ),
+    },
     observability: { enabled: true },
   })),
   Effect.gen(function* () {
     const query = yield* Cloudflare.D1.QueryDatabase(DB);
-    const db = makeQueryDatabaseClient<ConversationDatabaseSchema>({ query });
+    const db = makeQueryDatabaseClient<AppDatabaseSchema>({ query });
+    const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
 
     const router = yield* HttpRouter.make;
     yield* Effect.gen(function* () {
@@ -391,7 +411,17 @@ export default AppWorker.make(
     }) as Effect.Effect<void>;
 
     return {
-      fetch: router.asHttpEffect().pipe(
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        return yield* authenticateWorkerFetch({
+          db,
+          environment: env,
+          isProtectedPath: isGenericProtectedPath,
+          policy: "anonymous",
+          request,
+          route: router.asHttpEffect(),
+        });
+      }).pipe(
         Effect.scoped,
         Effect.catch((error) =>
           Effect.logError("Unhandled fetch error").pipe(

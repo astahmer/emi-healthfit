@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "alchemy": "2.0.0-beta.59",
+    "better-auth": "catalog:",
     "drizzle-orm": "0.45.2",
     "effect": "catalog:",
     "kysely": "0.29.3",

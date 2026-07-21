@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { Kyselify } from "drizzle-orm/kysely";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 const now = sql`(cast(unixepoch('subsecond') * 1000 as integer))`;
@@ -71,3 +72,10 @@ export const authSchema = {
   account: authAccount,
   verification: authVerification,
 };
+
+export interface AuthDatabaseSchema {
+  auth_account: Kyselify<typeof authAccount>;
+  auth_session: Kyselify<typeof authSession>;
+  auth_user: Kyselify<typeof authUser>;
+  auth_verification: Kyselify<typeof authVerification>;
+}

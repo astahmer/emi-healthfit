@@ -178,11 +178,14 @@ describe("authentication boundaries", () => {
       const auth = makeAuth({
         database,
         configuration: {
+          appName: "Emi HealthFit",
           allowedEmails: new Set(["coach@example.com"]),
           baseUrl,
-          clientId: "google-client-id",
-          clientSecret: "google-client-secret",
           secret,
+          google: {
+            clientId: "google-client-id",
+            clientSecret: "google-client-secret",
+          },
         },
       });
       const session = await auth.api.getSession({ headers: new Headers({ cookie }) });
