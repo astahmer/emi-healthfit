@@ -114,8 +114,10 @@ and Discord transport skeleton (see git history / prior plan revisions for detai
   `SuggestionChips` now live in `@emi/core/web`.
 - Leftover HealthFit HTTP still in apps (`http/data`, Hevy route wrappers). Hevy OAuth/sync
   client + gen-ui catalog/renderer live in `@emi/flavor-healthfit` (+ `/web`).
-- npm publishing of `@emi/core` / `@emi/create-chat-app` (prep docs landed; packages still
-  `"private": true` — see each package `PUBLISH.md`).
+- npm publishing of `@emi/core` / `@emi/create-chat-app` is **optional and not required**
+  for this private monorepo (chat, API, Discord bot all use the workspace). Prep docs live
+  in each package `PUBLISH.md`; keep `"private": true` unless shipping to external npm
+  consumers.
 - Discord `/ask` MVP landed (deferred ack → API → webhook edit); tighten budgets / durable
   generation parity — see `plans/discord-bot.md`.
 - Discord linking **ops ship**: GymData adopt + migrate + register + smoke. Use Alchemy

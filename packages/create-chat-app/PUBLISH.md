@@ -1,6 +1,12 @@
 # Publishing `@emi/create-chat-app`
 
-Still **private** (`"private": true`). When ready:
+**Default: do not publish.** Scaffolding inside this monorepo uses the workspace package.
+A private Discord bot / HealthFit deploy does **not** need npm.
+
+Publish only to offer `create-chat-app` as a public CLI on the registry. Until then keep
+`"private": true`.
+
+If/when releasing externally:
 
 1. Bump `version`.
 2. Set `"private": false`.

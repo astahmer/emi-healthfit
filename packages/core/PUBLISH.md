@@ -1,6 +1,13 @@
 # Publishing `@emi/core`
 
-Still **private** in the workspace (`"private": true`). When ready to publish:
+**Default: do not publish.** This monorepo (HealthFit chat, API, Discord bot, flavors)
+consumes `@emi/core` via the pnpm workspace. Private apps and the Discord bot never need
+the npm registry.
+
+Publish only if you intentionally want **external** consumers (other repos / public CLI
+templates) to install `@emi/core` from npm. Until then keep `"private": true`.
+
+Still **private** in the workspace. If/when releasing externally:
 
 1. Bump `version` in `package.json`.
 2. Set `"private": false`.

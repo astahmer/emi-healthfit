@@ -8,6 +8,8 @@
   `@emi/core/server`. Discord verify/DTO helpers live in `@emi/core/discord`.
 - `apps/discord-bot` is a thin Alchemy Worker. Skeleton MVP shipped: signature verification, Ping,
   `/healthfit` dispatch with fail-closed “not linked” stubs, boundary tests, dry-run deploy.
+- **No npm publish** for the bot or for `@emi/core` just to run it — workspace packages only.
+  Registry publish is an optional later choice for external consumers (see package `PUBLISH.md`).
 
 ## Goal
 

@@ -91,7 +91,11 @@ slots without pulling HealthFit into core.
 
 - Discord `/ask` free-form chat (needs deferred ack, dedicated Discord
   conversation, durable generation, budgets, follow-ups — see discord plan).
-- npm publish of `@emi/core` / `@emi/create-chat-app`.
+  *(MVP `/ask` may already be landed — check `plans/discord-bot.md` before
+  redoing.)*
+- npm publish of `@emi/core` / `@emi/create-chat-app` — **not required** for the
+  private HealthFit/Discord monorepo (workspace installs). Only if shipping
+  those packages to external npm consumers; see each `PUBLISH.md`.
 
 ## Constraints
 
