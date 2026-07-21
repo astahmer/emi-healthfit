@@ -2,12 +2,18 @@ import type { FileUIPart, UIMessage } from "ai";
 import { assign, setup } from "xstate";
 import { shouldApplyHistoryWhileStreaming } from "./stream-operation";
 
+export type QueuedFollowUp = {
+  text: string;
+  files: FileUIPart[];
+};
+
 export interface ChatRuntimeContext {
   sessionId: string | undefined;
   messages: UIMessage[];
   drafts: Record<string, { text: string; files: FileUIPart[] }>;
   draft: string;
   files: FileUIPart[];
+  queuedFollowUp: QueuedFollowUp | null;
   error: Error | null;
   errorMessageId: string | undefined;
 }
@@ -16,6 +22,9 @@ export type ChatRuntimeEvent =
   | { type: "history.changed"; sessionId: string | undefined; messages: UIMessage[] }
   | { type: "draft.changed"; value: string }
   | { type: "files.changed"; files: FileUIPart[] }
+  | { type: "followUp.queued"; text: string; files: FileUIPart[] }
+  | { type: "followUp.cleared" }
+  | { type: "followUp.restored" }
   | { type: "submit.started"; sessionId: string; message: UIMessage }
   | {
       type: "revision.started";
@@ -65,6 +74,7 @@ export const chatRuntimeMachine = setup({
         drafts,
         draft: nextDraft?.text ?? "",
         files: nextDraft?.files ?? [],
+        queuedFollowUp: null,
         error: context.error,
         errorMessageId,
       };
@@ -89,6 +99,34 @@ export const chatRuntimeMachine = setup({
         },
       };
     }),
+    queueFollowUp: assign(({ context, event }) => {
+      if (event.type !== "followUp.queued") return {};
+      return {
+        queuedFollowUp: { text: event.text, files: event.files },
+        draft: "",
+        files: [],
+        drafts: {
+          ...context.drafts,
+          [sessionKey(context.sessionId)]: { text: "", files: [] },
+        },
+      };
+    }),
+    clearFollowUp: assign({ queuedFollowUp: () => null }),
+    restoreFollowUp: assign(({ context }) => {
+      if (context.queuedFollowUp === null) return {};
+      return {
+        draft: context.queuedFollowUp.text,
+        files: context.queuedFollowUp.files,
+        drafts: {
+          ...context.drafts,
+          [sessionKey(context.sessionId)]: {
+            text: context.queuedFollowUp.text,
+            files: context.queuedFollowUp.files,
+          },
+        },
+        queuedFollowUp: null,
+      };
+    }),
     startSubmission: assign(({ context, event }) => {
       if (event.type !== "submit.started") return {};
       return {
@@ -100,6 +138,7 @@ export const chatRuntimeMachine = setup({
           ...context.drafts,
           [sessionKey(event.sessionId)]: { text: "", files: [] },
         },
+        queuedFollowUp: null,
         error: null,
         errorMessageId: undefined,
       };
@@ -119,6 +158,7 @@ export const chatRuntimeMachine = setup({
           ...context.drafts,
           [sessionKey(event.sessionId)]: { text: "", files: [] },
         },
+        queuedFollowUp: null,
         error: null,
         errorMessageId: undefined,
       };
@@ -134,6 +174,7 @@ export const chatRuntimeMachine = setup({
           replacedIndex < 0
             ? [...context.messages, event.message]
             : [...context.messages.slice(0, replacedIndex), event.message],
+        queuedFollowUp: null,
         error: null,
         errorMessageId: undefined,
       };
@@ -165,6 +206,7 @@ export const chatRuntimeMachine = setup({
     drafts: {},
     draft: "",
     files: [],
+    queuedFollowUp: null,
     error: null,
     errorMessageId: undefined,
   }),
@@ -174,6 +216,8 @@ export const chatRuntimeMachine = setup({
         "history.changed": { actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
+        "followUp.cleared": { actions: "clearFollowUp" },
+        "followUp.restored": { actions: "restoreFollowUp" },
         "submit.started": { target: "streaming", actions: "startSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
@@ -185,12 +229,14 @@ export const chatRuntimeMachine = setup({
       on: {
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
+        "followUp.queued": { actions: "queueFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUp" },
         "submit.started": { actions: "supersedeInFlightSubmission" },
         "revision.started": { actions: "startRevision" },
         "stream.updated": { actions: "updateStream" },
         "stream.completed": { target: "idle" },
-        "stream.stopped": { target: "idle" },
-        "stream.failed": { target: "error", actions: "failStream" },
+        "stream.stopped": { target: "idle", actions: "restoreFollowUp" },
+        "stream.failed": { target: "error", actions: ["failStream", "restoreFollowUp"] },
         "history.changed": [
           {
             guard: "isDifferentSessionHistory",
@@ -206,6 +252,8 @@ export const chatRuntimeMachine = setup({
         "history.changed": { target: "idle", actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
+        "followUp.cleared": { actions: "clearFollowUp" },
+        "followUp.restored": { actions: "restoreFollowUp" },
         "submit.started": { target: "streaming", actions: "supersedeInFlightSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },

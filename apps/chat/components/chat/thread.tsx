@@ -692,6 +692,23 @@ export const Thread = ({
           {runtime.attachmentError !== null && (
             <p className="px-3 pb-2 text-xs text-destructive">{runtime.attachmentError}</p>
           )}
+          {runtime.queuedFollowUp !== null && (
+            <div className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate">
+                Queued:{" "}
+                {runtime.queuedFollowUp.text.trim() === ""
+                  ? `${runtime.queuedFollowUp.files.length} attachment${runtime.queuedFollowUp.files.length === 1 ? "" : "s"}`
+                  : runtime.queuedFollowUp.text}
+              </span>
+              <button
+                type="button"
+                className="ms-auto shrink-0 font-medium underline"
+                onClick={runtime.clearQueuedFollowUp}
+              >
+                Clear
+              </button>
+            </div>
+          )}
           <textarea
             value={runtime.draft}
             onChange={(event) => runtime.setDraft(event.target.value)}
@@ -844,7 +861,7 @@ export const Thread = ({
                 runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
                   ? "Stop generating"
                   : runtime.isStreaming
-                    ? "Stop and send"
+                    ? "Send after reply"
                     : "Send message"
               }
               side="top"
@@ -863,7 +880,9 @@ export const Thread = ({
               aria-label={
                 runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
                   ? "Stop generating"
-                  : "Send message"
+                  : runtime.isStreaming
+                    ? "Send after reply"
+                    : "Send message"
               }
             >
               {runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (

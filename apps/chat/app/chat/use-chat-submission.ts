@@ -101,8 +101,18 @@ export const useChatSubmission = ({
       replaceMessageId?: string;
     }) => {
       const content = (text ?? stateRef.current.context.draft).trim();
-      if (parts === undefined && content === "" && stateRef.current.context.files.length === 0)
+      const queuedFiles =
+        text === undefined && parts === undefined ? stateRef.current.context.files : [];
+      if (parts === undefined && content === "" && queuedFiles.length === 0) return;
+
+      if (stateRef.current.matches("streaming") && replaceMessageId === undefined) {
+        send({
+          type: "followUp.queued",
+          text: content,
+          files: parts === undefined ? queuedFiles : [],
+        });
         return;
+      }
 
       cancelActiveGeneration();
 
@@ -180,10 +190,24 @@ export const useChatSubmission = ({
           return;
         }
         send({ type: "stream.completed" });
-        if (config.temporary) return;
-        const snapshot = await synchronizePersistedHistory(sessionId);
-        notifyConversationsChanged();
-        void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
+        if (!config.temporary) {
+          const snapshot = await synchronizePersistedHistory(sessionId);
+          notifyConversationsChanged();
+          void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
+        }
+        const queuedFollowUp = stateRef.current.context.queuedFollowUp;
+        if (queuedFollowUp !== null) {
+          send({ type: "followUp.cleared" });
+          await submitMessage({
+            text: queuedFollowUp.text,
+            parts: [
+              ...(queuedFollowUp.text.trim() === ""
+                ? []
+                : [{ type: "text" as const, text: queuedFollowUp.text }]),
+              ...queuedFollowUp.files,
+            ],
+          });
+        }
       } catch (error) {
         if (
           !shouldAcceptStreamUpdate({

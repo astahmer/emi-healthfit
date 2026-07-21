@@ -17,6 +17,7 @@ export interface ChatRuntimeValue {
   sessionId: string | undefined;
   draft: string;
   files: FileUIPart[];
+  queuedFollowUp: { text: string; files: FileUIPart[] } | null;
   isStreaming: boolean;
   error: Error | null;
   errorMessageId: string | undefined;
@@ -31,6 +32,7 @@ export interface ChatRuntimeValue {
   retryOrphan: () => Promise<void>;
   isRetrying: boolean;
   stop: () => void;
+  clearQueuedFollowUp: () => void;
   clearError: () => void;
 }
 

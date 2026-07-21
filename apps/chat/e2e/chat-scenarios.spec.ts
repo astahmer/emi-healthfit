@@ -73,6 +73,45 @@ test("stops a mid-stream generation", async ({ page }) => {
   await expect(page.getByText("Should not appear")).toHaveCount(0);
 });
 
+test("queues a follow-up while streaming and keeps the live assistant answer", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Live answer" },
+    },
+  });
+  const replies = ["Live answer", "Follow-up answer"];
+  Object.defineProperty(mock.state.chat, "replyText", {
+    configurable: true,
+    get: () => replies[Math.max(0, mock.state.chat.calls - 1)] ?? "Mock answer",
+    set: () => undefined,
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("First question");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+
+  await page.getByLabel("Message input").fill("Second question");
+  await page.getByLabel("Send after reply").click();
+  await expect(page.getByText(/Queued: Second question/)).toBeVisible();
+  await expect(page.getByText("one message answer")).toBeVisible();
+
+  mock.releaseChat();
+
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "First question" }),
+  ).toBeVisible();
+  await expect(page.getByText("Live answer")).toBeVisible();
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "Second question" }),
+  ).toBeVisible();
+  await expect(page.getByText("Follow-up answer")).toBeVisible();
+  await expect(page.getByText("one message answer")).toBeVisible();
+  expect(mock.state.chat.calls).toBe(2);
+});
+
 test("edits a user message and regenerates an assistant reply", async ({ page }) => {
   const mock = createChatMock({
     state: {

@@ -100,6 +100,7 @@ export const ChatRuntimeProvider = ({
       sessionId: selectionMatchesRuntime ? state.context.sessionId : config.sessionId,
       draft: selectionMatchesRuntime ? state.context.draft : "",
       files: selectionMatchesRuntime ? state.context.files : [],
+      queuedFollowUp: selectionMatchesRuntime ? state.context.queuedFollowUp : null,
       isStreaming: selectionMatchesRuntime && state.matches("streaming"),
       error: state.context.error,
       errorMessageId:
@@ -146,6 +147,7 @@ export const ChatRuntimeProvider = ({
         abortControllerRef.current?.abort();
         cancelStreamRef.current?.();
       },
+      clearQueuedFollowUp: () => send({ type: "followUp.cleared" }),
       clearError: () => send({ type: "error.cleared" }),
     };
   }, [

@@ -49,6 +49,7 @@ describe("Thread", () => {
       sessionId: "conversation-1",
       draft: "",
       files: [],
+      queuedFollowUp: null,
       isStreaming: false,
       error: null,
       errorMessageId: undefined,
@@ -60,11 +61,28 @@ describe("Thread", () => {
       submit: vi.fn(),
       revise: vi.fn(),
       stop: vi.fn(),
+      clearQueuedFollowUp: vi.fn(),
       clearError: vi.fn(),
       orphanMessageId: undefined,
       retryOrphan: vi.fn(),
       isRetrying: false,
     });
+  });
+
+  it("shows a queued follow-up while the assistant is still streaming", () => {
+    const clearQueuedFollowUp = vi.fn();
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      isStreaming: true,
+      queuedFollowUp: { text: "Ask about sleep next", files: [] },
+      clearQueuedFollowUp,
+    });
+
+    renderThread([]);
+
+    expect(screen.getByText(/Queued: Ask about sleep next/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(clearQueuedFollowUp).toHaveBeenCalled();
   });
 
   it("announces streaming and shows the delayed-response typing indicator", () => {
@@ -310,7 +328,7 @@ describe("Thread", () => {
     expect(screen.getByRole("button", { name: "Retrying…" })).toBeDisabled();
   });
 
-  it("shows Send instead of Stop when drafting during an in-flight generation", () => {
+  it("shows Send after reply instead of Stop when drafting during an in-flight generation", () => {
     const message: MessageWithUsage = {
       id: "assistant-1",
       role: "assistant",
@@ -325,7 +343,7 @@ describe("Thread", () => {
 
     renderThread([message]);
 
-    expect(screen.getByLabelText("Send message")).toBeInTheDocument();
+    expect(screen.getByLabelText("Send after reply")).toBeInTheDocument();
     expect(screen.queryByLabelText("Stop generating")).not.toBeInTheDocument();
   });
 

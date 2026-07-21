@@ -136,6 +136,42 @@ describe("chatRuntimeMachine", () => {
     ]);
   });
 
+  it("queues a follow-up while streaming without dropping the live assistant", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
+    actor.send({ type: "followUp.queued", text: "Second", files: [] });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first", "user", "First"),
+      message("partial", "assistant", "Hel"),
+    ]);
+    expect(actor.getSnapshot().context.queuedFollowUp).toEqual({ text: "Second", files: [] });
+    expect(actor.getSnapshot().context.draft).toBe("");
+  });
+
+  it("restores a queued follow-up into the composer when the stream stops", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", text: "Later", files: [] });
+    actor.send({ type: "stream.stopped" });
+
+    expect(actor.getSnapshot().matches("idle")).toBe(true);
+    expect(actor.getSnapshot().context.queuedFollowUp).toBeNull();
+    expect(actor.getSnapshot().context.draft).toBe("Later");
+  });
+
   it("replaces an in-flight generation when a new message is submitted", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
