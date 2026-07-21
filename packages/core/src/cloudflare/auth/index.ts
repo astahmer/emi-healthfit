@@ -12,6 +12,7 @@ export {
   getAuthConfiguration,
   handleAuthRequest,
   makeAuthRequestContext,
+  readDemoPrincipalFromHeader,
   withCurrentUser,
   withRequestContext,
   type AuthDatabaseClient,

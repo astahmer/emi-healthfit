@@ -163,6 +163,9 @@ const demoPrincipalFromHeader = ({
   };
 };
 
+/** Exported for unit tests — production callers use authenticateRequest. */
+export const readDemoPrincipalFromHeader = demoPrincipalFromHeader;
+
 export const authenticateRequest = Effect.fn("auth.session")(function* ({
   db,
   environment,

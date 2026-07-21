@@ -351,6 +351,125 @@ describe("handleInteractionsRequest", () => {
       () => undefined,
     );
   });
+
+  it("defers /ask and proxies a linked user to the API without leaking error bodies", async () => {
+    const { privateKey, publicKey } = await generateDiscordKeyPair();
+    const publicKeyHex = await exportPublicKeyHex(publicKey);
+    const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
+      id: "interaction-ask-2",
+      type: DiscordInteractionType.ApplicationCommand,
+      token: "ask-token-2",
+      data: {
+        id: "command-ask",
+        name: "ask",
+        options: [{ name: "question", type: 3, value: "How is recovery?" }],
+      },
+      user: { id: "discord-user-1", username: "astahmer" },
+    });
+
+    const scheduled: Array<Promise<unknown>> = [];
+    const followUps: Array<{ content: string }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/api/discord/ask")) {
+        assert.equal(init?.method, "POST");
+        const headers = new Headers(init?.headers);
+        assert.equal(headers.get("x-discord-internal-secret"), askDispatchDefaults.internalSecret);
+        assert.deepEqual(JSON.parse(String(init?.body)), {
+          userId: "user-1",
+          question: "How is recovery?",
+        });
+        return new Response(JSON.stringify({ answer: "Recovery looks good." }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.includes("/webhooks/") && url.includes("/messages/@original")) {
+        followUps.push(JSON.parse(String(init?.body)));
+        return new Response("{}", { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    };
+
+    try {
+      const response = await Effect.runPromise(
+        handleInteractionsRequest({
+          rawBody,
+          signature,
+          timestamp,
+          publicKeyHex,
+          services: linkedServices(),
+          ...askDispatchDefaults,
+          waitUntil: (promise) => {
+            scheduled.push(promise);
+          },
+        }),
+      );
+      assert.equal(response.status, 200);
+      assert.equal(scheduled.length, 1);
+      await scheduled[0];
+      assert.deepEqual(followUps, [{ content: "Recovery looks good." }]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("sanitizes /ask API failure messages for Discord users", async () => {
+    const { privateKey, publicKey } = await generateDiscordKeyPair();
+    const publicKeyHex = await exportPublicKeyHex(publicKey);
+    const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
+      id: "interaction-ask-3",
+      type: DiscordInteractionType.ApplicationCommand,
+      token: "ask-token-3",
+      data: {
+        id: "command-ask",
+        name: "ask",
+        options: [{ name: "question", type: 3, value: "How is recovery?" }],
+      },
+      user: { id: "discord-user-1", username: "astahmer" },
+    });
+
+    const scheduled: Array<Promise<unknown>> = [];
+    const followUps: Array<{ content: string }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/api/discord/ask")) {
+        return new Response(JSON.stringify({ error: "secret stack trace leak" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.includes("/webhooks/") && url.includes("/messages/@original")) {
+        followUps.push(JSON.parse(String(init?.body)));
+        return new Response("{}", { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    };
+
+    try {
+      await Effect.runPromise(
+        handleInteractionsRequest({
+          rawBody,
+          signature,
+          timestamp,
+          publicKeyHex,
+          services: linkedServices(),
+          ...askDispatchDefaults,
+          waitUntil: (promise) => {
+            scheduled.push(promise);
+          },
+        }),
+      );
+      await scheduled[0];
+      assert.equal(followUps.length, 1);
+      assert.equal(followUps[0]?.content, "Ask failed. Try again in a moment.");
+      assert.equal(followUps[0]?.content.includes("secret"), false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("discord response limits", () => {

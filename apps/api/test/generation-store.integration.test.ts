@@ -329,4 +329,85 @@ describe("generation store SQLite integration", () => {
       "cancelled",
     );
   });
+
+  it("cancel-then-create unlocks the one-active unique index", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-supersede";
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Supersede",
+      ),
+    );
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "first",
+        conversationId,
+      }),
+    );
+    await run(markGenerationStreaming({ db, userId, generationId: "first" }));
+    await run(
+      cancelRunningGenerations({
+        db,
+        userId,
+        conversationId,
+        reason: "superseded",
+        error: "Superseded by a newer request",
+      }),
+    );
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "second",
+        conversationId,
+      }),
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "second" })))?.status,
+      "pending",
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "first" })))?.status,
+      "cancelled",
+    );
+  });
+
+  it("rejects a second active generation for the same conversation", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-unique";
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Unique active",
+      ),
+    );
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "active-1",
+        conversationId,
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        run(
+          createGeneration({
+            db,
+            userId,
+            generationId: "active-2",
+            conversationId,
+          }),
+        ),
+      /UNIQUE|unique/i,
+    );
+  });
 });

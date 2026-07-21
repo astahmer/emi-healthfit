@@ -136,4 +136,53 @@ describe("discord link codes", () => {
     assert.equal(unlinked, true);
     assert.equal(await Effect.runPromise(getLinkedUserIdForDiscord(db, "discord-1")), null);
   });
+
+  it("caps active unconsumed codes per user", async () => {
+    const db = makeInMemoryDb();
+    assert.ok(await Effect.runPromise(createDiscordLinkCode(db, "user-a")));
+    assert.ok(await Effect.runPromise(createDiscordLinkCode(db, "user-a")));
+    assert.ok(await Effect.runPromise(createDiscordLinkCode(db, "user-a")));
+    assert.equal(await Effect.runPromise(createDiscordLinkCode(db, "user-a")), null);
+  });
+
+  it("rejects expired codes", async () => {
+    const db = makeInMemoryDb();
+    const created = await Effect.runPromise(createDiscordLinkCode(db, "user-a"));
+    assert.ok(created !== null);
+    const kysely = await Effect.runPromise(db.kysely);
+    await kysely
+      .updateTable("discord_link_codes")
+      .set({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .where("id", "=", created.id)
+      .execute();
+
+    const result = await Effect.runPromise(
+      consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
+    );
+    assert.deepEqual(result, { ok: false, reason: "expired" });
+  });
+
+  it("only one concurrent consume wins the update race", async () => {
+    const db = makeInMemoryDb();
+    const created = await Effect.runPromise(createDiscordLinkCode(db, "user-a"));
+    assert.ok(created !== null);
+
+    const [first, second] = await Promise.all([
+      Effect.runPromise(
+        consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
+      ),
+      Effect.runPromise(
+        consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-2" }),
+      ),
+    ]);
+
+    const winners = [first, second].filter((result) => result.ok);
+    const losers = [first, second].filter((result) => !result.ok);
+    assert.equal(winners.length, 1);
+    assert.equal(losers.length, 1);
+    assert.deepEqual(losers[0], { ok: false, reason: "consumed" });
+    if (winners[0]?.ok) {
+      assert.equal(winners[0].userId, "user-a");
+    }
+  });
 });
