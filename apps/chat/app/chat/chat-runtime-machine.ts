@@ -3,6 +3,7 @@ import { assign, setup } from "xstate";
 import { shouldApplyHistoryWhileStreaming } from "./stream-operation";
 
 export type QueuedFollowUp = {
+  id: string;
   text: string;
   files: FileUIPart[];
 };
@@ -13,7 +14,7 @@ export interface ChatRuntimeContext {
   drafts: Record<string, { text: string; files: FileUIPart[] }>;
   draft: string;
   files: FileUIPart[];
-  queuedFollowUp: QueuedFollowUp | null;
+  queuedFollowUps: QueuedFollowUp[];
   error: Error | null;
   errorMessageId: string | undefined;
 }
@@ -22,9 +23,10 @@ export type ChatRuntimeEvent =
   | { type: "history.changed"; sessionId: string | undefined; messages: UIMessage[] }
   | { type: "draft.changed"; value: string }
   | { type: "files.changed"; files: FileUIPart[] }
-  | { type: "followUp.queued"; text: string; files: FileUIPart[] }
+  | { type: "followUp.queued"; id: string; text: string; files: FileUIPart[] }
+  | { type: "followUp.updated"; id: string; text: string; files: FileUIPart[] }
+  | { type: "followUp.removed"; id: string }
   | { type: "followUp.cleared" }
-  | { type: "followUp.restored" }
   | { type: "submit.started"; sessionId: string; message: UIMessage }
   | {
       type: "revision.started";
@@ -40,6 +42,21 @@ export type ChatRuntimeEvent =
   | { type: "error.cleared" };
 
 const sessionKey = (sessionId: string | undefined): string => sessionId ?? "new";
+
+const clearComposer = ({
+  context,
+  sessionId,
+}: {
+  context: ChatRuntimeContext;
+  sessionId: string | undefined;
+}) => ({
+  draft: "",
+  files: [] as FileUIPart[],
+  drafts: {
+    ...context.drafts,
+    [sessionKey(sessionId)]: { text: "", files: [] as FileUIPart[] },
+  },
+});
 
 export const chatRuntimeMachine = setup({
   types: {
@@ -74,7 +91,8 @@ export const chatRuntimeMachine = setup({
         drafts,
         draft: nextDraft?.text ?? "",
         files: nextDraft?.files ?? [],
-        queuedFollowUp: event.sessionId === context.sessionId ? context.queuedFollowUp : null,
+        queuedFollowUps:
+          event.sessionId === context.sessionId ? context.queuedFollowUps : [],
         error: context.error,
         errorMessageId,
       };
@@ -102,43 +120,35 @@ export const chatRuntimeMachine = setup({
     queueFollowUp: assign(({ context, event }) => {
       if (event.type !== "followUp.queued") return {};
       return {
-        queuedFollowUp: { text: event.text, files: event.files },
-        draft: "",
-        files: [],
-        drafts: {
-          ...context.drafts,
-          [sessionKey(context.sessionId)]: { text: "", files: [] },
-        },
+        queuedFollowUps: [
+          ...context.queuedFollowUps,
+          { id: event.id, text: event.text, files: event.files },
+        ],
+        ...clearComposer({ context, sessionId: context.sessionId }),
       };
     }),
-    clearFollowUp: assign({ queuedFollowUp: () => null }),
-    restoreFollowUp: assign(({ context }) => {
-      if (context.queuedFollowUp === null) return {};
+    updateFollowUp: assign(({ context, event }) => {
+      if (event.type !== "followUp.updated") return {};
       return {
-        draft: context.queuedFollowUp.text,
-        files: context.queuedFollowUp.files,
-        drafts: {
-          ...context.drafts,
-          [sessionKey(context.sessionId)]: {
-            text: context.queuedFollowUp.text,
-            files: context.queuedFollowUp.files,
-          },
-        },
-        queuedFollowUp: null,
+        queuedFollowUps: context.queuedFollowUps.map((item) =>
+          item.id === event.id ? { id: event.id, text: event.text, files: event.files } : item,
+        ),
+        ...clearComposer({ context, sessionId: context.sessionId }),
       };
     }),
+    removeFollowUp: assign(({ context, event }) => {
+      if (event.type !== "followUp.removed") return {};
+      return {
+        queuedFollowUps: context.queuedFollowUps.filter((item) => item.id !== event.id),
+      };
+    }),
+    clearFollowUps: assign({ queuedFollowUps: () => [] }),
     startSubmission: assign(({ context, event }) => {
       if (event.type !== "submit.started") return {};
       return {
         sessionId: event.sessionId,
         messages: [...context.messages, event.message],
-        draft: "",
-        files: [],
-        drafts: {
-          ...context.drafts,
-          [sessionKey(event.sessionId)]: { text: "", files: [] },
-        },
-        queuedFollowUp: null,
+        ...clearComposer({ context, sessionId: event.sessionId }),
         error: null,
         errorMessageId: undefined,
       };
@@ -152,13 +162,7 @@ export const chatRuntimeMachine = setup({
       return {
         sessionId: event.sessionId,
         messages: [...baseMessages, event.message],
-        draft: "",
-        files: [],
-        drafts: {
-          ...context.drafts,
-          [sessionKey(event.sessionId)]: { text: "", files: [] },
-        },
-        queuedFollowUp: null,
+        ...clearComposer({ context, sessionId: event.sessionId }),
         error: null,
         errorMessageId: undefined,
       };
@@ -174,7 +178,7 @@ export const chatRuntimeMachine = setup({
           replacedIndex < 0
             ? [...context.messages, event.message]
             : [...context.messages.slice(0, replacedIndex), event.message],
-        queuedFollowUp: null,
+        queuedFollowUps: [],
         error: null,
         errorMessageId: undefined,
       };
@@ -206,7 +210,7 @@ export const chatRuntimeMachine = setup({
     drafts: {},
     draft: "",
     files: [],
-    queuedFollowUp: null,
+    queuedFollowUps: [],
     error: null,
     errorMessageId: undefined,
   }),
@@ -216,8 +220,9 @@ export const chatRuntimeMachine = setup({
         "history.changed": { actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
-        "followUp.cleared": { actions: "clearFollowUp" },
-        "followUp.restored": { actions: "restoreFollowUp" },
+        "followUp.removed": { actions: "removeFollowUp" },
+        "followUp.updated": { actions: "updateFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUps" },
         "submit.started": { target: "streaming", actions: "startSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
@@ -230,13 +235,15 @@ export const chatRuntimeMachine = setup({
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
         "followUp.queued": { actions: "queueFollowUp" },
-        "followUp.cleared": { actions: "clearFollowUp" },
+        "followUp.updated": { actions: "updateFollowUp" },
+        "followUp.removed": { actions: "removeFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUps" },
         "submit.started": { actions: "supersedeInFlightSubmission" },
         "revision.started": { actions: "startRevision" },
         "stream.updated": { actions: "updateStream" },
         "stream.completed": { target: "idle" },
-        "stream.stopped": { target: "idle", actions: "restoreFollowUp" },
-        "stream.failed": { target: "error", actions: ["failStream", "restoreFollowUp"] },
+        "stream.stopped": { target: "idle" },
+        "stream.failed": { target: "error", actions: "failStream" },
         "history.changed": [
           {
             guard: "isDifferentSessionHistory",
@@ -252,8 +259,9 @@ export const chatRuntimeMachine = setup({
         "history.changed": { target: "idle", actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
-        "followUp.cleared": { actions: "clearFollowUp" },
-        "followUp.restored": { actions: "restoreFollowUp" },
+        "followUp.removed": { actions: "removeFollowUp" },
+        "followUp.updated": { actions: "updateFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUps" },
         "submit.started": { target: "streaming", actions: "supersedeInFlightSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
