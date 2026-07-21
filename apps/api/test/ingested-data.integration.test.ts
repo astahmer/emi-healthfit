@@ -177,6 +177,7 @@ describe("ingested data SQLite integration", () => {
 
   it("keeps privacy preference owner-scoped and removes only selected source data", async () => {
     const { db } = makeSqliteDatabase();
+    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const alice = "user-a";
     const bob = "user-b";
 
@@ -287,7 +288,6 @@ describe("ingested data SQLite integration", () => {
 
     await run(deleteIngestedSource({ db, userId: alice, source: "health" }));
 
-    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     assert.deepStrictEqual(await run(getDataSummary(fitnessDb, alice)), {
       dailyActivity: 0,
       healthWorkouts: 0,
