@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { createChatMock, openMockedChat, sessionOneSnapshot } from "./mock/install.ts";
+import { openSessionActions } from "./open-session-actions.ts";
 
 const branchThread = {
   id: "branch-1",
@@ -11,25 +12,6 @@ const branchThread = {
   message_ids: ["one-user", "one-assistant"],
   created_at: "2026-07-14T10:02:00.000Z",
   updated_at: "2026-07-14T10:02:00.000Z",
-};
-
-const openSessionActions = async (page: Page) => {
-  const item = page
-    .locator('[data-sidebar="menu-item"]')
-    .filter({ has: page.locator('a[href="/chat/one"]') })
-    .first();
-  await expect(item).toBeVisible();
-  await item.hover();
-  const actions = item.getByLabel("Session actions");
-  await expect(actions).toBeVisible();
-  await actions.click();
-  await expect(
-    page
-      .getByText("Renommer")
-      .or(page.getByText("Archiver"))
-      .or(page.getByText("Restaurer"))
-      .first(),
-  ).toBeVisible();
 };
 
 test("clicks a follow-up suggestion and shows the sent message", async ({ page }) => {

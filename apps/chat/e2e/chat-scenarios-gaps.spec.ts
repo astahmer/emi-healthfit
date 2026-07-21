@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { createChatMock, sessionOneSnapshot, type MockMessage } from "./mock/install.ts";
+import { openSessionActions } from "./open-session-actions.ts";
 
 const branchA = {
   id: "branch-a",
@@ -20,26 +21,6 @@ const branchB = {
   message_ids: ["one-user", "one-assistant", "branch-b-user"],
   created_at: "2026-07-14T10:03:00.000Z",
   updated_at: "2026-07-14T10:03:00.000Z",
-};
-
-const openSessionActions = async (page: Page) => {
-  const item = page
-    .locator('[data-sidebar="menu-item"]')
-    .filter({ has: page.locator('a[href="/chat/one"]') })
-    .first();
-  await expect(item).toBeVisible();
-  await item.hover();
-  const actions = item.getByLabel("Session actions");
-  await expect(actions).toBeVisible();
-  await actions.click();
-  await expect(
-    page
-      .getByText("Renommer")
-      .or(page.getByText("Archiver"))
-      .or(page.getByText("Restaurer"))
-      .or(page.getByText("Désépingler"))
-      .first(),
-  ).toBeVisible();
 };
 
 test("saves and removes an assistant message memory", async ({ page }) => {
