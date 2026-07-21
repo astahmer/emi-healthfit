@@ -9,6 +9,7 @@ import {
   createConversation,
   getConversations,
   saveConversationMessages,
+  secureStringEqual,
   type ConversationDatabaseSchema,
   type QueryDatabaseClient,
 } from "@emi/core/server";
@@ -42,7 +43,7 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     Effect.mapError((error) => new Error(`Discord ask env invalid: ${String(error)}`)),
   );
   const provided = request.headers["x-discord-internal-secret"];
-  if (provided !== config.DISCORD_INTERNAL_ASK_SECRET) {
+  if (typeof provided !== "string" || !secureStringEqual(provided, config.DISCORD_INTERNAL_ASK_SECRET)) {
     return yield* HttpServerResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

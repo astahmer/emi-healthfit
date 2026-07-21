@@ -485,7 +485,14 @@ export const ensureHevyFresh = Effect.fn("hevy.ensureFresh")(function* ({
     const connection = yield* getHevyConnection({ db, userId });
     if (connection === undefined) return null;
     return yield* syncHevy({ db, userId, environment, force: false });
-  }).pipe(Effect.catch(() => Effect.succeed(null)));
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.logWarning("hevy.ensureFresh.failed").pipe(
+        Effect.annotateLogs({ userId, error: String(error) }),
+        Effect.as(null),
+      ),
+    ),
+  );
 });
 
 export const disconnectHevy = Effect.fn("hevy.disconnect")(function* ({

@@ -104,13 +104,17 @@ export const handleAskCommand = ({
           catch: (error) => new Error(`Could not read ask API body: ${String(error)}`),
         });
         if (!response.ok) {
+          yield* Effect.logWarning("discord.ask.api_failed").pipe(
+            Effect.annotateLogs({
+              status: response.status,
+              bodyPreview: bodyText.slice(0, 200),
+            }),
+          );
           yield* editDeferredInteractionResponse({
             applicationId,
             botToken,
             interactionToken: interaction.token,
-            content: truncateDiscordContent(
-              `Ask failed (${response.status}). ${bodyText.slice(0, 200)}`,
-            ),
+            content: "Ask failed. Try again in a moment.",
           });
           return;
         }
@@ -131,11 +135,16 @@ export const handleAskCommand = ({
         });
       }).pipe(
         Effect.catch((error) =>
-          editDeferredInteractionResponse({
-            applicationId,
-            botToken,
-            interactionToken: interaction.token,
-            content: truncateDiscordContent(`Ask failed: ${String(error)}`),
+          Effect.gen(function* () {
+            yield* Effect.logWarning("discord.ask.follow_up_failed").pipe(
+              Effect.annotateLogs({ error: String(error) }),
+            );
+            yield* editDeferredInteractionResponse({
+              applicationId,
+              botToken,
+              interactionToken: interaction.token,
+              content: "Ask failed. Try again in a moment.",
+            });
           }),
         ),
       ),

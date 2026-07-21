@@ -28,6 +28,7 @@ import {
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
 import { healthFitAppDefinition, executeTool as executeHealthfitTool } from "@emi/flavor-healthfit";
+import type { HealthfitDatabaseSchema, HealthfitToolsDatabaseSchema } from "@emi/flavor-healthfit";
 import { composeSystemPrompt } from "@emi/core/server";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
@@ -93,20 +94,18 @@ export default Api.make(
         handleAiSdkChat(db, request, env, {
           beforeChat: ({ db: chatDb, userId, environment }) =>
             ensureHevyFresh({
-              db: chatDb as unknown as Parameters<typeof ensureHevyFresh>[0]["db"],
+              db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(chatDb),
               userId,
               environment,
             }),
           coachSystemPrompt: composeSystemPrompt(healthFitAppDefinition.promptContributors),
           tools: healthFitAppDefinition.tools ?? [],
-          // `executeHealthfitTool`'s `db` is scoped to the flavor package's own
-          // composed schema type; Kysely's `Transaction`/`withRecursive` typings make
-          // `QueryDatabaseClient<T>` invariant in `T`, so the app's wider `DatabaseSchema`
-          // client can't be passed structurally even though it's a superset. Narrow here.
+          // Kysely schema invariance: narrow the app DatabaseSchema client to the
+          // flavor tools schema at the composition boundary (see narrowQueryDatabaseClient).
           executeTool: (args) =>
             executeHealthfitTool({
               ...args,
-              db: args.db as unknown as Parameters<typeof executeHealthfitTool>[0]["db"],
+              db: narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(args.db),
             }),
         }),
       );

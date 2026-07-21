@@ -194,15 +194,18 @@ export const consumeDiscordLinkCode = (
     if (row.expires_at <= nowIso()) return { ok: false, reason: "expired" } as const;
 
     const consumedAt = nowIso();
-    yield* Effect.promise(() =>
+    const updateResult = yield* Effect.promise(() =>
       kysely
         .updateTable("discord_link_codes")
         .set({ consumed_at: consumedAt })
         .where("id", "=", row.id)
         .where("user_id", "=", row.user_id)
         .where("consumed_at", "is", null)
-        .execute(),
+        .executeTakeFirst(),
     );
+    if (Number(updateResult.numUpdatedRows) === 0) {
+      return { ok: false, reason: "consumed" } as const;
+    }
     yield* Effect.promise(() =>
       kysely
         .insertInto("discord_account_links")

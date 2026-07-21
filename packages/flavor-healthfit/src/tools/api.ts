@@ -32,6 +32,9 @@ import type { HealthfitDatabaseSchema } from "../db/schema.ts";
 
 interface ToolsDatabaseSchema
   extends ConversationDatabaseSchema, MemoryDatabaseSchema, HealthfitDatabaseSchema {}
+
+export type HealthfitToolsDatabaseSchema = ToolsDatabaseSchema;
+
 type ToolsDb = QueryDatabaseClient<ToolsDatabaseSchema>;
 
 /**
