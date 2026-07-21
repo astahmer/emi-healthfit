@@ -433,6 +433,12 @@ importers:
       kysely-d1:
         specifier: 0.4.0
         version: 0.4.0(kysely@0.29.3)
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.2.17)(react@19.2.7)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 4.20250805.0

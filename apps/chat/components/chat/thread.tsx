@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { UIMessage } from "ai";
 import {
   ArrowDownIcon,
@@ -17,16 +17,16 @@ import {
   PencilIcon,
   RefreshCwIcon,
   SquareIcon,
-  WrenchIcon,
   XIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
 import { assign, setup } from "xstate";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import {
+  MessagePart,
+  type ComposerControls as CoreComposerControls,
+  type MessagePartValue,
+} from "@emi/core/web";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Message, MessageContent, MessageFooter } from "@/components/ui/message";
@@ -60,19 +60,10 @@ import {
 import { notifyMemoriesChanged } from "@/app/memory-events";
 import { useActionFeedback } from "@/app/action-feedback";
 
-export interface ComposerControls {
-  model: string;
-  onModelChange: (model: string) => void;
-  coachMode: boolean;
-  onCoachModeChange: () => void;
-  webSearch: boolean;
-  onWebSearchChange: (value: boolean) => void;
-  temporary: boolean;
-  onTemporaryChange: (value: boolean) => void;
+export type ComposerControls = Omit<CoreComposerControls, "onKeepTemporary" | "models"> & {
   onKeepTemporary: (messages: UIMessage[]) => Promise<void>;
   models: ChatModel[];
-  canWebSearch: boolean;
-}
+};
 
 const suggestions = [
   "How is my recovery today?",
@@ -80,73 +71,6 @@ const suggestions = [
   "What's my current workout streak?",
   "Show my progress on bench press over the last 8 weeks.",
 ];
-
-const ReferenceMessageContext = createContext<((messageId: string) => void) | undefined>(undefined);
-
-const MarkdownLink: NonNullable<Components["a"]> = ({ children, href, ...props }) => {
-  const onReferenceMessage = useContext(ReferenceMessageContext);
-  if (href?.startsWith("message:") === true) {
-    const messageId = href.slice("message:".length);
-    return (
-      <button
-        type="button"
-        onClick={() => onReferenceMessage?.(messageId)}
-        className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
-      >
-        <GitBranchIcon className="size-3" /> {children}
-      </button>
-    );
-  }
-  return (
-    <a
-      {...props}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-primary underline underline-offset-4"
-    >
-      {children}
-    </a>
-  );
-};
-
-const markdownPlugins = [remarkGfm];
-
-const markdownComponents: Components = {
-  a: MarkdownLink,
-  code: ({ className, children, ...props }) => (
-    <code
-      {...props}
-      className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]", className)}
-    >
-      {children}
-    </code>
-  ),
-  pre: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded-lg border bg-muted/50 p-3 text-sm leading-6">
-      {children}
-    </pre>
-  ),
-  table: ({ children }) => (
-    <div className="my-2 overflow-x-auto">
-      <table className="w-full border-collapse text-sm">{children}</table>
-    </div>
-  ),
-  th: ({ children }) => <th className="border bg-muted px-2 py-1 text-left">{children}</th>,
-  td: ({ children }) => <td className="border px-2 py-1 align-top">{children}</td>,
-  h1: ({ children }) => <h1 className="mt-6 mb-2 text-xl font-semibold">{children}</h1>,
-  h2: ({ children }) => <h2 className="mt-5 mb-2 text-lg font-semibold">{children}</h2>,
-  h3: ({ children }) => <h3 className="mt-4 mb-1.5 font-semibold">{children}</h3>,
-  blockquote: ({ children }) => (
-    <blockquote className="my-4 border-l-2 border-primary/30 pl-4 text-muted-foreground">
-      {children}
-    </blockquote>
-  ),
-  ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
-  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
-  p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
-  hr: () => <hr className="my-5 border-border/70" />,
-};
 
 const messageEditorMachine = setup({
   types: {
@@ -180,95 +104,7 @@ const messageEditorMachine = setup({
   },
 });
 
-type MessagePartValue = UIMessage["parts"][number];
-const ToolMessagePart = Schema.Struct({
-  type: Schema.String,
-  toolName: Schema.optional(Schema.String),
-  input: Schema.optional(Schema.Unknown),
-  args: Schema.optional(Schema.Unknown),
-  argsText: Schema.optional(Schema.Unknown),
-  output: Schema.optional(Schema.Unknown),
-  result: Schema.optional(Schema.Unknown),
-  state: Schema.optional(Schema.String),
-  outcome: Schema.optional(Schema.String),
-});
-const ToolErrorOutput = Schema.Union([
-  Schema.Struct({ type: Schema.Literal("error-text"), value: Schema.String }),
-  Schema.Struct({ error: Schema.String }),
-]);
-
-const ToolPart = ({ part, isStreaming }: { part: MessagePartValue; isStreaming: boolean }) => {
-  const toolPart = Schema.decodeUnknownOption(ToolMessagePart)(part);
-  if (Option.isNone(toolPart)) return null;
-  const type = toolPart.value.type;
-  const isTool = type === "dynamic-tool" || type === "tool-call" || type.startsWith("tool-");
-  if (!isTool) return null;
-
-  const configuredToolName = toolPart.value.toolName;
-  const toolName =
-    configuredToolName !== undefined
-      ? configuredToolName
-      : type.startsWith("tool-")
-        ? type.slice(5)
-        : "tool";
-  const input = toolPart.value.input ?? toolPart.value.args ?? toolPart.value.argsText;
-  const output = toolPart.value.output ?? toolPart.value.result;
-  const state = toolPart.value.state;
-  const outcome = toolPart.value.outcome;
-  const errorOutput = Option.isSome(Schema.decodeUnknownOption(ToolErrorOutput)(output));
-  const isFailed = state === "output-error" || outcome === "error" || errorOutput;
-  const hasOutput =
-    output !== undefined || state === "output-available" || state === "output-error";
-  const isRunning = isStreaming && !hasOutput;
-
-  return (
-    <details className="group/tool rounded-lg border bg-muted/15" open={isRunning}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground marker:content-none">
-        {isRunning ? (
-          <LoaderIcon className="size-3.5 animate-spin" />
-        ) : (
-          <WrenchIcon className="size-3.5" />
-        )}
-        <span>{toolName.replaceAll("_", " ")}</span>
-        <span className="ms-auto font-normal opacity-70">
-          {isRunning ? "Running" : isFailed ? "Failed" : "Completed"}
-        </span>
-      </summary>
-      <div className="border-t px-3 py-2">
-        {input !== undefined && (
-          <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground">Input</summary>
-            <pre className="mt-1 overflow-auto whitespace-pre-wrap">
-              {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
-            </pre>
-          </details>
-        )}
-        {hasOutput && <ToolResultContent toolName={toolName} result={output} className="mt-2" />}
-      </div>
-    </details>
-  );
-};
-
-const MarkdownText = ({
-  text,
-  onReferenceMessage,
-}: {
-  text: string;
-  onReferenceMessage?: (messageId: string) => void;
-}) => (
-  <div className="max-w-3xl text-[15px] leading-7 text-foreground/95">
-    <ReferenceMessageContext.Provider value={onReferenceMessage}>
-      <ReactMarkdown remarkPlugins={markdownPlugins} components={markdownComponents}>
-        {text.replace(
-          /<message\s+id=["']([^"']+)["']\s*\/?\s*>/g,
-          (_, messageId: string) => `[Referenced message](message:${messageId})`,
-        )}
-      </ReactMarkdown>
-    </ReferenceMessageContext.Provider>
-  </div>
-);
-
-const MessagePart = ({
+const renderMessagePart = ({
   part,
   onReferenceMessage,
   isStreaming,
@@ -276,40 +112,16 @@ const MessagePart = ({
   part: MessagePartValue;
   onReferenceMessage?: (messageId: string) => void;
   isStreaming: boolean;
-}) => {
-  if (part.type === "text") {
-    return <MarkdownText text={part.text} onReferenceMessage={onReferenceMessage} />;
-  }
-  if (part.type === "file") {
-    if (part.mediaType.startsWith("image/")) {
-      return (
-        <img
-          src={part.url}
-          alt={part.filename ?? "Attachment"}
-          className="max-h-80 rounded-lg object-contain"
-        />
-      );
-    }
-    return (
-      <a
-        href={part.url}
-        download={part.filename}
-        className="text-primary underline underline-offset-4"
-      >
-        {part.filename ?? "Attachment"}
-      </a>
-    );
-  }
-  if (part.type === "reasoning") {
-    return (
-      <details className="text-sm text-muted-foreground">
-        <summary className="cursor-pointer">Reasoning</summary>
-        <div className="mt-2 whitespace-pre-wrap">{part.text}</div>
-      </details>
-    );
-  }
-  return <ToolPart part={part} isStreaming={isStreaming} />;
-};
+}) => (
+  <MessagePart
+    part={part}
+    onReferenceMessage={onReferenceMessage}
+    isStreaming={isStreaming}
+    renderToolResult={({ toolName, result }) => (
+      <ToolResultContent toolName={toolName} result={result} className="mt-2" />
+    )}
+  />
+);
 
 const getText = (message: UIMessage | undefined): string =>
   message?.parts.reduce(
@@ -318,8 +130,8 @@ const getText = (message: UIMessage | undefined): string =>
   ) ?? "";
 
 const messagePartKey = (part: MessagePartValue): string => {
-  if (part.type === "text") return `text:${part.text}`;
-  if (part.type === "file") return `file:${part.url}`;
+  if (part.type === "text") return `text:${String(part.text ?? "")}`;
+  if (part.type === "file") return `file:${String(part.url ?? "")}`;
   if ("toolCallId" in part && typeof part.toolCallId === "string") {
     return `tool:${part.type}:${part.toolCallId}`;
   }
@@ -453,12 +265,13 @@ const ChatMessage = ({
           >
             <BubbleContent className={cn(!isUser && "w-full space-y-3")}>
               {message.parts.map((part) => (
-                <MessagePart
-                  key={messagePartKey(part)}
-                  part={part}
-                  onReferenceMessage={onReferenceMessage}
-                  isStreaming={isStreaming}
-                />
+                <div key={messagePartKey(part)}>
+                  {renderMessagePart({
+                    part,
+                    onReferenceMessage,
+                    isStreaming,
+                  })}
+                </div>
               ))}
               {isStreaming && message.parts.length === 0 && (
                 <span

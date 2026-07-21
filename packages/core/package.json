@@ -27,7 +27,9 @@
     "drizzle-orm": "0.45.2",
     "effect": "catalog:",
     "kysely": "0.29.3",
-    "kysely-d1": "0.4.0"
+    "kysely-d1": "0.4.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20250805.0",

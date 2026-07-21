@@ -109,11 +109,12 @@ and Discord transport skeleton (see git history / prior plan revisions for detai
 
 ## Remaining deferrals
 
-- Deep `thread.tsx` shell move into `@emi/core/web`.
+- Chat `Thread` / `ChatMessage` orchestration still app-local (memories, usage, HealthFit
+  empty suggestions); portable markdown / message parts / tool-result / `ThreadViewport`
+  now live in `@emi/core/web`.
 - Leftover HealthFit HTTP still in apps (`http/data`, `http/hevy`, Hevy OAuth/sync,
   gen-ui catalog). Ingested-data + data-transfer and `/upload` `/workouts` `/summary`
   screens now live in `@emi/flavor-healthfit` (+ `/web`).
-- Shared HTTP/auth composition package for `generic-worker` (still demo `x-demo-user-id`).
 - npm publishing of `@emi/core` / `@emi/create-chat-app`.
 - Discord `/ask` free-form chat (see `plans/discord-bot.md`).
 - Discord linking **ops ship**: GymData adopt + migrate + register + smoke blocked on Cloudflare

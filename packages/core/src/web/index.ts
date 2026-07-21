@@ -1,5 +1,6 @@
 export * from "./contributions.tsx";
 export * from "./chat-shell.tsx";
+export * from "./thread/index.ts";
 export * from "./conversation/types.ts";
 export * from "./conversation/conversation-tree.ts";
 export * from "./conversation/conversation-markdown.ts";
