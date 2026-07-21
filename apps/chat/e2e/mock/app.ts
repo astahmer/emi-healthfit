@@ -147,6 +147,12 @@ export type MockApiState = {
     lastConnectApiKey: string | null;
     syncCalls: number;
   };
+  analytics: typeof emptyAnalyticsOverview;
+  ingest: {
+    calls: number;
+    lastHealthName: string | null;
+    lastHevyName: string | null;
+  };
 };
 
 export const disconnectedHevyStatus = (
@@ -632,8 +638,24 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
   app.get("/api/suggestions", (context) => json(context, { suggestions: state.suggestions }));
   app.post("/api/suggestions", (context) => json(context, { suggestions: state.suggestions }));
 
-  app.get("/api/analytics/overview", (context) => json(context, emptyAnalyticsOverview));
+  app.get("/api/analytics/overview", (context) => json(context, state.analytics));
   app.get("/api/workouts", (context) => json(context, { workouts: state.hevy.workouts }));
+
+  app.post("/ingest", async (context) => {
+    const form = await context.req.formData();
+    const health = form.get("health_export");
+    const hevy = form.get("hevy_export");
+    state.ingest.calls += 1;
+    state.ingest.lastHealthName = health instanceof File ? health.name : null;
+    state.ingest.lastHevyName = hevy instanceof File ? hevy.name : null;
+    if (health === null && hevy === null) {
+      return json(context, { error: "Expected health_export and/or hevy_export files" }, 400);
+    }
+    return json(context, {
+      health: { daily: health instanceof File ? 1 : 0, workouts: 0, sleep: 0, body: 0 },
+      hevy: { sessions: hevy instanceof File ? 1 : 0, sets: hevy instanceof File ? 2 : 0 },
+    });
+  });
 
   app.get("/api/export/ingested-data/summary", (context) =>
     json(context, {
@@ -765,11 +787,12 @@ export const createMockApi = ({
   extend,
 }: {
   state?: Partial<
-    Omit<MockApiState, "chat" | "compact" | "fork" | "hevy"> & {
+    Omit<MockApiState, "chat" | "compact" | "fork" | "hevy" | "ingest"> & {
       chat?: Partial<MockApiState["chat"]>;
       compact?: Partial<MockApiState["compact"]>;
       fork?: Partial<MockApiState["fork"]>;
       hevy?: Partial<MockApiState["hevy"]>;
+      ingest?: Partial<MockApiState["ingest"]>;
     }
   >;
   extend?: (app: Hono, state: MockApiState) => void;
@@ -813,6 +836,12 @@ export const createMockApi = ({
       workouts: partial?.hevy?.workouts ?? [],
       lastConnectApiKey: partial?.hevy?.lastConnectApiKey ?? null,
       syncCalls: partial?.hevy?.syncCalls ?? 0,
+    },
+    analytics: partial?.analytics ?? emptyAnalyticsOverview,
+    ingest: {
+      calls: partial?.ingest?.calls ?? 0,
+      lastHealthName: partial?.ingest?.lastHealthName ?? null,
+      lastHevyName: partial?.ingest?.lastHevyName ?? null,
     },
   };
 

@@ -123,6 +123,9 @@ export const installMockApi = async ({
   await page.route("**/api/**", async (route) => {
     await fulfillMockApi({ route, app });
   });
+  await page.route("**/ingest", async (route) => {
+    await fulfillMockApi({ route, app });
+  });
 };
 
 export const openWithMock = async ({

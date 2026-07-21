@@ -96,6 +96,7 @@ export const authSessionBody = {
 };
 
 export const emptyAnalyticsOverview = {
+  days: 90,
   activity: [],
   sleep: [],
   training: [],
