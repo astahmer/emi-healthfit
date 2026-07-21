@@ -97,11 +97,7 @@ export const upsertHevySessions = (
     return rows.length;
   });
 
-export const upsertHevySets = (
-  db: FitnessDb,
-  userId: string,
-  rows: ReadonlyArray<HevySetRow>,
-) =>
+export const upsertHevySets = (db: FitnessDb, userId: string, rows: ReadonlyArray<HevySetRow>) =>
   Effect.gen(function* () {
     if (rows.length === 0) return 0;
     const kysely = yield* db.kysely;
@@ -180,12 +176,7 @@ export const upsertBodyMetrics = (
     return rows.length;
   });
 
-export const updateSyncCursor = (
-  db: FitnessDb,
-  userId: string,
-  source: string,
-  lastSync: string,
-) =>
+export const updateSyncCursor = (db: FitnessDb, userId: string, source: string, lastSync: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* Effect.promise(() =>

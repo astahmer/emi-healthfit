@@ -1,6 +1,6 @@
 import { createActor, fromPromise } from "xstate";
 import { describe, expect, it, vi } from "vitest";
-import { uploadMachine, type UploadResult } from "@emi/flavor-healthfit/web";
+import { uploadMachine, type UploadResult } from "../../src/web/upload-machine.ts";
 
 describe("uploadMachine", () => {
   it("starts idle with empty files", () => {

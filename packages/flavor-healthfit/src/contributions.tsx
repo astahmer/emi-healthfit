@@ -13,6 +13,9 @@ import {
   RecoveryToolRenderer,
   WorkoutHistoryToolRenderer,
 } from "./components/tool-renderers.tsx";
+import { SummaryPanel } from "./web/summary-panel.tsx";
+import { UploadPanel } from "./web/upload-panel.tsx";
+import { WorkoutsPanel } from "./web/workouts-panel.tsx";
 
 const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   {
@@ -79,7 +82,14 @@ const healthFitToolRenderers: NonNullable<CoreWebContributions["toolRenderers"]>
   { toolName: "get_recovery", component: RecoveryToolRenderer },
 ];
 
+const healthFitPages: NonNullable<CoreWebContributions["pages"]> = [
+  { id: "upload", path: "/upload", component: UploadPanel },
+  { id: "workouts", path: "/workouts", component: WorkoutsPanel },
+  { id: "summary", path: "/summary", component: SummaryPanel },
+];
+
 export const healthFitWebContributions: CoreWebContributions = {
   nav: healthFitNav,
+  pages: healthFitPages,
   toolRenderers: healthFitToolRenderers,
 };

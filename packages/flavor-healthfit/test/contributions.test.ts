@@ -7,6 +7,15 @@ describe("healthFitWebContributions", () => {
     expect(ids).toEqual(["chat", "upload", "workouts", "summary", "notes", "memory", "settings"]);
   });
 
+  it("registers page contributions for upload, workouts, and summary", () => {
+    const pages = healthFitWebContributions.pages ?? [];
+    expect(pages.map((page) => page.id)).toEqual(["upload", "workouts", "summary"]);
+    expect(pages.map((page) => page.path)).toEqual(["/upload", "/workouts", "/summary"]);
+    for (const page of pages) {
+      expect(page.component).toBeTypeOf("function");
+    }
+  });
+
   it("registers a tool renderer for every healthfit visual tool", () => {
     const toolNames = (healthFitWebContributions.toolRenderers ?? []).map(
       (renderer) => renderer.toolName,
