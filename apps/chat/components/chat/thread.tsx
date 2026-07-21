@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { CHAT_THREAD_SCROLL_ID } from "@/lib/chat-thread-scroll";
 import { useThreadViewportScroll } from "@/hooks/use-thread-viewport-scroll";
 import { useChatRuntime } from "@/app/chat/chat-runtime";
+import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@/app/chat/follow-up-queue";
 import type { ChatModel } from "@/app/models";
 import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
@@ -692,21 +693,59 @@ export const Thread = ({
           {runtime.attachmentError !== null && (
             <p className="px-3 pb-2 text-xs text-destructive">{runtime.attachmentError}</p>
           )}
-          {runtime.queuedFollowUp !== null && (
-            <div className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              <span className="min-w-0 truncate">
-                Queued:{" "}
-                {runtime.queuedFollowUp.text.trim() === ""
-                  ? `${runtime.queuedFollowUp.files.length} attachment${runtime.queuedFollowUp.files.length === 1 ? "" : "s"}`
-                  : runtime.queuedFollowUp.text}
-              </span>
-              <button
-                type="button"
-                className="ms-auto shrink-0 font-medium underline"
-                onClick={runtime.clearQueuedFollowUp}
-              >
-                Clear
-              </button>
+          {runtime.queuedFollowUps.length > 0 && (
+            <div className="mx-2 mb-2 space-y-1.5" aria-label="Queued follow-ups">
+              {runtime.queuedFollowUps.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs ${
+                    runtime.editingQueuedId === item.id
+                      ? "bg-primary/10 text-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {index + 1}.{" "}
+                    {item.text.trim() === ""
+                      ? `${item.files.length} attachment${item.files.length === 1 ? "" : "s"}`
+                      : item.text}
+                    {runtime.editingQueuedId === item.id ? " (editing)" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium underline"
+                    aria-label={`Edit queued message ${index + 1}`}
+                    onClick={() => runtime.beginEditingQueuedFollowUp(item.id)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium underline"
+                    aria-label={`Send queued message ${index + 1} now`}
+                    onClick={() => void runtime.forceSendQueued(item.id)}
+                  >
+                    Send now
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium underline"
+                    aria-label={`Cancel queued message ${index + 1}`}
+                    onClick={() => runtime.removeQueuedFollowUp(item.id)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ))}
+              <div className="flex justify-end px-1">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-muted-foreground underline"
+                  onClick={runtime.clearQueuedFollowUps}
+                >
+                  Clear queue
+                </button>
+              </div>
             </div>
           )}
           <textarea
@@ -720,12 +759,50 @@ export const Thread = ({
               }
             }}
             onKeyDown={(event) => {
+              if (
+                shouldHandleQueueArrowKey({
+                  key: event.key,
+                  draft: runtime.draft,
+                  selectionStart: event.currentTarget.selectionStart,
+                  queueLength: runtime.queuedFollowUps.length,
+                  editingQueuedId: runtime.editingQueuedId,
+                })
+              ) {
+                event.preventDefault();
+                const target = resolveQueueEditTarget({
+                  queuedFollowUps: runtime.queuedFollowUps,
+                  editingQueuedId: runtime.editingQueuedId,
+                  direction: event.key === "ArrowUp" ? "up" : "down",
+                });
+                if (target === null) {
+                  runtime.clearQueuedFollowUpEdit();
+                  return;
+                }
+                runtime.beginEditingQueuedFollowUp(target.id);
+                return;
+              }
+              if (event.key === "Escape" && runtime.editingQueuedId !== null) {
+                event.preventDefault();
+                runtime.clearQueuedFollowUpEdit();
+                return;
+              }
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void runtime.submit();
+                return;
+              }
+              if (event.key === "Enter" && event.shiftKey && runtime.isStreaming) {
+                event.preventDefault();
+                void runtime.submit(undefined, { interrupt: true });
               }
             }}
-            placeholder="Send a message..."
+            placeholder={
+              runtime.editingQueuedId !== null
+                ? "Edit queued message…"
+                : runtime.isStreaming
+                  ? "Queue a follow-up, or Shift+Enter to send now…"
+                  : "Send a message..."
+            }
             aria-label="Message input"
             rows={1}
             className="max-h-48 min-h-11 w-full min-w-0 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none sm:min-h-14 sm:px-3"
@@ -861,7 +938,9 @@ export const Thread = ({
                 runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
                   ? "Stop generating"
                   : runtime.isStreaming
-                    ? "Send after reply"
+                    ? runtime.editingQueuedId !== null
+                      ? "Update queued message"
+                      : "Send after reply"
                     : "Send message"
               }
               side="top"
@@ -881,7 +960,9 @@ export const Thread = ({
                 runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
                   ? "Stop generating"
                   : runtime.isStreaming
-                    ? "Send after reply"
+                    ? runtime.editingQueuedId !== null
+                      ? "Update queued message"
+                      : "Send after reply"
                     : "Send message"
               }
             >

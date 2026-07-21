@@ -49,7 +49,8 @@ describe("Thread", () => {
       sessionId: "conversation-1",
       draft: "",
       files: [],
-      queuedFollowUp: null,
+      queuedFollowUps: [],
+      editingQueuedId: null,
       isStreaming: false,
       error: null,
       errorMessageId: undefined,
@@ -61,7 +62,11 @@ describe("Thread", () => {
       submit: vi.fn(),
       revise: vi.fn(),
       stop: vi.fn(),
-      clearQueuedFollowUp: vi.fn(),
+      removeQueuedFollowUp: vi.fn(),
+      clearQueuedFollowUps: vi.fn(),
+      forceSendQueued: vi.fn(),
+      beginEditingQueuedFollowUp: vi.fn(),
+      clearQueuedFollowUpEdit: vi.fn(),
       clearError: vi.fn(),
       orphanMessageId: undefined,
       retryOrphan: vi.fn(),
@@ -69,20 +74,33 @@ describe("Thread", () => {
     });
   });
 
-  it("shows a queued follow-up while the assistant is still streaming", () => {
-    const clearQueuedFollowUp = vi.fn();
+  it("shows queued follow-ups with edit, send now, and cancel actions", () => {
+    const removeQueuedFollowUp = vi.fn();
+    const forceSendQueued = vi.fn();
+    const beginEditingQueuedFollowUp = vi.fn();
     vi.mocked(useChatRuntime).mockReturnValue({
       ...vi.mocked(useChatRuntime)(),
       isStreaming: true,
-      queuedFollowUp: { text: "Ask about sleep next", files: [] },
-      clearQueuedFollowUp,
+      queuedFollowUps: [
+        { id: "q1", text: "Ask about sleep next", files: [] },
+        { id: "q2", text: "Then recovery", files: [] },
+      ],
+      removeQueuedFollowUp,
+      forceSendQueued,
+      beginEditingQueuedFollowUp,
     });
 
     renderThread([]);
 
-    expect(screen.getByText(/Queued: Ask about sleep next/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    expect(clearQueuedFollowUp).toHaveBeenCalled();
+    expect(screen.getByLabelText("Queued follow-ups")).toBeInTheDocument();
+    expect(screen.getByText(/Ask about sleep next/)).toBeInTheDocument();
+    expect(screen.getByText(/Then recovery/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Edit queued message 1"));
+    expect(beginEditingQueuedFollowUp).toHaveBeenCalledWith("q1");
+    fireEvent.click(screen.getByLabelText("Send queued message 2 now"));
+    expect(forceSendQueued).toHaveBeenCalledWith("q2");
+    fireEvent.click(screen.getByLabelText("Cancel queued message 1"));
+    expect(removeQueuedFollowUp).toHaveBeenCalledWith("q1");
   });
 
   it("announces streaming and shows the delayed-response typing indicator", () => {

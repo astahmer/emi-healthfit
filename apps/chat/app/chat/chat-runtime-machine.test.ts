@@ -136,7 +136,7 @@ describe("chatRuntimeMachine", () => {
     ]);
   });
 
-  it("queues a follow-up while streaming without dropping the live assistant", () => {
+  it("queues multiple follow-ups while streaming without dropping the live assistant", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
     actor.send({
@@ -145,18 +145,22 @@ describe("chatRuntimeMachine", () => {
       message: message("first", "user", "First"),
     });
     actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
-    actor.send({ type: "followUp.queued", text: "Second", files: [] });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Second", files: [] });
+    actor.send({ type: "followUp.queued", id: "q2", text: "Third", files: [] });
 
     expect(actor.getSnapshot().matches("streaming")).toBe(true);
     expect(actor.getSnapshot().context.messages).toEqual([
       message("first", "user", "First"),
       message("partial", "assistant", "Hel"),
     ]);
-    expect(actor.getSnapshot().context.queuedFollowUp).toEqual({ text: "Second", files: [] });
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Second", files: [] },
+      { id: "q2", text: "Third", files: [] },
+    ]);
     expect(actor.getSnapshot().context.draft).toBe("");
   });
 
-  it("keeps a queued follow-up across same-session history snapshots", () => {
+  it("updates and removes queued follow-ups", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
     actor.send({
@@ -164,7 +168,25 @@ describe("chatRuntimeMachine", () => {
       sessionId: "one",
       message: message("first", "user", "First"),
     });
-    actor.send({ type: "followUp.queued", text: "Second", files: [] });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Second", files: [] });
+    actor.send({ type: "followUp.queued", id: "q2", text: "Third", files: [] });
+    actor.send({ type: "followUp.updated", id: "q1", text: "Second edited", files: [] });
+    actor.send({ type: "followUp.removed", id: "q2" });
+
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Second edited", files: [] },
+    ]);
+  });
+
+  it("keeps queued follow-ups across same-session history snapshots", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Second", files: [] });
     actor.send({ type: "stream.completed" });
     actor.send({
       type: "history.changed",
@@ -172,10 +194,12 @@ describe("chatRuntimeMachine", () => {
       messages: [message("first", "user", "First"), message("assistant", "assistant", "Done")],
     });
 
-    expect(actor.getSnapshot().context.queuedFollowUp).toEqual({ text: "Second", files: [] });
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Second", files: [] },
+    ]);
   });
 
-  it("restores a queued follow-up into the composer when the stream stops", () => {
+  it("keeps queued follow-ups when the stream stops", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
     actor.send({
@@ -183,12 +207,14 @@ describe("chatRuntimeMachine", () => {
       sessionId: "one",
       message: message("first", "user", "First"),
     });
-    actor.send({ type: "followUp.queued", text: "Later", files: [] });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Later", files: [] });
     actor.send({ type: "stream.stopped" });
 
     expect(actor.getSnapshot().matches("idle")).toBe(true);
-    expect(actor.getSnapshot().context.queuedFollowUp).toBeNull();
-    expect(actor.getSnapshot().context.draft).toBe("Later");
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Later", files: [] },
+    ]);
+    expect(actor.getSnapshot().context.draft).toBe("");
   });
 
   it("replaces an in-flight generation when a new message is submitted", () => {

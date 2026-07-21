@@ -10,7 +10,7 @@ import { buildNotesContext } from "../notes";
 import { type useNotes } from "../notes-context";
 import { createConversation } from "../sessions";
 import { type useSettings } from "../settings-store";
-import { chatRuntimeMachine } from "./chat-runtime-machine";
+import { chatRuntimeMachine, type QueuedFollowUp } from "./chat-runtime-machine";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
 import { consumeAssistantStream, type ChatTransport } from "./chat-transport";
 import { OrphanTurnError } from "./orphan-turn-error";
@@ -20,6 +20,11 @@ type ChatRuntimeSnapshot = SnapshotFrom<typeof chatRuntimeMachine>;
 type ChatRuntimeEvent = EventFrom<typeof chatRuntimeMachine>;
 type ChatSettings = ReturnType<typeof useSettings.getState>["settings"];
 type Notes = ReturnType<typeof useNotes>["notes"];
+
+const partsFromQueuedFollowUp = (item: QueuedFollowUp): UIMessage["parts"] => [
+  ...(item.text.trim() === "" ? [] : [{ type: "text" as const, text: item.text }]),
+  ...item.files,
+];
 
 export const useChatSubmission = ({
   config,
@@ -34,6 +39,8 @@ export const useChatSubmission = ({
   synchronizePersistedHistory,
   onSessionCreated,
   recordClientEvent,
+  editingQueuedIdRef,
+  setEditingQueuedId,
 }: {
   config: ChatRuntimeConfig;
   settings: ChatSettings;
@@ -47,6 +54,8 @@ export const useChatSubmission = ({
   synchronizePersistedHistory: (sessionId: string) => Promise<ConversationSnapshot>;
   onSessionCreated?: (id: string) => void;
   recordClientEvent: (type: "client.disconnected" | "client.stopped" | "client.retried") => void;
+  editingQueuedIdRef: MutableRefObject<string | null>;
+  setEditingQueuedId: (id: string | null) => void;
 }) => {
   const [isRetrying, setIsRetrying] = useState(false);
   const retryInFlightRef = useRef(false);
@@ -95,19 +104,33 @@ export const useChatSubmission = ({
       text,
       parts,
       replaceMessageId,
+      interrupt = false,
     }: {
       text?: string;
       parts?: UIMessage["parts"];
       replaceMessageId?: string;
+      interrupt?: boolean;
     }) => {
       const content = (text ?? stateRef.current.context.draft).trim();
       const queuedFiles =
         text === undefined && parts === undefined ? stateRef.current.context.files : [];
       if (parts === undefined && content === "" && queuedFiles.length === 0) return;
 
-      if (stateRef.current.matches("streaming") && replaceMessageId === undefined) {
+      const editingQueuedId = editingQueuedIdRef.current;
+      if (stateRef.current.matches("streaming") && replaceMessageId === undefined && !interrupt) {
+        if (editingQueuedId !== null) {
+          send({
+            type: "followUp.updated",
+            id: editingQueuedId,
+            text: content,
+            files: parts === undefined ? queuedFiles : [],
+          });
+          setEditingQueuedId(null);
+          return;
+        }
         send({
           type: "followUp.queued",
+          id: crypto.randomUUID(),
           text: content,
           files: parts === undefined ? queuedFiles : [],
         });
@@ -115,6 +138,7 @@ export const useChatSubmission = ({
       }
 
       cancelActiveGeneration();
+      setEditingQueuedId(null);
 
       let sessionId = config.sessionId;
       if (sessionId === undefined) {
@@ -190,24 +214,19 @@ export const useChatSubmission = ({
           return;
         }
         send({ type: "stream.completed" });
-        const queuedFollowUp = stateRef.current.context.queuedFollowUp;
-        if (queuedFollowUp !== null) {
-          send({ type: "followUp.cleared" });
+        const nextQueued = stateRef.current.context.queuedFollowUps[0];
+        if (nextQueued !== undefined) {
+          send({ type: "followUp.removed", id: nextQueued.id });
         }
         if (!config.temporary) {
           const snapshot = await synchronizePersistedHistory(sessionId);
           notifyConversationsChanged();
           void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
         }
-        if (queuedFollowUp !== null) {
+        if (nextQueued !== undefined) {
           await submitMessage({
-            text: queuedFollowUp.text,
-            parts: [
-              ...(queuedFollowUp.text.trim() === ""
-                ? []
-                : [{ type: "text" as const, text: queuedFollowUp.text }]),
-              ...queuedFollowUp.files,
-            ],
+            text: nextQueued.text,
+            parts: partsFromQueuedFollowUp(nextQueued),
           });
         }
       } catch (error) {
@@ -244,11 +263,13 @@ export const useChatSubmission = ({
       config.temporary,
       config.threadId,
       config.webSearch,
+      editingQueuedIdRef,
       notes,
       onSessionCreated,
       operationRef,
       recordClientEvent,
       send,
+      setEditingQueuedId,
       settings.apiKey,
       settings.baseUrl,
       settings.provider,
@@ -259,7 +280,27 @@ export const useChatSubmission = ({
     ],
   );
 
-  const submit = useCallback((text?: string) => submitMessage({ text }), [submitMessage]);
+  const submit = useCallback(
+    (text?: string, options?: { interrupt?: boolean }) =>
+      submitMessage({ text, interrupt: options?.interrupt }),
+    [submitMessage],
+  );
+
+  const forceSendQueued = useCallback(
+    async (id?: string) => {
+      const queue = stateRef.current.context.queuedFollowUps;
+      const target = id === undefined ? queue[0] : queue.find((item) => item.id === id);
+      if (target === undefined) return;
+      send({ type: "followUp.removed", id: target.id });
+      if (editingQueuedIdRef.current === target.id) setEditingQueuedId(null);
+      await submitMessage({
+        text: target.text,
+        parts: partsFromQueuedFollowUp(target),
+        interrupt: true,
+      });
+    },
+    [editingQueuedIdRef, send, setEditingQueuedId, stateRef, submitMessage],
+  );
 
   const revise = useCallback(
     async ({ messageId, text }: { messageId: string; text?: string }) => {
@@ -321,5 +362,5 @@ export const useChatSubmission = ({
     await revise({ messageId: error.orphanMessageId });
   }, [revise, stateRef]);
 
-  return { submit, revise, retryOrphan, isRetrying };
+  return { submit, revise, retryOrphan, forceSendQueued, isRetrying };
 };

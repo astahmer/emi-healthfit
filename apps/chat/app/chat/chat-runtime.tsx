@@ -40,15 +40,21 @@ export const ChatRuntimeProvider = ({
   });
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
+  const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const operationRef = useRef(0);
   const generationIdRef = useRef<string | null>(null);
+  const editingQueuedIdRef = useRef<string | null>(null);
   const stateRef = useRef(state);
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    editingQueuedIdRef.current = editingQueuedId;
+  }, [editingQueuedId]);
 
   const transport = useChatTransport({
     temporary: config.temporary,
@@ -74,7 +80,7 @@ export const ChatRuntimeProvider = ({
     onHistoryChanged,
     recordClientEvent,
   });
-  const { submit, revise, retryOrphan, isRetrying } = useChatSubmission({
+  const { submit, revise, retryOrphan, forceSendQueued, isRetrying } = useChatSubmission({
     config,
     settings,
     notes,
@@ -87,7 +93,26 @@ export const ChatRuntimeProvider = ({
     synchronizePersistedHistory,
     onSessionCreated,
     recordClientEvent,
+    editingQueuedIdRef,
+    setEditingQueuedId,
   });
+
+  const beginEditingQueuedFollowUp = useCallback(
+    (id: string) => {
+      const item = stateRef.current.context.queuedFollowUps.find((entry) => entry.id === id);
+      if (item === undefined) return;
+      setEditingQueuedId(id);
+      send({ type: "draft.changed", value: item.text });
+      send({ type: "files.changed", files: item.files });
+    },
+    [send],
+  );
+
+  const clearQueuedFollowUpEdit = useCallback(() => {
+    setEditingQueuedId(null);
+    send({ type: "draft.changed", value: "" });
+    send({ type: "files.changed", files: [] });
+  }, [send]);
 
   const value = useMemo<ChatRuntimeValue>(() => {
     const selectionMatchesRuntime = runtimeSelectionMatches({
@@ -100,7 +125,8 @@ export const ChatRuntimeProvider = ({
       sessionId: selectionMatchesRuntime ? state.context.sessionId : config.sessionId,
       draft: selectionMatchesRuntime ? state.context.draft : "",
       files: selectionMatchesRuntime ? state.context.files : [],
-      queuedFollowUp: selectionMatchesRuntime ? state.context.queuedFollowUp : null,
+      queuedFollowUps: selectionMatchesRuntime ? state.context.queuedFollowUps : [],
+      editingQueuedId: selectionMatchesRuntime ? editingQueuedId : null,
       isStreaming: selectionMatchesRuntime && state.matches("streaming"),
       error: state.context.error,
       errorMessageId:
@@ -147,14 +173,28 @@ export const ChatRuntimeProvider = ({
         abortControllerRef.current?.abort();
         cancelStreamRef.current?.();
       },
-      clearQueuedFollowUp: () => send({ type: "followUp.cleared" }),
+      removeQueuedFollowUp: (id) => {
+        send({ type: "followUp.removed", id });
+        if (editingQueuedIdRef.current === id) clearQueuedFollowUpEdit();
+      },
+      clearQueuedFollowUps: () => {
+        send({ type: "followUp.cleared" });
+        clearQueuedFollowUpEdit();
+      },
+      forceSendQueued,
+      beginEditingQueuedFollowUp,
+      clearQueuedFollowUpEdit,
       clearError: () => send({ type: "error.cleared" }),
     };
   }, [
     attachmentError,
+    beginEditingQueuedFollowUp,
+    clearQueuedFollowUpEdit,
     config.initialMessages,
     config.sessionId,
     config.temporary,
+    editingQueuedId,
+    forceSendQueued,
     isPreparingAttachments,
     isRetrying,
     recordClientEvent,
