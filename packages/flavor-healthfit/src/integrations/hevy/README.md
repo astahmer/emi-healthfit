@@ -13,13 +13,12 @@ Typed HTTP client for the [Hevy public API](https://api.hevyapp.com/docs/).
 ## Regen
 
 ```bash
-pnpm --filter @emi/api hevy:openapi   # re-fetch + normalize OAS
-pnpm --filter @emi/api hevy:client    # regenerate typed client
+pnpm --filter @emi/api hevy:openapi              # writes openapi/hevy.openapi.json here
+pnpm --filter @emi/flavor-healthfit hevy:client  # regenerate typed client (or: pnpm --filter @emi/api hevy:client)
 ```
 
-Hevy embeds the spec in `swagger-ui-init.js`. The fetch script also rewrites
-non-standard `{ "type": "enum", ... }` schemas to `{ "type": "string", "enum": ... }`
-so typed-openapi can generate.
+Canonical OpenAPI + generated client live only in this package. `apps/api` keeps
+thin TypeScript re-exports and delegates `hevy:client` here.
 
 ## Sync (Workers Free)
 

@@ -95,7 +95,10 @@ const extractSwaggerDoc = (source: string) => {
 
 const main = async () => {
   const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-  const outputPath = resolve(scriptDirectory, "../src/integrations/hevy/openapi/hevy.openapi.json");
+  const outputPath = resolve(
+    scriptDirectory,
+    "../../../packages/flavor-healthfit/src/integrations/hevy/openapi/hevy.openapi.json",
+  );
 
   const response = await fetch(HEVY_SWAGGER_UI_INIT_URL);
   if (!response.ok) {
