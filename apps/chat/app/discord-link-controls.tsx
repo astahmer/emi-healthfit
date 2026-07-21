@@ -49,6 +49,7 @@ export const DiscordLinkControls = () => {
     setStatus(null);
     try {
       await runApi((client) => client.discord.revokeCode({ params: { id } }));
+      setLatestCode(null);
       await refresh();
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : "Could not revoke code");

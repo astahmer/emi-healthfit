@@ -148,6 +148,17 @@ export type MockApiState = {
     lastConnectApiKey: string | null;
     syncCalls: number;
   };
+  discord: {
+    links: Array<{ discord_user_id: string; created_at: string }>;
+    codes: Array<{
+      id: string;
+      code?: string;
+      expires_at: string;
+      created_at: string;
+      consumed_at: string | null;
+    }>;
+    createCalls: number;
+  };
   analytics: MockAnalyticsOverview;
   ingest: {
     calls: number;
@@ -711,6 +722,37 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, { success: true as const });
   });
 
+  app.get("/api/discord/links", (context) =>
+    json(context, {
+      links: state.discord.links,
+      codes: state.discord.codes.map(({ code: _code, ...rest }) => rest),
+    }),
+  );
+  app.post("/api/discord/link-codes", (context) => {
+    state.discord.createCalls += 1;
+    const createdAt = now;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const id = `discord-code-${state.discord.createCalls}`;
+    const code = `ABCD${String(state.discord.createCalls).padStart(4, "0")}`;
+    state.discord.codes = [
+      ...state.discord.codes,
+      { id, code, expires_at: expiresAt, created_at: createdAt, consumed_at: null },
+    ];
+    return json(context, { id, code, expires_at: expiresAt, created_at: createdAt }, 201);
+  });
+  app.delete("/api/discord/link-codes/:id", (context) => {
+    const id = context.req.param("id");
+    state.discord.codes = state.discord.codes.filter((entry) => entry.id !== id);
+    return json(context, { success: true as const });
+  });
+  app.delete("/api/discord/links/:discordUserId", (context) => {
+    const discordUserId = context.req.param("discordUserId");
+    state.discord.links = state.discord.links.filter(
+      (link) => link.discord_user_id !== discordUserId,
+    );
+    return json(context, { success: true as const });
+  });
+
   app.get("/api/memories", (context) => {
     const search = context.req.query("search")?.trim().toLowerCase();
     const memories =
@@ -788,12 +830,13 @@ export const createMockApi = ({
   extend,
 }: {
   state?: Partial<
-    Omit<MockApiState, "chat" | "compact" | "fork" | "hevy" | "ingest"> & {
+    Omit<MockApiState, "chat" | "compact" | "fork" | "hevy" | "ingest" | "discord"> & {
       chat?: Partial<MockApiState["chat"]>;
       compact?: Partial<MockApiState["compact"]>;
       fork?: Partial<MockApiState["fork"]>;
       hevy?: Partial<MockApiState["hevy"]>;
       ingest?: Partial<MockApiState["ingest"]>;
+      discord?: Partial<MockApiState["discord"]>;
     }
   >;
   extend?: (app: Hono, state: MockApiState) => void;
@@ -837,6 +880,11 @@ export const createMockApi = ({
       workouts: partial?.hevy?.workouts ?? [],
       lastConnectApiKey: partial?.hevy?.lastConnectApiKey ?? null,
       syncCalls: partial?.hevy?.syncCalls ?? 0,
+    },
+    discord: {
+      links: partial?.discord?.links ?? [],
+      codes: partial?.discord?.codes ?? [],
+      createCalls: partial?.discord?.createCalls ?? 0,
     },
     analytics: partial?.analytics ?? emptyAnalyticsOverview,
     ingest: {
