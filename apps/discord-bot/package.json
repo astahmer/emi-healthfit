@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "deploy": "alchemy deploy",
+    "deploy:adopt": "alchemy deploy --adopt",
     "destroy": "alchemy destroy",
     "dev": "alchemy dev",
     "dry": "alchemy deploy --dry-run",
+    "dry:adopt": "alchemy deploy --dry-run --adopt",
     "register": "node --experimental-strip-types scripts/register-commands.ts",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
     "test:file": "node --test --experimental-strip-types",

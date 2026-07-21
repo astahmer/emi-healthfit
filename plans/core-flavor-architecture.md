@@ -115,6 +115,9 @@ and Discord transport skeleton (see git history / prior plan revisions for detai
 - Shared HTTP/auth composition package for `generic-worker` (still demo `x-demo-user-id`).
 - npm publishing of `@emi/core` / `@emi/create-chat-app`.
 - Discord `/ask` free-form chat (see `plans/discord-bot.md`).
+- Discord linking **ops ship**: GymData adopt + migrate + register + smoke blocked on Cloudflare
+  auth (`wrangler login`). Exact adopt command: `pnpm discord:deploy:adopt` — see
+  `plans/discord-bot.md` decisions log. Do not invent a second D1.
 
 ## Guardrails
 

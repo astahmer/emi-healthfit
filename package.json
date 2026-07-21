@@ -28,6 +28,7 @@
     "fixture:chat-app": "node --experimental-strip-types scripts/generate-chat-app-fixture.mjs",
     "discord:dev": "pnpm --filter @emi/discord-bot dev",
     "discord:deploy": "pnpm --filter @emi/discord-bot deploy",
+    "discord:deploy:adopt": "pnpm --filter @emi/discord-bot deploy:adopt",
     "discord:register": "pnpm --filter @emi/discord-bot register",
     "slop:check": "node scripts/run-ast-grep.mjs scan",
     "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
