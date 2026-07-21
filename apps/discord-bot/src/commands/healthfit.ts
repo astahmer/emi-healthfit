@@ -1,34 +1,84 @@
-import type { ApplicationCommandInteraction, DiscordHttpResponse } from "@emi/transport-discord";
-import { ephemeralMessageResponse } from "@emi/transport-discord";
-
-/**
- * Account linking (Settings-issued one-time codes, `discord_account_links` /
- * `discord_link_codes` tables) has not shipped yet. Every data command must fail closed rather
- * than guess an owner id, so each subcommand below returns a fixed "not linked" message instead
- * of touching any database. Wiring a real link lookup here is the follow-up to this MVP.
- */
-const NOT_LINKED_MESSAGE =
-  "Your Discord account isn't linked to Emi HealthFit yet. Account linking isn't available in this build — check back once Settings supports it.";
+import type { ApplicationCommandInteraction, DiscordHttpResponse } from "@emi/core/discord";
+import * as Effect from "effect/Effect";
+import {
+  checkDiscordRateLimit,
+  discordUserIdOf,
+  ephemeralContent,
+  optionString,
+  type HealthfitCommandServices,
+} from "./limits.ts";
 
 const topLevelSubcommand = (interaction: ApplicationCommandInteraction): string | undefined =>
   interaction.data.options?.[0]?.name;
 
+const requireLinkedUserId = (
+  services: HealthfitCommandServices,
+  discordUserId: string,
+): Effect.Effect<string | DiscordHttpResponse> =>
+  Effect.gen(function* () {
+    const userId = yield* services.getLinkedUserId(discordUserId);
+    if (userId === null) {
+      return ephemeralContent(
+        "Your Discord account isn't linked to Emi HealthFit yet. Generate a code in Settings, then run `/healthfit link code:<code>`.",
+      );
+    }
+    return userId;
+  });
+
 export const handleHealthfitCommand = (
   interaction: ApplicationCommandInteraction,
-): DiscordHttpResponse => {
-  const subcommand = topLevelSubcommand(interaction);
-  switch (subcommand) {
-    case "summary":
-    case "last-workout":
-    case "recovery":
-      return ephemeralMessageResponse(NOT_LINKED_MESSAGE);
-    case "unlink":
-      return ephemeralMessageResponse("No linked Discord account to unlink.");
-    case "link":
-      return ephemeralMessageResponse(
-        "Linking codes are generated from Settings, which isn't available yet. Try again once account linking ships.",
-      );
-    default:
-      return ephemeralMessageResponse("Unknown /healthfit subcommand.");
-  }
-};
+  services: HealthfitCommandServices,
+): Effect.Effect<DiscordHttpResponse> =>
+  Effect.gen(function* () {
+    const discordUserId = discordUserIdOf(interaction);
+    if (discordUserId === undefined) {
+      return ephemeralContent("Could not determine the Discord user for this interaction.");
+    }
+    if (!checkDiscordRateLimit(discordUserId)) {
+      return ephemeralContent("Rate limit exceeded. Try again in a minute.");
+    }
+
+    const subcommand = topLevelSubcommand(interaction);
+    switch (subcommand) {
+      case "link": {
+        const code = optionString(interaction, "code");
+        if (code === undefined || code.trim() === "") {
+          return ephemeralContent("Provide a code from Settings: `/healthfit link code:<code>`.");
+        }
+        const result = yield* services.consumeLinkCode({ code, discordUserId });
+        if (!result.ok) {
+          if (result.reason === "expired")
+            return ephemeralContent("That link code has expired. Generate a new one in Settings.");
+          if (result.reason === "consumed")
+            return ephemeralContent(
+              "That link code was already used. Generate a new one in Settings.",
+            );
+          return ephemeralContent("That link code is invalid. Generate a new one in Settings.");
+        }
+        return ephemeralContent(
+          "Linked. You can now use `/healthfit summary`, `last-workout`, and `recovery`.",
+        );
+      }
+      case "unlink": {
+        const removed = yield* services.unlinkDiscordUser(discordUserId);
+        return ephemeralContent(
+          removed
+            ? "Unlinked. HealthFit data commands will stop working until you link again."
+            : "No linked Discord account to unlink.",
+        );
+      }
+      case "summary":
+      case "last-workout":
+      case "recovery": {
+        const linked = yield* requireLinkedUserId(services, discordUserId);
+        if (typeof linked !== "string") return linked;
+        if (subcommand === "summary")
+          return ephemeralContent(yield* services.formatSummary(linked));
+        if (subcommand === "last-workout")
+          return ephemeralContent(yield* services.formatLastWorkout(linked));
+        return ephemeralContent(yield* services.formatRecovery(linked));
+      }
+      default:
+        return ephemeralContent("Unknown /healthfit subcommand.");
+    }
+  });

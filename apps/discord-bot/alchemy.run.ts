@@ -11,6 +11,9 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
+    // GymData is owned by the API stack (migrations live there). This worker binds the same
+    // logical D1 name via `Cloudflare.D1.Database("GymData")` in the worker module. First
+    // deploy against an existing database may need Alchemy adopt for that binding.
     const worker = yield* DiscordBotWorker;
 
     return {
