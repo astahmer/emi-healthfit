@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { Kysely, SqliteDialect, type Compilable } from "kysely";
@@ -31,8 +31,19 @@ const schemaDdl = `
   );
 `;
 
-const normalizeParameter = (value: unknown): unknown =>
-  typeof value === "boolean" ? Number(value) : value;
+const normalizeParameter = (value: unknown): SQLInputValue => {
+  if (typeof value === "boolean") return Number(value);
+  if (
+    value === null ||
+    typeof value === "number" ||
+    typeof value === "bigint" ||
+    typeof value === "string" ||
+    value instanceof Uint8Array
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported SQLite parameter: ${typeof value}`);
+};
 
 class NodeSqliteStatementAdapter implements SqliteStatement {
   readonly reader: boolean;

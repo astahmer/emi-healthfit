@@ -1,4 +1,5 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import type { D1Database } from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import { Kysely, type Compilable } from "kysely";
 import { D1Dialect } from "kysely-d1";
