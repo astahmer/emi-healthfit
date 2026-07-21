@@ -6,6 +6,7 @@ import {
   conversationPayload,
   conversations as defaultConversations,
   emptyAnalyticsOverview,
+  type MockAnalyticsOverview,
 } from "./fixtures.ts";
 
 export type MockConversation = {
@@ -147,7 +148,7 @@ export type MockApiState = {
     lastConnectApiKey: string | null;
     syncCalls: number;
   };
-  analytics: typeof emptyAnalyticsOverview;
+  analytics: MockAnalyticsOverview;
   ingest: {
     calls: number;
     lastHealthName: string | null;

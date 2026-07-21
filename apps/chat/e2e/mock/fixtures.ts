@@ -95,7 +95,46 @@ export const authSessionBody = {
   },
 };
 
-export const emptyAnalyticsOverview = {
+export type MockAnalyticsOverview = {
+  days: number;
+  activity: Array<{
+    date: string;
+    steps: number | null;
+    active_kcal: number | null;
+    exercise_min: number | null;
+  }>;
+  sleep: Array<{
+    date: string;
+    asleep_min: number | null;
+    in_bed_min: number | null;
+  }>;
+  training: Array<{
+    date: string;
+    workouts: number;
+    volume_kg: number | null;
+    duration_sec: number | null;
+  }>;
+  body: Array<{
+    date: string;
+    weight_kg: number | null;
+    body_fat_pct: number | null;
+    lean_mass_kg: number | null;
+  }>;
+  exercises: Array<{
+    exercise_title: string;
+    sets: number;
+    volume_kg: number;
+  }>;
+  highlights: {
+    averageSteps: number | null;
+    averageSleepMinutes: number | null;
+    workouts: number;
+    trainingVolumeKg: number;
+    weightChangeKg: number | null;
+  };
+};
+
+export const emptyAnalyticsOverview: MockAnalyticsOverview = {
   days: 90,
   activity: [],
   sleep: [],
