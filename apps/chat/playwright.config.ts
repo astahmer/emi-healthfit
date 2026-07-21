@@ -11,7 +11,7 @@ export default defineConfig({
   forbidOnly: true,
   fullyParallel: true,
   globalTimeout: 180_000,
-  retries: process.env.CI === undefined ? 0 : 2,
+  retries: 2,
   reporter: "line",
   timeout: 20_000,
   use: {

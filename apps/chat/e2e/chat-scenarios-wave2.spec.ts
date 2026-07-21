@@ -158,10 +158,10 @@ test("sends an attachment with the chat request", async ({ page }) => {
   expect(filePart?.mediaType).toBe("image/png");
 });
 
-test("blocks concurrent submit while streaming", async ({ page }) => {
+test("cancels the in-flight stream when sending another message", async ({ page }) => {
   const mock = createChatMock({
     state: {
-      chat: { replyText: "Only one stream" },
+      chat: { persist: true, replyText: "Second reply" },
       snapshots: { one: sessionOneSnapshot() },
     },
   });
@@ -172,12 +172,37 @@ test("blocks concurrent submit while streaming", async ({ page }) => {
   await page.getByLabel("Send message").click();
   await expect(page.getByLabel("Stop generating")).toBeVisible();
 
-  await page.getByLabel("Message input").fill("Second should not send");
-  await page.getByLabel("Message input").press("Enter");
-  expect(mock.state.chat.calls).toBe(1);
+  await page.getByLabel("Message input").fill("Second question");
+  await expect(page.getByLabel("Send message")).toBeVisible();
+  await page.getByLabel("Send message").click();
+  expect(mock.state.chat.calls).toBe(2);
+
+  mock.releaseChat();
+  await expect(page.getByText("Second question")).toBeVisible();
+  await expect(page.getByText("Second reply").last()).toBeVisible();
+});
+
+test("keeps composer draft text while a response is streaming", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      chat: { replyText: "Eventually done" },
+      snapshots: { one: sessionOneSnapshot() },
+    },
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("First");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+
+  await page.getByLabel("Message input").fill("Typed while streaming");
+  await expect(page.getByLabel("Message input")).toHaveValue("Typed while streaming");
+  await expect(page.getByLabel("Send message")).toBeVisible();
 
   mock.releaseChat();
   await expect(page.getByLabel("Send message")).toBeVisible();
+  await expect(page.getByLabel("Message input")).toHaveValue("Typed while streaming");
 });
 
 test("continues as guest into chat", async ({ page }) => {
@@ -302,7 +327,7 @@ test("renders multi-tool success and tool-error from a stream", async ({ page })
 
   const toolsMessage = page.locator("[id^='message-one-assistant-']").last();
   await expect(toolsMessage.getByText("get recovery")).toBeVisible();
-  await expect(toolsMessage.getByText("query database")).toBeVisible();
+  await expect(toolsMessage.getByText("get workout history")).toBeVisible();
   await expect(toolsMessage.getByText("Completed")).toBeVisible();
   await expect(toolsMessage.getByText("Failed")).toBeVisible();
   await expect(toolsMessage.getByText("Mixed tools done")).toBeVisible();

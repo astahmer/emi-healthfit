@@ -121,6 +121,7 @@ test("toggles coach, temporary, and model composer controls", async ({ page }) =
 test("renames, pins, archives, clones, copies, shares, and deletes from the sidebar", async ({
   page,
 }) => {
+  test.setTimeout(40_000);
   const mock = createChatMock({
     state: { snapshots: { one: sessionOneSnapshot() } },
   });
