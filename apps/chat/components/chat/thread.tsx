@@ -24,6 +24,7 @@ import { useMachine } from "@xstate/react";
 import { assign, setup } from "xstate";
 import {
   MessagePart,
+  SuggestionChips,
   type ComposerControls as CoreComposerControls,
   type MessagePartValue,
 } from "@emi/core/web";
@@ -173,19 +174,12 @@ const FollowUpSuggestions = () => {
 
   if (query.data === undefined || query.data.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-2 pl-3">
-      {query.data.map((suggestion) => (
-        <Button
-          key={suggestion}
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-auto rounded-full whitespace-normal"
-          onClick={() => void runtime.submit(suggestion)}
-        >
-          {suggestion}
-        </Button>
-      ))}
+    <div className="pl-3">
+      <SuggestionChips
+        suggestions={query.data}
+        disabled={runtime.isStreaming}
+        onSelect={(suggestion) => void runtime.submit(suggestion)}
+      />
     </div>
   );
 };
