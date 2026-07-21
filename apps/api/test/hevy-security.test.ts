@@ -79,13 +79,13 @@ describe("Hevy secret hygiene and ownership", () => {
 
     const connected = await run(
       connectHevy({
-        db,
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
         userId: "user-1",
         apiKey: SECRET_KEY,
         environment,
       }),
     );
-    const status = await run(getHevyIntegrationStatus({ db, userId: "user-1" }));
+    const status = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" }));
     const exported = await run(
       getIngestedDataExport({
         db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
@@ -100,7 +100,7 @@ describe("Hevy secret hygiene and ownership", () => {
       }),
     );
 
-    const connection = await run(getHevyConnection({ db, userId: "user-1" }));
+    const connection = await run(getHevyConnection({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" }));
     assert.ok(connection);
     assert.notEqual(connection.encrypted_api_key, SECRET_KEY);
     assert.equal(connection.encrypted_api_key.includes(SECRET_KEY), false);
@@ -125,7 +125,7 @@ describe("Hevy secret hygiene and ownership", () => {
     });
     await run(
       connectHevy({
-        db,
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
         userId: "alice",
         apiKey: "alice-key",
         environment,
@@ -139,15 +139,15 @@ describe("Hevy secret hygiene and ownership", () => {
     });
     await run(
       connectHevy({
-        db,
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
         userId: "bob",
         apiKey: "bob-key",
         environment,
       }),
     );
 
-    const aliceStatus = await run(getHevyIntegrationStatus({ db, userId: "alice" }));
-    const bobStatus = await run(getHevyIntegrationStatus({ db, userId: "bob" }));
+    const aliceStatus = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "alice" }));
+    const bobStatus = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "bob" }));
     assert.equal(aliceStatus.providerUserId, "alice-hevy");
     assert.equal(bobStatus.providerUserId, "bob-hevy");
 
@@ -166,8 +166,8 @@ describe("Hevy secret hygiene and ownership", () => {
       ["Bob Pull"],
     );
 
-    const aliceConnection = await run(getHevyConnection({ db, userId: "alice" }));
-    const bobConnection = await run(getHevyConnection({ db, userId: "bob" }));
+    const aliceConnection = await run(getHevyConnection({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "alice" }));
+    const bobConnection = await run(getHevyConnection({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "bob" }));
     assert.ok(aliceConnection);
     assert.ok(bobConnection);
     assert.notEqual(aliceConnection.encrypted_api_key, bobConnection.encrypted_api_key);
@@ -186,7 +186,7 @@ describe("Hevy secret hygiene and ownership", () => {
       userName: "Alice",
       workouts: [],
     });
-    const aliceSync = await run(syncHevy({ db, userId: "alice", environment, force: true }));
+    const aliceSync = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "alice", environment, force: true }));
     assert.ok(aliceSync.mode === "incremental" || aliceSync.mode === "skipped_fresh");
     const bobAfterAliceSync = await run(
       getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "bob"),

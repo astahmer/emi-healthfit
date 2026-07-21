@@ -102,7 +102,7 @@ export const analyticsHandlers = ({
       Effect.fn("httpApi.analytics.overview")(
         function* ({ query }) {
           const user = yield* CurrentUser;
-          yield* ensureHevyFresh({ db, userId: user.id, environment });
+          yield* ensureHevyFresh({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: user.id, environment });
           return yield* getAnalyticsOverview({
             db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
             userId: user.id,
@@ -220,7 +220,7 @@ export const workoutsHandlers = ({
       Effect.fn("httpApi.workouts.list")(
         function* () {
           const user = yield* CurrentUser;
-          yield* ensureHevyFresh({ db, userId: user.id, environment });
+          yield* ensureHevyFresh({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: user.id, environment });
           const workouts = yield* getWorkouts(
             narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
             user.id,

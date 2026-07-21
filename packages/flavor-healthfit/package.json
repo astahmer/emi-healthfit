@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "hevy:client": "node --experimental-strip-types ./scripts/generate-hevy-client.ts",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
     "lint": "oxlint && oxfmt --check",

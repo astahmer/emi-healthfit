@@ -8,4 +8,5 @@ export * from "./db/schema.ts";
 export * from "./ingest/data-transfer.ts";
 export * from "./ingest/health.ts";
 export * from "./ingest/hevy.ts";
+export * from "./integrations/hevy/index.ts";
 export * from "./tools/api.ts";

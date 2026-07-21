@@ -174,7 +174,7 @@ export const handleIngest = (
 export const handleRecovery = (db: QueryDatabaseClient, environment: Record<string, unknown>) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
-    yield* ensureHevyFresh({ db, userId: user.id, environment });
+    yield* ensureHevyFresh({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: user.id, environment });
     const ctx = yield* buildChatContext(
       narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
       user.id,
@@ -203,7 +203,7 @@ export const handleSummary = (db: QueryDatabaseClient, environment: Record<strin
       return yield* HttpServerResponse.json(cached);
     }
 
-    yield* ensureHevyFresh({ db, userId: user.id, environment });
+    yield* ensureHevyFresh({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: user.id, environment });
     const summary = yield* getDataSummary(
       narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
       user.id,

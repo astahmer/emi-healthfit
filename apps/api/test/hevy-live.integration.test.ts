@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 import {
   connectHevy,
@@ -52,7 +54,7 @@ describe("Hevy live sync smoke", () => {
 
       const connected = await run(
         connectHevy({
-          db,
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
           userId,
           apiKey: hevyApiKey,
           environment,
@@ -61,7 +63,7 @@ describe("Hevy live sync smoke", () => {
       assert.ok(connected.mode === "initial" || connected.mode === "skipped_busy");
       assert.equal(connected.lastErrorCode, null);
 
-      const forced = await run(syncHevy({ db, userId, environment, force: true }));
+      const forced = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId, environment, force: true }));
       assert.ok(
         forced.mode === "initial" ||
           forced.mode === "incremental" ||
@@ -70,7 +72,7 @@ describe("Hevy live sync smoke", () => {
       );
       assert.equal(forced.lastErrorCode, null);
 
-      const status = await run(getHevyIntegrationStatus({ db, userId }));
+      const status = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId }));
       assert.equal(status.connected, true);
       assert.ok(status.lastSuccessAt !== null || connected.mode === "skipped_busy");
 

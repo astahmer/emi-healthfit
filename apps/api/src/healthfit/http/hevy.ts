@@ -1,11 +1,15 @@
 import { BadRequest, EmiApi } from "@emi/core/contract";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { CurrentUser } from "../../core/auth/request-auth.ts";
 import { deleteIngestedSource } from "../db/ingested-data.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import {
+  narrowQueryDatabaseClient,
+  type QueryDatabaseClient,
+} from "../../platform/db/client.ts";
 import { deleteRawUploads } from "./data.ts";
 import { withInternalError } from "../../core/http/errors.ts";
 import {
@@ -47,15 +51,16 @@ export const hevyHandlers = ({
   db: QueryDatabaseClient;
   environment: Record<string, unknown>;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "hevy", (handlers) =>
+}) => {
+  const hevyDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "hevy", (handlers) =>
     handlers
       .handle(
         "status",
         Effect.fn("httpApi.hevy.status")(
           function* () {
             const user = yield* CurrentUser;
-            return yield* getHevyIntegrationStatus({ db, userId: user.id });
+            return yield* getHevyIntegrationStatus({ db: hevyDb, userId: user.id });
           },
           withInternalError,
           Effect.provide(runtimeContext),
@@ -67,12 +72,12 @@ export const hevyHandlers = ({
           function* ({ payload }) {
             const user = yield* CurrentUser;
             const connected = yield* connectHevy({
-              db,
+              db: hevyDb,
               userId: user.id,
               apiKey: payload.apiKey,
               environment,
             }).pipe(Effect.mapError(mapHevyError));
-            const status = yield* getHevyIntegrationStatus({ db, userId: user.id });
+            const status = yield* getHevyIntegrationStatus({ db: hevyDb, userId: user.id });
             const { providerUserName, ...sync } = connected;
             return {
               status,
@@ -90,7 +95,7 @@ export const hevyHandlers = ({
           function* () {
             const user = yield* CurrentUser;
             return yield* syncHevy({
-              db,
+              db: hevyDb,
               userId: user.id,
               environment,
               force: true,
@@ -105,7 +110,7 @@ export const hevyHandlers = ({
         Effect.fn("httpApi.hevy.disconnect")(
           function* () {
             const user = yield* CurrentUser;
-            yield* disconnectHevy({ db, userId: user.id });
+            yield* disconnectHevy({ db: hevyDb, userId: user.id });
             return { success: true as const };
           },
           withInternalError,
@@ -129,3 +134,4 @@ export const hevyHandlers = ({
         ),
       ),
   );
+};

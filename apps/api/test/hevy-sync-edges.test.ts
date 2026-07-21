@@ -5,6 +5,8 @@ import { makeSqliteDatabase, run } from "./sqlite.ts";
 import { encryptHevyApiKey } from "../src/healthfit/integrations/hevy/credential-crypto.ts";
 import { upsertHevyConnection } from "../src/healthfit/integrations/hevy/hevy-store.ts";
 import { connectHevy, syncHevy } from "../src/healthfit/integrations/hevy/hevy-sync.ts";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -46,7 +48,7 @@ const seedConnectedUser = async ({
   );
   await run(
     upsertHevyConnection({
-      db,
+      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
       userId,
       providerUserId: "u1",
       envelope,
@@ -90,7 +92,7 @@ describe("Hevy sync edge cases", () => {
 
     const connected = await run(
       connectHevy({
-        db,
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
         userId: "user-1",
         apiKey: "hevy-test-key",
         environment,
@@ -142,7 +144,7 @@ describe("Hevy sync edge cases", () => {
       return new Response("should not fetch", { status: 500 });
     };
 
-    const summary = await run(syncHevy({ db, userId: "user-1", environment, force: true }));
+    const summary = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true }));
     assert.equal(summary.mode, "skipped_busy");
     assert.equal(fetchCalls, 0);
   });
@@ -171,7 +173,7 @@ describe("Hevy sync edge cases", () => {
       return new Response("not found", { status: 404 });
     };
 
-    await assert.rejects(() => run(syncHevy({ db, userId: "user-1", environment, force: true })));
+    await assert.rejects(() => run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true })));
 
     const kysely = await run(db.kysely);
     const state = await kysely
@@ -218,7 +220,7 @@ describe("Hevy sync edge cases", () => {
 
     globalThis.fetch = async () => new Response("unauthorized", { status: 401 });
 
-    await assert.rejects(() => run(syncHevy({ db, userId: "user-1", environment, force: true })));
+    await assert.rejects(() => run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true })));
 
     const state = await kysely
       .selectFrom("hevy_sync_state")

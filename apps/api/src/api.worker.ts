@@ -88,7 +88,11 @@ export default Api.make(
       yield* router.add("POST", "/api/chat", (request) =>
         handleAiSdkChat(db, request, env, {
           beforeChat: ({ db: chatDb, userId, environment }) =>
-            ensureHevyFresh({ db: chatDb, userId, environment }),
+            ensureHevyFresh({
+              db: chatDb as unknown as Parameters<typeof ensureHevyFresh>[0]["db"],
+              userId,
+              environment,
+            }),
           coachSystemPrompt: composeSystemPrompt(healthFitAppDefinition.promptContributors),
           tools: healthFitAppDefinition.tools ?? [],
           // `executeHealthfitTool`'s `db` is scoped to the flavor package's own
