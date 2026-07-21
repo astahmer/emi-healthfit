@@ -394,6 +394,7 @@ const ChatMessage = ({
   onReferenceMessage,
   error,
   onRetry,
+  retryDisabled = false,
 }: {
   message: UIMessage;
   isStreaming: boolean;
@@ -410,6 +411,7 @@ const ChatMessage = ({
   onReferenceMessage?: (messageId: string) => void;
   error?: Error;
   onRetry?: (messageId: string) => void;
+  retryDisabled?: boolean;
 }) => {
   const isUser = message.role === "user";
   const feedback = useActionFeedback();
@@ -505,10 +507,11 @@ const ChatMessage = ({
             {onRetry !== undefined && (
               <button
                 type="button"
-                className="ms-auto cursor-pointer font-medium underline"
+                className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={retryDisabled}
                 onClick={() => onRetry(message.id)}
               >
-                Retry this request
+                {retryDisabled ? "Retrying…" : "Retry this request"}
               </button>
             )}
           </div>
@@ -553,6 +556,7 @@ const ChatMessage = ({
               side="top"
               type="button"
               aria-label="Regenerate response"
+              disabled={retryDisabled}
               onClick={() => onRegenerate(message.id)}
             >
               <RefreshCwIcon className="size-3.5" />
@@ -819,6 +823,7 @@ export const Thread = ({
                         : undefined
                     }
                     onRetry={(messageId) => void runtime.revise({ messageId })}
+                    retryDisabled={runtime.isRetrying || runtime.isStreaming}
                   />
                 ))}
                 {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
@@ -907,23 +912,25 @@ export const Thread = ({
               {runtime.orphanMessageId !== undefined ? (
                 <button
                   type="button"
-                  className="ms-auto cursor-pointer font-medium underline"
+                  className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={runtime.isRetrying || runtime.isStreaming}
                   onClick={() => void runtime.retryOrphan()}
                 >
-                  Retry previous request
+                  {runtime.isRetrying ? "Retrying…" : "Retry previous request"}
                 </button>
               ) : (
                 runtime.messages.some((message) => message.role === "user") && (
                   <button
                     type="button"
-                    className="ms-auto cursor-pointer font-medium underline"
+                    className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={runtime.isRetrying || runtime.isStreaming}
                     onClick={() => {
                       const lastMessage = runtime.messages.at(-1);
                       if (lastMessage !== undefined)
                         void runtime.revise({ messageId: lastMessage.id });
                     }}
                   >
-                    Retry last turn
+                    {runtime.isRetrying ? "Retrying…" : "Retry last turn"}
                   </button>
                 )
               )}
@@ -1026,15 +1033,33 @@ export const Thread = ({
               <span className="hidden sm:inline">{canKeepTemporary ? "Keep" : "Temporary"}</span>
             </Button>
             <TooltipIconButton
-              tooltip={runtime.isStreaming ? "Stop generating" : "Send message"}
+              tooltip={
+                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                  ? "Stop generating"
+                  : runtime.isStreaming
+                    ? "Stop and send"
+                    : "Send message"
+              }
               side="top"
-              type={runtime.isStreaming ? "button" : "submit"}
+              type={
+                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                  ? "button"
+                  : "submit"
+              }
               variant="default"
               className="ms-auto size-9 shrink-0 rounded-full"
-              onClick={runtime.isStreaming ? runtime.stop : undefined}
-              aria-label={runtime.isStreaming ? "Stop generating" : "Send message"}
+              onClick={
+                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                  ? runtime.stop
+                  : undefined
+              }
+              aria-label={
+                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                  ? "Stop generating"
+                  : "Send message"
+              }
             >
-              {runtime.isStreaming ? (
+              {runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (
                 <SquareIcon className="size-4" />
               ) : (
                 <ArrowUpIcon className="size-4" />

@@ -74,7 +74,7 @@ export const ChatRuntimeProvider = ({
     onHistoryChanged,
     recordClientEvent,
   });
-  const { submit, revise, retryOrphan } = useChatSubmission({
+  const { submit, revise, retryOrphan, isRetrying } = useChatSubmission({
     config,
     settings,
     notes,
@@ -140,6 +140,7 @@ export const ChatRuntimeProvider = ({
           ? state.context.error.orphanMessageId
           : undefined,
       retryOrphan,
+      isRetrying,
       stop: () => {
         recordClientEvent("client.stopped");
         abortControllerRef.current?.abort();
@@ -153,6 +154,7 @@ export const ChatRuntimeProvider = ({
     config.sessionId,
     config.temporary,
     isPreparingAttachments,
+    isRetrying,
     recordClientEvent,
     retryOrphan,
     revise,

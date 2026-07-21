@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { useCallback, type MutableRefObject } from "react";
+import { useCallback, useRef, useState, type MutableRefObject } from "react";
 import { type EventFrom, type SnapshotFrom } from "xstate";
 import { runApi } from "../api-client";
 import { notifyConversationsChanged } from "../conversation-events";
@@ -45,8 +45,11 @@ export const useChatSubmission = ({
   transport: ChatTransport;
   synchronizePersistedHistory: (sessionId: string) => Promise<ConversationSnapshot>;
   onSessionCreated?: (id: string) => void;
-  recordClientEvent: (type: "client.disconnected" | "client.retried") => void;
+  recordClientEvent: (type: "client.disconnected" | "client.stopped" | "client.retried") => void;
 }) => {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryInFlightRef = useRef(false);
+
   const autoSaveAssistantMemories = useCallback(
     async ({ sessionId, snapshot }: { sessionId: string; snapshot: ConversationSnapshot }) => {
       if (config.temporary) return;
@@ -77,6 +80,15 @@ export const useChatSubmission = ({
     [config.model, config.temporary, settings.apiKey, settings.baseUrl],
   );
 
+  const cancelActiveGeneration = useCallback(() => {
+    if (!stateRef.current.matches("streaming") && abortControllerRef.current === null) return;
+    recordClientEvent("client.stopped");
+    operationRef.current += 1;
+    abortControllerRef.current?.abort();
+    cancelStreamRef.current?.();
+    abortControllerRef.current = null;
+  }, [abortControllerRef, cancelStreamRef, operationRef, recordClientEvent, stateRef]);
+
   const submitMessage = useCallback(
     async ({
       text,
@@ -87,10 +99,11 @@ export const useChatSubmission = ({
       parts?: UIMessage["parts"];
       replaceMessageId?: string;
     }) => {
-      if (stateRef.current.matches("streaming")) return;
       const content = (text ?? stateRef.current.context.draft).trim();
       if (parts === undefined && content === "" && stateRef.current.context.files.length === 0)
         return;
+
+      cancelActiveGeneration();
 
       let sessionId = config.sessionId;
       if (sessionId === undefined) {
@@ -175,6 +188,7 @@ export const useChatSubmission = ({
     [
       abortControllerRef,
       autoSaveAssistantMemories,
+      cancelActiveGeneration,
       cancelStreamRef,
       config.coachMode,
       config.model,
@@ -208,6 +222,10 @@ export const useChatSubmission = ({
         .findLast((message) => message.role === "user");
       const sessionId = config.sessionId;
       if (userMessage === undefined || sessionId === undefined || config.temporary) return;
+      if (retryInFlightRef.current) return;
+
+      retryInFlightRef.current = true;
+      setIsRetrying(true);
 
       const parts: UIMessage["parts"] =
         text === undefined
@@ -217,6 +235,7 @@ export const useChatSubmission = ({
               ...userMessage.parts.filter((part) => part.type === "file"),
             ];
       try {
+        cancelActiveGeneration();
         await runApi((client) =>
           client.conversations.reviseMessage({
             params: { id: sessionId, messageId: userMessage.id },
@@ -231,9 +250,13 @@ export const useChatSubmission = ({
           error: error instanceof Error ? error : new Error(String(error)),
           messageId: userMessage.id,
         });
+      } finally {
+        retryInFlightRef.current = false;
+        setIsRetrying(false);
       }
     },
     [
+      cancelActiveGeneration,
       config.sessionId,
       config.temporary,
       config.threadId,
@@ -250,5 +273,5 @@ export const useChatSubmission = ({
     await revise({ messageId: error.orphanMessageId });
   }, [revise, stateRef]);
 
-  return { submit, revise, retryOrphan };
+  return { submit, revise, retryOrphan, isRetrying };
 };

@@ -29,6 +29,7 @@ export interface ChatRuntimeValue {
   revise: (options: { messageId: string; text?: string }) => Promise<void>;
   orphanMessageId: string | undefined;
   retryOrphan: () => Promise<void>;
+  isRetrying: boolean;
   stop: () => void;
   clearError: () => void;
 }

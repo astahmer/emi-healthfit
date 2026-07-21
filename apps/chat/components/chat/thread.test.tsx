@@ -63,6 +63,7 @@ describe("Thread", () => {
       clearError: vi.fn(),
       orphanMessageId: undefined,
       retryOrphan: vi.fn(),
+      isRetrying: false,
     });
   });
 
@@ -288,6 +289,44 @@ describe("Thread", () => {
     await user.click(view.getByRole("button", { name: "Retry this request" }));
 
     expect(vi.mocked(useChatRuntime)().revise).toHaveBeenCalledWith({ messageId: message.id });
+  });
+
+  it("disables retry while a retry is already in flight", () => {
+    const message: MessageWithUsage = {
+      id: "user-failed",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      error: new Error("Generation timed out"),
+      errorMessageId: message.id,
+      isRetrying: true,
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByRole("button", { name: "Retrying…" })).toBeDisabled();
+  });
+
+  it("shows Send instead of Stop when drafting during an in-flight generation", () => {
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Working…" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: true,
+      draft: "interrupt with this",
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByLabelText("Send message")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Stop generating")).not.toBeInTheDocument();
   });
 
   it("shows composer retry-last-turn and dismiss when error is not bound to a message", async () => {
