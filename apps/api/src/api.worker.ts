@@ -10,7 +10,9 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { authenticateWorkerFetch, isProtectedPath } from "./core/auth/request-auth.ts";
-import { makeQueryDatabaseClient } from "./platform/db/client.ts";
+import { handleDiscordAsk } from "./core/http/discord-ask.ts";
+import { makeQueryDatabaseClient, narrowQueryDatabaseClient } from "./platform/db/client.ts";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import {
   handleAiSdkChat,
   handleChatResume,
@@ -65,6 +67,8 @@ export default Api.make(
       GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET"),
       ALLOWED_EMAILS: Config.redacted("ALLOWED_EMAILS"),
       HEVY_CREDENTIAL_ENCRYPTION_KEY: Config.redacted("HEVY_CREDENTIAL_ENCRYPTION_KEY"),
+      OPENAI_API_KEY: Config.redacted("OPENAI_API_KEY"),
+      DISCORD_INTERNAL_ASK_SECRET: Config.redacted("DISCORD_INTERNAL_ASK_SECRET"),
     },
     observability: {
       enabled: true,
@@ -127,6 +131,17 @@ export default Api.make(
       yield* router.add("GET", "/api/conversations/:conversationId/diagnostics", (request) =>
         cors({ request, effect: handleConversationDiagnostics(db, request) }),
       );
+      yield* router.add("POST", "/api/discord/ask", (request) =>
+        handleDiscordAsk({
+          db: narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+          environment: env,
+          request,
+        }).pipe(
+          Effect.catch((error) =>
+            HttpServerResponse.json({ error: String(error) }, { status: 500 }),
+          ),
+        ),
+      );
       yield* registerHttpApi({ bucket, db, environment: env, router });
       yield* router.add("*", "/*", (request) => {
         if (request.method === "OPTIONS") return handleCorsPreflight(request);
@@ -141,7 +156,8 @@ export default Api.make(
         return yield* authenticateWorkerFetch({
           db,
           environment: env,
-          isProtectedPath,
+          isProtectedPath: (pathname) =>
+            isProtectedPath(pathname) && pathname !== "/api/discord/ask",
           policy: "google-allowlist",
           request,
           route: router.asHttpEffect(),
