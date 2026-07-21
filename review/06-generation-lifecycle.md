@@ -32,8 +32,9 @@ One-active unique index on `chat_generations` made Stop/Send-again deadlock with
 - **Comment:** `if (!isTemporary) { cancelRunning…; createGeneration… }` is correct — no unique-index pressure for `temp_*`.
 
 ### C-054 — Race: cancelRunning then create still unique-index collide?
-- **Status:** open
+- **Status:** resolved (store tests); open (HTTP 409 mapping)
 - **Introduced:** `zwyoxkqn`
+- **Resolved in:** review follow-up — cancel-then-create + second-active UNIQUE rejection integration tests
 - **Severity:** low
-- **Files:** `generation-store.ts`, `chat-generation-lifecycle.ts`
-- **Comment:** Two concurrent POSTs for the same conversation could both cancel then both insert if not transactional. D1/SQLite uniqueness would fail one request — client should surface conflict. Confirm HTTP mapping for unique violations is user-friendly (409), and add a focused concurrency test if missing.
+- **Files:** `generation-store.ts`, `generation-store.integration.test.ts`
+- **Comment:** Store semantics verified. Remaining: ensure Worker maps unique violations to the existing generation-already-running 409 parser end-to-end under true concurrency.

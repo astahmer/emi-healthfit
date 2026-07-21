@@ -27,11 +27,12 @@ Ownership gates → API split → core-contract/server/web/cloudflare/discord pa
 - **Comment:** Same theme as C-021: TS re-exports are clean; non-TS assets (docs, openapi JSON under `apps/api`) still duplicate. Not a runtime bug.
 
 ### C-043 — Demo `x-demo-user-id` header still available
-- **Status:** open (accepted risk if env-gated)
+- **Status:** resolved (tests); open (prod env assertion)
 - **Introduced:** pre-range / retained in `ptvqksrw` extract
-- **Severity:** medium (ops)
-- **Files:** `packages/core/src/cloudflare/auth/request-auth.ts`
-- **Comment:** Gated on `ALLOW_DEMO_USER_HEADER === "1"`. Confirm prod Alchemy env never sets this. Worth an explicit assert in deploy docs / setup check. Auth tests should cover “flag off → header ignored”.
+- **Resolved in:** review follow-up — `readDemoPrincipalFromHeader` unit tests (flag off ignores header)
+- **Severity:** medium (ops) → low
+- **Files:** `packages/core/src/cloudflare/auth/request-auth.ts`, `packages/core/test/cloudflare/demo-principal.test.ts`
+- **Comment:** Behavior covered. Still confirm Alchemy prod never sets `ALLOW_DEMO_USER_HEADER=1`.
 
 ### C-044 — Generic worker vs HealthFit composition
 - **Status:** open (deferred product work)
