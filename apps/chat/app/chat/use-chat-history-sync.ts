@@ -11,6 +11,14 @@ import { consumeAssistantStream, type ChatTransport } from "./chat-transport";
 type ChatRuntimeSnapshot = SnapshotFrom<typeof chatRuntimeMachine>;
 type ChatRuntimeEvent = EventFrom<typeof chatRuntimeMachine>;
 
+export const shouldApplyHistoryChange = ({
+  historyReady,
+  isStreamingSameSession,
+}: {
+  historyReady: boolean;
+  isStreamingSameSession: boolean;
+}): boolean => historyReady && !isStreamingSameSession;
+
 export const useChatHistorySync = ({
   config,
   stateRef,
@@ -57,13 +65,18 @@ export const useChatHistorySync = ({
 
   useLayoutEffect(() => {
     if (historySignatureRef.current === historySignature) return;
-    historySignatureRef.current = historySignature;
-    if (
+    const isStreamingSameSession =
       stateRef.current.matches("streaming") &&
-      stateRef.current.context.sessionId === config.sessionId
+      stateRef.current.context.sessionId === config.sessionId;
+    if (
+      !shouldApplyHistoryChange({
+        historyReady: config.historyReady,
+        isStreamingSameSession,
+      })
     ) {
       return;
     }
+    historySignatureRef.current = historySignature;
     operationRef.current += 1;
     abortControllerRef.current?.abort();
     cancelStreamRef.current?.();
@@ -75,6 +88,7 @@ export const useChatHistorySync = ({
   }, [
     abortControllerRef,
     cancelStreamRef,
+    config.historyReady,
     config.initialMessages,
     config.sessionId,
     historySignature,
