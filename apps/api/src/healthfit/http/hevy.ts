@@ -6,10 +6,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { CurrentUser } from "../../core/auth/request-auth.ts";
 import { deleteIngestedSource } from "../db/ingested-data.ts";
-import {
-  narrowQueryDatabaseClient,
-  type QueryDatabaseClient,
-} from "../../platform/db/client.ts";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { deleteRawUploads } from "./data.ts";
 import { withInternalError } from "../../core/http/errors.ts";
 import {

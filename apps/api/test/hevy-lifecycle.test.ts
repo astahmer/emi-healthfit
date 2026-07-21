@@ -96,9 +96,27 @@ describe("Hevy lifecycle", () => {
       1,
     );
 
-    await run(disconnectHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" }));
-    assert.equal(await run(getHevyConnection({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" })), undefined);
-    const status = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" }));
+    await run(
+      disconnectHevy({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+      }),
+    );
+    assert.equal(
+      await run(
+        getHevyConnection({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: "user-1",
+        }),
+      ),
+      undefined,
+    );
+    const status = await run(
+      getHevyIntegrationStatus({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+      }),
+    );
     assert.equal(status.connected, false);
     assert.equal(
       (await run(getWorkouts(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), "user-1")))
@@ -171,8 +189,24 @@ describe("Hevy lifecycle", () => {
         .length,
       0,
     );
-    assert.equal(await run(getHevyConnection({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" })), undefined);
-    assert.equal(await run(getHevySyncState({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" })), undefined);
+    assert.equal(
+      await run(
+        getHevyConnection({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: "user-1",
+        }),
+      ),
+      undefined,
+    );
+    assert.equal(
+      await run(
+        getHevySyncState({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: "user-1",
+        }),
+      ),
+      undefined,
+    );
   });
 
   it("zero-event incremental updates checked timestamps without changing workout rows", async () => {
@@ -229,7 +263,14 @@ describe("Hevy lifecycle", () => {
       .selectAll()
       .where("user_id", "=", "user-1")
       .execute();
-    const summary = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true }));
+    const summary = await run(
+      syncHevy({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+        force: true,
+      }),
+    );
     assert.equal(summary.mode, "incremental");
     assert.equal(summary.updated, 0);
     assert.equal(summary.deleted, 0);
@@ -242,7 +283,12 @@ describe("Hevy lifecycle", () => {
       .execute();
     assert.deepEqual(after, before);
 
-    const state = await run(getHevySyncState({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" }));
+    const state = await run(
+      getHevySyncState({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+      }),
+    );
     assert.ok(state);
     assert.equal(state.event_watermark, "2026-07-01T00:00:00.000Z");
     assert.ok(state.last_checked_at !== null);
@@ -289,7 +335,13 @@ describe("Hevy lifecycle", () => {
 
     globalThis.fetch = async () => new Response("down", { status: 503 });
 
-    const result = await run(ensureHevyFresh({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment }));
+    const result = await run(
+      ensureHevyFresh({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+      }),
+    );
     assert.equal(result, null);
 
     const workouts = await run(

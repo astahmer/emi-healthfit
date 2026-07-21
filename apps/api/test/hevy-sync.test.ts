@@ -97,11 +97,23 @@ describe("Hevy sync service", () => {
     assert.equal(connected.providerUserName, "Ada");
     assert.equal(workoutListCalls, 1);
 
-    const status = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1" }));
+    const status = await run(
+      getHevyIntegrationStatus({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+      }),
+    );
     assert.equal(status.connected, true);
     assert.equal(status.fresh, true);
 
-    const skipped = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: false }));
+    const skipped = await run(
+      syncHevy({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+        force: false,
+      }),
+    );
     assert.equal(skipped.mode, "skipped_fresh");
     assert.equal(workoutListCalls, 1);
   });
@@ -194,7 +206,14 @@ describe("Hevy sync service", () => {
       return new Response("not found", { status: 404 });
     };
 
-    const summary = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true }));
+    const summary = await run(
+      syncHevy({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+        force: true,
+      }),
+    );
     assert.equal(summary.mode, "incremental");
     assert.equal(summary.updated, 1);
     assert.equal(summary.deleted, 1);

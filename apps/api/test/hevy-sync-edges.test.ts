@@ -144,7 +144,14 @@ describe("Hevy sync edge cases", () => {
       return new Response("should not fetch", { status: 500 });
     };
 
-    const summary = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true }));
+    const summary = await run(
+      syncHevy({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+        force: true,
+      }),
+    );
     assert.equal(summary.mode, "skipped_busy");
     assert.equal(fetchCalls, 0);
   });
@@ -173,7 +180,16 @@ describe("Hevy sync edge cases", () => {
       return new Response("not found", { status: 404 });
     };
 
-    await assert.rejects(() => run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true })));
+    await assert.rejects(() =>
+      run(
+        syncHevy({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: "user-1",
+          environment,
+          force: true,
+        }),
+      ),
+    );
 
     const kysely = await run(db.kysely);
     const state = await kysely
@@ -220,7 +236,16 @@ describe("Hevy sync edge cases", () => {
 
     globalThis.fetch = async () => new Response("unauthorized", { status: 401 });
 
-    await assert.rejects(() => run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId: "user-1", environment, force: true })));
+    await assert.rejects(() =>
+      run(
+        syncHevy({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: "user-1",
+          environment,
+          force: true,
+        }),
+      ),
+    );
 
     const state = await kysely
       .selectFrom("hevy_sync_state")

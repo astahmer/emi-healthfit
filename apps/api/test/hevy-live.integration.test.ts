@@ -63,7 +63,14 @@ describe("Hevy live sync smoke", () => {
       assert.ok(connected.mode === "initial" || connected.mode === "skipped_busy");
       assert.equal(connected.lastErrorCode, null);
 
-      const forced = await run(syncHevy({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId, environment, force: true }));
+      const forced = await run(
+        syncHevy({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId,
+          environment,
+          force: true,
+        }),
+      );
       assert.ok(
         forced.mode === "initial" ||
           forced.mode === "incremental" ||
@@ -72,7 +79,12 @@ describe("Hevy live sync smoke", () => {
       );
       assert.equal(forced.lastErrorCode, null);
 
-      const status = await run(getHevyIntegrationStatus({ db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId }));
+      const status = await run(
+        getHevyIntegrationStatus({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId,
+        }),
+      );
       assert.equal(status.connected, true);
       assert.ok(status.lastSuccessAt !== null || connected.mode === "skipped_busy");
 
