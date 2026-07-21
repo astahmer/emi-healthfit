@@ -41,7 +41,8 @@ import {
   reviseConversationMessage,
   saveConversationMessages,
 } from "../db/conversations.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import type { ConversationDatabaseSchema } from "@emi/core-server";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { corsHeaders } from "../../platform/http/assets-cors.ts";
 import { persistGenerationStream } from "./chat-stream-persistence.ts";
@@ -90,7 +91,7 @@ export const handleMessageRevision = ({
       return yield* HttpServerResponse.json({ error: validated.error.message }, { status: 400 });
     }
     const revised = yield* reviseConversationMessage({
-      db,
+      db: narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
       userId: user.id,
       conversationId,
       messageId,
@@ -183,6 +184,7 @@ export const handleAiSdkChat = (
 ) =>
   Effect.gen(function* () {
     const user = yield* CurrentUser;
+    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
     const requestStartedAt = performance.now();
     const text = yield* request.text;
     const raw = decodeJsonOption(text);
@@ -215,7 +217,9 @@ export const handleAiSdkChat = (
 
     const sessionId =
       chatRequest.sessionId ??
-      (isTemporary ? `temp_${crypto.randomUUID()}` : yield* createConversation(db, user.id));
+      (isTemporary
+        ? `temp_${crypto.randomUUID()}`
+        : yield* createConversation(conversationDb, user.id));
 
     if (!isTemporary) {
       const reconciledGenerations = yield* reconcileFinishedGenerations({ db, userId: user.id });
@@ -226,7 +230,7 @@ export const handleAiSdkChat = (
           Effect.annotateLogs({ reconciledGenerations, abandonedGenerations, deletedGenerations }),
         );
       }
-      const conversation = yield* getConversation(db, user.id, sessionId);
+      const conversation = yield* getConversation(conversationDb, user.id, sessionId);
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
@@ -385,7 +389,7 @@ export const handleAiSdkChat = (
 
               if (!isTemporary) {
                 const assistantIds = yield* saveConversationMessages(
-                  db,
+                  conversationDb,
                   user.id,
                   sessionId,
                   thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
@@ -405,7 +409,7 @@ export const handleAiSdkChat = (
                 if (thread !== null) {
                   yield* Effect.forEach(
                     assistantIds,
-                    (messageId) => addThreadMessage(db, user.id, thread.id, messageId),
+                    (messageId) => addThreadMessage(conversationDb, user.id, thread.id, messageId),
                     { discard: true },
                   );
                 }
@@ -434,7 +438,7 @@ export const handleAiSdkChat = (
               executionContext.waitUntil(
                 Effect.runPromiseWith(services)(
                   Effect.gen(function* () {
-                    const conversation = yield* getConversation(db, user.id, sessionId);
+                    const conversation = yield* getConversation(conversationDb, user.id, sessionId);
                     if (
                       conversation === null ||
                       (conversation.title !== null && Schema.is(Content)(conversation.title))
@@ -443,7 +447,7 @@ export const handleAiSdkChat = (
                     const title = yield* Effect.promise(() =>
                       generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
                     );
-                    yield* renameConversation(db, user.id, sessionId, title);
+                    yield* renameConversation(conversationDb, user.id, sessionId, title);
                   }).pipe(
                     Effect.catchCause((cause) =>
                       Effect.logError("chat.generation.title.failure").pipe(

@@ -5,12 +5,14 @@ import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { CurrentUser } from "../../core/auth/request-auth.ts";
 import { generateSuggestions, normalizeGeneratedStrings } from "../../core/chat/ai-sdk.ts";
+import type { ConversationDatabaseSchema } from "@emi/core-server";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import {
   getSuggestionsById,
   hashSuggestionsKey,
   saveSuggestions,
 } from "../../core/db/conversations.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getAnalyticsOverview, getIngestedDataExportSummary, getWorkouts } from "../db/fitness.ts";
 import {
   deleteIngestedSource,
@@ -62,7 +64,8 @@ export const suggestionsHandlers = ({
           const user = yield* CurrentUser;
           const lastAssistantText = payload.lastAssistantText.trim();
           const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
-          const cached = yield* getSuggestionsById(db, user.id, key);
+          const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+          const cached = yield* getSuggestionsById(conversationDb, user.id, key);
           if (cached !== null) {
             return { suggestions: normalizeGeneratedStrings(cached.suggestions) };
           }
@@ -75,7 +78,7 @@ export const suggestionsHandlers = ({
               lastUserText: payload.lastUserText,
             }),
           );
-          yield* saveSuggestions(db, user.id, key, suggestions);
+          yield* saveSuggestions(conversationDb, user.id, key, suggestions);
           return { suggestions };
         },
         withInternalError,
@@ -100,7 +103,11 @@ export const analyticsHandlers = ({
         function* ({ query }) {
           const user = yield* CurrentUser;
           yield* ensureHevyFresh({ db, userId: user.id, environment });
-          return yield* getAnalyticsOverview({ db, userId: user.id, days: query.days ?? 90 });
+          return yield* getAnalyticsOverview({
+            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+            userId: user.id,
+            days: query.days ?? 90,
+          });
         },
         withInternalError,
         Effect.provide(runtimeContext),
@@ -121,7 +128,10 @@ export const dataHandlers = ({
       Effect.fn("httpApi.data.exportSummary")(
         function* () {
           const user = yield* CurrentUser;
-          const summary = yield* getIngestedDataExportSummary({ db, userId: user.id });
+          const summary = yield* getIngestedDataExportSummary({
+            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+            userId: user.id,
+          });
           return { summary };
         },
         withInternalError,
@@ -211,7 +221,10 @@ export const workoutsHandlers = ({
         function* () {
           const user = yield* CurrentUser;
           yield* ensureHevyFresh({ db, userId: user.id, environment });
-          const workouts = yield* getWorkouts(db, user.id);
+          const workouts = yield* getWorkouts(
+            narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+            user.id,
+          );
           return { workouts };
         },
         withInternalError,

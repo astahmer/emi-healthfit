@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
-import { makeConversationStore } from "@emi/core-server";
+import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core-server";
 import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
 import { extractMemories, generateThreadSummary } from "../chat/ai-sdk.ts";
 import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";
@@ -40,8 +40,13 @@ import {
   type Thread,
   updateConversationState,
 } from "../db/conversations.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
-import { getMemories, insertMemories, listMemoryIdsForMessage } from "../db/memories.ts";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
+import {
+  getMemories,
+  insertMemories,
+  listMemoryIdsForMessage,
+  type MemoryDatabaseSchema,
+} from "../db/memories.ts";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
 import { withInternalError } from "./errors.ts";
 
@@ -115,15 +120,16 @@ export const conversationsHandlers = ({
 }: {
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "conversations", (handlers) =>
+}) => {
+  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "conversations", (handlers) =>
     handlers
       .handle(
         "list",
         Effect.fn("httpApi.conversations.list")(
           function* ({ query }) {
             const requestContext = yield* CurrentRequestContext;
-            const store = makeConversationStore({ db, requestContext });
+            const store = makeConversationStore({ db: conversationDb, requestContext });
             const conversations = yield* store.list(query.search);
             return { conversations: conversations.map(toApiConversation) };
           },
@@ -136,7 +142,7 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.create")(
           function* () {
             const requestContext = yield* CurrentRequestContext;
-            const store = makeConversationStore({ db, requestContext });
+            const store = makeConversationStore({ db: conversationDb, requestContext });
             const id = yield* store.create();
             return { id };
           },
@@ -166,9 +172,9 @@ export const conversationsHandlers = ({
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
-            const id = yield* createConversation(db, user.id, payload.title?.trim());
+            const id = yield* createConversation(conversationDb, user.id, payload.title?.trim());
             yield* saveConversationMessages(
-              db,
+              conversationDb,
               user.id,
               id,
               null,
@@ -177,7 +183,7 @@ export const conversationsHandlers = ({
                 parts: message.parts,
               })),
             );
-            const conversation = yield* getConversation(db, user.id, id);
+            const conversation = yield* getConversation(conversationDb, user.id, id);
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
@@ -192,7 +198,7 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.remove")(
           function* ({ params }) {
             const user = yield* CurrentUser;
-            yield* deleteConversation(db, user.id, params.id);
+            yield* deleteConversation(conversationDb, user.id, params.id);
             return { success: true } as const;
           },
           withInternalError,
@@ -205,13 +211,13 @@ export const conversationsHandlers = ({
           function* ({ params, payload }) {
             const user = yield* CurrentUser;
             yield* updateConversationState({
-              db,
+              db: conversationDb,
               userId: user.id,
               conversationId: params.id,
               status: payload.status,
               pinned: payload.pinned,
             });
-            const conversation = yield* getConversation(db, user.id, params.id);
+            const conversation = yield* getConversation(conversationDb, user.id, params.id);
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
@@ -227,7 +233,7 @@ export const conversationsHandlers = ({
           function* ({ params }) {
             const user = yield* CurrentUser;
             const conversation = yield* cloneConversation({
-              db,
+              db: conversationDb,
               userId: user.id,
               conversationId: params.id,
             });
@@ -245,11 +251,11 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.compact")(
           function* ({ params, payload }) {
             const user = yield* CurrentUser;
-            const conversation = yield* getConversation(db, user.id, params.id);
+            const conversation = yield* getConversation(conversationDb, user.id, params.id);
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
-            const messages = (yield* getConversationMessages(db, user.id, params.id))
+            const messages = (yield* getConversationMessages(conversationDb, user.id, params.id))
               .map(rowToMessage)
               .filter((message) => message.role !== "summary")
               .map((message) => ({
@@ -264,8 +270,12 @@ export const conversationsHandlers = ({
               generateThreadSummary(payload.apiKey, payload.baseUrl, payload.model, messages),
             );
             const title = conversation.title?.trim() || "New chat";
-            const compactedId = yield* createConversation(db, user.id, `${title} (compacted)`);
-            yield* saveConversationMessages(db, user.id, compactedId, null, [
+            const compactedId = yield* createConversation(
+              conversationDb,
+              user.id,
+              `${title} (compacted)`,
+            );
+            yield* saveConversationMessages(conversationDb, user.id, compactedId, null, [
               {
                 role: "system",
                 parts: [
@@ -276,7 +286,11 @@ export const conversationsHandlers = ({
                 ],
               },
             ]);
-            const compactedConversation = yield* getConversation(db, user.id, compactedId);
+            const compactedConversation = yield* getConversation(
+              conversationDb,
+              user.id,
+              compactedId,
+            );
             if (compactedConversation === null) {
               return yield* new NotFound({ message: "Compacted conversation not found" });
             }
@@ -291,16 +305,16 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.messages")(
           function* ({ params }) {
             const user = yield* CurrentUser;
-            const conversation = yield* getConversation(db, user.id, params.id);
+            const conversation = yield* getConversation(conversationDb, user.id, params.id);
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
-            const rows = yield* getConversationMessages(db, user.id, params.id);
-            const threads = yield* getThreadsIncludingDiscarded(db, user.id, params.id);
+            const rows = yield* getConversationMessages(conversationDb, user.id, params.id);
+            const threads = yield* getThreadsIncludingDiscarded(conversationDb, user.id, params.id);
             const threadsWithMessages = yield* Effect.forEach(
               threads,
               (thread) =>
-                getThreadMessages(db, user.id, thread.id).pipe(
+                getThreadMessages(conversationDb, user.id, thread.id).pipe(
                   Effect.map((messages) =>
                     toApiThreadWithMessages({
                       thread,
@@ -326,7 +340,7 @@ export const conversationsHandlers = ({
           function* ({ params, payload }) {
             const user = yield* CurrentUser;
             const title = payload.title.trim();
-            yield* renameConversation(db, user.id, params.id, title);
+            yield* renameConversation(conversationDb, user.id, params.id, title);
             return { success: true } as const;
           },
           withInternalError,
@@ -338,7 +352,7 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.threads")(
           function* ({ params }) {
             const user = yield* CurrentUser;
-            const threads = yield* getThreads(db, user.id, params.id);
+            const threads = yield* getThreads(conversationDb, user.id, params.id);
             return { threads: threads.map(toApiThread) };
           },
           withInternalError,
@@ -350,23 +364,23 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.forkThread")(
           function* ({ params, payload }) {
             const user = yield* CurrentUser;
-            const anchor = yield* getMessage(db, user.id, payload.anchorMessageId);
+            const anchor = yield* getMessage(conversationDb, user.id, payload.anchorMessageId);
             if (anchor === null || anchor.conversation_id !== params.id) {
               return yield* new NotFound({ message: "Anchor message not found" });
             }
             const existing = yield* getThreadByAnchor(
-              db,
+              conversationDb,
               user.id,
               params.id,
               payload.anchorMessageId,
             );
             if (existing !== null && existing.status === "discarded") {
-              yield* restoreThread(db, user.id, existing.id);
+              yield* restoreThread(conversationDb, user.id, existing.id);
             }
             const id =
               existing?.id ??
               (yield* createThread(
-                db,
+                conversationDb,
                 user.id,
                 params.id,
                 payload.anchorMessageId,
@@ -375,7 +389,7 @@ export const conversationsHandlers = ({
             if (id === null) {
               return yield* new NotFound({ message: "Thread not found" });
             }
-            const thread = yield* getThread(db, user.id, id);
+            const thread = yield* getThread(conversationDb, user.id, id);
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });
             }
@@ -431,7 +445,7 @@ export const conversationsHandlers = ({
               return yield* new BadRequest({ message: validated.error.message });
             }
             const revised = yield* reviseConversationMessage({
-              db,
+              db: conversationDb,
               userId: user.id,
               conversationId: params.id,
               messageId: params.messageId,
@@ -448,6 +462,7 @@ export const conversationsHandlers = ({
         ),
       ),
   );
+};
 
 export const threadsHandlers = ({
   db,
@@ -455,19 +470,20 @@ export const threadsHandlers = ({
 }: {
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "threads", (handlers) =>
+}) => {
+  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "threads", (handlers) =>
     handlers
       .handle(
         "read",
         Effect.fn("httpApi.threads.read")(
           function* ({ params }) {
             const user = yield* CurrentUser;
-            const thread = yield* getThread(db, user.id, params.id);
+            const thread = yield* getThread(conversationDb, user.id, params.id);
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });
             }
-            const rows = yield* getThreadMessages(db, user.id, params.id);
+            const rows = yield* getThreadMessages(conversationDb, user.id, params.id);
             return { thread: toApiThread(thread), messages: rows.map(rowToMessage) };
           },
           withInternalError,
@@ -480,16 +496,16 @@ export const threadsHandlers = ({
           function* ({ params, payload }) {
             const user = yield* CurrentUser;
             if (payload.title !== undefined && payload.title.trim() !== "") {
-              yield* renameThread(db, user.id, params.id, payload.title.trim());
+              yield* renameThread(conversationDb, user.id, params.id, payload.title.trim());
             }
             if (payload.pinned !== undefined) {
-              yield* pinThread(db, user.id, params.id, payload.pinned);
+              yield* pinThread(conversationDb, user.id, params.id, payload.pinned);
             }
             if (payload.status === "discarded") {
-              yield* discardThread(db, user.id, params.id);
+              yield* discardThread(conversationDb, user.id, params.id);
             }
             if (payload.status === "regular") {
-              yield* restoreThread(db, user.id, params.id);
+              yield* restoreThread(conversationDb, user.id, params.id);
             }
             return { success: true } as const;
           },
@@ -498,6 +514,7 @@ export const threadsHandlers = ({
         ),
       ),
   );
+};
 
 export const messagesHandlers = ({
   db,
@@ -505,14 +522,15 @@ export const messagesHandlers = ({
 }: {
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "messages", (handlers) =>
+}) => {
+  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "messages", (handlers) =>
     handlers.handle(
       "read",
       Effect.fn("httpApi.messages.read")(
         function* ({ params }) {
           const user = yield* CurrentUser;
-          const message = yield* getMessage(db, user.id, params.id);
+          const message = yield* getMessage(conversationDb, user.id, params.id);
           if (message === null) {
             return yield* new NotFound({ message: "Message not found" });
           }
@@ -523,6 +541,7 @@ export const messagesHandlers = ({
       ),
     ),
   );
+};
 
 export const memoryExtractionHandlers = ({
   db,
@@ -530,8 +549,9 @@ export const memoryExtractionHandlers = ({
 }: {
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
-}) =>
-  HttpApiBuilder.group(EmiApi, "memoryExtraction", (handlers) =>
+}) => {
+  const memoryDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  return HttpApiBuilder.group(EmiApi, "memoryExtraction", (handlers) =>
     handlers.handle(
       "extract",
       Effect.fn("httpApi.memoryExtraction.extract")(
@@ -541,9 +561,9 @@ export const memoryExtractionHandlers = ({
           const existingIds =
             payload.messageId === undefined
               ? []
-              : yield* listMemoryIdsForMessage(db, user.id, payload.messageId);
+              : yield* listMemoryIdsForMessage(memoryDb, user.id, payload.messageId);
           if (existingIds.length > 0) return { ids: existingIds, count: 0 };
-          const existingMemories = yield* getMemories(db, user.id, { limit: 60 });
+          const existingMemories = yield* getMemories(memoryDb, user.id, { limit: 60 });
           const snippets = yield* Effect.promise(() =>
             extractMemories(
               payload.config.apiKey,
@@ -554,7 +574,7 @@ export const memoryExtractionHandlers = ({
             ),
           );
           const ids = yield* insertMemories(
-            db,
+            memoryDb,
             user.id,
             snippets.map((content) => ({
               content,
@@ -570,3 +590,4 @@ export const memoryExtractionHandlers = ({
       ),
     ),
   );
+};

@@ -1,6 +1,11 @@
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
-import { runTransaction, type QueryDatabaseClient } from "../../platform/db/client.ts";
+import type { ConversationDatabaseSchema } from "@emi/core-server";
+import {
+  narrowQueryDatabaseClient,
+  runTransaction,
+  type QueryDatabaseClient,
+} from "../../platform/db/client.ts";
 import { getConversation } from "../db/conversations.ts";
 import { decodeJson } from "../lib/json-codec.ts";
 
@@ -60,7 +65,11 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
   traceId?: string;
   model?: string;
 }) {
-  const conversation = yield* getConversation(db, userId, conversationId);
+  const conversation = yield* getConversation(
+    narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+    userId,
+    conversationId,
+  );
   if (conversation === null) return false;
 
   const kysely = yield* db.kysely;

@@ -10,7 +10,8 @@ import {
   getThreadMessages,
   saveConversationMessages,
 } from "../db/conversations.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import type { ConversationDatabaseSchema } from "@emi/core-server";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { decodeMessageParts } from "../http/codecs.ts";
 import { validateAttachments } from "./chat-request-codec.ts";
 import type { ChatToolDefinition } from "./chat-hooks.ts";
@@ -32,10 +33,11 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   isTemporary: boolean;
   tools?: ReadonlyArray<ChatToolDefinition>;
 }) {
+  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
   const thread =
     isTemporary || chatRequest.threadId === undefined
       ? null
-      : yield* getThread(db, userId, chatRequest.threadId);
+      : yield* getThread(conversationDb, userId, chatRequest.threadId);
   if (
     chatRequest.threadId !== undefined &&
     (thread === null || thread.conversation_id !== sessionId || thread.status !== "regular")
@@ -43,12 +45,14 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     return { error: "Thread not found", status: 404 as const };
   }
 
-  const conversationRows = isTemporary ? [] : yield* getConversationMessages(db, userId, sessionId);
+  const conversationRows = isTemporary
+    ? []
+    : yield* getConversationMessages(conversationDb, userId, sessionId);
   const existingRows =
     thread === null
       ? conversationRows
       : yield* Effect.gen(function* () {
-          const branchRows = yield* getThreadMessages(db, userId, thread.id);
+          const branchRows = yield* getThreadMessages(conversationDb, userId, thread.id);
           const anchor = conversationRows.find((row) => row.id === thread.anchor_message_id);
           const contextRows =
             anchor === undefined
@@ -116,7 +120,13 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
       thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);
     const incomingIds =
       chatRequest.replaceMessageId === undefined
-        ? yield* saveConversationMessages(db, userId, sessionId, branchParentId, incomingMessages)
+        ? yield* saveConversationMessages(
+            conversationDb,
+            userId,
+            sessionId,
+            branchParentId,
+            incomingMessages,
+          )
         : [];
     if (chatRequest.replaceMessageId === undefined) {
       lastIncomingMessageId = incomingIds.at(-1) ?? null;
@@ -124,7 +134,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     if (thread !== null) {
       yield* Effect.forEach(
         incomingIds,
-        (messageId) => addThreadMessage(db, userId, thread.id, messageId),
+        (messageId) => addThreadMessage(conversationDb, userId, thread.id, messageId),
         { discard: true },
       );
     }

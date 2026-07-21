@@ -15,14 +15,22 @@ import {
   recordChatEvent,
   updateGenerationMetadata,
 } from "../src/core/chat/generation-store.ts";
+import type { ConversationDatabaseSchema } from "@emi/core-server";
 import { createConversation } from "../src/core/db/conversations.ts";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("generation store SQLite integration", () => {
   it("persists streaming lifecycle, ordered chunks, events, reconciliation, expiry, and cleanup", async () => {
     const { db, sqlite } = makeSqliteDatabase();
     const userId = "user-a";
-    const conversationId = await run(createConversation(db, userId, "Streaming"));
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Streaming",
+      ),
+    );
 
     await run(
       createGeneration({
