@@ -20,21 +20,22 @@ export const DISCORD_EPHEMERAL_FLAG = 64;
 
 const CommandOptionValue = Schema.Struct({
   name: Schema.String,
-  type: Schema.Number,
+  // Discord value option types start at STRING=3; 1/2 are subcommands.
+  type: Schema.Number.check(Schema.isGreaterThanOrEqualTo(3)),
   value: Schema.optional(Schema.Union([Schema.String, Schema.Number, Schema.Boolean])),
 });
 
-/** One level of `<top-level command> <subcommand> [option...]` — enough for a flat MVP command tree. */
+/** Discord SUB_COMMAND (1) / SUB_COMMAND_GROUP (2). */
 const SubcommandOption = Schema.Struct({
   name: Schema.String,
-  type: Schema.Number,
+  type: Schema.Literals([1, 2]),
   options: Schema.optional(Schema.Array(CommandOptionValue)),
 });
 
 export const ApplicationCommandData = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  options: Schema.optional(Schema.Array(Schema.Union([SubcommandOption, CommandOptionValue]))),
+  options: Schema.optional(Schema.Array(Schema.Union([CommandOptionValue, SubcommandOption]))),
 });
 export type ApplicationCommandData = typeof ApplicationCommandData.Type;
 
