@@ -74,7 +74,7 @@ export const chatRuntimeMachine = setup({
         drafts,
         draft: nextDraft?.text ?? "",
         files: nextDraft?.files ?? [],
-        queuedFollowUp: null,
+        queuedFollowUp: event.sessionId === context.sessionId ? context.queuedFollowUp : null,
         error: context.error,
         errorMessageId,
       };

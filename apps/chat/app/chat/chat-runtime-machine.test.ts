@@ -156,6 +156,25 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("");
   });
 
+  it("keeps a queued follow-up across same-session history snapshots", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", text: "Second", files: [] });
+    actor.send({ type: "stream.completed" });
+    actor.send({
+      type: "history.changed",
+      sessionId: "one",
+      messages: [message("first", "user", "First"), message("assistant", "assistant", "Done")],
+    });
+
+    expect(actor.getSnapshot().context.queuedFollowUp).toEqual({ text: "Second", files: [] });
+  });
+
   it("restores a queued follow-up into the composer when the stream stops", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();

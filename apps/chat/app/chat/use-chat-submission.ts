@@ -190,14 +190,16 @@ export const useChatSubmission = ({
           return;
         }
         send({ type: "stream.completed" });
+        const queuedFollowUp = stateRef.current.context.queuedFollowUp;
+        if (queuedFollowUp !== null) {
+          send({ type: "followUp.cleared" });
+        }
         if (!config.temporary) {
           const snapshot = await synchronizePersistedHistory(sessionId);
           notifyConversationsChanged();
           void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
         }
-        const queuedFollowUp = stateRef.current.context.queuedFollowUp;
         if (queuedFollowUp !== null) {
-          send({ type: "followUp.cleared" });
           await submitMessage({
             text: queuedFollowUp.text,
             parts: [
