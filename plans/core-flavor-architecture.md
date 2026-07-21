@@ -155,8 +155,58 @@ README states that application logic comes from versioned packages.
    `generic-worker` re-implements a minimal router directly instead of reusing `apps/api/src/core/*`
    route modules; extracting that HTTP composition layer (and real session auth) into a package is
    left for a later phase before `generic-worker` can be considered feature-complete.)
-8. Add `create-chat-app`, package releases, generated-template CI, and an upgrade test.
-9. Add Discord transport only after generic web and HealthFit both consume the same released core.
+8. Add `create-chat-app`, package releases, generated-template CI, and an upgrade test. **DONE**
+   (`packages/create-chat-app` — a pure `buildGeneratedFiles`/`generateApp` pair plus a
+   `bin/create-chat-app.ts` CLI (flags `--name`/`--dir`/`--core-version`/`--dry-run`/`--force`,
+   TTY prompt fallback) that writes only a `web/` (Vite + React, depends on `@emi/core-web` +
+   `@emi/core-contract`) and `worker/` (Alchemy Cloudflare Worker, depends on `@emi/core-server` +
+   `@emi/platform-cloudflare`) composition-root pair mirroring `apps/generic-web` /
+   `apps/generic-worker`, plus a root README/`.env.example`/`.gitignore` — no `packages/core-*/src`
+   file is ever read or copied, and the `@emi/core-*` dependency version defaults to `workspace:*`
+   but is fully parameterized via `--core-version` for a future released-package pin. 15 unit/
+   guardrail/integration tests: exact generated file set and dependency names/versions
+   (`test/generate.test.ts`); a content-hash + forbidden-import-pattern scan
+   (`src/guardrails.ts`) run against a real temp-dir-generated tree and every file under
+   `packages/{core-server,core-web,core-contract,platform-cloudflare}/src`
+   (`test/boundary.test.ts`); an upgrade test proving `@emi/*` dependency names stay stable across
+   both a `workspace:*` → semver bump and a pinned-to-pinned version bump
+   (`test/upgrade.test.ts`); and CLI flag parsing plus a real-temp-directory run asserting
+   `typecheck` scripts exist and a non-empty target is protected by `--force`
+   (`test/cli.test.ts`). `scripts/generate-chat-app-fixture.mjs` (root script
+   `pnpm fixture:chat-app`) regenerates `apps/generated-fixture/{web,worker}` (gitignored; that
+   glob added to `pnpm-workspace.yaml`) and re-runs the same guardrail scan as a lightweight
+   CI-shaped check; manually verified end to end this phase — `pnpm install` followed by
+   `pnpm --filter generated-fixture-web typecheck` and
+   `pnpm --filter generated-fixture-worker typecheck` both pass clean against the real workspace
+   `@emi/core-*` packages, and both generated packages pass `oxlint`/`oxfmt --check` unmodified.
+   Deferred: actual npm publishing of `@emi/create-chat-app` and the `@emi/core-*` packages, so
+   `workspace:*` only resolves inside a pnpm workspace that also contains those packages; the
+   fixture script therefore documents rather than automates the install+typecheck step to avoid
+   mutating the lockfile on every fixture run.)
+9. Add Discord transport only after generic web and HealthFit both consume the same released core. **DONE**
+   (`packages/transport-discord` — platform-agnostic Ed25519 signature verification over the exact
+   `timestamp+rawBody` message via WebCrypto, timestamp-staleness rejection, an Effect Schema union
+   decoding `Ping`/`ApplicationCommand` interactions (any other interaction type or malformed payload
+   deliberately fails closed rather than being coerced), ephemeral-by-default response helpers, and a
+   `verifyDiscordRequest` pipeline that enforces signature-before-timestamp-before-JSON-shape
+   ordering so a `401` never depends on parsing attacker input; 23 unit/integration tests plus a
+   boundary test forbidding `core-web`/`apps/chat`/`apps/api`/`flavor-healthfit` imports. `apps/discord-bot`
+   — a thin Alchemy Cloudflare Worker depending only on `@emi/core-server` (a `/health` route echoes
+   `coreAppDefinition.identity`) and `@emi/transport-discord`; `/interactions` verifies+dispatches Ping
+   to a Pong ack and `/healthfit summary|last-workout|recovery|unlink|link` to fixed ephemeral
+   "not linked" responses since account linking hasn't shipped — every data subcommand fails closed
+   without touching a database rather than guessing an owner id. 11 unit tests plus a boundary test
+   forbidding `core-web`/`apps/chat`/`apps/api` imports and `@emi/core-web`/`@emi/flavor-healthfit`
+   package.json dependencies. `alchemy deploy --dry-run` (`pnpm --filter @emi/discord-bot dry`)
+   succeeds against the existing Cloudflare account with a clean create-plan reading
+   `DISCORD_PUBLIC_KEY`/`DISCORD_APPLICATION_ID`/`DISCORD_BOT_TOKEN` from a per-app `.env`; getting
+   there required moving the worker's env-schema decode out of the one-time bootstrap effect and into
+   the per-request `/interactions` handler, since Alchemy's local bundle-validation smoke test runs
+   the bootstrap effect once against an empty synthetic `env` and a required-key decode at module-init
+   time failed that smoke test regardless of the real secret values. Deferred: `/ask`-style free-form
+   chat, a full Settings UI for issuing link codes, the `discord_account_links`/`discord_link_codes`
+   D1 tables and the owner-scoped `@emi/flavor-healthfit` read calls they would gate, and registering
+   the live Discord application/slash commands.)
 
 ## Guardrails
 

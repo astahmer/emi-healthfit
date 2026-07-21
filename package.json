@@ -25,6 +25,7 @@
     "chat:build": "pnpm --filter chat build",
     "generic:worker:dev": "pnpm --filter @emi/generic-worker dev",
     "generic:web:dev": "pnpm --filter @emi/generic-web dev",
+    "fixture:chat-app": "node --experimental-strip-types scripts/generate-chat-app-fixture.mjs",
     "slop:check": "node scripts/run-ast-grep.mjs scan",
     "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
     "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"

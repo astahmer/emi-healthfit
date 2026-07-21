@@ -49,7 +49,7 @@ import { ChatStreamRequestSchema, getFirstUserText } from "./chat-request-codec.
 import { prepareChatHistory } from "./chat-history.ts";
 import { createChatToolExecutor } from "./chat-tool-execution.ts";
 import { decodeJsonOption } from "../lib/json-codec.ts";
-import type { ChatLifecycleHooks, ChatToolExecutor } from "./chat-hooks.ts";
+import type { ChatLifecycleHooks } from "./chat-hooks.ts";
 
 export type { ChatLifecycleHooks, ChatToolDefinition, ChatToolExecutor } from "./chat-hooks.ts";
 const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
