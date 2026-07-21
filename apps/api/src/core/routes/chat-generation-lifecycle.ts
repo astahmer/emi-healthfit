@@ -23,9 +23,11 @@ import {
   createGeneration,
   expireStaleGenerations,
   finishGeneration,
+  GenerationAlreadyActiveError,
   getGeneration,
   getGenerationChunks,
   getResumableGeneration,
+  getRunningGeneration,
   isGenerationStale,
   recordChatEvent,
   reconcileFinishedGenerations,
@@ -316,7 +318,23 @@ export const handleAiSdkChat = (
         requestId,
         traceId,
         model: chatRequest.config.model,
-      });
+      }).pipe(
+        Effect.catchTag("GenerationAlreadyActiveError", (error) =>
+          Effect.gen(function* () {
+            const running = yield* getRunningGeneration({
+              db,
+              userId: user.id,
+              conversationId: sessionId,
+            });
+            return yield* Effect.fail(
+              new GenerationAlreadyActiveError({
+                conversationId: error.conversationId,
+                generationId: running?.id ?? error.generationId,
+              }),
+            );
+          }),
+        ),
+      );
       yield* recordEvent("generation.created", { threadId: chatRequest.threadId ?? null });
     }
 
@@ -523,6 +541,15 @@ export const handleAiSdkChat = (
       corsHeaders(request),
     );
   }).pipe(
+    Effect.catchTag("GenerationAlreadyActiveError", (error) =>
+      HttpServerResponse.json(
+        {
+          error: "A generation is already running",
+          generationId: error.generationId,
+        },
+        { status: 409 },
+      ),
+    ),
     Effect.catch((error) =>
       HttpServerResponse.json(
         { error: error instanceof Error ? error.message : String(error) },

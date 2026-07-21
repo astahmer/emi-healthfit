@@ -407,7 +407,15 @@ describe("generation store SQLite integration", () => {
             conversationId,
           }),
         ),
-      /UNIQUE|unique/i,
+      (error: unknown) => {
+        assert.equal(
+          error instanceof Error && error.name === "GenerationAlreadyActiveError"
+            ? true
+            : String(error).includes("GenerationAlreadyActiveError"),
+          true,
+        );
+        return true;
+      },
     );
   });
 });

@@ -1,5 +1,6 @@
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import type { ConversationDatabaseSchema } from "@emi/core/server";
 import {
   narrowQueryDatabaseClient,
@@ -8,6 +9,14 @@ import {
 } from "../../platform/db/client.ts";
 import { getConversation } from "../db/conversations.ts";
 import { decodeJson } from "../lib/json-codec.ts";
+
+export class GenerationAlreadyActiveError extends Schema.TaggedErrorClass<GenerationAlreadyActiveError>()(
+  "GenerationAlreadyActiveError",
+  {
+    conversationId: Schema.String,
+    generationId: Schema.String,
+  },
+) {}
 
 export interface ChatGeneration {
   id: string;
@@ -48,6 +57,11 @@ export const isGenerationStale = (generation: ChatGeneration, now = Date.now()):
   (generation.status === "pending" || generation.status === "streaming") &&
   now - new Date(generation.updated_at).getTime() >= generationStaleMilliseconds;
 
+export const isUniqueConstraintError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /unique|constraint failed/i.test(message);
+};
+
 export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
   db,
   userId,
@@ -74,23 +88,30 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* ({
 
   const kysely = yield* db.kysely;
   const timestamp = nowIso();
-  yield* Effect.promise(() =>
-    kysely
-      .insertInto("chat_generations")
-      .values({
-        conversation_id: conversationId,
-        created_at: timestamp,
-        id: generationId,
-        model: model ?? null,
-        request_id: requestId,
-        started_at: timestamp,
-        status: "pending",
-        trace_id: traceId,
-        updated_at: timestamp,
-        user_id: userId,
-      })
-      .execute(),
-  );
+  yield* Effect.tryPromise({
+    try: () =>
+      kysely
+        .insertInto("chat_generations")
+        .values({
+          conversation_id: conversationId,
+          created_at: timestamp,
+          id: generationId,
+          model: model ?? null,
+          request_id: requestId,
+          started_at: timestamp,
+          status: "pending",
+          trace_id: traceId,
+          updated_at: timestamp,
+          user_id: userId,
+        })
+        .execute(),
+    catch: (error) => {
+      if (isUniqueConstraintError(error)) {
+        return new GenerationAlreadyActiveError({ conversationId, generationId });
+      }
+      return error instanceof Error ? error : new Error(String(error));
+    },
+  });
   return true;
 });
 
