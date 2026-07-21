@@ -10,6 +10,7 @@ import { DataImport } from "./data-import";
 import { DataExport } from "./data-export";
 import { HevyIntegration } from "./hevy-integration";
 import { PrivacyControls } from "./privacy-controls";
+import { DiscordLinkControls } from "./discord-link-controls";
 
 export function SettingsPanel() {
   const { settings, update } = useSettings();
@@ -146,6 +147,8 @@ export function SettingsPanel() {
         <DataImport />
 
         <PrivacyControls />
+
+        <DiscordLinkControls />
 
         <Button
           onClick={() =>
