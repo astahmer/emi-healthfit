@@ -40,7 +40,11 @@ export const UploadPanel = () => {
             id="health"
             type="file"
             accept=".json,application/json"
-            onChange={(e) => send({ type: "selectHealth", file: e.target.files?.[0] ?? null })}
+            onChange={(event) => {
+              const files = event.target.files;
+              const file = files !== null && files.length > 0 ? files.item(0) : null;
+              send({ type: "selectHealth", file });
+            }}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">From the HealthExportKit app export.</p>
@@ -55,7 +59,11 @@ export const UploadPanel = () => {
             id="hevy"
             type="file"
             accept=".csv,text/csv"
-            onChange={(e) => send({ type: "selectHevy", file: e.target.files?.[0] ?? null })}
+            onChange={(event) => {
+              const files = event.target.files;
+              const file = files !== null && files.length > 0 ? files.item(0) : null;
+              send({ type: "selectHevy", file });
+            }}
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
