@@ -14,7 +14,7 @@ const branchThread = {
   updated_at: "2026-07-14T10:02:00.000Z",
 };
 
-test("clicks a follow-up suggestion and shows the sent message", async ({ page }) => {
+test("clicks a follow-up suggestion and keeps the previous assistant answer", async ({ page }) => {
   const mock = createChatMock({
     state: {
       suggestions: ["Tell me about recovery"],
@@ -27,6 +27,10 @@ test("clicks a follow-up suggestion and shows the sent message", async ({ page }
   await expect(page.getByText("one message answer")).toBeVisible();
   await expect(page.getByRole("button", { name: "Tell me about recovery" })).toBeVisible();
   await page.getByRole("button", { name: "Tell me about recovery" }).click();
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "Tell me about recovery" }),
+  ).toBeVisible();
+  await expect(page.getByText("one message answer")).toBeVisible();
   await expect(page.getByText("Recovery looks good")).toBeVisible();
 });
 

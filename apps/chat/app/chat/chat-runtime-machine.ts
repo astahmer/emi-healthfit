@@ -82,6 +82,21 @@ export const chatRuntimeMachine = setup({
     }),
     startSubmission: assign(({ context, event }) => {
       if (event.type !== "submit.started") return {};
+      return {
+        sessionId: event.sessionId,
+        messages: [...context.messages, event.message],
+        draft: "",
+        files: [],
+        drafts: {
+          ...context.drafts,
+          [sessionKey(event.sessionId)]: { text: "", files: [] },
+        },
+        error: null,
+        errorMessageId: undefined,
+      };
+    }),
+    supersedeInFlightSubmission: assign(({ context, event }) => {
+      if (event.type !== "submit.started") return {};
       const baseMessages =
         context.messages.at(-1)?.role === "assistant"
           ? context.messages.slice(0, -1)
@@ -161,7 +176,7 @@ export const chatRuntimeMachine = setup({
       on: {
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
-        "submit.started": { actions: "startSubmission" },
+        "submit.started": { actions: "supersedeInFlightSubmission" },
         "revision.started": { actions: "startRevision" },
         "stream.updated": { actions: "updateStream" },
         "stream.completed": { target: "idle" },
@@ -176,7 +191,7 @@ export const chatRuntimeMachine = setup({
         "history.changed": { target: "idle", actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
-        "submit.started": { target: "streaming", actions: "startSubmission" },
+        "submit.started": { target: "streaming", actions: "supersedeInFlightSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
       },

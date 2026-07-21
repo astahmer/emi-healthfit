@@ -136,6 +136,58 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("");
   });
 
+  it("keeps a completed assistant answer when a follow-up is submitted", () => {
+    const actor = createActor(chatRuntimeMachine, {
+      input: {
+        sessionId: "one",
+        messages: [
+          message("first-user", "user", "What should I eat?"),
+          message("first-assistant", "assistant", "Try more protein."),
+        ],
+      },
+    });
+    actor.start();
+    expect(actor.getSnapshot().matches("idle")).toBe(true);
+
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("follow-up-user", "user", "Tell me about recovery"),
+    });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first-user", "user", "What should I eat?"),
+      message("first-assistant", "assistant", "Try more protein."),
+      message("follow-up-user", "user", "Tell me about recovery"),
+    ]);
+  });
+
+  it("drops a failed partial assistant when submitting from error", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first-user", "user", "First"),
+    });
+    actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
+    actor.send({ type: "stream.failed", error: new Error("network") });
+    expect(actor.getSnapshot().matches("error")).toBe(true);
+
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("second-user", "user", "Second"),
+    });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first-user", "user", "First"),
+      message("second-user", "user", "Second"),
+    ]);
+  });
+
   it("keeps simultaneous browser tabs isolated", () => {
     const firstTab = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     const secondTab = createActor(chatRuntimeMachine, { input: { sessionId: "two" } });
