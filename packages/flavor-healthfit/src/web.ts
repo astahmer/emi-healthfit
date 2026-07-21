@@ -6,3 +6,5 @@ export * from "./web/summary-panel.tsx";
 export * from "./web/upload-machine.ts";
 export * from "./web/upload-panel.tsx";
 export * from "./web/workouts-panel.tsx";
+export * from "./web/gen-ui/catalog.ts";
+export * from "./web/gen-ui/registry.tsx";

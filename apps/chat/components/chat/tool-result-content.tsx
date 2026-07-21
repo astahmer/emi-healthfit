@@ -2,8 +2,8 @@
 
 import type { FC, ReactNode } from "react";
 import { ToolResultContent as CoreToolResultContent } from "@emi/core/web";
+import { GenUIRenderer } from "@emi/flavor-healthfit/web";
 import { ErrorBoundary } from "../error-boundary";
-import { GenUIRenderer } from "./gen-ui/registry";
 import { cn } from "@/lib/utils";
 
 export {
