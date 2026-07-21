@@ -176,7 +176,9 @@ test("surfaces generation-already-running conflicts from a 409", async ({ page }
   await page.getByLabel("Message input").fill("Overlapping send");
   await page.getByLabel("Send message").click();
   await expect(
-    page.getByText("A reply is already in progress. Stop it, or send again to replace it."),
+    page.getByText(
+      "A reply is already in progress elsewhere. Wait for it to finish, or stop it there.",
+    ),
   ).toBeVisible();
   expect(mock.state.chat.calls).toBe(1);
 });
@@ -252,6 +254,8 @@ test("resumes an unfinished generation after refresh", async ({ page }) => {
   await mock.open(page, "/chat/one");
 
   await expect(page.getByText("Resumed answer")).toBeVisible();
+  await expect(page.getByText("Resumed answer")).toHaveCount(1);
+  await expect(page.locator('[id^="message-"]')).toHaveCount(2);
   expect(mock.state.chat.resumeCalls).toBeGreaterThan(0);
 });
 

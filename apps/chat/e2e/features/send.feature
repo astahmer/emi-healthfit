@@ -9,3 +9,8 @@ Feature: Send message
     When they send the message "What about sleep?"
     Then the message "one message answer" should be displayed
     And the assistant reply "Sleep more tonight" should be displayed
+
+  Scenario: Queue a follow-up while the assistant is still streaming
+    Given a user is on session one with a held generation
+    When they send "First question" and queue "Second question" before the reply finishes
+    Then the live assistant answer and both user turns should remain visible

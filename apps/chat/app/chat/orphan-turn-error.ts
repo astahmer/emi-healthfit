@@ -25,7 +25,7 @@ export class GenerationAlreadyRunningError extends Error {
   readonly generationId: string;
 
   constructor({ generationId }: { generationId: string }) {
-    super("A reply is already in progress. Stop it, or send again to replace it.");
+    super("A reply is already in progress elsewhere. Wait for it to finish, or stop it there.");
     this.name = "GenerationAlreadyRunningError";
     this.generationId = generationId;
   }
