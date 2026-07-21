@@ -1,4 +1,4 @@
-import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core-contract";
+import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -8,7 +8,7 @@ import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
-import type { MemoryDatabaseSchema } from "@emi/core-server";
+import type { MemoryDatabaseSchema } from "@emi/core/server";
 import { CurrentUser } from "./core/auth/request-auth.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "./platform/db/client.ts";
 import {
@@ -29,6 +29,7 @@ import {
   messagesHandlers,
   threadsHandlers,
 } from "./core/http/conversations.ts";
+import { discordHandlers } from "./core/http/discord.ts";
 import {
   analyticsHandlers,
   dataHandlers,
@@ -195,6 +196,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
       privacyHandlers({ bucket, db, runtimeContext }),
       workoutsHandlers({ db, environment, runtimeContext }),
       hevyHandlers({ bucket, db, environment, runtimeContext }),
+      discordHandlers({ db, runtimeContext }),
     ),
   ).pipe(Effect.scoped);
   const routes = Object.values(EmiApi.groups).flatMap((group) => {
