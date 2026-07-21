@@ -158,29 +158,27 @@ test("sends the first message in an existing conversation with empty history", a
   );
 });
 
-test("attaches retry to a timed-out user request", async ({ page }) => {
+test("surfaces generation-already-running conflicts from a 409", async ({ page }) => {
   const mock = createChatMock({
     state: {
       snapshots: { one: sessionOneSnapshot() },
       chat: {
-        failStatus: 503,
-        failBody: "Generation timed out",
-        persist: true,
-        replyText: "Retry succeeded",
+        failStatus: 409,
+        failBody: JSON.stringify({
+          error: "A generation is already running",
+          generationId: "generation-conflict-1",
+        }),
       },
     },
   });
   await mock.open(page, "/chat/one");
 
-  await expect(page.getByText("one message answer")).toBeVisible();
-  await expect(page.getByLabel("Send message")).toBeVisible();
-  await page.getByLabel("Message input").fill("Try this request");
+  await page.getByLabel("Message input").fill("Overlapping send");
   await page.getByLabel("Send message").click();
-  await expect(page.getByText("Generation timed out")).toBeVisible();
-  await page.getByRole("button", { name: "Retry this request" }).click();
-
-  await expect(page.getByText("Retry succeeded")).toBeVisible();
-  expect(mock.state.chat.calls).toBe(2);
+  await expect(
+    page.getByText("A reply is already in progress. Stop it, or send again to replace it."),
+  ).toBeVisible();
+  expect(mock.state.chat.calls).toBe(1);
 });
 
 test("accepts a new request after a persisted orphaned turn", async ({ page }) => {

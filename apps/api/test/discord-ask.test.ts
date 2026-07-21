@@ -4,10 +4,7 @@ import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { getConversations, getConversationMessages } from "../src/core/db/conversations.ts";
-import {
-  handleDiscordAsk,
-  type DiscordAskDatabaseSchema,
-} from "../src/core/http/discord-ask.ts";
+import { handleDiscordAsk, type DiscordAskDatabaseSchema } from "../src/core/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
@@ -116,10 +113,11 @@ describe("handleDiscordAsk", () => {
     assert.match(prompts[0]!.system, /Discord slash command/);
 
     const conversations = await run(getConversations(askDb, "user-1"));
-    assert.equal(conversations.some((row) => row.title === "[Discord] /ask"), true);
-    const messages = await run(
-      getConversationMessages(askDb, "user-1", payload.conversationId),
+    assert.equal(
+      conversations.some((row) => row.title === "[Discord] /ask"),
+      true,
     );
+    const messages = await run(getConversationMessages(askDb, "user-1", payload.conversationId));
     assert.equal(messages.length >= 2, true);
   });
 });

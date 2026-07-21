@@ -2,14 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useMachine } from "@xstate/react";
-import { uploadMachine, type UploadResult } from "./upload-machine.ts";
-
-const formatResult = (result: UploadResult | null) => {
-  if (result === null) return "";
-  const health = result.health;
-  const hevy = result.hevy;
-  return `Uploaded!\nHealth: ${health?.daily ?? 0} daily, ${health?.workouts ?? 0} workouts, ${health?.sleep ?? 0} sleep, ${health?.body ?? 0} body\nHevy: ${hevy?.sessions ?? 0} sessions, ${hevy?.sets ?? 0} sets`;
-};
+import { formatUploadResult } from "./upload-format.ts";
+import { uploadMachine } from "./upload-machine.ts";
 
 export const UploadPanel = () => {
   const [state, send] = useMachine(uploadMachine);
@@ -23,7 +17,7 @@ export const UploadPanel = () => {
   }, [state]);
 
   const status = state.matches("success")
-    ? formatResult(state.context.result)
+    ? formatUploadResult(state.context.result)
     : state.context.error;
 
   return (
@@ -67,7 +61,7 @@ export const UploadPanel = () => {
             className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
-            From Hevy: Profile → Settings → Export & Import Data → Export Workouts.
+            From Hevy: Profile / Settings / Export & Import Data / Export Workouts.
           </p>
         </div>
 
@@ -77,7 +71,7 @@ export const UploadPanel = () => {
           disabled={state.matches("uploading")}
           className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 w-full items-center justify-center rounded-md px-4 py-2 text-sm font-medium disabled:pointer-events-none disabled:opacity-50"
         >
-          {state.matches("uploading") ? "Uploading…" : "Upload"}
+          {state.matches("uploading") ? "Uploading..." : "Upload"}
         </button>
 
         {status !== null && status !== "" && (

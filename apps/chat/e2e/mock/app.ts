@@ -586,7 +586,10 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     if (state.chat.failStatus !== null) {
       const status = state.chat.failStatus;
       state.chat.failStatus = null;
-      return context.newResponse(state.chat.failBody, { status: status as 500 });
+      return context.newResponse(state.chat.failBody, {
+        status,
+        headers: status === 409 ? { "content-type": "application/json" } : undefined,
+      });
     }
     if (state.chat.gate !== null) await state.chat.gate;
 
