@@ -110,16 +110,17 @@ and Discord transport skeleton (see git history / prior plan revisions for detai
 ## Remaining deferrals
 
 - Chat `Thread` / `ChatMessage` orchestration still app-local (memories, usage, HealthFit
-  empty suggestions); portable markdown / message parts / tool-result / `ThreadViewport`
-  now live in `@emi/core/web`.
-- Leftover HealthFit HTTP still in apps (`http/data`, `http/hevy`, Hevy OAuth/sync,
-  gen-ui catalog). Ingested-data + data-transfer and `/upload` `/workouts` `/summary`
-  screens now live in `@emi/flavor-healthfit` (+ `/web`).
-- npm publishing of `@emi/core` / `@emi/create-chat-app`.
-- Discord `/ask` free-form chat (see `plans/discord-bot.md`).
-- Discord linking **ops ship**: GymData adopt + migrate + register + smoke blocked on Cloudflare
-  auth (`wrangler login`). Exact adopt command: `pnpm discord:deploy:adopt` — see
-  `plans/discord-bot.md` decisions log. Do not invent a second D1.
+  empty suggestions); portable markdown / message parts / tool-result / `ThreadViewport` /
+  `SuggestionChips` now live in `@emi/core/web`.
+- Leftover HealthFit HTTP still in apps (`http/data`, Hevy route wrappers). Hevy OAuth/sync
+  client + gen-ui catalog/renderer live in `@emi/flavor-healthfit` (+ `/web`).
+- npm publishing of `@emi/core` / `@emi/create-chat-app` (prep docs landed; packages still
+  `"private": true` — see each package `PUBLISH.md`).
+- Discord `/ask` MVP landed (deferred ack → API → webhook edit); tighten budgets / durable
+  generation parity — see `plans/discord-bot.md`.
+- Discord linking **ops ship**: GymData adopt + migrate + register + smoke. Use Alchemy
+  (`alchemy login` / `pnpm discord:deploy:adopt`), not wrangler. See `plans/discord-bot.md`.
+  Do not invent a second D1.
 
 ## Guardrails
 

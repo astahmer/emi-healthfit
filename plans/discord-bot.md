@@ -53,23 +53,29 @@ visible responses per command later.
 
 ## Deferred `/ask`
 
-Do not call the current chat handler directly in MVP. `/ask` needs:
+Shipped as a first slice (2026-07-21):
 
-- deferred interaction acknowledgement within Discord’s deadline;
-- a dedicated Discord conversation or explicit target conversation, never accidental reuse of the
-  last web session;
-- the same durable-generation ownership and stale-lease recovery as web chat;
-- per-user model/token budgets and a maximum cost per command;
-- webhook follow-up handling that survives Worker termination;
-- content controls for public guild channels.
+- Top-level `/ask question:` command (guild/global register via `discordCommandDefinitions`).
+- Deferred ephemeral ack (`DeferredChannelMessageWithSource`) + webhook edit follow-up.
+- Dedicated conversation title `[Discord] /ask` on the linked app user (via API).
+- Bot proxies to `POST /api/discord/ask` with `x-discord-internal-secret` (no provider keys on the bot).
+- Answer truncated to Discord content limits; rate-limited like other commands.
 
-Proxy through a stable authenticated internal API or shared generation service when those contracts
-exist. Do not duplicate the chat pipeline in the bot.
+Still tighten before calling it “done”:
+
+- per-user token/cost budgets beyond `maxOutputTokens`;
+- stale-lease / durable generation parity with web chat streaming;
+- richer content controls for non-ephemeral guild posts (MVP stays ephemeral);
+- bot secrets: `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET` (+ API `OPENAI_API_KEY`,
+  matching `DISCORD_INTERNAL_ASK_SECRET`).
 
 ## Secrets and deployment
 
-- Worker secrets: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`
-  (local values live in `apps/discord-bot/.env` — already scaffolded; do **not** commit).
+- Worker secrets: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`,
+  `EMI_API_BASE_URL` (API origin, `https://…`), `DISCORD_INTERNAL_ASK_SECRET` (≥16 chars,
+  same value on the API Worker). Local scaffold: `apps/discord-bot/.env.example`.
+- API Worker (for `/api/discord/ask`): `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET`
+  (Alchemy `Config.redacted` in `apps/api`); optional `OPENAI_BASE_URL`, `DISCORD_ASK_MODEL`.
 - Bind the existing D1 (`GymData`) used by `apps/api`. Migrations stay owned by the API stack —
   do **not** set `migrationsDir` on the bot’s GymData binding.
 - Root scripts: `discord:dev`, `discord:deploy`, `discord:deploy:adopt`, `discord:register`,
