@@ -472,6 +472,9 @@ export const syncHevy = Effect.fn("hevy.sync")(function* ({
   return yield* syncEffect;
 });
 
+export const isExpectedHevyFreshFailure = (error: unknown): boolean =>
+  error instanceof HevyNotConnectedError || error instanceof HevySyncBusyError;
+
 export const ensureHevyFresh = Effect.fn("hevy.ensureFresh")(function* ({
   db,
   userId,
@@ -486,12 +489,13 @@ export const ensureHevyFresh = Effect.fn("hevy.ensureFresh")(function* ({
     if (connection === undefined) return null;
     return yield* syncHevy({ db, userId, environment, force: false });
   }).pipe(
-    Effect.catch((error) =>
-      Effect.logWarning("hevy.ensureFresh.failed").pipe(
+    Effect.catch((error) => {
+      if (isExpectedHevyFreshFailure(error)) return Effect.succeed(null);
+      return Effect.logWarning("hevy.ensureFresh.failed").pipe(
         Effect.annotateLogs({ userId, error: String(error) }),
         Effect.as(null),
-      ),
-    ),
+      );
+    }),
   );
 });
 
