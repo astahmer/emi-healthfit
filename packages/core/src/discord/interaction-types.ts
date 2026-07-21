@@ -34,7 +34,7 @@ const SubcommandOption = Schema.Struct({
 export const ApplicationCommandData = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
-  options: Schema.optional(Schema.Array(SubcommandOption)),
+  options: Schema.optional(Schema.Array(Schema.Union([SubcommandOption, CommandOptionValue]))),
 });
 export type ApplicationCommandData = typeof ApplicationCommandData.Type;
 

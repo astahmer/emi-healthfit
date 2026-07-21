@@ -20,6 +20,15 @@ export const ephemeralMessageResponse = (content: string): DiscordHttpResponse =
   },
 });
 
+/** Acknowledge within Discord's 3s window; edit/follow up later via webhook. */
+export const deferredEphemeralResponse = (): DiscordHttpResponse => ({
+  status: 200,
+  body: {
+    type: DiscordInteractionResponseType.DeferredChannelMessageWithSource,
+    data: { flags: DISCORD_EPHEMERAL_FLAG },
+  },
+});
+
 export const unauthorizedResponse = (message: string): DiscordHttpResponse => ({
   status: 401,
   body: { error: message },

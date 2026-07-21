@@ -19,11 +19,13 @@ export {
 } from "./interaction-types.ts";
 export {
   badRequestResponse,
+  deferredEphemeralResponse,
   ephemeralMessageResponse,
   pongResponse,
   unauthorizedResponse,
   type DiscordHttpResponse,
 } from "./responses.ts";
+export { editDeferredInteractionResponse } from "./follow-up.ts";
 export {
   InvalidSignature,
   MalformedInteraction,
