@@ -3,7 +3,7 @@ import * as Stream from "effect/Stream";
 import { DefaultChatTransport, readUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 import { useMemo, type MutableRefObject } from "react";
 import { runApi } from "../api-client";
-import { parseOrphanTurnError } from "./orphan-turn-error";
+import { parseChatConflictError } from "./orphan-turn-error";
 
 export type DiagnosticEventType =
   | "client.submitted"
@@ -44,8 +44,8 @@ export const useChatTransport = ({
         api: "/api/chat",
         fetch: async (input, init) => {
           const response = await fetch(input, init);
-          const orphanTurnError = await parseOrphanTurnError(response);
-          if (orphanTurnError !== undefined) throw orphanTurnError;
+          const conflictError = await parseChatConflictError(response);
+          if (conflictError !== undefined) throw conflictError;
           const generationId = response.headers.get("x-generation-id");
           const conversationId = response.headers.get("x-thread-id");
           if (!temporary && generationId !== null && conversationId !== null) {

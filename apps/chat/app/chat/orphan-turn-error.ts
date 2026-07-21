@@ -6,6 +6,11 @@ const orphanTurnResponseSchema = Schema.Struct({
   orphanMessageId: Schema.String.check(Schema.isUUID()),
 });
 
+const generationAlreadyRunningSchema = Schema.Struct({
+  error: Schema.Literal("A generation is already running"),
+  generationId: Schema.String,
+});
+
 export class OrphanTurnError extends Error {
   readonly orphanMessageId: string;
 
@@ -16,15 +21,34 @@ export class OrphanTurnError extends Error {
   }
 }
 
-export const parseOrphanTurnError = async (
+export class GenerationAlreadyRunningError extends Error {
+  readonly generationId: string;
+
+  constructor({ generationId }: { generationId: string }) {
+    super("A reply is already in progress. Stop it, or send again to replace it.");
+    this.name = "GenerationAlreadyRunningError";
+    this.generationId = generationId;
+  }
+}
+
+export const parseChatConflictError = async (
   response: Response,
-): Promise<OrphanTurnError | undefined> => {
+): Promise<OrphanTurnError | GenerationAlreadyRunningError | undefined> => {
   if (response.status !== 409) return undefined;
   const body: unknown = await response
     .clone()
     .json()
     .catch(() => undefined);
-  const parsed = Schema.decodeUnknownOption(orphanTurnResponseSchema)(body);
-  if (Option.isNone(parsed)) return undefined;
-  return new OrphanTurnError({ orphanMessageId: parsed.value.orphanMessageId });
+  const orphan = Schema.decodeUnknownOption(orphanTurnResponseSchema)(body);
+  if (Option.isSome(orphan)) {
+    return new OrphanTurnError({ orphanMessageId: orphan.value.orphanMessageId });
+  }
+  const running = Schema.decodeUnknownOption(generationAlreadyRunningSchema)(body);
+  if (Option.isSome(running)) {
+    return new GenerationAlreadyRunningError({ generationId: running.value.generationId });
+  }
+  return undefined;
 };
+
+/** @deprecated Use parseChatConflictError */
+export const parseOrphanTurnError = parseChatConflictError;
