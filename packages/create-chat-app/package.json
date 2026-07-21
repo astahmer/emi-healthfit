@@ -1,0 +1,27 @@
+{
+  "name": "@emi/create-chat-app",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "create-chat-app": "./bin/create-chat-app.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/**/*.test.ts",
+    "test:file": "node --test --experimental-strip-types",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}
