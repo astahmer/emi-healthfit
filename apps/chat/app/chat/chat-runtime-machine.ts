@@ -82,9 +82,13 @@ export const chatRuntimeMachine = setup({
     }),
     startSubmission: assign(({ context, event }) => {
       if (event.type !== "submit.started") return {};
+      const baseMessages =
+        context.messages.at(-1)?.role === "assistant"
+          ? context.messages.slice(0, -1)
+          : context.messages;
       return {
         sessionId: event.sessionId,
-        messages: [...context.messages, event.message],
+        messages: [...baseMessages, event.message],
         draft: "",
         files: [],
         drafts: {
@@ -155,6 +159,10 @@ export const chatRuntimeMachine = setup({
     },
     streaming: {
       on: {
+        "draft.changed": { actions: "changeDraft" },
+        "files.changed": { actions: "changeFiles" },
+        "submit.started": { actions: "startSubmission" },
+        "revision.started": { actions: "startRevision" },
         "stream.updated": { actions: "updateStream" },
         "stream.completed": { target: "idle" },
         "stream.stopped": { target: "idle" },

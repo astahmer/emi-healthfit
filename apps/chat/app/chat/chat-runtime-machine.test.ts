@@ -99,7 +99,7 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.error?.message).toBe("Generation timed out");
   });
 
-  it("rejects a concurrent submission while one generation is streaming", () => {
+  it("keeps composer draft updates while a generation is streaming", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
     actor.send({
@@ -107,13 +107,33 @@ describe("chatRuntimeMachine", () => {
       sessionId: "one",
       message: message("first", "user", "First"),
     });
+    actor.send({ type: "draft.changed", value: "typed while streaming" });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.draft).toBe("typed while streaming");
+  });
+
+  it("replaces an in-flight generation when a new message is submitted", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
     actor.send({
       type: "submit.started",
       sessionId: "one",
       message: message("second", "user", "Second"),
     });
 
-    expect(actor.getSnapshot().context.messages).toEqual([message("first", "user", "First")]);
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first", "user", "First"),
+      message("second", "user", "Second"),
+    ]);
+    expect(actor.getSnapshot().context.draft).toBe("");
   });
 
   it("keeps simultaneous browser tabs isolated", () => {
