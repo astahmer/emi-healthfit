@@ -7,6 +7,7 @@ import { getConversationViewMessages } from "./conversation-tree";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
 import { consumeAssistantStream, type ChatTransport } from "./chat-transport";
+import { shouldAcceptStreamUpdate } from "./stream-operation";
 
 type ChatRuntimeSnapshot = SnapshotFrom<typeof chatRuntimeMachine>;
 type ChatRuntimeEvent = EventFrom<typeof chatRuntimeMachine>;
@@ -118,7 +119,14 @@ export const useChatHistorySync = ({
       send({ type: "resume.started" });
       const stream = await transport.reconnectToStream({ chatId: sessionId });
       if (stream === null) {
-        if (operationRef.current === operation) send({ type: "stream.completed" });
+        if (
+          shouldAcceptStreamUpdate({
+            activeOperation: operationRef.current,
+            eventOperation: operation,
+          })
+        ) {
+          send({ type: "stream.completed" });
+        }
         await synchronizePersistedHistory(sessionId);
         notifyConversationsChanged();
         return;
@@ -126,11 +134,25 @@ export const useChatHistorySync = ({
       await consumeAssistantStream({
         stream,
         onMessage: (message) => {
-          if (operationRef.current === operation) send({ type: "stream.updated", message });
+          if (
+            shouldAcceptStreamUpdate({
+              activeOperation: operationRef.current,
+              eventOperation: operation,
+            })
+          ) {
+            send({ type: "stream.updated", message });
+          }
         },
         cancelRef: cancelStreamRef,
       });
-      if (operationRef.current !== operation) return;
+      if (
+        !shouldAcceptStreamUpdate({
+          activeOperation: operationRef.current,
+          eventOperation: operation,
+        })
+      ) {
+        return;
+      }
       send({ type: "stream.completed" });
       await synchronizePersistedHistory(sessionId);
       notifyConversationsChanged();

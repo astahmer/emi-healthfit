@@ -113,6 +113,29 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("typed while streaming");
   });
 
+  it("ignores same-session history snapshots while a generation is streaming", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("user", "user", "Hi"),
+    });
+    actor.send({ type: "stream.updated", message: message("assistant", "assistant", "Hello") });
+    actor.send({
+      type: "history.changed",
+      sessionId: "one",
+      messages: [message("stale", "user", "Should not replace live stream")],
+    });
+
+    const snapshot = actor.getSnapshot();
+    expect(snapshot.matches("streaming")).toBe(true);
+    expect(snapshot.context.messages).toEqual([
+      message("user", "user", "Hi"),
+      message("assistant", "assistant", "Hello"),
+    ]);
+  });
+
   it("replaces an in-flight generation when a new message is submitted", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();

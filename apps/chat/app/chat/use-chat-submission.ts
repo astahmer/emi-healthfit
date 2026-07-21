@@ -14,6 +14,7 @@ import { chatRuntimeMachine } from "./chat-runtime-machine";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
 import { consumeAssistantStream, type ChatTransport } from "./chat-transport";
 import { OrphanTurnError } from "./orphan-turn-error";
+import { shouldAcceptStreamUpdate } from "./stream-operation";
 
 type ChatRuntimeSnapshot = SnapshotFrom<typeof chatRuntimeMachine>;
 type ChatRuntimeEvent = EventFrom<typeof chatRuntimeMachine>;
@@ -159,18 +160,39 @@ export const useChatSubmission = ({
         await consumeAssistantStream({
           stream,
           onMessage: (message) => {
-            if (operationRef.current === operation) send({ type: "stream.updated", message });
+            if (
+              shouldAcceptStreamUpdate({
+                activeOperation: operationRef.current,
+                eventOperation: operation,
+              })
+            ) {
+              send({ type: "stream.updated", message });
+            }
           },
           cancelRef: cancelStreamRef,
         });
-        if (operationRef.current !== operation) return;
+        if (
+          !shouldAcceptStreamUpdate({
+            activeOperation: operationRef.current,
+            eventOperation: operation,
+          })
+        ) {
+          return;
+        }
         send({ type: "stream.completed" });
         if (config.temporary) return;
         const snapshot = await synchronizePersistedHistory(sessionId);
         notifyConversationsChanged();
         void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
       } catch (error) {
-        if (operationRef.current !== operation) return;
+        if (
+          !shouldAcceptStreamUpdate({
+            activeOperation: operationRef.current,
+            eventOperation: operation,
+          })
+        ) {
+          return;
+        }
         if (controller.signal.aborted) {
           send({ type: "stream.stopped" });
           return;

@@ -1,5 +1,6 @@
 import type { FileUIPart, UIMessage } from "ai";
 import { assign, setup } from "xstate";
+import { shouldApplyHistoryWhileStreaming } from "./stream-operation";
 
 export interface ChatRuntimeContext {
   sessionId: string | undefined;
@@ -36,6 +37,14 @@ export const chatRuntimeMachine = setup({
     context: {} as ChatRuntimeContext,
     events: {} as ChatRuntimeEvent,
     input: {} as { sessionId?: string; messages?: UIMessage[] },
+  },
+  guards: {
+    isDifferentSessionHistory: ({ context, event }) =>
+      event.type === "history.changed" &&
+      shouldApplyHistoryWhileStreaming({
+        contextSessionId: context.sessionId,
+        eventSessionId: event.sessionId,
+      }),
   },
   actions: {
     changeHistory: assign(({ context, event }) => {
@@ -182,7 +191,13 @@ export const chatRuntimeMachine = setup({
         "stream.completed": { target: "idle" },
         "stream.stopped": { target: "idle" },
         "stream.failed": { target: "error", actions: "failStream" },
-        "history.changed": { target: "idle", actions: "changeHistory" },
+        "history.changed": [
+          {
+            guard: "isDifferentSessionHistory",
+            target: "idle",
+            actions: "changeHistory",
+          },
+        ],
       },
     },
     error: {
