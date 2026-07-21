@@ -17,8 +17,7 @@
     "lint:fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
-    "@emi/core-contract": "workspace:*",
-    "@emi/core-web": "workspace:*",
+    "@emi/core": "workspace:*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

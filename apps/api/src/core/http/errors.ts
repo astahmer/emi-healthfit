@@ -1,4 +1,4 @@
-import { BadRequest, InternalServerError, NotFound } from "@emi/core-contract";
+import { BadRequest, InternalServerError, NotFound } from "@emi/core/contract";
 import * as Effect from "effect/Effect";
 
 export const withInternalError = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

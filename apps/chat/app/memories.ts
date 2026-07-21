@@ -1,7 +1,7 @@
-import type { Memory } from "@emi/core-contract";
+import type { Memory } from "@emi/core/contract";
 import { runApi } from "./api-client";
 
-export type { Memory } from "@emi/core-contract";
+export type { Memory } from "@emi/core/contract";
 
 export const memoryProvenance = (memory: Memory) => {
   const matched = memory.source?.match(/^(auto|manual):(.+)$/);

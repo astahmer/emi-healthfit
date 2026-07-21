@@ -14,4 +14,4 @@ export {
   type MemoryDatabaseSchema,
   type MemoryInput,
   type MemorySearchResult,
-} from "@emi/core-server";
+} from "@emi/core/server";

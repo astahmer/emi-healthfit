@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import type { MemoryDatabaseSchema } from "@emi/core-server";
+import type { MemoryDatabaseSchema } from "@emi/core/server";
 import {
   deleteMemoriesByMessage,
   deleteMemory,

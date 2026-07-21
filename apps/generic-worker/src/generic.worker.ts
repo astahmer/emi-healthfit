@@ -10,11 +10,8 @@ import {
   makeConversationStore,
   makeRequestContext,
   type ConversationDatabaseSchema,
-} from "@emi/core-server";
-import {
-  makeQueryDatabaseClient,
-  type CloudflareQueryDatabaseClient,
-} from "@emi/platform-cloudflare";
+} from "@emi/core/server";
+import { makeQueryDatabaseClient, type CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
 
 const DB = Cloudflare.D1.Database("GenericData");
 

@@ -1,5 +1,5 @@
 import { Outlet } from "@tanstack/react-router";
-import { CoreWebProvider } from "@emi/core-web";
+import { CoreWebProvider } from "@emi/core/web";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ActionFeedbackProvider } from "./action-feedback";
 import { AuthBoundary } from "./auth-boundary";

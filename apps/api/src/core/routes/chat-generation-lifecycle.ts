@@ -1,6 +1,6 @@
 import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-import { Content } from "@emi/core-contract";
+import { Content } from "@emi/core/contract";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -41,7 +41,7 @@ import {
   reviseConversationMessage,
   saveConversationMessages,
 } from "../db/conversations.ts";
-import type { ConversationDatabaseSchema } from "@emi/core-server";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { corsHeaders } from "../../platform/http/assets-cors.ts";

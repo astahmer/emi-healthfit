@@ -1,1 +1,1 @@
-export { AttachmentValidationError, prepareAttachments, validateAttachments } from "@emi/core-web";
+export { AttachmentValidationError, prepareAttachments, validateAttachments } from "@emi/core/web";

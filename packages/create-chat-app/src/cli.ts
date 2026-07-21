@@ -55,14 +55,13 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
 
 export const helpText = `Usage: create-chat-app [name] [options]
 
-Generates a thin composition root (web/ + worker/) depending on
-@emi/core-contract, @emi/core-server, @emi/core-web, and @emi/platform-cloudflare.
-No core package source is copied.
+Generates a thin composition root (web/ + worker/) depending on @emi/core
+(subpaths: /contract, /server, /web, /cloudflare). No core package source is copied.
 
 Options:
   -n, --name <name>          App name (prompted if omitted and stdin is a TTY)
   -d, --dir <path>           Target directory (default: ./<name>)
-      --core-version <ver>   Dependency version string for @emi/core-* packages
+      --core-version <ver>   Dependency version string for @emi/core
                               (default: "${DEFAULT_CORE_VERSION}")
       --dry-run              Print the file list without writing anything
       --force                Overwrite a non-empty target directory

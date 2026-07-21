@@ -31,15 +31,10 @@ describe("upgrading the generated app's core dependency", () => {
       Object.keys(workerAfter.dependencies).toSorted(),
     );
 
-    assert.equal(webBefore.dependencies["@emi/core-contract"], DEFAULT_CORE_VERSION);
-    assert.equal(webAfter.dependencies["@emi/core-contract"], "^0.2.0");
-    assert.equal(webBefore.dependencies["@emi/core-web"], DEFAULT_CORE_VERSION);
-    assert.equal(webAfter.dependencies["@emi/core-web"], "^0.2.0");
-
-    assert.equal(workerBefore.dependencies["@emi/core-server"], DEFAULT_CORE_VERSION);
-    assert.equal(workerAfter.dependencies["@emi/core-server"], "^0.2.0");
-    assert.equal(workerBefore.dependencies["@emi/platform-cloudflare"], DEFAULT_CORE_VERSION);
-    assert.equal(workerAfter.dependencies["@emi/platform-cloudflare"], "^0.2.0");
+    assert.equal(webBefore.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
+    assert.equal(webAfter.dependencies["@emi/core"], "^0.2.0");
+    assert.equal(workerBefore.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
+    assert.equal(workerAfter.dependencies["@emi/core"], "^0.2.0");
   });
 
   it("resolves the same @emi/* package names across a pinned-to-pinned bump", () => {

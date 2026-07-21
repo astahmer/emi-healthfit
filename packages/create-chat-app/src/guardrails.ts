@@ -8,17 +8,15 @@ export interface GuardrailViolation {
 }
 
 const CORE_SOURCE_ROOTS = [
-  "packages/core-server/src",
-  "packages/core-web/src",
-  "packages/core-contract/src",
-  "packages/platform-cloudflare/src",
+  "packages/core/src/contract",
+  "packages/core/src/server",
+  "packages/core/src/web",
+  "packages/core/src/cloudflare",
+  "packages/core/src/discord",
 ];
 
 const FORBIDDEN_IMPORT_PATTERNS: RegExp[] = [
-  /from\s+["'][^"']*core-server\/src/,
-  /from\s+["'][^"']*core-web\/src/,
-  /from\s+["'][^"']*core-contract\/src/,
-  /from\s+["'][^"']*platform-cloudflare\/src/,
+  /from\s+["'][^"']*core\/src\//,
   /from\s+["'][^"']*\.\.\/\.\.\/packages\//,
   /from\s+["'][^"']*\bapps\/(api|chat)\//,
 ];

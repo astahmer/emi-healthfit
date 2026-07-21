@@ -14,7 +14,7 @@ import {
 const packageDir = fileURLToPath(new URL("..", import.meta.url));
 const repoRoot = join(packageDir, "..", "..");
 
-describe("generated fixture never contains core-server/core-web internals", () => {
+describe("generated fixture never contains packages/core/src internals", () => {
   let targetDir = "";
 
   before(async () => {
@@ -26,7 +26,7 @@ describe("generated fixture never contains core-server/core-web internals", () =
     if (targetDir !== "") await rm(targetDir, { recursive: true, force: true });
   });
 
-  it("hashes every generated file against packages/core-*/src and finds no copy", async () => {
+  it("hashes every generated file against packages/core/src and finds no copy", async () => {
     const coreSourceHashes = await buildCoreSourceHashIndex(repoRoot);
     assert.ok(
       coreSourceHashes.size > 0,
@@ -41,14 +41,7 @@ describe("generated fixture never contains core-server/core-web internals", () =
   });
 
   it("only references core packages by name, never by a distinctive internal path", async () => {
-    const distinctivePaths = [
-      "core-server/src",
-      "core-web/src",
-      "core-contract/src",
-      "platform-cloudflare/src",
-      "apps/api/src",
-      "apps/chat/src",
-    ];
+    const distinctivePaths = ["packages/core/src", "apps/api/src", "apps/chat/src"];
     const coreSourceHashes = await buildCoreSourceHashIndex(repoRoot);
     const violations = await scanGeneratedTreeForCopiedCoreSource({
       generatedRoot: targetDir,

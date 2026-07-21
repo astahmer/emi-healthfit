@@ -28,10 +28,8 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "catalog:",
-    "@emi/core-contract": "workspace:*",
-    "@emi/core-server": "workspace:*",
+    "@emi/core": "workspace:*",
     "@emi/flavor-healthfit": "workspace:*",
-    "@emi/platform-cloudflare": "workspace:*",
     "ai": "catalog:",
     "alchemy": "2.0.0-beta.59",
     "better-auth": "catalog:",

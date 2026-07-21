@@ -8,6 +8,8 @@ import {
   chatGenerationChunks,
   chatGenerations,
   conversations,
+  discordAccountLinks,
+  discordLinkCodes,
   memories,
   messages,
   notes,
@@ -15,13 +17,13 @@ import {
   threadMessages,
   threads,
   type QueryDatabaseClient as GenericQueryDatabaseClient,
-} from "@emi/core-server";
+} from "@emi/core/server";
 import {
   makeD1Kysely as makePlatformD1Kysely,
   makeQueryDatabaseClient as makePlatformQueryDatabaseClient,
   type CloudflareQueryDatabaseClient,
   type RawQueryDatabaseClient,
-} from "@emi/platform-cloudflare";
+} from "@emi/core/cloudflare";
 import {
   bodyMetrics,
   dailyActivity,
@@ -35,8 +37,8 @@ import {
   syncCursors,
 } from "@emi/flavor-healthfit";
 
-export { runTransaction, runBatches } from "@emi/core-server";
-export type { RawQueryDatabaseClient } from "@emi/platform-cloudflare";
+export { runTransaction, runBatches } from "@emi/core/server";
+export type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
 
 export interface DatabaseSchema {
   auth_account: Kyselify<typeof authAccount>;
@@ -49,6 +51,8 @@ export interface DatabaseSchema {
   chat_generations: Kyselify<typeof chatGenerations>;
   conversations: Kyselify<typeof conversations>;
   daily_activity: Kyselify<typeof dailyActivity>;
+  discord_account_links: Kyselify<typeof discordAccountLinks>;
+  discord_link_codes: Kyselify<typeof discordLinkCodes>;
   health_workouts: Kyselify<typeof healthWorkouts>;
   hevy_connections: Kyselify<typeof hevyConnections>;
   hevy_sessions: Kyselify<typeof hevySessions>;

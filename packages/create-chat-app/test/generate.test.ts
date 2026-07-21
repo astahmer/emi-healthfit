@@ -35,7 +35,7 @@ describe("buildGeneratedFiles", () => {
     ]);
   });
 
-  it("defaults @emi/core-* dependency versions to workspace:*", () => {
+  it("defaults @emi/core dependency version to workspace:*", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     const webPackageJson = JSON.parse(findFile(files, "web/package.json").contents) as {
       name: string;
@@ -47,12 +47,10 @@ describe("buildGeneratedFiles", () => {
     };
 
     assert.equal(webPackageJson.name, "acme-chat-web");
-    assert.equal(webPackageJson.dependencies["@emi/core-contract"], DEFAULT_CORE_VERSION);
-    assert.equal(webPackageJson.dependencies["@emi/core-web"], DEFAULT_CORE_VERSION);
+    assert.equal(webPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
 
     assert.equal(workerPackageJson.name, "acme-chat-worker");
-    assert.equal(workerPackageJson.dependencies["@emi/core-server"], DEFAULT_CORE_VERSION);
-    assert.equal(workerPackageJson.dependencies["@emi/platform-cloudflare"], DEFAULT_CORE_VERSION);
+    assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
   });
 
   it("never points @emi/* dependencies at a local src copy (relative path or file: protocol)", () => {
@@ -71,7 +69,7 @@ describe("buildGeneratedFiles", () => {
     }
   });
 
-  it("never emits a relative import into packages/core-*/src", () => {
+  it("never emits a relative import into packages/core/src", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     for (const file of files) {
       assert.doesNotMatch(
@@ -79,11 +77,7 @@ describe("buildGeneratedFiles", () => {
         /\.\.\/\.\.\/packages\//,
         `${file.path} imports a monorepo-relative path`,
       );
-      assert.doesNotMatch(
-        file.contents,
-        /core-server\/src|core-web\/src|core-contract\/src|platform-cloudflare\/src/,
-        file.path,
-      );
+      assert.doesNotMatch(file.contents, /packages\/core\/src/, file.path);
     }
   });
 });

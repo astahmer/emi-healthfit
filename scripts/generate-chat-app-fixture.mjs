@@ -31,11 +31,9 @@ const main = async () => {
     process.exitCode = 1;
     return;
   }
-  console.log(
-    "Guardrail check passed: no copied core-server/core-web/core-contract/platform-cloudflare source found.",
-  );
+  console.log("Guardrail check passed: no copied packages/core/src found.");
 
-  console.log("\nTo fully verify (typecheck against real @emi/core-* packages):");
+  console.log("\nTo fully verify (typecheck against real @emi/core package):");
   console.log("  pnpm install");
   console.log("  pnpm --filter generated-fixture-web typecheck");
   console.log("  pnpm --filter generated-fixture-worker typecheck");

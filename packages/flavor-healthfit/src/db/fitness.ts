@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { sql } from "kysely";
-import type { QueryDatabaseClient } from "@emi/core-server";
+import type { QueryDatabaseClient } from "@emi/core/server";
 import type { HealthfitDatabaseSchema } from "./schema.ts";
 
 type FitnessDb = QueryDatabaseClient<HealthfitDatabaseSchema>;

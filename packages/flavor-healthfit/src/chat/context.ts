@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { QueryDatabaseClient } from "@emi/core-server";
+import type { QueryDatabaseClient } from "@emi/core/server";
 import { estimateRecovery } from "./recovery-estimate.ts";
 import type { HealthfitDatabaseSchema, HevySetRow, SleepSessionRow } from "../db/schema.ts";
 

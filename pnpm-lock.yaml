@@ -68,18 +68,12 @@ importers:
       '@ai-sdk/openai':
         specifier: 'catalog:'
         version: 3.0.84(zod@3.25.76)
-      '@emi/core-contract':
+      '@emi/core':
         specifier: workspace:*
-        version: link:../../packages/core-contract
-      '@emi/core-server':
-        specifier: workspace:*
-        version: link:../../packages/core-server
+        version: link:../../packages/core
       '@emi/flavor-healthfit':
         specifier: workspace:*
         version: link:../../packages/flavor-healthfit
-      '@emi/platform-cloudflare':
-        specifier: workspace:*
-        version: link:../../packages/platform-cloudflare
       ai:
         specifier: 'catalog:'
         version: 6.0.224(zod@3.25.76)
@@ -141,12 +135,9 @@ importers:
 
   apps/chat:
     dependencies:
-      '@emi/core-contract':
+      '@emi/core':
         specifier: workspace:*
-        version: link:../../packages/core-contract
-      '@emi/core-web':
-        specifier: workspace:*
-        version: link:../../packages/core-web
+        version: link:../../packages/core
       '@emi/flavor-healthfit':
         specifier: workspace:*
         version: link:../../packages/flavor-healthfit
@@ -292,12 +283,12 @@ importers:
 
   apps/discord-bot:
     dependencies:
-      '@emi/core-server':
+      '@emi/core':
         specifier: workspace:*
-        version: link:../../packages/core-server
-      '@emi/transport-discord':
+        version: link:../../packages/core
+      '@emi/flavor-healthfit':
         specifier: workspace:*
-        version: link:../../packages/transport-discord
+        version: link:../../packages/flavor-healthfit
       alchemy:
         specifier: 2.0.0-beta.59
         version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1))(@types/node@26.1.1)(@types/react@19.2.17)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(workerd@1.20260710.1)(ws@8.21.0)
@@ -329,12 +320,9 @@ importers:
 
   apps/generic-web:
     dependencies:
-      '@emi/core-contract':
+      '@emi/core':
         specifier: workspace:*
-        version: link:../../packages/core-contract
-      '@emi/core-web':
-        specifier: workspace:*
-        version: link:../../packages/core-web
+        version: link:../../packages/core
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -381,12 +369,9 @@ importers:
 
   apps/generic-worker:
     dependencies:
-      '@emi/core-server':
+      '@emi/core':
         specifier: workspace:*
-        version: link:../../packages/core-server
-      '@emi/platform-cloudflare':
-        specifier: workspace:*
-        version: link:../../packages/platform-cloudflare
+        version: link:../../packages/core
       alchemy:
         specifier: 2.0.0-beta.59
         version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1))(@types/node@26.1.1)(@types/react@19.2.17)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(workerd@1.20260710.1)(ws@8.21.0)
@@ -428,27 +413,11 @@ importers:
         specifier: ^4.111.0
         version: 4.111.0(@cloudflare/workers-types@4.20250805.0)
 
-  packages/core-contract:
+  packages/core:
     dependencies:
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-beta.88
-    devDependencies:
-      oxfmt:
-        specifier: 'catalog:'
-        version: 0.56.0
-      oxlint:
-        specifier: 'catalog:'
-        version: 1.73.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.1-rc
-
-  packages/core-server:
-    dependencies:
-      '@emi/core-contract':
-        specifier: workspace:*
-        version: link:../core-contract
+      alchemy:
+        specifier: 2.0.0-beta.59
+        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1))(@types/node@26.1.1)(@types/react@19.2.17)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(workerd@1.20260710.1)(ws@8.21.0)
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0)
@@ -458,28 +427,22 @@ importers:
       kysely:
         specifier: 0.29.3
         version: 0.29.3
+      kysely-d1:
+        specifier: 0.4.0
+        version: 0.4.0(kysely@0.29.3)
     devDependencies:
-      '@types/json-schema':
-        specifier: 'catalog:'
-        version: 7.0.15
-      oxfmt:
-        specifier: 'catalog:'
-        version: 0.56.0
-      oxlint:
-        specifier: 'catalog:'
-        version: 1.73.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.1-rc
-
-  packages/core-web:
-    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 4.20250805.0
+        version: 4.20250805.0
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@types/json-schema':
+        specifier: 'catalog:'
+        version: 7.0.15
       '@types/node':
         specifier: ^26.0.0
         version: 26.1.1
@@ -531,12 +494,9 @@ importers:
 
   packages/flavor-healthfit:
     dependencies:
-      '@emi/core-server':
+      '@emi/core':
         specifier: workspace:*
-        version: link:../core-server
-      '@emi/core-web':
-        specifier: workspace:*
-        version: link:../core-web
+        version: link:../core
       alchemy:
         specifier: 2.0.0-beta.59
         version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1))(@types/node@26.1.1)(@types/react@19.2.17)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(workerd@1.20260710.1)(ws@8.21.0)
@@ -604,59 +564,6 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
-
-  packages/platform-cloudflare:
-    dependencies:
-      '@emi/core-server':
-        specifier: workspace:*
-        version: link:../core-server
-      alchemy:
-        specifier: 2.0.0-beta.59
-        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1))(@types/node@26.1.1)(@types/react@19.2.17)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))(workerd@1.20260710.1)(ws@8.21.0)
-      drizzle-orm:
-        specifier: 0.45.2
-        version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.3)(mysql2@3.22.6(@types/node@26.1.1))(pg@8.22.0)
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-beta.88
-      kysely:
-        specifier: 0.29.3
-        version: 0.29.3
-      kysely-d1:
-        specifier: 0.4.0
-        version: 0.4.0(kysely@0.29.3)
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: 4.20250805.0
-        version: 4.20250805.0
-      oxfmt:
-        specifier: 'catalog:'
-        version: 0.56.0
-      oxlint:
-        specifier: 'catalog:'
-        version: 1.73.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.1-rc
-
-  packages/transport-discord:
-    dependencies:
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-beta.88
-    devDependencies:
-      '@types/node':
-        specifier: ^26.0.0
-        version: 26.1.1
-      oxfmt:
-        specifier: 'catalog:'
-        version: 0.56.0
-      oxlint:
-        specifier: 'catalog:'
-        version: 1.73.0
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.1-rc
 
 packages:
 

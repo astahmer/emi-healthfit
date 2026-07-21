@@ -3,7 +3,7 @@
 import { memo, type FC } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { useToolRenderer } from "@emi/core-web";
+import { useToolRenderer } from "@emi/core/web";
 import { cn } from "@/lib/utils";
 import { GenUIRenderer } from "./gen-ui/registry";
 import { ErrorBoundary } from "../error-boundary";

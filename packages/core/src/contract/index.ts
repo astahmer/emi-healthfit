@@ -1,0 +1,34 @@
+export * from "./common.ts";
+export * from "./conversations.ts";
+export * from "./data.ts";
+export * from "./discord.ts";
+export * from "./notes-and-memories.ts";
+
+import { HttpApi } from "effect/unstable/httpapi";
+import { ConversationsApi, MessagesApi, ThreadsApi } from "./conversations.ts";
+import {
+  AnalyticsApi,
+  DataApi,
+  HevyIntegrationApi,
+  MemoriesExtraApi,
+  PrivacyApi,
+  SuggestionsApi,
+  WorkoutsApi,
+} from "./data.ts";
+import { DiscordApi } from "./discord.ts";
+import { MemoriesApi, NotesApi } from "./notes-and-memories.ts";
+
+export class EmiApi extends HttpApi.make("emi-api")
+  .add(NotesApi)
+  .add(MemoriesApi)
+  .add(ConversationsApi)
+  .add(ThreadsApi)
+  .add(MessagesApi)
+  .add(SuggestionsApi)
+  .add(MemoriesExtraApi)
+  .add(AnalyticsApi)
+  .add(DataApi)
+  .add(PrivacyApi)
+  .add(WorkoutsApi)
+  .add(HevyIntegrationApi)
+  .add(DiscordApi) {}

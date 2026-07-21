@@ -3,6 +3,8 @@ export {
   chatGenerationChunks,
   chatGenerations,
   conversations,
+  discordAccountLinks,
+  discordLinkCodes,
   memories,
   messages,
   notes,
@@ -11,10 +13,11 @@ export {
   threads,
   type ConversationDatabaseSchema,
   type ConversationRow,
+  type DiscordDatabaseSchema,
   type MemoryRow,
   type MessageRow,
   type NoteRow,
   type SuggestionsRow,
   type ThreadMessageRow,
   type ThreadRow,
-} from "@emi/core-server";
+} from "@emi/core/server";

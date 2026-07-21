@@ -33,7 +33,7 @@ import {
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
 import { healthFitAppDefinition, executeTool as executeHealthfitTool } from "@emi/flavor-healthfit";
-import { composeSystemPrompt } from "@emi/core-server";
+import { composeSystemPrompt } from "@emi/core/server";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 

@@ -18,7 +18,7 @@ import {
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
   type QueryDatabaseClient,
-} from "@emi/core-server";
+} from "@emi/core/server";
 import { buildChatContext } from "../chat/context.ts";
 import {
   getDataSummary,

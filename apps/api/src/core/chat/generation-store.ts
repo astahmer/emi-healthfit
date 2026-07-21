@@ -1,6 +1,6 @@
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
-import type { ConversationDatabaseSchema } from "@emi/core-server";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import {
   narrowQueryDatabaseClient,
   runTransaction,

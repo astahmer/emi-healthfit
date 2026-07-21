@@ -5,4 +5,4 @@ export {
   threadMessages,
   threads,
   type ConversationDatabaseSchema,
-} from "@emi/core-server";
+} from "@emi/core/server";

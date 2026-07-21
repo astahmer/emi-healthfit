@@ -1,10 +1,10 @@
 # @emi/create-chat-app
 
 Scaffolder for a thin, self-hostable chat-app composition root. Generates a `web/` (Vite + React,
-depends on `@emi/core-web` + `@emi/core-contract`) and a `worker/` (Alchemy Cloudflare Worker,
-depends on `@emi/core-server` + `@emi/platform-cloudflare`) pair of packages. **No core package
-source is ever copied** — generated files only reference `@emi/core-*` and
-`@emi/platform-cloudflare` by package name.
+imports `@emi/core/web` + `@emi/core/contract`) and a `worker/` (Alchemy Cloudflare Worker,
+imports `@emi/core/server` + `@emi/core/cloudflare`) pair of packages. Both depend on the single
+`@emi/core` package. **No core package source is ever copied** — generated files only reference
+`@emi/core` by package name and use subpath imports.
 
 ## Usage
 
@@ -26,44 +26,39 @@ Once published, the same CLI is reachable as `create-chat-app` via the `bin` fie
 
 ## Options
 
-| Flag                   | Description                                                                   |
-| ---------------------- | ----------------------------------------------------------------------------- |
-| `-n, --name <name>`    | App name (prompted if omitted and stdin is a TTY)                             |
-| `-d, --dir <path>`     | Target directory (default: `./<name>`)                                        |
-| `--core-version <ver>` | Dependency version string for `@emi/core-*` packages (default: `workspace:*`) |
-| `--dry-run`            | Print the file list without writing anything                                  |
-| `--force`              | Overwrite a non-empty target directory                                        |
-| `-h, --help`           | Show help text                                                                |
+| Flag                   | Description                                                        |
+| ---------------------- | ------------------------------------------------------------------ |
+| `-n, --name <name>`    | App name (prompted if omitted and stdin is a TTY)                  |
+| `-d, --dir <path>`     | Target directory (default: `./<name>`)                             |
+| `--core-version <ver>` | Dependency version string for `@emi/core` (default: `workspace:*`) |
+| `--dry-run`            | Print the file list without writing anything                       |
+| `--force`              | Overwrite a non-empty target directory                             |
+| `-h, --help`           | Show help text                                                     |
 
 ## Generated tree
 
 ```text
 <target>/
-  README.md            states application logic comes from @emi/core-* packages
+  README.md
   .env.example
   .gitignore
-  web/                  Vite + React composition root (mirrors apps/generic-web)
-  worker/               Alchemy Cloudflare Worker composition root (mirrors apps/generic-worker)
+  web/
+    package.json          # depends on @emi/core (+ react)
+    src/app.tsx           # CoreWebProvider + ChatShell
+    ...
+  worker/
+    package.json          # depends on @emi/core (+ alchemy/drizzle)
+    src/app.worker.ts     # coreAppDefinition + D1 conversation routes
+    ...
 ```
 
-`web/` and `worker/` must be members of a pnpm workspace that also resolves the `@emi/core-*`
-packages — either this monorepo (when generated under `apps/`) or, once released, a standalone
-project's own workspace pinned to a published version via `--core-version`.
+## Guardrails
 
-## Tests
-
-- `test/generate.test.ts` — unit: exact generated file set, `@emi/*` dependency names/versions.
-- `test/boundary.test.ts` — guardrail: hashes generated files against every file under
-  `packages/core-*/src` and `packages/platform-cloudflare/src` and scans for relative imports that
-  reach into those directories.
-- `test/upgrade.test.ts` — bumping `--core-version` changes only the version string; package names
-  stay stable.
-- `test/cli.test.ts` — flag parsing, plus an end-to-end run into a real temp directory asserting
-  `typecheck` scripts exist (running `tsc` itself requires `pnpm install` first, see
-  `scripts/generate-chat-app-fixture.mjs` at the repo root).
+`src/guardrails.ts` hashes every file under `packages/core/src/{contract,server,web,cloudflare,discord}`
+and scans for relative imports that reach into the monorepo. The fixture script
+(`pnpm fixture:chat-app`) regenerates `apps/generated-fixture/{web,worker}` and re-runs that scan.
 
 ## Deferred
 
-Real npm publishing of `@emi/create-chat-app` and the `@emi/core-*` packages is out of scope here.
-Until that happens, `workspace:*` (the default `--core-version`) only resolves inside a pnpm
-workspace that also contains those packages.
+Real npm publishing of `@emi/create-chat-app` and `@emi/core` is out of scope here.
+Until then, `workspace:*` only resolves inside a pnpm workspace that also contains those packages.

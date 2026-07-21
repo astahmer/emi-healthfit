@@ -9,7 +9,7 @@ import {
   makeRequestContext as makeCoreRequestContext,
   withRequestContext,
   type RequestContext,
-} from "@emi/core-server";
+} from "@emi/core/server";
 import type { QueryDatabaseClient } from "../../platform/db/client.ts";
 import { anonymousSignInPath, createAnonymousSessionResponse } from "./anonymous-session.ts";
 import {
