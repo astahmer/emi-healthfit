@@ -47,6 +47,7 @@ import type { ConversationDatabaseSchema } from "@emi/core/server";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { corsHeaders } from "../../platform/http/assets-cors.ts";
+import { isRequestBodyTooLarge } from "../../platform/http/request-body-limits.ts";
 import { persistGenerationStream } from "./chat-stream-persistence.ts";
 import { ChatStreamRequestSchema, getFirstUserText } from "./chat-request-codec.ts";
 import { prepareChatHistory } from "./chat-history.ts";
@@ -202,6 +203,9 @@ export const handleAiSdkChat = (
     const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
     const requestStartedAt = performance.now();
     const text = yield* request.text;
+    if (isRequestBodyTooLarge({ body: text })) {
+      return yield* HttpServerResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
     const raw = decodeJsonOption(text);
     if (Option.isNone(raw)) {
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -550,11 +554,8 @@ export const handleAiSdkChat = (
         { status: 409 },
       ),
     ),
-    Effect.catch((error) =>
-      HttpServerResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status: 500 },
-      ),
+    Effect.catch(() =>
+      HttpServerResponse.json({ error: "Internal server error" }, { status: 500 }),
     ),
   );
 
