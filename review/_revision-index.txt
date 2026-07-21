@@ -1,0 +1,101 @@
+vpvknmox | restore SQL fns usage
+pxmtlrvo | docs: plan chat E2E coverage with layered xstate + Playwright BDD
+ovqutolp | test(chat): add Hono mock API and migrate existing Playwright specs
+rovlqtys | test(chat): cover machine transitions with xstate/graph path suites
+mwtxuquk | test(chat): add UI journey machine for model-based E2E planning
+muvrmwpv | test(chat): wire playwright-bdd for chat happy-path features
+xxypkwuv | test(chat): cover wave-1 chat scenarios in Playwright
+wksvxqno | test(chat): drop unused chatJourneyMachine twin
+ryryyqxm | test(chat): extend E2E mock for anonymous auth, threads, and tool streams
+tznqtunr | test(chat): cover wave-2 chat scenarios in Playwright
+wslqywpy | docs: mark wave-2 chat E2E scenarios covered in plan
+knwzyuvy | fix(chat): keep header rename in an editing state before API invoke
+xyztvlyz | test(chat): extend mock for memories extract, diagnostics, and search
+zwkusuoo | test(chat): expand playwright-bdd happy-path chat features
+owokuuqw | test(chat): cover remaining thin chat E2E gaps
+vnkzspks | docs: note gap fill and BDD feature expansion in chat E2E plan
+qkxtkzzt | test(chat): harden sidebar session-actions open for E2E flakes
+xysorlur | test(chat): disable navigator.share in E2E to avoid share-sheet hangs
+xuywtoqz | test(chat): add Hono createChatMock DSL and migrate scenario E2E
+vyqtytrl | test(chat): migrate chat.spec to createChatMock and fix E2E types
+ysvvnvqv | test(chat): cover Google social happy path, share, and dismiss UI
+zmytylsk | style(api): format fitness.ts for oxfmt check
+srlnztns | style(chat): apply oxfmt to e2e mock and path tests
+pwnrmmwy | fix(api): drop null sleep dates from analytics overview DTO
+uruvzkyq | feat(api): add types-only Hevy OpenAPI client with Effect wrapper
+txwomsqt | feat(api): Hevy sync on createHevyClient (Free-tier paths)
+zzvossrm | docs(api): document HEVY_CREDENTIAL_ENCRYPTION_KEY setup
+vykvkmqt | feat: Hevy freshness on analytics/chat + client cache invalidation
+rqwksrxu | test: optional HEVY_API_KEY live sync smoke
+tmtsluqt | test: Hevy sync edge cases (pagination/lease/partial-fail/auth/settings)
+qpmrlkop | style: oxfmt Hevy follow-up files
+xqxmwwmu | fix(api): decode Hevy OpenAPI snapshot with Schema
+tzylyvqq | fix(api): satisfy oxlint on Hevy sync tests
+qprzomrv | fix(api): restore RuntimeContext import in tools/api
+qwsmqtmr | test(chat): harden Hevy settings UI test against load flakes
+orvvlnkl | test(api): fix fitness fixture for hevy_sets uniqueness
+vsymvsur | test(api): Hevy secret hygiene and ownership isolation
+ywvosswp | test(api): Hevy disconnect, remove-data, zero-event, and fresh-on-down
+rzornltq | test(chat): Hevy Settings UI states and stream timing slack
+qswzvxkm | docs(plans): tick Hevy API sync acceptance criteria
+stslswuo | test(chat): raise vitest timeout for parallel UI flakes
+kxkzlppu | test(chat): Playwright e2e for Hevy Settings flows
+zrovxoop | fix(chat): restore scrolling on notes and memory pages
+ntlnmqvr | feat(api): create conversations from imported messages
+xxzpvsnm | feat(chat): keep temporary chats as normal conversations
+tmxxvxwt | docs(agent): fix workflow papercuts and document footguns
+lyyrtxsl | docs: add architecture and features overview
+wuxuvplx | chore(plans): drop completed and superseded plan docs
+pqoolnpl | fixed prod domain
+zutynoqw | fix data with migration
+pqwyrlmq | fix(chat): show temporary in-memory sessions on new-chat route
+pwzzzskt | fix(chat): skip history sync after temporary streams
+norwyryx | test(chat): e2e temporary chat without persisted history fetch
+pywrpxtt | feat(chat): restore scroll, jump to newest, message rail
+vkpvqmoo | chore(api): decode reset-hevy script JSON with Effect Schema
+prtoyuqo | fix(chat): strip undefined AI SDK part fields when keeping temporary chats
+vqvnqowl | test(chat): harden flaky stream-timing and sidebar prefetch tests
+mxzowkrm | fix deploy with fixed domain
+upmkprol | fix SPA redirect with OAuth
+xnwvvpsp | better message rail
+slxokuqr | harden ownership parent-write gates and RequestContext
+qytxsytx | split api sources at core health boundary
+qppvmuoq | extract core-contract and seal frontend API boundary
+ttokmxtv | extract core-server ports and platform-cloudflare adapters
+lyvyuqxx | extract core-web shell with contribution slots
+mxqqtnrs | extract flavor-healthfit package
+nlqnrlql | add AppDefinition and generic composition roots
+vxnkyvsw | add create-chat-app scaffolder and generated fixture checks
+nounlypn | add transport-discord and discord-bot MVP
+yqlpwzwx | fix Kysely schema invariance at QueryDatabaseClient call sites
+zwyoxkqn | cancel superseded chat generations server-side
+mzwonlzk | parse generation-already-running chat conflicts
+ssznqltk | allow draft and superseding submit while streaming
+vtqmuqvv | cancel-and-send composer with retry in-flight guard
+rlrwqxkl | harden chat e2e retries and generation UX coverage
+onplpqzz | fix e2e
+rstkwlsr | docs: record @emi/core subpath packaging and Discord linking status
+sunlusot | refactor: unify reusable packages into @emi/core with subpath exports
+ksvuxssx | feat(api): add Discord account-link tables and authenticated HTTP API
+tvystsmu | feat(chat): add Discord link controls to Settings
+zomktmpn | feat(discord-bot): wire owner-scoped HealthFit commands and registration
+zqnrqvrr | docs: add next-prompt for post-unify Discord ship and remaining slices
+uylqslrn | docs: record Discord GymData adopt blocker and deploy:adopt scripts
+kmkqruml | feat(flavor-healthfit): move ingested-data and data-transfer into flavor
+sszwslqn | feat(flavor-healthfit): move upload, workouts, and summary screens into flavor/web
+vysvnvov | test(chat): add e2e coverage for flavor fitness screens
+tyuuussz | fix(core): restore cloudflare D1 and sqlite test typecheck
+nspktzzl | fix(chat): type mock analytics overview for fitness e2e
+ptvqksrw | feat(core): extract session auth for generic-worker composition
+psvllvom | feat(core/web): move thread message shell into contribution slots
+rwxzyuuo | docs(discord-bot): Alchemy-first zero-to-smoke setup guide
+koutyvts | feat(flavor-healthfit): move Hevy OAuth/sync client into flavor
+wuxryknl | feat(flavor-healthfit): move gen-ui catalog and renderer into flavor/web
+kkslumul | feat(core/web): extract SuggestionChips for thread follow-ups
+ptyvuuxy | feat(core/discord): deferred ephemeral ack and webhook follow-up
+oytvnllm | feat(api): POST /api/discord/ask for linked Discord coach answers
+xlxqtyys | feat(discord-bot): /ask deferred slash command proxying to API
+nkpovzpy | chore(npm): publish readiness for @emi/core and create-chat-app
+uvqwmuyy | docs: Discord /ask secrets and architecture deferral updates
+uqotxrxn | style(api): format Hevy call sites after flavor extract
+ytvmkrxs | docs: clarify npm publish is optional for private monorepo
