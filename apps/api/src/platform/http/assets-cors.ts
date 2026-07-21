@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import { mergeSecurityHeaders } from "./security-headers.ts";
 
 export const handleAssetRequest = ({
   assetsFetcher,
@@ -13,10 +14,16 @@ export const handleAssetRequest = ({
     const url = new URL(request.url, "http://localhost");
     const pathname = url.pathname;
     if (assetsFetcher === undefined) {
-      return HttpServerResponse.text("Not Found", { status: 404 });
+      return HttpServerResponse.text("Not Found", {
+        status: 404,
+        headers: mergeSecurityHeaders(),
+      });
     }
     if (pathname === "/ingest" || pathname.startsWith("/api/")) {
-      return HttpServerResponse.text("Not Found", { status: 404 });
+      return HttpServerResponse.text("Not Found", {
+        status: 404,
+        headers: mergeSecurityHeaders(),
+      });
     }
 
     const nativeRequest = yield* requestToWeb(request);
@@ -25,23 +32,29 @@ export const handleAssetRequest = ({
       response.status !== 404 ||
       nativeRequest.headers.get("accept")?.includes("text/html") !== true
     ) {
-      return HttpServerResponse.fromWeb(response);
+      return HttpServerResponse.setHeaders(
+        HttpServerResponse.fromWeb(response),
+        mergeSecurityHeaders(),
+      );
     }
     const applicationShell = new Request(new URL("/", url), nativeRequest);
     const applicationShellResponse = yield* Effect.promise(() => assetsFetcher(applicationShell));
-    return HttpServerResponse.fromWeb(applicationShellResponse);
+    return HttpServerResponse.setHeaders(
+      HttpServerResponse.fromWeb(applicationShellResponse),
+      mergeSecurityHeaders(),
+    );
   });
 
 export const corsHeaders = (request: HttpServerRequest): Record<string, string> => {
   const origin = request.headers["origin"] ?? "*";
-  return {
+  return mergeSecurityHeaders({
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "access-control-allow-headers":
       "authorization, content-type, mcp-session-id, last-event-id, mcp-protocol-version, x-request-id, x-trace-id",
     "access-control-expose-headers":
       "mcp-session-id, mcp-protocol-version, x-thread-id, x-generation-id, x-request-id, x-trace-id",
-  };
+  });
 };
 
 export const handleCorsPreflight = (request: HttpServerRequest) =>
