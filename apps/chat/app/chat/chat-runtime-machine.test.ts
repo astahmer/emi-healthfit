@@ -136,7 +136,7 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("");
   });
 
-  it("keeps a completed assistant answer when a follow-up is submitted", () => {
+  it("keeps a completed assistant answer when another user message is submitted from idle", () => {
     const actor = createActor(chatRuntimeMachine, {
       input: {
         sessionId: "one",
@@ -152,14 +152,14 @@ describe("chatRuntimeMachine", () => {
     actor.send({
       type: "submit.started",
       sessionId: "one",
-      message: message("follow-up-user", "user", "Tell me about recovery"),
+      message: message("second-user", "user", "Tell me about recovery"),
     });
 
     expect(actor.getSnapshot().matches("streaming")).toBe(true);
     expect(actor.getSnapshot().context.messages).toEqual([
       message("first-user", "user", "What should I eat?"),
       message("first-assistant", "assistant", "Try more protein."),
-      message("follow-up-user", "user", "Tell me about recovery"),
+      message("second-user", "user", "Tell me about recovery"),
     ]);
   });
 

@@ -29,6 +29,13 @@ Given("a user is on session one with chat persistence", async ({ page }) => {
   await openSessionOneWithChatPersistence({ page, replyText: "Saw the image" });
 });
 
+Given(
+  "a user is on session one that replies {string} to the next message",
+  async ({ page }, replyText: string) => {
+    await openSessionOneWithChatPersistence({ page, replyText });
+  },
+);
+
 Given("a user starts a temporary chat", async ({ page }) => {
   const mock = createChatMock({
     state: { chat: { persist: true, replyText: "Ghost reply" } },

@@ -34,6 +34,25 @@ test("clicks a follow-up suggestion and keeps the previous assistant answer", as
   await expect(page.getByText("Recovery looks good")).toBeVisible();
 });
 
+test("sends another typed message and keeps the previous assistant answer", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      chat: { persist: true, replyText: "Sleep more tonight" },
+      snapshots: { one: sessionOneSnapshot() },
+    },
+  });
+  await mock.open(page, "/chat/one");
+
+  await expect(page.getByText("one message answer")).toBeVisible();
+  await page.getByLabel("Message input").fill("What about sleep?");
+  await page.getByLabel("Send message").click();
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "What about sleep?" }),
+  ).toBeVisible();
+  await expect(page.getByText("one message answer")).toBeVisible();
+  await expect(page.getByText("Sleep more tonight")).toBeVisible();
+});
+
 test("stops a mid-stream generation", async ({ page }) => {
   const mock = createChatMock({
     state: {
