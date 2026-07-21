@@ -10,9 +10,8 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { authenticateWorkerFetch, isProtectedPath } from "./core/auth/request-auth.ts";
-import { handleDiscordAsk } from "./core/http/discord-ask.ts";
+import { handleDiscordAsk, type DiscordAskDatabaseSchema } from "./core/http/discord-ask.ts";
 import { makeQueryDatabaseClient, narrowQueryDatabaseClient } from "./platform/db/client.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
 import {
   handleAiSdkChat,
   handleChatResume,
@@ -27,8 +26,12 @@ import {
 } from "./healthfit/routes/data.ts";
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
-import { healthFitAppDefinition, executeTool as executeHealthfitTool } from "@emi/flavor-healthfit";
-import type { HealthfitDatabaseSchema, HealthfitToolsDatabaseSchema } from "@emi/flavor-healthfit";
+import {
+  healthFitAppDefinition,
+  executeTool as executeHealthfitTool,
+  type HealthfitDatabaseSchema,
+  type HealthfitToolsDatabaseSchema,
+} from "@emi/flavor-healthfit";
 import { composeSystemPrompt } from "@emi/core/server";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
@@ -132,7 +135,7 @@ export default Api.make(
       );
       yield* router.add("POST", "/api/discord/ask", (request) =>
         handleDiscordAsk({
-          db: narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+          db: narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db),
           environment: env,
           request,
         }).pipe(

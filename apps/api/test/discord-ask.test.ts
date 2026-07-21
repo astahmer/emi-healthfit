@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
-import { handleDiscordAsk } from "../src/core/http/discord-ask.ts";
+import { getConversations, getConversationMessages } from "../src/core/db/conversations.ts";
+import {
+  handleDiscordAsk,
+  type DiscordAskDatabaseSchema,
+} from "../src/core/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
@@ -28,12 +32,12 @@ const makeAskRequest = ({ secret, body }: { secret?: string | null; body: unknow
 describe("handleDiscordAsk", () => {
   it("rejects missing or wrong internal secrets with 401", async () => {
     const { db } = makeSqliteDatabase();
-    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+    const askDb = narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db);
 
     for (const secret of [null, "wrong-discord-ask-s", "x".repeat(SECRET.length)]) {
       const response = await run(
         handleDiscordAsk({
-          db: conversationDb,
+          db: askDb,
           environment,
           request: makeAskRequest({
             secret,
@@ -49,13 +53,13 @@ describe("handleDiscordAsk", () => {
 
   it("fails closed on invalid ask bodies before calling the model", async () => {
     const { db } = makeSqliteDatabase();
-    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+    const askDb = narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db);
 
     await assert.rejects(
       () =>
         run(
           handleDiscordAsk({
-            db: conversationDb,
+            db: askDb,
             environment,
             request: makeAskRequest({
               body: { userId: "user-1", question: "" },
@@ -69,7 +73,7 @@ describe("handleDiscordAsk", () => {
       () =>
         run(
           handleDiscordAsk({
-            db: conversationDb,
+            db: askDb,
             environment,
             request: makeAskRequest({
               body: { userId: "", question: "ok" },
@@ -78,5 +82,44 @@ describe("handleDiscordAsk", () => {
         ),
       /Invalid ask body/,
     );
+  });
+
+  it("answers with fitness context via injectable generator and persists the turn", async () => {
+    const { db } = makeSqliteDatabase();
+    const askDb = narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db);
+    const prompts: Array<{ system: string; prompt: string }> = [];
+
+    const response = await run(
+      handleDiscordAsk({
+        db: askDb,
+        environment,
+        request: makeAskRequest({
+          body: { userId: "user-1", question: "How is recovery?" },
+        }),
+        generateAnswer: (input) =>
+          Effect.sync(() => {
+            prompts.push({ system: input.system, prompt: input.prompt });
+            return "Recovery looks solid from your recent data.";
+          }),
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    const web = HttpServerResponse.toWeb(response);
+    const payload = (await web.json()) as { answer: string; conversationId: string };
+    assert.equal(payload.answer, "Recovery looks solid from your recent data.");
+    assert.ok(typeof payload.conversationId === "string" && payload.conversationId.length > 0);
+
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0]!.prompt, /How is recovery\?/);
+    assert.match(prompts[0]!.prompt, /Recovery:/);
+    assert.match(prompts[0]!.system, /Discord slash command/);
+
+    const conversations = await run(getConversations(askDb, "user-1"));
+    assert.equal(conversations.some((row) => row.title === "[Discord] /ask"), true);
+    const messages = await run(
+      getConversationMessages(askDb, "user-1", payload.conversationId),
+    );
+    assert.equal(messages.length >= 2, true);
   });
 });

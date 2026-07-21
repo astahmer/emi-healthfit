@@ -6,6 +6,10 @@ export const DISCORD_MAX_CONTENT_LENGTH = 2000;
 export const DISCORD_RATE_LIMIT_WINDOW_MS = 60_000;
 export const DISCORD_RATE_LIMIT_MAX = 20;
 
+/**
+ * Soft per-isolate rate limit. Cloudflare Workers do not share this Map across
+ * isolates, so it is best-effort anti-spam only — not a hard global quota.
+ */
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 export const checkDiscordRateLimit = (discordUserId: string, now = Date.now()): boolean => {

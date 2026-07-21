@@ -13,7 +13,12 @@ import {
   type ConversationDatabaseSchema,
   type QueryDatabaseClient,
 } from "@emi/core/server";
-import { healthFitAppDefinition } from "@emi/flavor-healthfit";
+import {
+  buildChatContext,
+  healthFitAppDefinition,
+  renderContextPrompt,
+  type HealthfitDatabaseSchema,
+} from "@emi/flavor-healthfit";
 
 const DiscordAskBody = Schema.Struct({
   userId: Schema.String.check(Schema.isMinLength(1)),
@@ -30,14 +35,50 @@ const DiscordAskEnvironment = Schema.Struct({
 const DISCORD_ASK_TITLE = "[Discord] /ask";
 const DISCORD_ASK_MAX_OUTPUT_TOKENS = 600;
 
+export type DiscordAskDatabaseSchema = ConversationDatabaseSchema & HealthfitDatabaseSchema;
+
+export type DiscordAskGenerateAnswer = (input: {
+  system: string;
+  prompt: string;
+  model: string;
+  apiKey: string;
+  baseURL: string | undefined;
+  maxOutputTokens: number;
+}) => Effect.Effect<string, Error>;
+
+export const defaultDiscordAskGenerateAnswer: DiscordAskGenerateAnswer = (input) =>
+  Effect.tryPromise({
+    try: async () => {
+      const openai = createOpenAI({
+        apiKey: input.apiKey,
+        baseURL: input.baseURL,
+      });
+      const result = await generateText({
+        model: openai.chat(input.model),
+        system: input.system,
+        prompt: input.prompt,
+        maxOutputTokens: input.maxOutputTokens,
+      });
+      return result.text.trim();
+    },
+    catch: (error) => new Error(`Discord ask generation failed: ${String(error)}`),
+  });
+
+/**
+ * Internal bot→API mesh endpoint. The caller authenticates with
+ * `x-discord-internal-secret`; the JSON `userId` is trusted once that secret
+ * matches. Never expose the secret to browsers; rotate if leaked.
+ */
 export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
   db,
   environment,
   request,
+  generateAnswer = defaultDiscordAskGenerateAnswer,
 }: {
-  db: QueryDatabaseClient<ConversationDatabaseSchema>;
+  db: QueryDatabaseClient<DiscordAskDatabaseSchema>;
   environment: Record<string, unknown>;
   request: HttpServerRequest;
+  generateAnswer?: DiscordAskGenerateAnswer;
 }) {
   const config = yield* Schema.decodeUnknownEffect(DiscordAskEnvironment)(environment).pipe(
     Effect.mapError((error) => new Error(`Discord ask env invalid: ${String(error)}`)),
@@ -60,29 +101,25 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
   const conversationId =
     existing?.id ?? (yield* createConversation(db, body.userId, DISCORD_ASK_TITLE));
 
-  const openai = createOpenAI({
+  const fitnessContext = yield* buildChatContext(db, body.userId);
+  const model = config.DISCORD_ASK_MODEL ?? "gpt-4o-mini";
+  const system =
+    `${composeSystemPrompt(healthFitAppDefinition.promptContributors)}\n\n` +
+    `You are answering a Discord slash command. Keep the answer under 1500 characters. ` +
+    `No markdown tables. Ephemeral guild-safe tone.`;
+  const prompt = renderContextPrompt(fitnessContext, body.question);
+  const answer = yield* generateAnswer({
+    system,
+    prompt,
+    model,
     apiKey: config.OPENAI_API_KEY,
     baseURL:
       config.OPENAI_BASE_URL !== undefined && config.OPENAI_BASE_URL !== ""
         ? config.OPENAI_BASE_URL
         : undefined,
-  });
-  const model = config.DISCORD_ASK_MODEL ?? "gpt-4o-mini";
-  const system = composeSystemPrompt(healthFitAppDefinition.promptContributors);
-  const result = yield* Effect.tryPromise({
-    try: () =>
-      generateText({
-        model: openai.chat(model),
-        system:
-          `${system}\n\nYou are answering a Discord slash command. Keep the answer under 1500 characters. ` +
-          `No markdown tables. Ephemeral guild-safe tone.`,
-        prompt: body.question,
-        maxOutputTokens: DISCORD_ASK_MAX_OUTPUT_TOKENS,
-      }),
-    catch: (error) => new Error(`Discord ask generation failed: ${String(error)}`),
+    maxOutputTokens: DISCORD_ASK_MAX_OUTPUT_TOKENS,
   });
 
-  const answer = result.text.trim();
   yield* saveConversationMessages(db, body.userId, conversationId, null, [
     { role: "user", parts: [{ type: "text", text: body.question }] },
     { role: "assistant", parts: [{ type: "text", text: answer }] },

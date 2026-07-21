@@ -58,6 +58,7 @@ pnpm --filter @emi/api setup:hevy-key
 
 ## TODO
 
-Regenerate with `typed-openapi --runtime effect` once Effect Schema runtime is
-published — see `typedapi` repo `plans/effect-schema-runtime.md`. Until then,
-responses are types-only (no runtime Schema.decode).
+`typed-openapi --runtime effect` is still blocked upstream (Effect Schema
+runtime not published for typed-openapi). Keep the types-only client + Effect
+wrapper until that lands — see `typedapi` repo `plans/effect-schema-runtime.md`.
+Do not treat this as a HealthFit defect; responses stay types-only on purpose.

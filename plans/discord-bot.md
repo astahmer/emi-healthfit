@@ -61,13 +61,18 @@ Shipped as a first slice (2026-07-21):
 - Deferred ephemeral ack (`DeferredChannelMessageWithSource`) + webhook edit follow-up.
 - Dedicated conversation title `[Discord] /ask` on the linked app user (via API).
 - Bot proxies to `POST /api/discord/ask` with `x-discord-internal-secret` (no provider keys on the bot).
-- Answer truncated to Discord content limits; rate-limited like other commands.
+- Answer truncated to Discord content limits; rate-limited like other commands (soft per-isolate Map).
+- API builds HealthFit `buildChatContext` into the model prompt (recovery / last workout / sleep).
+
+**Secret trust:** anyone holding `DISCORD_INTERNAL_ASK_SECRET` can POST any `userId`. Keep the
+secret Worker-only (never browser), rotate on leak, prefer ≥32 chars in prod.
 
 Still tighten before calling it “done”:
 
 - per-user token/cost budgets beyond `maxOutputTokens`;
 - stale-lease / durable generation parity with web chat streaming;
 - richer content controls for non-ephemeral guild posts (MVP stays ephemeral);
+- Durable Object / D1-backed rate limits if soft isolate limits prove insufficient;
 - bot secrets: `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET` (+ API `OPENAI_API_KEY`,
   matching `DISCORD_INTERNAL_ASK_SECRET`).
 

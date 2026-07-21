@@ -11,7 +11,9 @@ export default defineConfig({
   forbidOnly: true,
   fullyParallel: true,
   globalTimeout: 180_000,
-  retries: 2,
+  // Prefer deterministic waits over retries. One retry covers CF/worker timing
+  // noise without masking product races the way higher retry counts can.
+  retries: 1,
   reporter: "line",
   timeout: 20_000,
   use: {
