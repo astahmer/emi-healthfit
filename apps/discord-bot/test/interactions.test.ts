@@ -9,7 +9,11 @@ import {
   DISCORD_MAX_CONTENT_LENGTH,
   type HealthfitCommandServices,
 } from "../src/commands/limits.ts";
-import { healthfitCommandDefinition } from "../src/commands/definition.ts";
+import {
+  askCommandDefinition,
+  discordCommandDefinitions,
+  healthfitCommandDefinition,
+} from "../src/commands/definition.ts";
 import { exportPublicKeyHex, generateDiscordKeyPair, signInteractionBody } from "./support.ts";
 
 const makeSignedInteraction = async (privateKey: CryptoKey, body: unknown) => {
@@ -52,6 +56,14 @@ const linkedServices = (): HealthfitCommandServices => ({
   formatRecovery: () => Effect.succeed("Recovery: Favorable signals"),
 });
 
+const askDispatchDefaults = {
+  applicationId: "app-id",
+  botToken: "bot-token",
+  apiBaseUrl: "https://api.example.com",
+  internalSecret: "test-internal-secret-16",
+  waitUntil: (_promise: Promise<unknown>) => undefined,
+} as const;
+
 describe("handleInteractionsRequest", () => {
   beforeEach(() => {
     resetDiscordRateLimitsForTests();
@@ -72,6 +84,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     assert.equal(response.status, 200);
@@ -89,6 +102,7 @@ describe("handleInteractionsRequest", () => {
         timestamp: String(Math.floor(Date.now() / 1000)),
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     assert.equal(response.status, 401);
@@ -109,6 +123,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     assert.equal(response.status, 401);
@@ -128,6 +143,7 @@ describe("handleInteractionsRequest", () => {
         timestamp: staleTimestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     assert.equal(response.status, 401);
@@ -148,6 +164,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     assert.equal(response.status, 200);
@@ -172,6 +189,7 @@ describe("handleInteractionsRequest", () => {
           timestamp,
           publicKeyHex,
           services: unlinkedServices(),
+          ...askDispatchDefaults,
         }),
       );
       const body = response.body as { data: { content: string } };
@@ -194,6 +212,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     const body = response.body as { data: { content: string } };
@@ -215,6 +234,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     const body = response.body as { data: { content: string } };
@@ -236,6 +256,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: linkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     const body = response.body as { data: { content: string; flags: number } };
@@ -258,6 +279,7 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: linkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     const body = response.body as { data: { content: string; flags: number } };
@@ -282,10 +304,52 @@ describe("handleInteractionsRequest", () => {
         timestamp,
         publicKeyHex,
         services: unlinkedServices(),
+        ...askDispatchDefaults,
       }),
     );
     const body = response.body as { data: { content: string } };
     assert.match(body.data.content, /unsupported command/i);
+  });
+
+  it("defers /ask and schedules a follow-up for an unlinked user", async () => {
+    const { privateKey, publicKey } = await generateDiscordKeyPair();
+    const publicKeyHex = await exportPublicKeyHex(publicKey);
+    const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
+      id: "interaction-ask-1",
+      type: DiscordInteractionType.ApplicationCommand,
+      token: "ask-token",
+      data: {
+        id: "command-ask",
+        name: "ask",
+        options: [{ name: "question", type: 3, value: "How is recovery?" }],
+      },
+      user: { id: "discord-user-1", username: "astahmer" },
+    });
+    const scheduled: Array<Promise<unknown>> = [];
+
+    const response = await Effect.runPromise(
+      handleInteractionsRequest({
+        rawBody,
+        signature,
+        timestamp,
+        publicKeyHex,
+        services: unlinkedServices(),
+        ...askDispatchDefaults,
+        waitUntil: (promise) => {
+          scheduled.push(promise);
+        },
+      }),
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, {
+      type: DiscordInteractionResponseType.DeferredChannelMessageWithSource,
+      data: { flags: 64 },
+    });
+    assert.equal(scheduled.length, 1);
+    await Promise.resolve(scheduled[0]).then(
+      () => undefined,
+      () => undefined,
+    );
   });
 });
 
@@ -304,6 +368,18 @@ describe("discord command registration snapshot", () => {
     assert.deepEqual(
       healthfitCommandDefinition.options.map((option) => option.name),
       ["link", "summary", "last-workout", "recovery", "unlink"],
+    );
+  });
+
+  it("registers top-level /ask alongside healthfit", () => {
+    assert.equal(askCommandDefinition.name, "ask");
+    assert.deepEqual(
+      askCommandDefinition.options.map((option) => option.name),
+      ["question"],
+    );
+    assert.deepEqual(
+      discordCommandDefinitions.map((command) => command.name),
+      ["healthfit", "ask"],
     );
   });
 });

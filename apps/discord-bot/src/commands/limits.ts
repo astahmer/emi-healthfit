@@ -55,6 +55,9 @@ export const optionString = (
   optionName: string,
 ): string | undefined => {
   const subcommand = interaction.data.options?.[0];
-  const option = subcommand?.options?.find((entry) => entry.name === optionName);
+  if (subcommand === undefined || !("options" in subcommand)) {
+    return undefined;
+  }
+  const option = subcommand.options?.find((entry) => entry.name === optionName);
   return typeof option?.value === "string" ? option.value : undefined;
 };

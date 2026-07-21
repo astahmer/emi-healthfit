@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { healthfitCommandDefinition } from "../src/commands/definition.ts";
+import { discordCommandDefinitions } from "../src/commands/definition.ts";
 
 const RegistrationEnvironment = Schema.Struct({
   DISCORD_APPLICATION_ID: Schema.String.check(Schema.isMinLength(1)),
@@ -38,7 +38,7 @@ const registerCommands = Effect.fn("discord-bot.registerCommands")(function* () 
           Authorization: `Bot ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify([healthfitCommandDefinition]),
+        body: JSON.stringify(discordCommandDefinitions),
       }),
     catch: (error) => new Error(`Discord registration request failed: ${String(error)}`),
   });

@@ -16,20 +16,28 @@ export interface HandleInteractionsRequestInput {
   readonly timestamp: string | null | undefined;
   readonly publicKeyHex: string;
   readonly services: HealthfitCommandServices;
+  readonly applicationId: string;
+  readonly botToken: string;
+  readonly apiBaseUrl: string;
+  readonly internalSecret: string;
+  readonly waitUntil: (promise: Promise<unknown>) => void;
 }
 
-/**
- * Discord requires `401` for an invalid or replayed request before any parsing/dispatch happens.
- * `verifyDiscordRequest` enforces that ordering; every failure tag maps to a fixed HTTP response
- * here so the body is never inspected ahead of a successful signature check.
- */
 export const handleInteractionsRequest = Effect.fn("discord-bot.handleInteractions")(function* (
   input: HandleInteractionsRequestInput,
 ) {
   return yield* verifyDiscordRequest(input).pipe(
     Effect.flatMap((interaction): Effect.Effect<DiscordHttpResponse> => {
       if (interaction.type === DiscordInteractionType.Ping) return Effect.succeed(pongResponse());
-      return dispatchApplicationCommand(interaction, input.services);
+      return dispatchApplicationCommand({
+        interaction,
+        services: input.services,
+        applicationId: input.applicationId,
+        botToken: input.botToken,
+        apiBaseUrl: input.apiBaseUrl,
+        internalSecret: input.internalSecret,
+        waitUntil: input.waitUntil,
+      });
     }),
     Effect.catchTags({
       MissingSignatureHeaders: () =>

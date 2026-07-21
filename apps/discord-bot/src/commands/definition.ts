@@ -42,3 +42,18 @@ export const healthfitCommandDefinition = {
     },
   ],
 } as const;
+
+export const askCommandDefinition = {
+  name: "ask",
+  description: "Ask the HealthFit coach (ephemeral; requires a linked account)",
+  options: [
+    {
+      type: CommandOptionType.String,
+      name: "question",
+      description: "Your question for the coach",
+      required: true,
+    },
+  ],
+} as const;
+
+export const discordCommandDefinitions = [healthfitCommandDefinition, askCommandDefinition];

@@ -25,14 +25,12 @@ const narrow = <TSchema>(
 
 const DiscordEnvironment = Schema.Struct({
   DISCORD_PUBLIC_KEY: Schema.String.check(Schema.isMinLength(1)),
+  DISCORD_APPLICATION_ID: Schema.String.check(Schema.isMinLength(1)),
+  DISCORD_BOT_TOKEN: Schema.String.check(Schema.isMinLength(1)),
+  EMI_API_BASE_URL: Schema.String.check(Schema.isPattern(/^https?:\/\//)),
+  DISCORD_INTERNAL_ASK_SECRET: Schema.String.check(Schema.isMinLength(16)),
 });
 
-/**
- * Reads and decodes `env` per request rather than once at worker bootstrap. Cloudflare Workers
- * (and Alchemy's local bundle-validation smoke test, which runs the bootstrap effect against an
- * empty synthetic `env`) must not throw at module-init time just because a secret isn't bound yet
- * — only an actual `/interactions` request should require `DISCORD_PUBLIC_KEY` to be present.
- */
 const interactionsRoute = (
   discordDb: QueryDatabaseClient<DiscordDatabaseSchema>,
   fitnessDb: QueryDatabaseClient<HealthfitDatabaseSchema>,
@@ -42,6 +40,7 @@ const interactionsRoute = (
     const configuration = yield* Schema.decodeUnknownEffect(DiscordEnvironment)(env).pipe(
       Effect.orDie,
     );
+    const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
     const rawBody = yield* request.text;
     const response = yield* handleInteractionsRequest({
       rawBody,
@@ -49,6 +48,13 @@ const interactionsRoute = (
       timestamp: request.headers["x-signature-timestamp"],
       publicKeyHex: configuration.DISCORD_PUBLIC_KEY,
       services: makeHealthfitCommandServices({ discordDb, fitnessDb }),
+      applicationId: configuration.DISCORD_APPLICATION_ID,
+      botToken: configuration.DISCORD_BOT_TOKEN,
+      apiBaseUrl: configuration.EMI_API_BASE_URL,
+      internalSecret: configuration.DISCORD_INTERNAL_ASK_SECRET,
+      waitUntil: (promise) => {
+        executionContext.waitUntil(promise);
+      },
     });
     return yield* HttpServerResponse.json(response.body, { status: response.status });
   });
@@ -65,6 +71,8 @@ export default DiscordBotWorker.make(
       DISCORD_PUBLIC_KEY: Config.redacted("DISCORD_PUBLIC_KEY"),
       DISCORD_APPLICATION_ID: Config.redacted("DISCORD_APPLICATION_ID"),
       DISCORD_BOT_TOKEN: Config.redacted("DISCORD_BOT_TOKEN"),
+      EMI_API_BASE_URL: Config.redacted("EMI_API_BASE_URL"),
+      DISCORD_INTERNAL_ASK_SECRET: Config.redacted("DISCORD_INTERNAL_ASK_SECRET"),
     },
     observability: { enabled: true },
   })),
