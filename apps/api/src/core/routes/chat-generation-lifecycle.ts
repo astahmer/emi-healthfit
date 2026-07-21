@@ -18,6 +18,7 @@ import {
 } from "../chat/ai-sdk.ts";
 import { buildAssistantParts } from "../chat/assistant-parts.ts";
 import {
+  cancelRunningGenerations,
   cleanupGenerationHistory,
   createGeneration,
   expireStaleGenerations,
@@ -25,7 +26,6 @@ import {
   getGeneration,
   getGenerationChunks,
   getResumableGeneration,
-  getRunningGeneration,
   isGenerationStale,
   recordChatEvent,
   reconcileFinishedGenerations,
@@ -163,6 +163,19 @@ export const handleConversationDiagnosticEvent = (
     if (generation === null || generation.conversation_id !== conversationId) {
       return yield* HttpServerResponse.json({ error: "Generation not found" }, { status: 404 });
     }
+    if (
+      decoded.value.type === "client.stopped" &&
+      (generation.status === "pending" || generation.status === "streaming")
+    ) {
+      yield* finishGeneration({
+        db,
+        userId: user.id,
+        generationId: generation.id,
+        status: "cancelled",
+        finishReason: "client_stopped",
+        error: "Stopped by client",
+      });
+    }
     yield* recordChatEvent({
       db,
       userId: user.id,
@@ -234,17 +247,6 @@ export const handleAiSdkChat = (
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
-      const runningGeneration = yield* getRunningGeneration({
-        db,
-        userId: user.id,
-        conversationId: sessionId,
-      });
-      if (runningGeneration !== null) {
-        return yield* HttpServerResponse.json(
-          { error: "A generation is already running", generationId: runningGeneration.id },
-          { status: 409, headers: corsHeaders(request) },
-        );
-      }
     }
 
     const preparedHistory = yield* prepareChatHistory({
@@ -294,6 +296,18 @@ export const handleAiSdkChat = (
     });
 
     if (!isTemporary) {
+      const cancelledGenerations = yield* cancelRunningGenerations({
+        db,
+        userId: user.id,
+        conversationId: sessionId,
+        reason: "superseded",
+        error: "Superseded by a newer request",
+      });
+      if (cancelledGenerations > 0) {
+        yield* Effect.logInfo("chat.generation.superseded").pipe(
+          Effect.annotateLogs({ sessionId, cancelledGenerations }),
+        );
+      }
       yield* createGeneration({
         db,
         userId: user.id,

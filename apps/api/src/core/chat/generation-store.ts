@@ -202,7 +202,7 @@ export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({
 }) {
   const kysely = yield* db.kysely;
   const timestamp = nowIso();
-  yield* Effect.promise(() =>
+  const result = yield* Effect.promise(() =>
     kysely
       .updateTable("chat_generations")
       .set({
@@ -216,8 +216,43 @@ export const finishGeneration = Effect.fn("chatGeneration.finish")(function* ({
       })
       .where("user_id", "=", userId)
       .where("id", "=", generationId)
-      .execute(),
+      .where("status", "in", ["pending", "streaming"])
+      .executeTakeFirst(),
   );
+  return Number(result.numUpdatedRows) > 0;
+});
+
+export const cancelRunningGenerations = Effect.fn("chatGeneration.cancelRunning")(function* ({
+  db,
+  userId,
+  conversationId,
+  reason,
+  error,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  conversationId: string;
+  reason: string;
+  error?: string;
+}) {
+  const kysely = yield* db.kysely;
+  const timestamp = nowIso();
+  const result = yield* Effect.promise(() =>
+    kysely
+      .updateTable("chat_generations")
+      .set({
+        error: error ?? null,
+        finish_reason: reason,
+        finished_at: timestamp,
+        status: "cancelled",
+        updated_at: timestamp,
+      })
+      .where("user_id", "=", userId)
+      .where("conversation_id", "=", conversationId)
+      .where("status", "in", ["pending", "streaming"])
+      .executeTakeFirst(),
+  );
+  return Number(result.numUpdatedRows);
 });
 
 export const recordChatEvent = Effect.fn("chatEvent.record")(function* ({
