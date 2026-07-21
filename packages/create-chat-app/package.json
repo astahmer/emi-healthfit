@@ -5,9 +5,17 @@
   "bin": {
     "create-chat-app": "./bin/create-chat-app.ts"
   },
+  "files": [
+    "bin",
+    "src",
+    "PUBLISH.md"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

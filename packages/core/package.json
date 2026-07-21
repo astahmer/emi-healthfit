@@ -2,6 +2,10 @@
   "name": "@emi/core",
   "version": "0.1.0",
   "private": true,
+  "files": [
+    "src",
+    "PUBLISH.md"
+  ],
   "type": "module",
   "exports": {
     "./contract": "./src/contract/index.ts",
@@ -11,6 +15,9 @@
     "./web/contributions": "./src/web/contributions.tsx",
     "./cloudflare": "./src/cloudflare/index.ts",
     "./discord": "./src/discord/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
