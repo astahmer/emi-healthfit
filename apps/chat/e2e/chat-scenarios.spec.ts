@@ -95,7 +95,7 @@ test("queues a follow-up while streaming and keeps the live assistant answer", a
 
   await page.getByLabel("Message input").fill("Second question");
   await page.getByLabel("Send after reply").click();
-  await expect(page.getByText(/Queued: Second question/)).toBeVisible();
+  await expect(page.getByLabel("Queued follow-ups")).toContainText("Second question");
   await expect(page.getByText("one message answer")).toBeVisible();
 
   mock.releaseChat();
@@ -110,6 +110,99 @@ test("queues a follow-up while streaming and keeps the live assistant answer", a
   await expect(page.getByText("Follow-up answer")).toBeVisible();
   await expect(page.getByText("one message answer")).toBeVisible();
   expect(mock.state.chat.calls).toBe(2);
+});
+
+test("queues multiple follow-ups, edits with arrows, and cancels one before drain", async ({
+  page,
+}) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Live answer" },
+    },
+  });
+  const replies = ["Live answer", "Second answer", "Third answer"];
+  Object.defineProperty(mock.state.chat, "replyText", {
+    configurable: true,
+    get: () => replies[Math.max(0, mock.state.chat.calls - 1)] ?? "Mock answer",
+    set: () => undefined,
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("First question");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+
+  await page.getByLabel("Message input").fill("Queue one");
+  await page.getByLabel("Send after reply").click();
+  await page.getByLabel("Message input").fill("Queue two");
+  await page.getByLabel("Send after reply").click();
+  await page.getByLabel("Message input").fill("Queue three");
+  await page.getByLabel("Send after reply").click();
+
+  const queue = page.getByLabel("Queued follow-ups");
+  await expect(queue).toContainText("Queue one");
+  await expect(queue).toContainText("Queue two");
+  await expect(queue).toContainText("Queue three");
+
+  await page.getByLabel("Message input").press("ArrowUp");
+  await expect(page.getByLabel("Message input")).toHaveValue("Queue three");
+  await expect(queue).toContainText("(editing)");
+  await page.getByLabel("Message input").fill("Queue three edited");
+  await page.getByLabel("Update queued message").click();
+  await expect(queue).toContainText("Queue three edited");
+
+  await page.getByLabel("Cancel queued message 2").click();
+  await expect(queue).not.toContainText("Queue two");
+  await expect(queue).toContainText("Queue one");
+  await expect(queue).toContainText("Queue three edited");
+
+  mock.releaseChat();
+
+  await expect(page.getByText("Live answer")).toBeVisible();
+  await expect(page.locator('[id^="message-"]').filter({ hasText: "Queue one" })).toBeVisible();
+  await expect(page.getByText("Second answer")).toBeVisible();
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "Queue three edited" }),
+  ).toBeVisible();
+  await expect(page.getByText("Third answer")).toBeVisible();
+  await expect(page.getByText("one message answer")).toBeVisible();
+  expect(mock.state.chat.calls).toBe(3);
+});
+
+test("force-sends a queued follow-up and interrupts the live generation", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Should not appear" },
+    },
+  });
+  let forceReply = "Should not appear";
+  Object.defineProperty(mock.state.chat, "replyText", {
+    configurable: true,
+    get: () => forceReply,
+    set: () => undefined,
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("First question");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+
+  await page.getByLabel("Message input").fill("Send me now");
+  await page.getByLabel("Send after reply").click();
+  await expect(page.getByLabel("Queued follow-ups")).toContainText("Send me now");
+
+  forceReply = "Forced answer";
+  await page.getByLabel("Send queued message 1 now").click();
+  mock.releaseChat();
+
+  await expect(page.locator('[id^="message-"]').filter({ hasText: "Send me now" })).toBeVisible();
+  await expect(page.getByText("Forced answer").first()).toBeVisible();
+  await expect(page.getByText("Should not appear")).toHaveCount(0);
+  await expect(page.getByText("one message answer")).toBeVisible();
 });
 
 test("edits a user message and regenerates an assistant reply", async ({ page }) => {
