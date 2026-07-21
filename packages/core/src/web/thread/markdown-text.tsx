@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../cn.ts";
+import { isSafeMarkdownHref, shouldRenderMarkdownImage } from "./markdown-url-policy.ts";
 
 const ReferenceMessageContext = createContext<((messageId: string) => void) | undefined>(undefined);
 
@@ -21,12 +22,15 @@ const MarkdownLink: NonNullable<Components["a"]> = ({ children, href, ...props }
       </button>
     );
   }
+  if (!isSafeMarkdownHref(href)) {
+    return <span className="text-muted-foreground">{children}</span>;
+  }
   return (
     <a
       {...props}
       href={href}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       className="text-primary underline underline-offset-4"
     >
       {children}
@@ -34,10 +38,22 @@ const MarkdownLink: NonNullable<Components["a"]> = ({ children, href, ...props }
   );
 };
 
+const MarkdownImage: NonNullable<Components["img"]> = ({ src, alt }) => {
+  if (!shouldRenderMarkdownImage(src)) {
+    return (
+      <span className="text-muted-foreground text-sm">
+        {alt !== undefined && alt !== "" ? `[image: ${alt}]` : "[image blocked]"}
+      </span>
+    );
+  }
+  return <img src={src} alt={alt ?? ""} className="my-3 max-h-96 max-w-full rounded-lg border" />;
+};
+
 const markdownPlugins = [remarkGfm];
 
 const markdownComponents: Components = {
   a: MarkdownLink,
+  img: MarkdownImage,
   code: ({ className, children, ...props }) => (
     <code
       {...props}

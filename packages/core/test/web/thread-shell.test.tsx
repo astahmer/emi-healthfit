@@ -11,6 +11,21 @@ describe("core thread shell", () => {
     expect(screen.getByText("coach")).toBeInTheDocument();
   });
 
+  it("blocks unsafe markdown links and http images", () => {
+    render(
+      <MessagePart
+        part={{
+          type: "text",
+          text: "[xss](javascript:alert(1)) ![shot](http://evil.example/a.png)",
+        }}
+        isStreaming={false}
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("xss")).toBeInTheDocument();
+    expect(screen.getByText("[image: shot]")).toBeInTheDocument();
+  });
+
   it("uses registered tool renderers from contributions", () => {
     const Renderer = ({ result }: { result: unknown }) => (
       <div data-testid="custom-tool">{String(result)}</div>

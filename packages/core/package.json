@@ -21,7 +21,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts && vitest run",
+    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts test/web/markdown-url-policy.test.ts && vitest run",
     "test:watch": "vitest",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
