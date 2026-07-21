@@ -129,7 +129,32 @@ README states that application logic comes from versioned packages.
    `ConversationDatabaseSchema` call sites before this phase); call sites narrow explicitly via a
    documented `narrowQueryDatabaseClient`/`narrow` cast helper in `apps/api/src/platform/db/client.ts`
    and `packages/flavor-healthfit/src/tools/api.ts` rather than widening every downstream signature.)
-7. Add generic composition roots and verify local development plus a free-tier deployment.
+7. Add generic composition roots and verify local development plus a free-tier deployment. **DONE**
+   (`AppDefinition`/`mergeAppDefinitions`/`composeSystemPrompt`/`coreAppDefinition` added to
+   `@emi/core-server` — identity, ordered prompt contributors, and a name-keyed tool list merged
+   left to right with later definitions overriding a shared name's body while keeping its earliest
+   position; unit tests cover ordering and merge/override semantics. `packages/flavor-healthfit`
+   assembles `healthFitAppDefinition = mergeAppDefinitions(coreAppDefinition, {identity, one
+   `fitness-coach-v1` prompt contributor, tools})`; `apps/api/src/api.worker.ts`'s `/api/chat` route
+   now derives `coachSystemPrompt` via `composeSystemPrompt(healthFitAppDefinition.promptContributors)`
+   and `tools` from `healthFitAppDefinition.tools`, replacing the direct `fitnessCoachV1`/`tools`
+   imports so the merged definition is the one source of truth the chat-lifecycle hooks consume.
+   Added `apps/generic-worker` (Alchemy Cloudflare Worker composing only `@emi/core-server` +
+   `@emi/platform-cloudflare`: its own D1 database/migrations for the conversation tables, a
+   `/api/health` route serving `coreAppDefinition.identity`, and `/api/conversations` list/create
+   routes built on `makeConversationStore`, gated by a documented demo-only `x-demo-user-id` header
+   since real session auth still lives in `apps/api/src/core/auth` and was not extracted this phase)
+   and `apps/generic-web` (Vite + React app depending only on `@emi/core-web` + `@emi/core-contract`,
+   mounting `CoreWebProvider` with minimal nav contributions and one smoke page). Both new apps ship
+   a boundary test forbidding `flavor-healthfit`/`healthfit`/`apps/api`/`apps/chat` references in
+   source or `package.json`, plus their own unit/smoke tests; `apps/api` and `apps/chat` keep their
+   existing names and deploy scripts unchanged (renaming was judged unnecessary risk for the
+   generic-root goal). `alchemy deploy --dry-run` (`pnpm --filter @emi/generic-worker dry`) succeeds
+   against the existing Cloudflare account with a clean create-plan. Deferred: no shared package
+   yet hosts the core HTTP route/auth composition used by `apps/api`'s Effect router, so
+   `generic-worker` re-implements a minimal router directly instead of reusing `apps/api/src/core/*`
+   route modules; extracting that HTTP composition layer (and real session auth) into a package is
+   left for a later phase before `generic-worker` can be considered feature-complete.)
 8. Add `create-chat-app`, package releases, generated-template CI, and an upgrade test.
 9. Add Discord transport only after generic web and HealthFit both consume the same released core.
 

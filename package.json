@@ -23,6 +23,8 @@
     "setup:google": "pnpm --filter api setup:google",
     "chat:dev": "pnpm --filter chat dev",
     "chat:build": "pnpm --filter chat build",
+    "generic:worker:dev": "pnpm --filter @emi/generic-worker dev",
+    "generic:web:dev": "pnpm --filter @emi/generic-web dev",
     "slop:check": "node scripts/run-ast-grep.mjs scan",
     "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
     "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"

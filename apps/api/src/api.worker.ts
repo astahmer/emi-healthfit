@@ -32,11 +32,8 @@ import {
 } from "./healthfit/routes/data.ts";
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
-import {
-  fitnessCoachV1,
-  executeTool as executeHealthfitTool,
-  tools as healthfitTools,
-} from "@emi/flavor-healthfit";
+import { healthFitAppDefinition, executeTool as executeHealthfitTool } from "@emi/flavor-healthfit";
+import { composeSystemPrompt } from "@emi/core-server";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 
@@ -99,8 +96,8 @@ export default Api.make(
         handleAiSdkChat(db, request, env, {
           beforeChat: ({ db: chatDb, userId, environment }) =>
             ensureHevyFresh({ db: chatDb, userId, environment }),
-          coachSystemPrompt: fitnessCoachV1,
-          tools: healthfitTools,
+          coachSystemPrompt: composeSystemPrompt(healthFitAppDefinition.promptContributors),
+          tools: healthFitAppDefinition.tools ?? [],
           // `executeHealthfitTool`'s `db` is scoped to the flavor package's own
           // composed schema type; Kysely's `Transaction`/`withRecursive` typings make
           // `QueryDatabaseClient<T>` invariant in `T`, so the app's wider `DatabaseSchema`
