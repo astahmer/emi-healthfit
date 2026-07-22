@@ -16,8 +16,10 @@ import { recordDiagnosticEvent, useChatTransport } from "./chat-transport";
 import { runtimeSelectionMatches } from "./chat-runtime-selection";
 import { useChatHistorySync } from "./use-chat-history-sync";
 import { useChatSubmission } from "./use-chat-submission";
+import { useFollowUpQueueSync } from "./use-follow-up-queue-sync";
 import { OrphanTurnError } from "./orphan-turn-error";
 import type { ConversationSnapshot } from "../conversations";
+import type { QueuedFollowUp } from "./chat-runtime-machine";
 
 export type { ChatRuntimeConfig } from "./chat-runtime-context";
 export { useChatRuntime } from "./chat-runtime-context";
@@ -114,6 +116,50 @@ export const ChatRuntimeProvider = ({
     send({ type: "files.changed", files: [] });
   }, [send]);
 
+  const onRemoteQueueApplied = useCallback(
+    (items: QueuedFollowUp[]) => {
+      const editingId = editingQueuedIdRef.current;
+      if (editingId === null) return;
+      if (items.some((item) => item.id === editingId)) return;
+      clearQueuedFollowUpEdit();
+    },
+    [clearQueuedFollowUpEdit],
+  );
+
+  const onRemoteForceSend = useCallback(
+    (itemId: string) => {
+      void forceSendQueued(itemId);
+    },
+    [forceSendQueued],
+  );
+
+  const syncSessionId = config.temporary
+    ? undefined
+    : (config.sessionId ?? state.context.sessionId);
+  const { requestForceSendAcrossTabs } = useFollowUpQueueSync({
+    sessionId: syncSessionId,
+    temporary: config.temporary,
+    queuedFollowUps: state.context.queuedFollowUps,
+    isStreaming: state.matches("streaming"),
+    stateRef,
+    send,
+    onRemoteQueueApplied,
+    onRemoteForceSend,
+  });
+
+  const forceSendQueuedOrRelay = useCallback(
+    async (id?: string) => {
+      if (stateRef.current.matches("streaming")) {
+        await forceSendQueued(id);
+        return;
+      }
+      const targetId = id ?? stateRef.current.context.queuedFollowUps[0]?.id;
+      if (targetId === undefined) return;
+      requestForceSendAcrossTabs(targetId);
+    },
+    [forceSendQueued, requestForceSendAcrossTabs],
+  );
+
   const value = useMemo<ChatRuntimeValue>(() => {
     const selectionMatchesRuntime = runtimeSelectionMatches({
       runtimeSessionId: state.context.sessionId,
@@ -181,7 +227,7 @@ export const ChatRuntimeProvider = ({
         send({ type: "followUp.cleared" });
         clearQueuedFollowUpEdit();
       },
-      forceSendQueued,
+      forceSendQueued: forceSendQueuedOrRelay,
       beginEditingQueuedFollowUp,
       clearQueuedFollowUpEdit,
       clearError: () => send({ type: "error.cleared" }),
@@ -194,7 +240,7 @@ export const ChatRuntimeProvider = ({
     config.sessionId,
     config.temporary,
     editingQueuedId,
-    forceSendQueued,
+    forceSendQueuedOrRelay,
     isPreparingAttachments,
     isRetrying,
     recordClientEvent,
