@@ -37,6 +37,21 @@ const normalizeToolOutput = (output: unknown): unknown => {
 
 const isErrorOutput = (output: unknown): boolean => Option.isSome(decodeErrorOutput(output));
 
+const errorTextFrom = (output: unknown): string => {
+  if (output instanceof Error) return output.message;
+  if (typeof output === "string") return output;
+  const decoded = decodeErrorOutput(output);
+  if (
+    Option.isSome(decoded) &&
+    typeof output === "object" &&
+    output !== null &&
+    "value" in output
+  ) {
+    return typeof output.value === "string" ? output.value : "Tool execution failed.";
+  }
+  return "Tool execution failed.";
+};
+
 const messageParts = (content: unknown): (typeof ProviderPart.Type)[] => {
   if (content === undefined || content === null) return [];
   const candidates = Array.isArray(content) ? content : [content];
@@ -95,14 +110,24 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
         if (call !== undefined) {
           const result = toolResults.get(part.toolCallId);
           emittedToolCalls.add(part.toolCallId);
+          if (result?.outcome === "success") {
+            assistantParts.push({
+              type: "dynamic-tool",
+              toolName: call.toolName,
+              toolCallId: part.toolCallId,
+              input: call.input,
+              output: result.output,
+              state: "output-available",
+            });
+            continue;
+          }
           assistantParts.push({
             type: "dynamic-tool",
             toolName: call.toolName,
             toolCallId: part.toolCallId,
             input: call.input,
-            output: result?.output,
-            outcome: result?.outcome ?? "error",
-            state: result?.outcome === "success" ? "output-available" : "output-error",
+            errorText: errorTextFrom(result?.output),
+            state: "output-error",
           });
         }
       }

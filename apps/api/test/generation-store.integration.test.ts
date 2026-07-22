@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import {
   appendGenerationChunk,
+  appendGenerationChunks,
   cancelRunningGenerations,
   cleanupGenerationHistory,
   createGeneration,
@@ -60,21 +61,14 @@ describe("generation store SQLite integration", () => {
       }),
     );
     await run(
-      appendGenerationChunk({
+      appendGenerationChunks({
         db,
         userId,
         generationId: "generation-a",
-        sequence: 0,
-        chunk: { type: "start" },
-      }),
-    );
-    await run(
-      appendGenerationChunk({
-        db,
-        userId,
-        generationId: "generation-a",
-        sequence: 1,
-        chunk: { type: "finish" },
+        chunks: [
+          { sequence: 0, chunk: { type: "start" } },
+          { sequence: 1, chunk: { type: "finish" } },
+        ],
       }),
     );
     await run(

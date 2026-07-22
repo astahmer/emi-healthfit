@@ -128,8 +128,7 @@ describe("buildAssistantParts", () => {
       toolName: "get_workout_history",
       toolCallId: "failed-1",
       input: {},
-      output: { type: "error-text", value: "Only one SELECT query is allowed." },
-      outcome: "error",
+      errorText: "Only one SELECT query is allowed.",
       state: "output-error",
     });
   });

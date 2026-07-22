@@ -5,13 +5,15 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type { UIMessageChunk } from "ai";
 import {
-  appendGenerationChunk,
+  appendGenerationChunks,
   finishGeneration,
   markGenerationStreaming,
   recordChatEvent,
 } from "../chat/generation-store.ts";
 import { resolveGenerationTerminalState } from "../chat/generation-terminal-state.ts";
 import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+
+const chunkBatchSize = 20;
 
 export const persistGenerationStream = Effect.fn("chatStream.persist")(function* ({
   db,
@@ -33,8 +35,15 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   const streamError = yield* Ref.make<string | undefined>(undefined);
   const finishReason = yield* Ref.make<string | undefined>(undefined);
   const sawFinish = yield* Ref.make(false);
+  const bufferedChunks = yield* Ref.make<Array<{ sequence: number; chunk: UIMessageChunk }>>([]);
   const persistenceStartedAt = performance.now();
   const previousChunkAt = yield* Ref.make(persistenceStartedAt);
+  const flushChunks = () =>
+    Effect.gen(function* () {
+      const chunks = yield* Ref.getAndSet(bufferedChunks, []);
+      if (chunks.length === 0) return;
+      yield* appendGenerationChunks({ db, userId, generationId, chunks });
+    });
   const persist = Stream.fromReadableStream({
     evaluate: () => stream,
     onError: (error) => error,
@@ -44,8 +53,9 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
       Effect.gen(function* () {
         const timestamp = performance.now();
         const previous = yield* Ref.get(previousChunkAt);
-        yield* appendGenerationChunk({ db, userId, generationId, sequence, chunk });
+        yield* Ref.update(bufferedChunks, (chunks) => [...chunks, { sequence, chunk }]);
         if (sequence === 0) {
+          yield* flushChunks();
           yield* markGenerationStreaming({ db, userId, generationId });
           yield* recordChatEvent({
             db,
@@ -58,6 +68,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
             payload: { timeToFirstChunkMilliseconds: Math.round(timestamp - persistenceStartedAt) },
           });
         }
+        if (sequence > 0 && (sequence + 1) % chunkBatchSize === 0) yield* flushChunks();
         yield* Effect.logDebug("chat.persistence.chunk").pipe(
           Effect.annotateLogs({
             generationId,
@@ -147,4 +158,5 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
         ),
     }),
   );
+  yield* flushChunks();
 });

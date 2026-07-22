@@ -23,6 +23,9 @@ export interface CloudflareQueryDatabaseClient<TSchema> extends QueryDatabaseCli
   readonly raw: RawQueryDatabaseClient["raw"];
 }
 
+const isTransientD1Error = (error: unknown): boolean =>
+  /D1_ERROR: Network connection lost/i.test(error instanceof Error ? error.message : String(error));
+
 export const makeD1Kysely = <TSchema>(database: D1Database) =>
   new Kysely<TSchema>({ dialect: new D1Dialect({ database }) });
 
@@ -42,6 +45,7 @@ export const makeQueryDatabaseClient = <TSchema>({
         }),
       )
       .pipe(
+        Effect.retry({ times: 2, while: isTransientD1Error }),
         Effect.map((results) =>
           results.map((result) => ({ meta: { changes: Number(result.meta.changes) } })),
         ),

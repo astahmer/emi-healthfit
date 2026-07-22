@@ -207,7 +207,7 @@ const SummarizeToMessage = Tool.make("summarize_to_message", {
 
 const RenderComponent = Tool.make("render_component", {
   description:
-    "Render a rich UI component for workout tables, progress, recovery, metrics, or sets.",
+    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard has no title, subtitle, or context props.",
   parameters: Schema.Struct({
     component: Schema.String.annotate({
       description: "WorkoutTable, ExerciseProgress, RecoveryCard, MetricCard, or SetList.",

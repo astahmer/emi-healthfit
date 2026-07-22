@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { ChatStreamRequest } from "../chat/ai-sdk.ts";
-import { getProviderMessages } from "../chat/orphan-turn.ts";
+import { getProviderMessages, isDuplicateOrphanRetry } from "../chat/orphan-turn.ts";
 import { validateStoredUIMessages } from "../chat/ui-messages.ts";
 import {
   addThreadMessage,
@@ -95,7 +95,14 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   ) {
     return { error: "Replacement message not found", status: 400 as const };
   }
-  const incomingMessages = chatRequest.replaceMessageId === undefined ? requestedMessages : [];
+  const requestedIncomingMessages =
+    chatRequest.replaceMessageId === undefined ? requestedMessages : [];
+  const duplicateOrphanRetry = isDuplicateOrphanRetry({
+    existingRows,
+    existingMessages,
+    incomingMessages: requestedIncomingMessages,
+  });
+  const incomingMessages = duplicateOrphanRetry ? [] : requestedIncomingMessages;
   const toolRecord = Object.fromEntries(
     toolDefinitions.map((definition) => [
       definition.name,
@@ -114,7 +121,8 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     tools: toolRecord,
   };
 
-  let lastIncomingMessageId: string | null = chatRequest.replaceMessageId ?? null;
+  let lastIncomingMessageId: string | null =
+    chatRequest.replaceMessageId ?? (duplicateOrphanRetry ? existingRows.at(-1)?.id : null) ?? null;
   if (!isTemporary) {
     const branchParentId =
       thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);

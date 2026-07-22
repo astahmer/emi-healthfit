@@ -180,19 +180,41 @@ export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(fun
   sequence: number;
   chunk: UIMessageChunk;
 }) {
+  return yield* appendGenerationChunks({
+    db,
+    userId,
+    generationId,
+    chunks: [{ sequence, chunk }],
+  });
+});
+
+export const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function* ({
+  db,
+  userId,
+  generationId,
+  chunks,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  generationId: string;
+  chunks: ReadonlyArray<{ sequence: number; chunk: UIMessageChunk }>;
+}) {
+  if (chunks.length === 0) return true;
   const generation = yield* getGeneration({ db, userId, generationId });
   if (generation === null) return false;
 
   const kysely = yield* db.kysely;
   const timestamp = nowIso();
   yield* runTransaction(db, [
-    kysely.insertInto("chat_generation_chunks").values({
-      chunk: JSON.stringify(chunk),
-      created_at: timestamp,
-      generation_id: generationId,
-      sequence,
-      user_id: userId,
-    }),
+    ...chunks.map(({ sequence, chunk }) =>
+      kysely.insertInto("chat_generation_chunks").values({
+        chunk: JSON.stringify(chunk),
+        created_at: timestamp,
+        generation_id: generationId,
+        sequence,
+        user_id: userId,
+      }),
+    ),
     kysely
       .updateTable("chat_generations")
       .set({ updated_at: timestamp })
