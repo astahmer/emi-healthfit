@@ -103,7 +103,7 @@ describe("Thread", () => {
     expect(removeQueuedFollowUp).toHaveBeenCalledWith("q1");
   });
 
-  it("announces streaming and shows the delayed-response typing indicator", () => {
+  it("announces streaming and shows the live response indicator", () => {
     const message: MessageWithUsage = { id: "assistant-1", role: "assistant", parts: [] };
     vi.mocked(useChatRuntime).mockReturnValue({
       ...vi.mocked(useChatRuntime)(),
@@ -115,6 +115,7 @@ describe("Thread", () => {
 
     expect(screen.getByText("Assistant is responding")).toBeInTheDocument();
     expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
   it("shows the typing indicator before the first assistant chunk arrives", () => {
@@ -131,6 +132,24 @@ describe("Thread", () => {
 
     renderThread([message]);
 
+    expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
+  });
+
+  it("keeps the live response indicator at the end of streamed content", () => {
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Partial answer" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: true,
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
     expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
   });
 

@@ -140,6 +140,21 @@ const messagePartKey = (part: MessagePartValue): string => {
   return `${part.type}:${JSON.stringify(part)}`;
 };
 
+const StreamingIndicator = () => (
+  <span
+    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+    role="status"
+    aria-label="Assistant is working"
+  >
+    <span>Thinking</span>
+    <span className="typing-dots" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </span>
+  </span>
+);
+
 const FollowUpSuggestions = () => {
   const runtime = useChatRuntime();
   const settings = useSettings((state) => state.settings);
@@ -268,17 +283,7 @@ const ChatMessage = ({
                   })}
                 </div>
               ))}
-              {isStreaming && message.parts.length === 0 && (
-                <span
-                  className="typing-dots text-muted-foreground"
-                  role="status"
-                  aria-label="Assistant is working"
-                >
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              )}
+              {isStreaming && <StreamingIndicator />}
             </BubbleContent>
           </Bubble>
         ) : (
@@ -639,15 +644,7 @@ export const Thread = ({
                     <MessageContent>
                       <Bubble align="start" variant="ghost">
                         <BubbleContent>
-                          <span
-                            className="typing-dots text-muted-foreground"
-                            role="status"
-                            aria-label="Assistant is working"
-                          >
-                            <span />
-                            <span />
-                            <span />
-                          </span>
+                          <StreamingIndicator />
                         </BubbleContent>
                       </Bubble>
                     </MessageContent>
