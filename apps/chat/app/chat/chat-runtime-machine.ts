@@ -27,6 +27,7 @@ export type ChatRuntimeEvent =
   | { type: "followUp.updated"; id: string; text: string; files: FileUIPart[] }
   | { type: "followUp.removed"; id: string }
   | { type: "followUp.cleared" }
+  | { type: "followUp.replaced"; items: QueuedFollowUp[] }
   | { type: "submit.started"; sessionId: string; message: UIMessage }
   | {
       type: "revision.started";
@@ -142,6 +143,10 @@ export const chatRuntimeMachine = setup({
       };
     }),
     clearFollowUps: assign({ queuedFollowUps: () => [] }),
+    replaceFollowUps: assign(({ event }) => {
+      if (event.type !== "followUp.replaced") return {};
+      return { queuedFollowUps: event.items };
+    }),
     startSubmission: assign(({ context, event }) => {
       if (event.type !== "submit.started") return {};
       return {
@@ -222,6 +227,7 @@ export const chatRuntimeMachine = setup({
         "followUp.removed": { actions: "removeFollowUp" },
         "followUp.updated": { actions: "updateFollowUp" },
         "followUp.cleared": { actions: "clearFollowUps" },
+        "followUp.replaced": { actions: "replaceFollowUps" },
         "submit.started": { target: "streaming", actions: "startSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
@@ -237,6 +243,7 @@ export const chatRuntimeMachine = setup({
         "followUp.updated": { actions: "updateFollowUp" },
         "followUp.removed": { actions: "removeFollowUp" },
         "followUp.cleared": { actions: "clearFollowUps" },
+        "followUp.replaced": { actions: "replaceFollowUps" },
         "submit.started": { actions: "supersedeInFlightSubmission" },
         "revision.started": { actions: "startRevision" },
         "stream.updated": { actions: "updateStream" },
@@ -261,6 +268,7 @@ export const chatRuntimeMachine = setup({
         "followUp.removed": { actions: "removeFollowUp" },
         "followUp.updated": { actions: "updateFollowUp" },
         "followUp.cleared": { actions: "clearFollowUps" },
+        "followUp.replaced": { actions: "replaceFollowUps" },
         "submit.started": { target: "streaming", actions: "supersedeInFlightSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },

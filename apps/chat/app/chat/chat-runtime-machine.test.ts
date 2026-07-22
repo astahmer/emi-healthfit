@@ -217,6 +217,29 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("");
   });
 
+  it("replaces the full queue from a remote sync snapshot", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Local", files: [] });
+    actor.send({
+      type: "followUp.replaced",
+      items: [
+        { id: "r1", text: "Remote one", files: [] },
+        { id: "r2", text: "Remote two", files: [] },
+      ],
+    });
+
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "r1", text: "Remote one", files: [] },
+      { id: "r2", text: "Remote two", files: [] },
+    ]);
+  });
+
   it("replaces an in-flight generation when a new message is submitted", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
