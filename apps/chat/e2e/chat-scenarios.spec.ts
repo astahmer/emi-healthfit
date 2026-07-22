@@ -205,6 +205,80 @@ test("force-sends a queued follow-up and interrupts the live generation", async 
   await expect(page.getByText("one message answer")).toBeVisible();
 });
 
+test("shares queued follow-ups across tabs for view edit and cancel", async ({ context, page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Live answer" },
+    },
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("First question");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+  await page.getByLabel("Message input").fill("Shared queue item");
+  await page.getByLabel("Send after reply").click();
+  await expect(page.getByLabel("Queued follow-ups")).toContainText("Shared queue item");
+
+  const secondPage = await context.newPage();
+  await mock.install(secondPage);
+  await secondPage.goto("/chat/one");
+  await expect(secondPage.getByLabel("Queued follow-ups")).toContainText("Shared queue item");
+
+  await secondPage.getByLabel("Edit queued message 1").click();
+  await expect(secondPage.getByLabel("Message input")).toHaveValue("Shared queue item");
+  await secondPage.getByLabel("Message input").fill("Shared queue edited");
+  await secondPage.getByLabel("Update queued message").click();
+  await expect(page.getByLabel("Queued follow-ups")).toContainText("Shared queue edited");
+
+  await secondPage.getByLabel("Cancel queued message 1").click();
+  await expect(secondPage.getByLabel("Queued follow-ups")).toHaveCount(0);
+  await expect(page.getByLabel("Queued follow-ups")).toHaveCount(0);
+
+  mock.releaseChat();
+  await expect(page.getByText("Live answer")).toBeVisible();
+});
+
+test("relays force-send from a second tab to the streaming tab", async ({ context, page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Should not appear" },
+    },
+  });
+  let forceReply = "Should not appear";
+  Object.defineProperty(mock.state.chat, "replyText", {
+    configurable: true,
+    get: () => forceReply,
+    set: () => undefined,
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("First question");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+  await page.getByLabel("Message input").fill("Relay force send");
+  await page.getByLabel("Send after reply").click();
+
+  const secondPage = await context.newPage();
+  await mock.install(secondPage);
+  await secondPage.goto("/chat/one");
+  await expect(secondPage.getByLabel("Queued follow-ups")).toContainText("Relay force send");
+
+  forceReply = "Forced from other tab";
+  await secondPage.getByLabel("Send queued message 1 now").click();
+  mock.releaseChat();
+
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "Relay force send" }),
+  ).toBeVisible();
+  await expect(page.getByText("Forced from other tab").first()).toBeVisible();
+  await expect(secondPage.getByLabel("Queued follow-ups")).toHaveCount(0);
+});
+
 test("edits a user message and regenerates an assistant reply", async ({ page }) => {
   const mock = createChatMock({
     state: {

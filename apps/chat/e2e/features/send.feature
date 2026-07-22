@@ -19,3 +19,8 @@ Feature: Send message
     Given a user is on session one with a held generation
     When they queue multiple follow-ups, edit with arrow keys, cancel one, and force-send another
     Then the forced and remaining queued turns should appear without wiping prior history
+
+  Scenario: Share queued follow-ups across browser tabs
+    Given a user has a held generation with queued follow-ups in one tab
+    When they open the same session in another tab
+    Then they can see edit and cancel the shared queue

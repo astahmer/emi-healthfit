@@ -935,35 +935,41 @@ export const Thread = ({
             </Button>
             <TooltipIconButton
               tooltip={
-                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
-                  ? "Stop generating"
-                  : runtime.isStreaming
-                    ? runtime.editingQueuedId !== null
-                      ? "Update queued message"
-                      : "Send after reply"
-                    : "Send message"
+                runtime.editingQueuedId !== null
+                  ? "Update queued message"
+                  : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                    ? "Stop generating"
+                    : runtime.isStreaming
+                      ? "Send after reply"
+                      : "Send message"
               }
               side="top"
               type={
-                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                runtime.isStreaming &&
+                runtime.draft.trim() === "" &&
+                runtime.files.length === 0 &&
+                runtime.editingQueuedId === null
                   ? "button"
                   : "submit"
               }
               variant="default"
               className="ms-auto size-9 shrink-0 rounded-full"
               onClick={
-                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                runtime.isStreaming &&
+                runtime.draft.trim() === "" &&
+                runtime.files.length === 0 &&
+                runtime.editingQueuedId === null
                   ? runtime.stop
                   : undefined
               }
               aria-label={
-                runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
-                  ? "Stop generating"
-                  : runtime.isStreaming
-                    ? runtime.editingQueuedId !== null
-                      ? "Update queued message"
-                      : "Send after reply"
-                    : "Send message"
+                runtime.editingQueuedId !== null
+                  ? "Update queued message"
+                  : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                    ? "Stop generating"
+                    : runtime.isStreaming
+                      ? "Send after reply"
+                      : "Send message"
               }
             >
               {runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (

@@ -117,17 +117,18 @@ export const useChatSubmission = ({
       if (parts === undefined && content === "" && queuedFiles.length === 0) return;
 
       const editingQueuedId = editingQueuedIdRef.current;
+      if (editingQueuedId !== null && replaceMessageId === undefined && !interrupt) {
+        send({
+          type: "followUp.updated",
+          id: editingQueuedId,
+          text: content,
+          files: parts === undefined ? queuedFiles : [],
+        });
+        setEditingQueuedId(null);
+        return;
+      }
+
       if (stateRef.current.matches("streaming") && replaceMessageId === undefined && !interrupt) {
-        if (editingQueuedId !== null) {
-          send({
-            type: "followUp.updated",
-            id: editingQueuedId,
-            text: content,
-            files: parts === undefined ? queuedFiles : [],
-          });
-          setEditingQueuedId(null);
-          return;
-        }
         send({
           type: "followUp.queued",
           id: crypto.randomUUID(),
