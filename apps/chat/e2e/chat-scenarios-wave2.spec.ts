@@ -158,7 +158,7 @@ test("sends an attachment with the chat request", async ({ page }) => {
   expect(filePart?.mediaType).toBe("image/png");
 });
 
-test("cancels the in-flight stream when sending another message", async ({ page }) => {
+test("queues the second message while a stream is in flight", async ({ page }) => {
   const mock = createChatMock({
     state: {
       chat: { persist: true, replyText: "Second reply" },
@@ -173,9 +173,9 @@ test("cancels the in-flight stream when sending another message", async ({ page 
   await expect(page.getByLabel("Stop generating")).toBeVisible();
 
   await page.getByLabel("Message input").fill("Second question");
-  await expect(page.getByLabel("Send message")).toBeVisible();
-  await page.getByLabel("Send message").click();
-  expect(mock.state.chat.calls).toBe(2);
+  await expect(page.getByLabel("Send after reply")).toBeVisible();
+  await page.getByLabel("Send after reply").click();
+  expect(mock.state.chat.calls).toBe(1);
 
   mock.releaseChat();
   await expect(page.getByText("Second question")).toBeVisible();
@@ -198,7 +198,7 @@ test("keeps composer draft text while a response is streaming", async ({ page })
 
   await page.getByLabel("Message input").fill("Typed while streaming");
   await expect(page.getByLabel("Message input")).toHaveValue("Typed while streaming");
-  await expect(page.getByLabel("Send message")).toBeVisible();
+  await expect(page.getByLabel("Send after reply")).toBeVisible();
 
   mock.releaseChat();
   await expect(page.getByLabel("Send message")).toBeVisible();

@@ -1,0 +1,84 @@
+{
+  "activity": {
+    "daily": [
+      {
+        "date": "2024-01-02",
+        "activeEnergyKcal": 420,
+        "steps": 7200,
+        "distanceKm": 5.4,
+        "exerciseMinutes": 38,
+        "flightsClimbed": 6
+      },
+      {
+        "date": "2024-01-03",
+        "steps": 6100
+      }
+    ],
+    "workouts": [
+      {
+        "type": "Running",
+        "durationSec": 1800,
+        "activeEnergyKcal": 260,
+        "averageHeartRateBpm": 142,
+        "maxHeartRateBpm": 166,
+        "minHeartRateBpm": 98,
+        "distanceKm": 4.2,
+        "source": "synthetic-device",
+        "start": "01-02 07:30:00"
+      },
+      {
+        "type": "Strength Training",
+        "durationSec": 2700,
+        "activeEnergyKcal": 310,
+        "source": "synthetic-device",
+        "start": "12-31 18:00:00"
+      }
+    ]
+  },
+  "sleep": {
+    "sessions": [
+      {
+        "start": "01-02 22:30:00",
+        "end": "01-03 06:30:00",
+        "durationSec": 28800,
+        "inBedSec": 28800,
+        "asleepSec": 26700,
+        "awakeSec": 2100,
+        "source": "synthetic-device",
+        "stages": [
+          {
+            "stage": "core",
+            "start": "01-02 22:30:00",
+            "end": "01-03 06:30:00",
+            "durationSec": 28800
+          }
+        ]
+      },
+      {
+        "start": "01-04 23:00:00",
+        "end": "01-05 07:00:00",
+        "source": "synthetic-device"
+      }
+    ]
+  },
+  "additional": {
+    "body": {
+      "daily": [
+        {
+          "date": "2024-01-02",
+          "values": {
+            "bodyMass": 70.2,
+            "bodyFat": 18.4,
+            "leanMass": 57.3
+          }
+        },
+        {
+          "date": "2024-01-03",
+          "values": {
+            "bodyMass": 70.1
+          }
+        }
+      ]
+    }
+  }
+}

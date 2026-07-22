@@ -11,7 +11,6 @@ import {
   saveConversationMessages,
   secureStringEqual,
   type ConversationDatabaseSchema,
-  type QueryDatabaseClient,
 } from "@emi/core/server";
 import {
   buildChatContext,
@@ -19,6 +18,7 @@ import {
   renderContextPrompt,
   type HealthfitDatabaseSchema,
 } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 
 const DiscordAskBody = Schema.Struct({
   userId: Schema.String.check(Schema.isMinLength(1)),
@@ -34,8 +34,6 @@ const DiscordAskEnvironment = Schema.Struct({
 
 const DISCORD_ASK_TITLE = "[Discord] /ask";
 const DISCORD_ASK_MAX_OUTPUT_TOKENS = 600;
-
-export type DiscordAskDatabaseSchema = ConversationDatabaseSchema & HealthfitDatabaseSchema;
 
 export type DiscordAskGenerateAnswer = (input: {
   system: string;
@@ -75,7 +73,7 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
   request,
   generateAnswer = defaultDiscordAskGenerateAnswer,
 }: {
-  db: QueryDatabaseClient<DiscordAskDatabaseSchema>;
+  db: QueryDatabaseClient;
   environment: Record<string, unknown>;
   request: HttpServerRequest;
   generateAnswer?: DiscordAskGenerateAnswer;
@@ -96,12 +94,14 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     rawBody,
   ).pipe(Effect.mapError((error) => new Error(`Invalid ask body: ${String(error)}`)));
 
-  const conversations = yield* getConversations(db, body.userId);
+  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+  const conversations = yield* getConversations(conversationDb, body.userId);
   const existing = conversations.find((conversation) => conversation.title === DISCORD_ASK_TITLE);
   const conversationId =
-    existing?.id ?? (yield* createConversation(db, body.userId, DISCORD_ASK_TITLE));
+    existing?.id ?? (yield* createConversation(conversationDb, body.userId, DISCORD_ASK_TITLE));
 
-  const fitnessContext = yield* buildChatContext(db, body.userId);
+  const fitnessContext = yield* buildChatContext(healthfitDb, body.userId);
   const model = config.DISCORD_ASK_MODEL ?? "gpt-4o-mini";
   const system =
     `${composeSystemPrompt(healthFitAppDefinition.promptContributors)}\n\n` +
@@ -120,7 +120,7 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     maxOutputTokens: DISCORD_ASK_MAX_OUTPUT_TOKENS,
   });
 
-  yield* saveConversationMessages(db, body.userId, conversationId, null, [
+  yield* saveConversationMessages(conversationDb, body.userId, conversationId, null, [
     { role: "user", parts: [{ type: "text", text: body.question }] },
     { role: "assistant", parts: [{ type: "text", text: answer }] },
   ]);

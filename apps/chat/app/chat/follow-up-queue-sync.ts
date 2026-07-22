@@ -26,6 +26,7 @@ const QueueSyncPayloadSchema = Schema.Struct({
   revision: Schema.Number,
   items: Schema.Array(QueuedFollowUpSchema),
 });
+const QueueSyncJsonSchema = Schema.fromJsonString(QueueSyncPayloadSchema);
 
 const QueueForceSendPayloadSchema = Schema.Struct({
   type: Schema.Literal("queue.force-send"),
@@ -42,6 +43,16 @@ const QueueChannelMessageSchema = Schema.Union([
 export type QueueSyncPayload = typeof QueueSyncPayloadSchema.Type;
 export type QueueForceSendPayload = typeof QueueForceSendPayloadSchema.Type;
 export type QueueChannelMessage = typeof QueueChannelMessageSchema.Type;
+
+type QueueComparable = {
+  id: string;
+  text: string;
+  files: readonly {
+    url: string;
+    mediaType: string;
+    filename?: string;
+  }[];
+};
 
 export const followUpQueueStorageKey = (sessionId: string): string =>
   `${FOLLOW_UP_QUEUE_STORAGE_PREFIX}${sessionId}`;
@@ -92,11 +103,8 @@ export const parseFollowUpQueueChannelMessage = (raw: unknown): QueueChannelMess
 };
 
 export const parseFollowUpQueueSyncJson = (raw: string): QueueSyncPayload | null => {
-  try {
-    return parseFollowUpQueueSync(JSON.parse(raw) as unknown);
-  } catch {
-    return null;
-  }
+  const decoded = Schema.decodeUnknownOption(QueueSyncJsonSchema)(raw);
+  return Option.isSome(decoded) ? decoded.value : null;
 };
 
 export const shouldApplyRemoteFollowUpQueue = ({
@@ -137,8 +145,8 @@ export const queuesEqual = ({
   left,
   right,
 }: {
-  left: QueuedFollowUp[];
-  right: QueuedFollowUp[];
+  left: readonly QueueComparable[];
+  right: readonly QueueComparable[];
 }): boolean => {
   if (left.length !== right.length) return false;
   return left.every((item, index) => {

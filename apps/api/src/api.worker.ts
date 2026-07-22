@@ -1,5 +1,6 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Command from "alchemy/Command";
+import * as Output from "alchemy/Output";
 import { RuntimeContext } from "alchemy";
 import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
@@ -7,13 +8,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { authenticateWorkerFetch, isProtectedPath } from "./core/auth/request-auth.ts";
-import { handleDiscordAsk, type DiscordAskDatabaseSchema } from "./core/http/discord-ask.ts";
+import { handleDiscordAsk } from "./core/http/discord-ask.ts";
+import { handleDiscordCommand } from "./core/http/discord-command.ts";
 import { makeQueryDatabaseClient, narrowQueryDatabaseClient } from "./platform/db/client.ts";
 import { resolveEmiBuildId } from "./platform/emi-build-id.ts";
 import {
@@ -39,7 +39,7 @@ import {
 import { composeSystemPrompt } from "@emi/core/server";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
-const chatAppDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../chat");
+const chatAppDirectory = "../chat";
 
 const DB = Cloudflare.D1.Database("GymData");
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
@@ -91,7 +91,7 @@ export default Api.make(
       domain: stack.stage === "prod" ? PRODUCTION_DOMAIN : undefined,
       assets: {
         directory: chatAssets.outdir,
-        hash: chatAssets.hash.output ?? buildId,
+        hash: chatAssets.hash.pipe(Output.map((hash) => hash.output ?? buildId)),
         notFoundHandling: "single-page-application" as const,
         // SPA fallback must not swallow /api/* (esp. Better Auth Google callback).
         runWorkerFirst: ["/api/*", "/ingest"],
@@ -170,7 +170,18 @@ export default Api.make(
       );
       yield* router.add("POST", "/api/discord/ask", (request) =>
         handleDiscordAsk({
-          db: narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db),
+          db,
+          environment: env,
+          request,
+        }).pipe(
+          Effect.catch((error) =>
+            HttpServerResponse.json({ error: String(error) }, { status: 500 }),
+          ),
+        ),
+      );
+      yield* router.add("POST", "/api/discord/command", (request) =>
+        handleDiscordCommand({
+          db,
           environment: env,
           request,
         }).pipe(
@@ -194,7 +205,9 @@ export default Api.make(
           db,
           environment: env,
           isProtectedPath: (pathname) =>
-            isProtectedPath(pathname) && pathname !== "/api/discord/ask",
+            isProtectedPath(pathname) &&
+            pathname !== "/api/discord/ask" &&
+            pathname !== "/api/discord/command",
           policy: "google-allowlist",
           request,
           route: router.asHttpEffect(),

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   FOLLOW_UP_QUEUE_STORAGE_MAX_CHARS,
   parseFollowUpQueueSyncJson,
-  queuesEqual,
   serializeFollowUpQueue,
   shouldApplyRemoteFollowUpQueue,
   shouldHandleRemoteForceSend,

@@ -1,9 +1,62 @@
+import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { createChatMock, sessionOneSnapshot } from "../../mock/install.ts";
 import { openMockedChat, openSessionOne, openSessionOneWithChatPersistence } from "./helpers.ts";
 
 const { Given, When, Then } = createBdd();
+
+type HeldGenerationScenario = {
+  mock: ReturnType<typeof createChatMock>;
+  replies: string[];
+  secondPage?: Page;
+};
+
+const heldGenerationScenarios = new WeakMap<Page, HeldGenerationScenario>();
+
+const getHeldGenerationScenario = (page: Page): HeldGenerationScenario => {
+  const scenario = heldGenerationScenarios.get(page);
+  if (scenario === undefined) throw new Error("Held generation scenario is not initialized");
+  return scenario;
+};
+
+const openHeldGeneration = async (page: Page): Promise<HeldGenerationScenario> => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Live answer" },
+    },
+  });
+  const replies = ["Live answer", "Follow-up answer", "Forced answer"];
+  Object.defineProperty(mock.state.chat, "replyText", {
+    configurable: true,
+    get: () => replies[Math.max(0, mock.state.chat.calls - 1)] ?? "Mock answer",
+    set: () => undefined,
+  });
+  mock.holdChat();
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+
+  const scenario = { mock, replies };
+  heldGenerationScenarios.set(page, scenario);
+  return scenario;
+};
+
+const sendAndQueue = async ({
+  page,
+  message,
+  queuedMessage,
+}: {
+  page: Page;
+  message: string;
+  queuedMessage: string;
+}) => {
+  await page.getByLabel("Message input").fill(message);
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+  await page.getByLabel("Message input").fill(queuedMessage);
+  await page.getByLabel("Send after reply").click();
+};
 
 Given("a user is on the chat page with suggestions", async ({ page }) => {
   const mock = createChatMock({
@@ -27,6 +80,16 @@ Given("a user is on session one", async ({ page }) => {
 
 Given("a user is on session one with chat persistence", async ({ page }) => {
   await openSessionOneWithChatPersistence({ page, replyText: "Saw the image" });
+});
+
+Given("a user is on session one with a held generation", async ({ page }) => {
+  await openHeldGeneration(page);
+});
+
+Given("a user has a held generation with queued follow-ups in one tab", async ({ page }) => {
+  await openHeldGeneration(page);
+  await sendAndQueue({ page, message: "First question", queuedMessage: "Shared queue item" });
+  await expect(page.getByLabel("Queued follow-ups")).toContainText("Shared queue item");
 });
 
 Given(
@@ -120,6 +183,48 @@ When("they send the message {string}", async ({ page }, text: string) => {
   await page.getByLabel("Send message").click();
 });
 
+When(
+  "they send {string} and queue {string} before the reply finishes",
+  async ({ page }, message: string, queuedMessage: string) => {
+    await sendAndQueue({ page, message, queuedMessage });
+    await expect(page.getByLabel("Queued follow-ups")).toContainText(queuedMessage);
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
+When(
+  "they queue multiple follow-ups, edit with arrow keys, cancel one, and force-send another",
+  async ({ page }) => {
+    const { replies } = getHeldGenerationScenario(page);
+    await sendAndQueue({ page, message: "First question", queuedMessage: "Queue one" });
+    await page.getByLabel("Message input").fill("Queue two");
+    await page.getByLabel("Send after reply").click();
+    await page.getByLabel("Message input").fill("Queue three");
+    await page.getByLabel("Send after reply").click();
+
+    const queue = page.getByLabel("Queued follow-ups");
+    await page.getByLabel("Message input").press("ArrowUp");
+    await expect(page.getByLabel("Message input")).toHaveValue("Queue three");
+    await page.getByLabel("Message input").fill("Queue three edited");
+    await page.getByLabel("Update queued message").click();
+    await expect(queue).toContainText("Queue three edited");
+
+    await page.getByLabel("Cancel queued message 2").click();
+    await expect(queue).not.toContainText("Queue two");
+    replies[1] = "Forced answer";
+    await page.getByLabel("Send queued message 2 now").click();
+  },
+);
+
+When("they open the same session in another tab", async ({ context, page }) => {
+  const scenario = getHeldGenerationScenario(page);
+  const secondPage = await context.newPage();
+  await scenario.mock.install(secondPage);
+  await secondPage.goto("/chat/one");
+  await expect(secondPage.getByLabel("Queued follow-ups")).toContainText("Shared queue item");
+  scenario.secondPage = secondPage;
+});
+
 When("they refresh the new chat page", async ({ page }) => {
   await page.goto("/chat");
 });
@@ -169,6 +274,50 @@ Then("the message {string} should not be displayed", async ({ page }, text: stri
 
 Then("the assistant reply {string} should be displayed", async ({ page }, text: string) => {
   await expect(page.getByText(text)).toBeVisible();
+});
+
+Then("the live assistant answer and both user turns should remain visible", async ({ page }) => {
+  const { mock } = getHeldGenerationScenario(page);
+  mock.releaseChat();
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "First question" }),
+  ).toBeVisible();
+  await expect(page.getByText("Live answer")).toBeVisible();
+  await expect(
+    page.locator('[id^="message-"]').filter({ hasText: "Second question" }),
+  ).toBeVisible();
+  await expect(page.getByText("Follow-up answer")).toBeVisible();
+  await expect(page.getByText("one message answer")).toBeVisible();
+  expect(mock.state.chat.calls).toBe(2);
+});
+
+Then(
+  "the forced and remaining queued turns should appear without wiping prior history",
+  async ({ page }) => {
+    const { mock } = getHeldGenerationScenario(page);
+    mock.releaseChat();
+    await expect(
+      page.locator('[id^="message-"]').filter({ hasText: "Queue three edited" }),
+    ).toBeVisible();
+    await expect(page.getByText("Forced answer").first()).toBeVisible();
+    await expect(page.getByText("Queue two")).toHaveCount(0);
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
+Then("they can see edit and cancel the shared queue", async ({ page }) => {
+  const { mock, secondPage } = getHeldGenerationScenario(page);
+  if (secondPage === undefined) throw new Error("Second tab is not initialized");
+  await secondPage.getByLabel("Edit queued message 1").click();
+  await expect(secondPage.getByLabel("Message input")).toHaveValue("Shared queue item");
+  await secondPage.getByLabel("Message input").fill("Shared queue edited");
+  await secondPage.getByLabel("Update queued message").click();
+  await expect(page.getByLabel("Queued follow-ups")).toContainText("Shared queue edited");
+  await secondPage.getByLabel("Cancel queued message 1").click();
+  await expect(secondPage.getByLabel("Queued follow-ups")).toHaveCount(0);
+  await expect(page.getByLabel("Queued follow-ups")).toHaveCount(0);
+  mock.releaseChat();
+  await expect(page.getByText("Live answer")).toBeVisible();
 });
 
 Then("the URL should include {string}", async ({ page }, fragment: string) => {

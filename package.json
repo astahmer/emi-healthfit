@@ -29,6 +29,7 @@
     "discord:dev": "pnpm --filter @emi/discord-bot dev",
     "discord:deploy": "pnpm --filter @emi/discord-bot deploy",
     "discord:deploy:adopt": "pnpm --filter @emi/discord-bot deploy:adopt",
+    "discord:deploy:prod": "pnpm --filter @emi/discord-bot deploy:prod",
     "discord:register": "pnpm --filter @emi/discord-bot register",
     "discord:setup:check": "pnpm --filter @emi/discord-bot test:file test/setup-check.test.ts",
     "slop:check": "node scripts/run-ast-grep.mjs scan",

@@ -6,26 +6,23 @@ import { assignYears, parseHealthExport } from "../src/healthfit/ingest/health.t
 import { parseHevyCsv, parseHevyDate } from "../src/healthfit/ingest/hevy.ts";
 
 describe("HealthExportKit parser", () => {
-  it("parses the real health export file", async () => {
+  it("parses the versioned anonymized health export fixture", async () => {
     const text = await readFile(
-      "../../data/health-export-json-2022-01-01-0000_to_2026-07-13-1526.json",
+      new URL("./fixtures/ingest/health-export.json", import.meta.url),
       "utf8",
     );
-    const result = await Effect.runPromise(parseHealthExport(text, 2022));
+    const result = await Effect.runPromise(parseHealthExport(text, 2024));
 
-    assert.strictEqual(result.daily.length, 1655);
-    assert.strictEqual(result.workouts.length, 572);
-    assert.strictEqual(result.sleep.length, 918);
-    assert.strictEqual(result.body.length, 158);
+    assert.strictEqual(result.daily.length, 2);
+    assert.strictEqual(result.workouts.length, 2);
+    assert.strictEqual(result.sleep.length, 2);
+    assert.strictEqual(result.body.length, 2);
 
-    assert.strictEqual(result.workouts[0]?.date, "2022-01-01");
-    assert.strictEqual(result.workouts.at(-1)?.date, "2026-07-07");
+    assert.strictEqual(result.workouts[0]?.date, "2024-01-02");
+    assert.strictEqual(result.workouts.at(-1)?.date, "2024-12-31");
 
     const workoutTypes = new Set(result.workouts.map((w) => w.type));
-    assert.deepStrictEqual(
-      workoutTypes,
-      new Set(["Cycling", "Elliptical", "Strength Training", "Walking"]),
-    );
+    assert.deepStrictEqual(workoutTypes, new Set(["Running", "Strength Training"]));
 
     const firstSleep = result.sleep[0];
     assert.ok(firstSleep);
@@ -47,18 +44,21 @@ describe("HealthExportKit parser", () => {
 });
 
 describe("Hevy CSV parser", () => {
-  it("parses the real Hevy export file", async () => {
-    const text = await readFile("../../data/hevy/workout_data.csv", "utf8");
+  it("parses the versioned anonymized Hevy export fixture", async () => {
+    const text = await readFile(
+      new URL("./fixtures/ingest/hevy-workouts.csv", import.meta.url),
+      "utf8",
+    );
     const result = await Effect.runPromise(parseHevyCsv(text));
 
-    assert.strictEqual(result.sessions.length, 110);
-    assert.strictEqual(result.sets.length, 1840);
+    assert.strictEqual(result.sessions.length, 2);
+    assert.strictEqual(result.sets.length, 3);
 
     const firstSet = result.sets[0];
     assert.ok(firstSet);
-    assert.strictEqual(firstSet.exercise_title, "Leg Press Horizontal (Machine)");
-    assert.strictEqual(firstSet.weight_kg, 80);
-    assert.strictEqual(firstSet.reps, 11);
+    assert.strictEqual(firstSet.exercise_title, "Goblet Squat");
+    assert.strictEqual(firstSet.weight_kg, 20);
+    assert.strictEqual(firstSet.reps, 10);
 
     const totalVolume = result.sessions.reduce(
       (sum, session) => sum + (session.total_volume_kg ?? 0),

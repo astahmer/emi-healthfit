@@ -12,7 +12,11 @@ import { createConversation } from "../sessions";
 import { type useSettings } from "../settings-store";
 import { chatRuntimeMachine, type QueuedFollowUp } from "./chat-runtime-machine";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
-import { consumeAssistantStream, type ChatTransport } from "./chat-transport";
+import {
+  consumeAssistantStream,
+  StreamInactivityError,
+  type ChatTransport,
+} from "./chat-transport";
 import { OrphanTurnError } from "./orphan-turn-error";
 import { shouldAcceptStreamUpdate } from "./stream-operation";
 
@@ -248,7 +252,9 @@ export const useChatSubmission = ({
           error: error instanceof Error ? error : new Error(String(error)),
           messageId: userMessage.id,
         });
-        recordClientEvent("client.disconnected");
+        recordClientEvent(
+          error instanceof StreamInactivityError ? "client.stopped" : "client.disconnected",
+        );
       } finally {
         if (abortControllerRef.current === controller) abortControllerRef.current = null;
       }

@@ -323,20 +323,23 @@ export const handleAiSdkChat = (
         traceId,
         model: chatRequest.config.model,
       }).pipe(
-        Effect.catchTag("GenerationAlreadyActiveError", (error) =>
-          Effect.gen(function* () {
-            const running = yield* getRunningGeneration({
-              db,
-              userId: user.id,
-              conversationId: sessionId,
-            });
-            return yield* Effect.fail(
-              new GenerationAlreadyActiveError({
-                conversationId: error.conversationId,
-                generationId: running?.id ?? error.generationId,
-              }),
-            );
-          }),
+        Effect.catchIf(
+          (error): error is GenerationAlreadyActiveError =>
+            error instanceof GenerationAlreadyActiveError,
+          (error) =>
+            Effect.gen(function* () {
+              const running = yield* getRunningGeneration({
+                db,
+                userId: user.id,
+                conversationId: sessionId,
+              });
+              return yield* Effect.fail(
+                new GenerationAlreadyActiveError({
+                  conversationId: error.conversationId,
+                  generationId: running?.id ?? error.generationId,
+                }),
+              );
+            }),
         ),
       );
       yield* recordEvent("generation.created", { threadId: chatRequest.threadId ?? null });
@@ -545,14 +548,17 @@ export const handleAiSdkChat = (
       corsHeaders(request),
     );
   }).pipe(
-    Effect.catchTag("GenerationAlreadyActiveError", (error) =>
-      HttpServerResponse.json(
-        {
-          error: "A generation is already running",
-          generationId: error.generationId,
-        },
-        { status: 409 },
-      ),
+    Effect.catchIf(
+      (error): error is GenerationAlreadyActiveError =>
+        error instanceof GenerationAlreadyActiveError,
+      (error) =>
+        HttpServerResponse.json(
+          {
+            error: "A generation is already running",
+            generationId: error.generationId,
+          },
+          { status: 409 },
+        ),
     ),
     Effect.catch(() =>
       HttpServerResponse.json({ error: "Internal server error" }, { status: 500 }),

@@ -6,6 +6,7 @@
   "scripts": {
     "deploy": "alchemy deploy",
     "deploy:adopt": "alchemy deploy --adopt",
+    "deploy:prod": "alchemy deploy --stage prod --env-file .env",
     "destroy": "alchemy destroy",
     "dev": "alchemy dev",
     "dry": "alchemy deploy --dry-run",

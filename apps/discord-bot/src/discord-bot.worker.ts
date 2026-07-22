@@ -1,27 +1,14 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
-import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { makeQueryDatabaseClient } from "@emi/core/cloudflare";
-import {
-  coreAppDefinition,
-  type DiscordDatabaseSchema,
-  type QueryDatabaseClient,
-} from "@emi/core/server";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { coreAppDefinition } from "@emi/core/server";
 import { makeHealthfitCommandServices } from "./commands/services.ts";
 import { handleInteractionsRequest } from "./routes/interactions.ts";
-
-const DB = Cloudflare.D1.Database("GymData");
-
-const narrow = <TSchema>(
-  db: ReturnType<typeof makeQueryDatabaseClient<TSchema>>,
-): QueryDatabaseClient<TSchema> => db as unknown as QueryDatabaseClient<TSchema>;
 
 const DiscordEnvironment = Schema.Struct({
   DISCORD_PUBLIC_KEY: Schema.String.check(Schema.isMinLength(1)),
@@ -31,10 +18,7 @@ const DiscordEnvironment = Schema.Struct({
   DISCORD_INTERNAL_ASK_SECRET: Schema.String.check(Schema.isMinLength(16)),
 });
 
-const interactionsRoute = (
-  discordDb: QueryDatabaseClient<DiscordDatabaseSchema>,
-  fitnessDb: QueryDatabaseClient<HealthfitDatabaseSchema>,
-) =>
+const interactionsRoute = () =>
   Effect.fn("discord-bot.interactionsRoute")(function* (request: HttpServerRequest) {
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const configuration = yield* Schema.decodeUnknownEffect(DiscordEnvironment)(env).pipe(
@@ -47,7 +31,10 @@ const interactionsRoute = (
       signature: request.headers["x-signature-ed25519"],
       timestamp: request.headers["x-signature-timestamp"],
       publicKeyHex: configuration.DISCORD_PUBLIC_KEY,
-      services: makeHealthfitCommandServices({ discordDb, fitnessDb }),
+      services: makeHealthfitCommandServices({
+        apiBaseUrl: configuration.EMI_API_BASE_URL,
+        internalSecret: configuration.DISCORD_INTERNAL_ASK_SECRET,
+      }),
       applicationId: configuration.DISCORD_APPLICATION_ID,
       botToken: configuration.DISCORD_BOT_TOKEN,
       apiBaseUrl: configuration.EMI_API_BASE_URL,
@@ -64,7 +51,7 @@ export class DiscordBotWorker extends Cloudflare.Worker<DiscordBotWorker, {}>()(
 ) {}
 
 export default DiscordBotWorker.make(
-  Stack.useSync(() => ({
+  Effect.succeed({
     main: import.meta.url,
     compatibility: { flags: ["nodejs_compat"] },
     env: {
@@ -75,12 +62,8 @@ export default DiscordBotWorker.make(
       DISCORD_INTERNAL_ASK_SECRET: Config.redacted("DISCORD_INTERNAL_ASK_SECRET"),
     },
     observability: { enabled: true },
-  })),
+  }),
   Effect.gen(function* () {
-    const query = yield* Cloudflare.D1.QueryDatabase(DB);
-    const discordDb = narrow(makeQueryDatabaseClient<DiscordDatabaseSchema>({ query }));
-    const fitnessDb = narrow(makeQueryDatabaseClient<HealthfitDatabaseSchema>({ query }));
-
     const router = yield* HttpRouter.make;
     yield* Effect.gen(function* () {
       yield* router.add("GET", "/health", () =>
@@ -90,7 +73,7 @@ export default DiscordBotWorker.make(
           transport: "discord",
         }),
       );
-      yield* router.add("POST", "/interactions", interactionsRoute(discordDb, fitnessDb));
+      yield* router.add("POST", "/interactions", interactionsRoute());
       yield* router.add("*", "/*", () =>
         Effect.succeed(HttpServerResponse.text("Not Found", { status: 404 })),
       );
@@ -108,5 +91,5 @@ export default DiscordBotWorker.make(
         Effect.provide(RuntimeContext.phantom),
       ),
     };
-  }).pipe(Effect.provide(Cloudflare.D1.QueryDatabaseBinding)),
+  }),
 );

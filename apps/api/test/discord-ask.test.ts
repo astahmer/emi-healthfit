@@ -3,8 +3,9 @@ import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import { getConversations, getConversationMessages } from "../src/core/db/conversations.ts";
-import { handleDiscordAsk, type DiscordAskDatabaseSchema } from "../src/core/http/discord-ask.ts";
+import { handleDiscordAsk } from "../src/core/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
@@ -29,12 +30,10 @@ const makeAskRequest = ({ secret, body }: { secret?: string | null; body: unknow
 describe("handleDiscordAsk", () => {
   it("rejects missing or wrong internal secrets with 401", async () => {
     const { db } = makeSqliteDatabase();
-    const askDb = narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db);
-
     for (const secret of [null, "wrong-discord-ask-s", "x".repeat(SECRET.length)]) {
       const response = await run(
         handleDiscordAsk({
-          db: askDb,
+          db,
           environment,
           request: makeAskRequest({
             secret,
@@ -50,13 +49,11 @@ describe("handleDiscordAsk", () => {
 
   it("fails closed on invalid ask bodies before calling the model", async () => {
     const { db } = makeSqliteDatabase();
-    const askDb = narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db);
-
     await assert.rejects(
       () =>
         run(
           handleDiscordAsk({
-            db: askDb,
+            db,
             environment,
             request: makeAskRequest({
               body: { userId: "user-1", question: "" },
@@ -70,7 +67,7 @@ describe("handleDiscordAsk", () => {
       () =>
         run(
           handleDiscordAsk({
-            db: askDb,
+            db,
             environment,
             request: makeAskRequest({
               body: { userId: "", question: "ok" },
@@ -83,12 +80,11 @@ describe("handleDiscordAsk", () => {
 
   it("answers with fitness context via injectable generator and persists the turn", async () => {
     const { db } = makeSqliteDatabase();
-    const askDb = narrowQueryDatabaseClient<DiscordAskDatabaseSchema>(db);
     const prompts: Array<{ system: string; prompt: string }> = [];
 
     const response = await run(
       handleDiscordAsk({
-        db: askDb,
+        db,
         environment,
         request: makeAskRequest({
           body: { userId: "user-1", question: "How is recovery?" },
@@ -112,12 +108,15 @@ describe("handleDiscordAsk", () => {
     assert.match(prompts[0]!.prompt, /Recovery:/);
     assert.match(prompts[0]!.system, /Discord slash command/);
 
-    const conversations = await run(getConversations(askDb, "user-1"));
+    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+    const conversations = await run(getConversations(conversationDb, "user-1"));
     assert.equal(
       conversations.some((row) => row.title === "[Discord] /ask"),
       true,
     );
-    const messages = await run(getConversationMessages(askDb, "user-1", payload.conversationId));
+    const messages = await run(
+      getConversationMessages(conversationDb, "user-1", payload.conversationId),
+    );
     assert.equal(messages.length >= 2, true);
   });
 });

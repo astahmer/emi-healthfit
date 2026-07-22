@@ -15,6 +15,15 @@ export type DiagnosticEventType =
 
 export type ChatTransport = DefaultChatTransport<UIMessage>;
 
+const defaultInactivityTimeoutMilliseconds = 5 * 60 * 1_000;
+
+export class StreamInactivityError extends Error {
+  constructor() {
+    super("Chat response stalled before completion.");
+    this.name = "StreamInactivityError";
+  }
+}
+
 export const recordDiagnosticEvent = ({
   conversationId,
   generationId,
@@ -67,17 +76,29 @@ export const consumeAssistantStream = async ({
   stream,
   onMessage,
   cancelRef,
+  inactivityTimeoutMilliseconds = defaultInactivityTimeoutMilliseconds,
 }: {
   stream: ReadableStream<UIMessageChunk>;
   onMessage: (message: UIMessage) => void;
   cancelRef: MutableRefObject<(() => void) | null>;
+  inactivityTimeoutMilliseconds?: number;
 }): Promise<void> => {
   const controller = new AbortController();
   const cancel = () => controller.abort();
   const streamStartedAt = performance.now();
   let previousChunkAt = streamStartedAt;
   let chunkCount = 0;
+  let inactivityTimeout: ReturnType<typeof setTimeout> | undefined;
+  let streamTimedOut = false;
+  const resetInactivityTimeout = () => {
+    if (inactivityTimeout !== undefined) clearTimeout(inactivityTimeout);
+    inactivityTimeout = setTimeout(() => {
+      streamTimedOut = true;
+      controller.abort();
+    }, inactivityTimeoutMilliseconds);
+  };
   cancelRef.current = cancel;
+  resetInactivityTimeout();
   try {
     await Effect.runPromise(
       Stream.fromAsyncIterable(readUIMessageStream({ stream, terminateOnError: true }), (error) =>
@@ -99,6 +120,7 @@ export const consumeAssistantStream = async ({
             if (message.id.trim() === "") {
               throw new Error("Streamed messages require non-empty identifiers");
             }
+            resetInactivityTimeout();
             onMessage(message);
             yield* Effect.logDebug("chat.browser.chunk").pipe(
               Effect.annotateLogs({
@@ -114,7 +136,11 @@ export const consumeAssistantStream = async ({
       ),
       { signal: controller.signal },
     );
+  } catch (error) {
+    if (streamTimedOut) throw new StreamInactivityError();
+    throw error;
   } finally {
+    if (inactivityTimeout !== undefined) clearTimeout(inactivityTimeout);
     if (cancelRef.current === cancel) cancelRef.current = null;
   }
 };

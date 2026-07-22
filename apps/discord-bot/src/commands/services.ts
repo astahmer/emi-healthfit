@@ -1,70 +1,111 @@
 import * as Effect from "effect/Effect";
-import {
-  buildChatContext,
-  getDataSummary,
-  getWorkoutHistory,
-  type HealthfitDatabaseSchema,
-} from "@emi/flavor-healthfit";
-import {
-  consumeDiscordLinkCode,
-  getLinkedUserIdForDiscord,
-  unlinkDiscordAccountByDiscordUserId,
-  type DiscordDatabaseSchema,
-  type QueryDatabaseClient,
-} from "@emi/core/server";
-import type { HealthfitCommandServices } from "./limits.ts";
+import * as Schema from "effect/Schema";
+import type { ConsumeLinkResult, HealthfitCommandServices } from "./limits.ts";
+
+const RemoteResponse = Schema.Struct({ content: Schema.String });
+const LinkedUserResponse = Schema.Struct({ userId: Schema.NullOr(Schema.String) });
+const LinkCodeResponse = Schema.Struct({
+  result: Schema.Union([
+    Schema.Struct({ ok: Schema.Literal(true), userId: Schema.String }),
+    Schema.Struct({
+      ok: Schema.Literal(false),
+      reason: Schema.Literals(["invalid", "expired", "consumed"]),
+    }),
+  ]),
+});
+const UnlinkResponse = Schema.Struct({ removed: Schema.Boolean });
+
+const requestCommand = Effect.fn("discord.command.request")(function* ({
+  apiBaseUrl,
+  internalSecret,
+  body,
+}: {
+  apiBaseUrl: string;
+  internalSecret: string;
+  body: Record<string, string>;
+}) {
+  const response = yield* Effect.tryPromise({
+    try: () =>
+      fetch(`${apiBaseUrl.replace(/\/$/, "")}/api/discord/command`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-discord-internal-secret": internalSecret,
+        },
+        body: JSON.stringify(body),
+      }),
+    catch: (error) => new Error(`Discord command request failed: ${String(error)}`),
+  });
+  const text = yield* Effect.tryPromise({
+    try: () => response.text(),
+    catch: (error) => new Error(`Could not read Discord command response: ${String(error)}`),
+  });
+  if (!response.ok)
+    return yield* Effect.fail(new Error(`Discord command failed (${response.status})`));
+  return text;
+});
+
+const decodeLinkedUserResponse = (text: string) =>
+  Schema.decodeUnknownEffect(Schema.fromJsonString(LinkedUserResponse))(text).pipe(
+    Effect.mapError((error) => new Error(`Invalid Discord command response: ${String(error)}`)),
+  );
+
+const decodeLinkCodeResponse = (text: string) =>
+  Schema.decodeUnknownEffect(Schema.fromJsonString(LinkCodeResponse))(text).pipe(
+    Effect.mapError((error) => new Error(`Invalid Discord command response: ${String(error)}`)),
+  );
+
+const decodeUnlinkResponse = (text: string) =>
+  Schema.decodeUnknownEffect(Schema.fromJsonString(UnlinkResponse))(text).pipe(
+    Effect.mapError((error) => new Error(`Invalid Discord command response: ${String(error)}`)),
+  );
+
+const decodeContentResponse = (text: string) =>
+  Schema.decodeUnknownEffect(Schema.fromJsonString(RemoteResponse))(text).pipe(
+    Effect.mapError((error) => new Error(`Invalid Discord command response: ${String(error)}`)),
+  );
 
 export const makeHealthfitCommandServices = (options: {
-  discordDb: QueryDatabaseClient<DiscordDatabaseSchema>;
-  fitnessDb: QueryDatabaseClient<HealthfitDatabaseSchema>;
+  apiBaseUrl: string;
+  internalSecret: string;
 }): HealthfitCommandServices => ({
-  getLinkedUserId: (discordUserId) => getLinkedUserIdForDiscord(options.discordDb, discordUserId),
+  getLinkedUserId: (discordUserId) =>
+    requestCommand({ ...options, body: { operation: "get-linked-user-id", discordUserId } }).pipe(
+      Effect.flatMap(decodeLinkedUserResponse),
+      Effect.map((response) => response.userId),
+      Effect.catch(() => Effect.succeed(null)),
+    ),
   consumeLinkCode: ({ code, discordUserId }) =>
-    consumeDiscordLinkCode(options.discordDb, { code, discordUserId }),
+    requestCommand({
+      ...options,
+      body: { operation: "consume-link-code", code, discordUserId },
+    }).pipe(
+      Effect.flatMap(decodeLinkCodeResponse),
+      Effect.map((response) => response.result),
+      Effect.catch(() => Effect.succeed<ConsumeLinkResult>({ ok: false, reason: "invalid" })),
+    ),
   unlinkDiscordUser: (discordUserId) =>
-    unlinkDiscordAccountByDiscordUserId(options.discordDb, discordUserId),
+    requestCommand({ ...options, body: { operation: "unlink-discord-user", discordUserId } }).pipe(
+      Effect.flatMap(decodeUnlinkResponse),
+      Effect.map((response) => response.removed),
+      Effect.catch(() => Effect.succeed(false)),
+    ),
   formatSummary: (userId) =>
-    Effect.gen(function* () {
-      const summary = yield* getDataSummary(options.fitnessDb, userId);
-      const workouts = yield* getWorkoutHistory(options.fitnessDb, userId, 3);
-      const lines = [
-        "HealthFit summary",
-        `Activity days: ${summary.dailyActivity}`,
-        `Health workouts: ${summary.healthWorkouts}`,
-        `Hevy sessions/sets: ${summary.hevySessions}/${summary.hevySets}`,
-        `Sleep sessions: ${summary.sleepSessions}`,
-        `Body metrics: ${summary.bodyMetrics}`,
-        `Last Apple Health sync: ${summary.lastHealthSync ?? "never"}`,
-        `Last Hevy sync: ${summary.lastHevySync ?? "never"}`,
-      ];
-      if (workouts.length > 0) {
-        lines.push("Recent workouts:");
-        for (const workout of workouts) {
-          lines.push(
-            `- ${workout.title ?? "Workout"} (${workout.start_time.slice(0, 10)}) · ${workout.set_count} sets`,
-          );
-        }
-      }
-      return lines.join("\n");
-    }),
+    requestCommand({ ...options, body: { operation: "summary", userId } }).pipe(
+      Effect.flatMap(decodeContentResponse),
+      Effect.map((response) => response.content),
+      Effect.catch(() => Effect.succeed("Could not load your HealthFit summary right now.")),
+    ),
   formatLastWorkout: (userId) =>
-    Effect.gen(function* () {
-      const workouts = yield* getWorkoutHistory(options.fitnessDb, userId, 1);
-      const workout = workouts[0];
-      if (workout === undefined) return "No Hevy workouts found for this account.";
-      const volume =
-        workout.total_volume_kg === null ? "n/a" : `${Math.round(workout.total_volume_kg)} kg`;
-      return [
-        `Last workout: ${workout.title ?? "Workout"}`,
-        `Started: ${workout.start_time}`,
-        `Exercises: ${workout.exercise_count}`,
-        `Sets: ${workout.set_count}`,
-        `Volume: ${volume}`,
-      ].join("\n");
-    }),
+    requestCommand({ ...options, body: { operation: "last-workout", userId } }).pipe(
+      Effect.flatMap(decodeContentResponse),
+      Effect.map((response) => response.content),
+      Effect.catch(() => Effect.succeed("Could not load your last workout right now.")),
+    ),
   formatRecovery: (userId) =>
-    Effect.gen(function* () {
-      const context = yield* buildChatContext(options.fitnessDb, userId);
-      return `Recovery: ${context.recoveryLabel}\n${context.recoveryExplanation}`;
-    }),
+    requestCommand({ ...options, body: { operation: "recovery", userId } }).pipe(
+      Effect.flatMap(decodeContentResponse),
+      Effect.map((response) => response.content),
+      Effect.catch(() => Effect.succeed("Could not load your recovery status right now.")),
+    ),
 });

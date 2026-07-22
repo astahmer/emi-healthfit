@@ -85,7 +85,7 @@ Still tighten before calling it “done”:
   (Alchemy `Config.redacted` in `apps/api`); optional `OPENAI_BASE_URL`, `DISCORD_ASK_MODEL`.
 - Bind the existing D1 (`GymData`) used by `apps/api`. Migrations stay owned by the API stack —
   do **not** set `migrationsDir` on the bot’s GymData binding.
-- Root scripts: `discord:dev`, `discord:deploy`, `discord:deploy:adopt`, `discord:register`,
+- Root scripts: `discord:dev`, `discord:deploy`, `discord:deploy:prod`, `discord:register`,
   `discord:setup:check`.
 - Start with guild commands (`DISCORD_GUILD_ID` set) for immediate test iteration; omit it to
   register global commands.
@@ -122,7 +122,7 @@ From repo root (or `apps/discord-bot`):
 ```bash
 pnpm --filter @emi/discord-bot exec alchemy login
 # or first deploy will prompt interactively:
-pnpm --filter @emi/discord-bot dry:adopt
+pnpm --filter @emi/discord-bot exec alchemy deploy --stage prod --env-file .env --dry-run
 ```
 
 Alchemy stores the Cloudflare profile under `~/.alchemy/profiles.json` (OAuth or API token).
@@ -142,22 +142,21 @@ Migrations for `discord_account_links` / `discord_link_codes` live on `apps/api`
 pnpm --filter @emi/api deploy   # or deploy:prod
 ```
 
-#### 3. First Discord bot deploy — **must adopt** GymData
+#### 3. Deploy the Discord bot to production
 
-**Do not** run plain `pnpm discord:deploy` the first time against the live API database.
-That can plan `[GymData] create` (a second empty D1). Always:
+The bot references the API stack's `GymData` D1 binding. Deploy it to the same `prod` stage:
 
 ```bash
-pnpm discord:deploy:adopt
+pnpm discord:deploy:prod
 # equivalent:
-pnpm --filter @emi/discord-bot exec alchemy deploy --adopt
+pnpm --filter @emi/discord-bot exec alchemy deploy --stage prod --env-file .env
 ```
 
-Confirm dry-run first:
+Confirm the plan first:
 
 ```bash
-pnpm --filter @emi/discord-bot dry:adopt
-# Plan should show GymData as adopt/update — never create — once Alchemy can read CF state.
+pnpm --filter @emi/discord-bot exec alchemy deploy --stage prod --env-file .env --dry-run
+# Plan must include DiscordBotWorker but never GymData create.
 ```
 
 After deploy, copy the Worker URL from Alchemy output into Discord Developer Portal →
@@ -187,38 +186,19 @@ commands (can take up to ~1 hour).
 | Step | Agent can do | Human must do |
 | --- | --- | --- |
 | Write/update `.env` keys once pasted | yes | create Discord app + copy secrets |
-| `alchemy login` / deploy / adopt / register | yes if CF profile or token in env | first interactive OAuth if no token |
+| `alchemy login` / deploy / register | yes if CF profile or token in env | first interactive OAuth if no token |
 | Create Discord guild + invite bot | no (browser) | yes |
 | Paste Interactions Endpoint URL | no (portal) | yes after deploy prints URL |
 | Settings link-code smoke | drive browser e2e if app up | Discord client slash commands |
 
-### GymData adopt — exact commands and blocker notes
+### GymData binding — exact commands and blocker notes
 
 Observed without Cloudflare credentials in Alchemy profile:
 
-```text
-$ pnpm --filter @emi/discord-bot dry
-Plan: … [GymData] create   # FORBIDDEN against live API GymData
-
-$ pnpm --filter @emi/discord-bot exec alchemy deploy --dry-run --adopt
-Plan: … [GymData] create   # still plans create when CF auth cannot read live state
-```
-
-Until `alchemy login` (or `CLOUDFLARE_API_TOKEN`) can **read** the API stack’s GymData,
-dry-run cannot prove adopt will bind the shared database. **Do not** ship a plain
-`alchemy deploy` for the discord stack against production.
-
-Alchemy Effect adopt semantics (beta.59):
-
-- CLI: `alchemy deploy --adopt` sets stack-wide `AdoptPolicy` so an existing **unowned**
-  (foreign) resource is taken over instead of failing `OwnedBySomeoneElse`.
-- Bot binding stays `Cloudflare.D1.Database("GymData")` with **no** `migrationsDir`.
-- After adopt, avoid `alchemy destroy` on the discord stack until confirming destroy will not
-  delete the shared GymData.
-
-**Plain `alchemy deploy` is not “just work” for the first bot ship** — use
-`pnpm discord:deploy:adopt`. Subsequent deploys (same Alchemy state) can use
-`pnpm discord:deploy` once GymData is already adopted in that stack’s state.
+The bot resolves `GymData` as a read-only cross-stack reference to the API stack.
+If the API stack has not been deployed for the selected stage, deployment fails instead of
+creating a new database. Do not use `alchemy destroy` on a production bot stack without
+reviewing its plan.
 
 ## Tests
 
@@ -245,8 +225,7 @@ Alchemy Effect adopt semantics (beta.59):
 - 2026-07-15: read-only commands ship before assistant chat; responses default to ephemeral.
 - 2026-07-21: Discord transport lives at `@emi/core/discord` subpath (not a separate package).
 - 2026-07-21: reusable core unified as `@emi/core` with contract/server/web/cloudflare/discord exports.
-- 2026-07-21: First discord-bot deploy against API-owned GymData requires
-  `alchemy deploy --adopt` (`pnpm discord:deploy:adopt`). Plain dry-run still plans
-  `[GymData] create` when CF auth is missing — do not ship that create. Migrations stay on
-  the API stack only. Ops auth is **Alchemy** (`alchemy login` / `CLOUDFLARE_API_TOKEN`),
-  not wrangler. See Zero→smoke checklist above.
+- 2026-07-22: Discord bot resolves API-owned `GymData` through an explicit cross-stack
+  reference. Production deploy uses `pnpm discord:deploy:prod`; plans must never create
+  `GymData`. Migrations stay on the API stack only. Ops auth is **Alchemy**
+  (`alchemy login` / `CLOUDFLARE_API_TOKEN`), not wrangler. See Zero→smoke checklist above.
