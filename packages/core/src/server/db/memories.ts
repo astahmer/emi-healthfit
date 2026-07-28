@@ -40,9 +40,9 @@ export const insertMemories = (db: MemoriesDb, userId: string, inputs: MemoryInp
     const inserted = candidates
       .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
       .map((candidate) => ({ id: crypto.randomUUID(), ...candidate }));
-    yield* runTransaction(
-      db,
-      inserted.map((memory) =>
+    if (inserted.length === 0) return [];
+    yield* runTransaction(db, [
+      ...inserted.map((memory) =>
         kysely.insertInto("memories").values({
           content: memory.content,
           created_at: createdAt,
@@ -52,7 +52,8 @@ export const insertMemories = (db: MemoriesDb, userId: string, inputs: MemoryInp
           user_id: userId,
         }),
       ),
-    );
+      kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
+    ]);
     return inserted.map((memory) => memory.id);
   });
 
@@ -75,6 +76,12 @@ export interface MemorySearchResult {
   thread_id: string | null;
   created_at: string;
   rank: number;
+}
+
+export interface MemorySummary {
+  content: string;
+  memory_count: number;
+  updated_at: string;
 }
 
 type MemorySearchRow = Omit<MemorySearchResult, "rank"> & { rank?: number };
@@ -164,6 +171,47 @@ export const getMemories = (db: MemoriesDb, userId: string, options: { limit?: n
     );
   });
 
+export const getMemorySummary = (db: MemoriesDb, userId: string) =>
+  Effect.gen(function* () {
+    const kysely = yield* db.kysely;
+    return yield* Effect.promise(() =>
+      kysely
+        .selectFrom("memory_summaries")
+        .select(["content", "memory_count", "updated_at"])
+        .where("user_id", "=", userId)
+        .executeTakeFirst(),
+    );
+  });
+
+export const upsertMemorySummary = (
+  db: MemoriesDb,
+  userId: string,
+  content: string,
+  memoryCount: number,
+) =>
+  Effect.gen(function* () {
+    const kysely = yield* db.kysely;
+    const updatedAt = nowIso();
+    yield* Effect.promise(() =>
+      kysely
+        .insertInto("memory_summaries")
+        .values({
+          user_id: userId,
+          content,
+          memory_count: memoryCount,
+          updated_at: updatedAt,
+        })
+        .onConflict((conflict) =>
+          conflict.column("user_id").doUpdateSet({
+            content,
+            memory_count: memoryCount,
+            updated_at: updatedAt,
+          }),
+        )
+        .execute(),
+    );
+  });
+
 export const listMemoryIdsForMessage = (db: MemoriesDb, userId: string, messageId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
@@ -181,21 +229,22 @@ export const listMemoryIdsForMessage = (db: MemoriesDb, userId: string, messageI
 export const deleteMemory = (db: MemoriesDb, userId: string, id: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
-      kysely.deleteFrom("memories").where("user_id", "=", userId).where("id", "=", id).execute(),
-    );
+    yield* runTransaction(db, [
+      kysely.deleteFrom("memories").where("user_id", "=", userId).where("id", "=", id),
+      kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
+    ]);
   });
 
 export const deleteMemoriesByMessage = (db: MemoriesDb, userId: string, messageId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* runTransaction(db, [
       kysely
         .deleteFrom("memories")
         .where("user_id", "=", userId)
-        .where("source", "like", `%:${messageId}`)
-        .execute(),
-    );
+        .where("source", "like", `%:${messageId}`),
+      kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
+    ]);
   });
 
 export const insertNote = (db: MemoriesDb, userId: string, content: string) =>

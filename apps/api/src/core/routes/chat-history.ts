@@ -148,5 +148,11 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     }
   }
 
-  return { thread, requestWithHistory, incomingMessages, lastIncomingMessageId };
+  return {
+    thread,
+    requestWithHistory,
+    incomingMessages,
+    lastIncomingMessageId,
+    isInitialContext: existingRows.length === 0,
+  };
 });

@@ -123,6 +123,13 @@ export const memories = sqliteTable(
   ],
 );
 
+export const memorySummaries = sqliteTable("memory_summaries", {
+  user_id: text().primaryKey(),
+  content: text().notNull(),
+  memory_count: integer().notNull(),
+  updated_at: text().notNull(),
+});
+
 export const notes = sqliteTable(
   "notes",
   {
@@ -219,6 +226,7 @@ export type MessageRow = typeof messages.$inferSelect;
 export type ThreadRow = typeof threads.$inferSelect;
 export type ThreadMessageRow = typeof threadMessages.$inferSelect;
 export type MemoryRow = Omit<typeof memories.$inferSelect, "user_id">;
+export type MemorySummaryRow = typeof memorySummaries.$inferSelect;
 export type NoteRow = Omit<typeof notes.$inferSelect, "user_id">;
 
 export interface ConversationDatabaseSchema {
@@ -231,5 +239,6 @@ export interface ConversationDatabaseSchema {
 
 export interface MemoryDatabaseSchema {
   memories: Kyselify<typeof memories>;
+  memory_summaries: Kyselify<typeof memorySummaries>;
   notes: Kyselify<typeof notes>;
 }

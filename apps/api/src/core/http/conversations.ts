@@ -15,6 +15,7 @@ import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core/server";
 import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
 import { extractMemories, generateThreadSummary } from "../chat/ai-sdk.ts";
+import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";
 import {
   type Conversation,
@@ -583,6 +584,13 @@ export const memoryExtractionHandlers = ({
               messageId: payload.messageId,
             })),
           );
+          if (ids.length > 0) {
+            yield* refreshMemorySummary({
+              db: memoryDb,
+              userId: user.id,
+              config: payload.config,
+            }).pipe(Effect.catch(() => Effect.void));
+          }
           return { ids, count: ids.length };
         },
         withInternalError,

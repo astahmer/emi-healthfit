@@ -3,6 +3,7 @@ export {
   deleteMemory,
   deleteNote,
   getMemories,
+  getMemorySummary,
   getNotes,
   insertMemories,
   insertMemory,
@@ -10,8 +11,10 @@ export {
   listMemoryIdsForMessage,
   searchMemories,
   searchNotes,
+  upsertMemorySummary,
   updateNote,
   type MemoryDatabaseSchema,
   type MemoryInput,
   type MemorySearchResult,
+  type MemorySummary,
 } from "@emi/core/server";

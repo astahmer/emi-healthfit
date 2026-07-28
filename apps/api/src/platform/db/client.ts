@@ -11,6 +11,7 @@ import {
   discordAccountLinks,
   discordLinkCodes,
   memories,
+  memorySummaries,
   messages,
   notes,
   suggestions,
@@ -59,6 +60,7 @@ export interface DatabaseSchema {
   hevy_sets: Kyselify<typeof hevySets>;
   hevy_sync_state: Kyselify<typeof hevySyncState>;
   memories: Kyselify<typeof memories>;
+  memory_summaries: Kyselify<typeof memorySummaries>;
   messages: Kyselify<typeof messages>;
   notes: Kyselify<typeof notes>;
   privacy_preferences: Kyselify<typeof privacyPreferences>;

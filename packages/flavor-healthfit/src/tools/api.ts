@@ -140,7 +140,7 @@ const GetWorkoutStreak = Tool.make("get_workout_streak", {
 
 const SearchMemories = Tool.make("search_memories", {
   description:
-    "Search saved memory snippets from past sessions when the user references earlier context.",
+    "Search permanent user memories. Call this when a question may depend on earlier chats, preferences, goals, or constraints and the supplied memory context is absent or uncertain. Never guess a past detail instead of searching.",
   parameters: Schema.Struct({
     query: Schema.String.annotate({ description: "Search terms to match against memories." }),
     limit: Schema.optional(

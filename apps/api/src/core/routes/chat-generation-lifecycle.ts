@@ -52,7 +52,9 @@ import { persistGenerationStream } from "./chat-stream-persistence.ts";
 import { ChatStreamRequestSchema, getFirstUserText } from "./chat-request-codec.ts";
 import { prepareChatHistory } from "./chat-history.ts";
 import { createChatToolExecutor } from "./chat-tool-execution.ts";
+import { appendMemoryContext, loadMemorySummary } from "../chat/memory-context.ts";
 import { decodeJsonOption } from "../lib/json-codec.ts";
+import type { MemoryDatabaseSchema } from "../db/memories.ts";
 import type { ChatLifecycleHooks } from "./chat-hooks.ts";
 
 export type { ChatLifecycleHooks, ChatToolDefinition, ChatToolExecutor } from "./chat-hooks.ts";
@@ -269,7 +271,22 @@ export const handleAiSdkChat = (
         { status: preparedHistory.status },
       );
     }
-    const { thread, requestWithHistory, incomingMessages, lastIncomingMessageId } = preparedHistory;
+    const {
+      thread,
+      requestWithHistory,
+      incomingMessages,
+      lastIncomingMessageId,
+      isInitialContext,
+    } = preparedHistory;
+
+    const memoryDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+    const memorySummary = isInitialContext
+      ? yield* loadMemorySummary({
+          db: memoryDb,
+          userId: user.id,
+          config: chatRequest.config,
+        }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      : undefined;
 
     const services = yield* Effect.context<RuntimeContext>();
     const executionContext = isTemporary
@@ -352,9 +369,12 @@ export const handleAiSdkChat = (
       createChatStream({
         request: {
           ...requestWithHistory,
-          system: requestWithHistory.coachMode
-            ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
-            : requestWithHistory.system,
+          system: appendMemoryContext({
+            system: requestWithHistory.coachMode
+              ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
+              : requestWithHistory.system,
+            summary: memorySummary,
+          }),
         },
         executeTool: executeToolWithServices,
         onChunk: ({ chunk }) => {

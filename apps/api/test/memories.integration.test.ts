@@ -6,6 +6,7 @@ import {
   deleteMemory,
   deleteNote,
   getMemories,
+  getMemorySummary,
   getNotes,
   insertMemories,
   insertMemory,
@@ -13,6 +14,7 @@ import {
   listMemoryIdsForMessage,
   searchMemories,
   searchNotes,
+  upsertMemorySummary,
   updateNote,
 } from "../src/core/db/memories.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
@@ -33,6 +35,7 @@ describe("memories SQLite integration", () => {
     );
     const [morningRunsId] = ids;
     assert.ok(morningRunsId);
+    assert.strictEqual(await run(getMemorySummary(db, alice)), undefined);
     const strengthId = await run(insertMemory(db, alice, "Tracks bench press", "manual"));
     assert.ok(strengthId);
     await run(insertMemory(db, bob, "Prefers morning runs", "manual"));
@@ -63,14 +66,25 @@ describe("memories SQLite integration", () => {
       morningRunsId,
     ]);
 
+    await run(upsertMemorySummary(db, alice, "- Prefers morning runs", 2));
+    const memorySummary = await run(getMemorySummary(db, alice));
+    assert.deepStrictEqual(memorySummary, {
+      content: "- Prefers morning runs",
+      memory_count: 2,
+      updated_at: memorySummary?.updated_at,
+    });
+
     await run(deleteMemoriesByMessage(db, alice, "message-a"));
     assert.deepStrictEqual(await run(listMemoryIdsForMessage(db, alice, "message-a")), []);
+    assert.strictEqual(await run(getMemorySummary(db, alice)), undefined);
     assert.deepStrictEqual(
       (await run(getMemories(db, bob))).map((memory) => memory.content),
       ["Prefers morning runs"],
     );
+    await run(upsertMemorySummary(db, alice, "- Tracks bench press", 1));
     await run(deleteMemory(db, alice, strengthId));
     assert.deepStrictEqual(await run(getMemories(db, alice)), []);
+    assert.strictEqual(await run(getMemorySummary(db, alice)), undefined);
   });
 
   it("trims, filters, updates, and deletes notes per owner", async () => {
