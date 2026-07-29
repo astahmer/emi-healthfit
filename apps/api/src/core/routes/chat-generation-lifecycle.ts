@@ -20,7 +20,6 @@ import {
 import { buildAssistantParts } from "../chat/assistant-parts.ts";
 import {
   cancelRunningGenerations,
-  cleanupGenerationHistory,
   createGeneration,
   expireStaleGenerations,
   finishGeneration,
@@ -667,14 +666,12 @@ export const handleChatResume = (
     const user = yield* CurrentUser;
     const reconciledGenerations = yield* reconcileFinishedGenerations({ db, userId: user.id });
     const abandonedGenerations = yield* expireStaleGenerations({ db, userId: user.id });
-    const deletedGenerations = yield* cleanupGenerationHistory({ db, userId: user.id });
     yield* Effect.logInfo("chat.generation.reconnect").pipe(
       Effect.annotateLogs({
         conversationId,
         reconnectCount: 1,
         reconciledGenerations,
         abandonedGenerations,
-        deletedGenerations,
       }),
     );
     const generation = yield* getResumableGeneration({ db, userId: user.id, conversationId });
