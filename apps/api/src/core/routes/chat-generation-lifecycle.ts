@@ -279,7 +279,7 @@ export const handleAiSdkChat = (
       );
     }
 
-    const chatRequest: ChatStreamRequest = {
+    const chatRequest: Omit<ChatStreamRequest, "messages"> & { messages: UIMessage[] } = {
       ...parsed.value,
       messages: validatedMessages.data,
     };

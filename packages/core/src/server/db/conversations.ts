@@ -456,6 +456,7 @@ export const saveConversationMessages = <TEnvironment>(
   conversationId: string,
   parentId: string | null,
   messages: Array<{
+    id?: string;
     role: Message["role"];
     parts: unknown[];
     usage?: MessageUsage;
@@ -477,7 +478,7 @@ export const saveConversationMessages = <TEnvironment>(
     const ids: string[] = [];
     const kysely = yield* db.kysely;
     const statements = messages.map((message, index) => {
-      const id = crypto.randomUUID();
+      const id = message.id ?? crypto.randomUUID();
       ids.push(id);
       return kysely.insertInto("messages").values({
         id,

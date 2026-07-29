@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import type { UIMessage } from "ai";
 import type { ChatStreamRequest } from "../chat/ai-sdk.ts";
 import { getProviderMessages, isDuplicateOrphanRetry } from "../chat/orphan-turn.ts";
 import { validateStoredUIMessages } from "../chat/ui-messages.ts";
@@ -28,7 +29,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
 }: {
   db: QueryDatabaseClient;
   userId: string;
-  chatRequest: ChatStreamRequest;
+  chatRequest: Omit<ChatStreamRequest, "messages"> & { messages: UIMessage[] };
   sessionId: string;
   isTemporary: boolean;
   tools?: ReadonlyArray<ChatToolDefinition>;
@@ -74,14 +75,8 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   const validatedExistingMessages = yield* Effect.promise(() =>
     validateStoredUIMessages(storedMessages),
   );
-  const existingMessages = validatedExistingMessages.map((message) => ({
-    role: message.role,
-    parts: message.parts,
-  }));
-  const requestedMessages = chatRequest.messages.map((message) => ({
-    role: message.role,
-    parts: message.parts,
-  }));
+  const existingMessages = validatedExistingMessages;
+  const requestedMessages = chatRequest.messages;
   const attachmentError = validateAttachments(requestedMessages);
   if (attachmentError !== undefined) return { error: attachmentError, status: 400 as const };
 
@@ -116,7 +111,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
       existingMessages,
       incomingMessages,
       replaceMessageId: chatRequest.replaceMessageId,
-    }),
+    }).map(({ id: _id, ...message }) => message),
     sessionId,
     tools: toolRecord,
   };
