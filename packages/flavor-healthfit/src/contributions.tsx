@@ -11,6 +11,8 @@ import type { CoreWebContributions } from "@emi/core/web";
 import {
   ExerciseProgressToolRenderer,
   RecoveryToolRenderer,
+  SleepTrendToolRenderer,
+  WorkoutStreakToolRenderer,
   WorkoutHistoryToolRenderer,
 } from "./components/tool-renderers.tsx";
 import { SummaryPanel } from "./web/summary-panel.tsx";
@@ -80,6 +82,8 @@ const healthFitToolRenderers: NonNullable<CoreWebContributions["toolRenderers"]>
   { toolName: "get_workout_history", component: WorkoutHistoryToolRenderer },
   { toolName: "get_exercise_progress", component: ExerciseProgressToolRenderer },
   { toolName: "get_recovery", component: RecoveryToolRenderer },
+  { toolName: "get_sleep_trend", component: SleepTrendToolRenderer },
+  { toolName: "get_workout_streak", component: WorkoutStreakToolRenderer },
 ];
 
 const healthFitPages: NonNullable<CoreWebContributions["pages"]> = [

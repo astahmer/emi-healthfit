@@ -47,6 +47,28 @@ const recoveryCardSchema = z.object({
   recentVolume: z.number().nullable().optional(),
 });
 
+const sleepTrendSchema = z.object({
+  days: z.number(),
+  avg_in_bed_min: z.number().nullable(),
+  avg_asleep_min: z.number().nullable(),
+  avg_awake_min: z.number().nullable(),
+  avg_sleep_hours: z.number().nullable(),
+  nights: z.array(
+    z.object({
+      date: z.string(),
+      in_bed_min: z.number().nullable(),
+      asleep_min: z.number().nullable(),
+      awake_min: z.number().nullable(),
+    }),
+  ),
+});
+
+const workoutStreakSchema = z.object({
+  current_streak: z.number(),
+  longest_streak: z.number(),
+  last_workout_date: z.string().nullable(),
+});
+
 const metricCardSchema = z.object({
   label: z.string(),
   value: z.union([z.string(), z.number()]),
@@ -83,6 +105,14 @@ export const catalog = defineCatalog(schema, {
       props: recoveryCardSchema,
       description:
         "A card showing recovery status with sleep average, last workout, recent volume, and explanation.",
+    },
+    SleepTrend: {
+      props: sleepTrendSchema,
+      description: "A nightly sleep chart with average duration and awake-time details.",
+    },
+    WorkoutStreak: {
+      props: workoutStreakSchema,
+      description: "A card showing current and longest consecutive workout-day streaks.",
     },
     MetricCard: {
       props: metricCardSchema,

@@ -121,7 +121,7 @@ const GetExerciseProgress = Tool.make("get_exercise_progress", {
 });
 
 const GetSleepTrend = Tool.make("get_sleep_trend", {
-  description: "Get average sleep duration over the last N days.",
+  description: "Get nightly sleep duration and averages over the last N days.",
   parameters: Schema.Struct({
     days: Schema.optional(
       Schema.Int.annotate({
@@ -208,10 +208,11 @@ const SummarizeToMessage = Tool.make("summarize_to_message", {
 
 const RenderComponent = Tool.make("render_component", {
   description:
-    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label?, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard defaults its label to Metric and accepts stable as flat. Never put title, subtitle, or context props on MetricCard.",
+    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; SleepTrend {days, avg_sleep_hours?, nights}; WorkoutStreak {current_streak, longest_streak, last_workout_date?}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label?, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard defaults its label to Metric and accepts stable as flat. Never put title, subtitle, or context props on MetricCard.",
   parameters: Schema.Struct({
     component: Schema.String.annotate({
-      description: "WorkoutTable, ExerciseProgress, RecoveryCard, MetricCard, or SetList.",
+      description:
+        "WorkoutTable, ExerciseProgress, SleepTrend, WorkoutStreak, RecoveryCard, MetricCard, or SetList.",
     }),
     props: Schema.Record(Schema.String, Schema.Unknown).annotate({
       description: "Props for the selected component.",
@@ -266,6 +267,32 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
     }),
   ],
   ["MetricCard", MetricCardProps],
+  [
+    "SleepTrend",
+    Schema.Struct({
+      days: Schema.Number,
+      avg_in_bed_min: Schema.NullOr(Schema.Number),
+      avg_asleep_min: Schema.NullOr(Schema.Number),
+      avg_awake_min: Schema.NullOr(Schema.Number),
+      avg_sleep_hours: Schema.NullOr(Schema.Number),
+      nights: Schema.Array(
+        Schema.Struct({
+          date: Schema.String,
+          in_bed_min: Schema.NullOr(Schema.Number),
+          asleep_min: Schema.NullOr(Schema.Number),
+          awake_min: Schema.NullOr(Schema.Number),
+        }),
+      ),
+    }),
+  ],
+  [
+    "WorkoutStreak",
+    Schema.Struct({
+      current_streak: Schema.Number,
+      longest_streak: Schema.Number,
+      last_workout_date: Schema.NullOr(Schema.String),
+    }),
+  ],
   [
     "SetList",
     Schema.Struct({

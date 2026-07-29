@@ -287,6 +287,20 @@ describe("fitness SQLite integration", () => {
       avg_asleep_min: 450,
       avg_awake_min: 45,
       avg_sleep_hours: 7.5,
+      nights: [
+        {
+          date: "2026-07-18",
+          in_bed_min: 480,
+          asleep_min: 420,
+          awake_min: 60,
+        },
+        {
+          date: "2026-07-19",
+          in_bed_min: 510,
+          asleep_min: 480,
+          awake_min: 30,
+        },
+      ],
     });
     const exported = await run(getIngestedDataExport({ db: fitnessDb, userId }));
     assert.deepStrictEqual(

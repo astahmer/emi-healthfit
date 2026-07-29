@@ -232,33 +232,56 @@ interface SleepTrend {
   avg_asleep_min: number | null;
   avg_awake_min: number | null;
   avg_sleep_hours: number | null;
+  nights: Array<{
+    date: string;
+    in_bed_min: number | null;
+    asleep_min: number | null;
+    awake_min: number | null;
+  }>;
 }
 
 export const getSleepTrend = (db: FitnessDb, userId: string, days = 7) =>
   Effect.gen(function* () {
     const since = isoDateDaysAgo(days);
     const kysely = yield* db.kysely;
-    const row = yield* Effect.promise(() =>
+    const rows = yield* Effect.promise(() =>
       kysely
         .selectFrom("sleep_sessions")
-        .select((eb) => [
-          eb.fn.countAll<number>().as("days"),
-          eb.fn.avg<number>("in_bed_min").as("avg_in_bed_min"),
-          eb.fn.avg<number>("asleep_min").as("avg_asleep_min"),
-          eb.fn.avg<number>("awake_min").as("avg_awake_min"),
-        ])
+        .select(["date", "in_bed_min", "asleep_min", "awake_min"])
         .where("user_id", "=", userId)
         .where("date", ">=", since)
-        .executeTakeFirst(),
+        .orderBy("date", "asc")
+        .execute(),
     );
-    const asleepMin = row?.avg_asleep_min ?? null;
+    const nights = rows.flatMap((row) =>
+      row.date === null
+        ? []
+        : [
+            {
+              date: row.date,
+              in_bed_min: row.in_bed_min,
+              asleep_min: row.asleep_min,
+              awake_min: row.awake_min,
+            },
+          ],
+    );
+    const avgInBedMin = average(
+      nights.flatMap((night) => (night.in_bed_min === null ? [] : [night.in_bed_min])),
+    );
+    const avgAsleepMin = average(
+      nights.flatMap((night) => (night.asleep_min === null ? [] : [night.asleep_min])),
+    );
+    const avgAwakeMin = average(
+      nights.flatMap((night) => (night.awake_min === null ? [] : [night.awake_min])),
+    );
 
     return {
-      days: row?.days ?? 0,
-      avg_in_bed_min: row?.avg_in_bed_min ?? null,
-      avg_asleep_min: asleepMin,
-      avg_awake_min: row?.avg_awake_min ?? null,
-      avg_sleep_hours: asleepMin !== null ? Number((asleepMin / 60).toFixed(2)) : null,
+      days: nights.length,
+      avg_in_bed_min: avgInBedMin,
+      avg_asleep_min: avgAsleepMin,
+      avg_awake_min: avgAwakeMin,
+      avg_sleep_hours: avgAsleepMin !== null ? Number((avgAsleepMin / 60).toFixed(2)) : null,
+      nights,
     } satisfies SleepTrend;
   });
 

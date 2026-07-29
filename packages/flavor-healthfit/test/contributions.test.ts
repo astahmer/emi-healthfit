@@ -20,7 +20,13 @@ describe("healthFitWebContributions", () => {
     const toolNames = (healthFitWebContributions.toolRenderers ?? []).map(
       (renderer) => renderer.toolName,
     );
-    expect(toolNames).toEqual(["get_workout_history", "get_exercise_progress", "get_recovery"]);
+    expect(toolNames).toEqual([
+      "get_workout_history",
+      "get_exercise_progress",
+      "get_recovery",
+      "get_sleep_trend",
+      "get_workout_streak",
+    ]);
   });
 
   it("gives every nav entry a stable href and icon", () => {

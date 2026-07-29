@@ -26,10 +26,12 @@ describe("fitness SQL aggregate shapes", () => {
     assert.doesNotMatch(body, /selectAll\(\)/);
   });
 
-  it("keeps sleep trend on COUNT / AVG aggregates", () => {
+  it("keeps sleep trend owner-scoped and date ordered", () => {
     const body = functionBody("getSleepTrend");
-    assert.match(body, /eb\.fn\.countAll/);
-    assert.match(body, /eb\.fn\.avg/);
+    assert.match(body, /\.select\(\["date", "in_bed_min", "asleep_min", "awake_min"\]\)/);
+    assert.match(body, /\.where\("user_id", "=", userId\)/);
+    assert.match(body, /\.where\("date", ">=", since\)/);
+    assert.match(body, /\.orderBy\("date", "asc"\)/);
   });
 
   it("keeps data summary on COUNT(*) style aggregates", () => {

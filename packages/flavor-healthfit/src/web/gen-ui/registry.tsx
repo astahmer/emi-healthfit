@@ -8,6 +8,8 @@ import { catalog } from "./catalog.ts";
 import {
   ExerciseProgressView,
   RecoveryCard,
+  SleepTrendView,
+  WorkoutStreakCard,
   WorkoutHistoryTable,
 } from "../../components/tool-renderers.tsx";
 
@@ -17,6 +19,8 @@ const { registry } = defineRegistry(catalog, {
     WorkoutTable: ({ props }) => <WorkoutHistoryTable items={props.workouts} />,
     ExerciseProgress: ({ props }) => <ExerciseProgressView data={props} />,
     RecoveryCard: ({ props }) => <RecoveryCard data={props} />,
+    SleepTrend: ({ props }) => <SleepTrendView data={props} />,
+    WorkoutStreak: ({ props }) => <WorkoutStreakCard data={props} />,
     MetricCard: ({ props }) => (
       <div className="rounded-lg border p-3">
         <p className="text-xs text-muted-foreground">{props.label}</p>

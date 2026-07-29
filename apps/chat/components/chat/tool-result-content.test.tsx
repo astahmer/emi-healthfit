@@ -242,6 +242,51 @@ describe("ToolResultContent", () => {
     expect(view.container.querySelector(".recharts-responsive-container")).not.toBeNull();
   });
 
+  it("renders sleep trends and workout streaks from tool results", () => {
+    const view = renderToolResult(
+      <div className="h-96 w-96">
+        <ToolResultContent
+          toolName="get_sleep_trend"
+          result={{
+            days: 2,
+            avg_in_bed_min: 495,
+            avg_asleep_min: 450,
+            avg_awake_min: 45,
+            avg_sleep_hours: 7.5,
+            nights: [
+              {
+                date: "2026-07-18",
+                in_bed_min: 480,
+                asleep_min: 420,
+                awake_min: 60,
+              },
+              {
+                date: "2026-07-19",
+                in_bed_min: 510,
+                asleep_min: 480,
+                awake_min: 30,
+              },
+            ],
+          }}
+        />
+        <ToolResultContent
+          toolName="get_workout_streak"
+          result={{
+            current_streak: 3,
+            longest_streak: 7,
+            last_workout_date: "2026-07-19",
+          }}
+        />
+      </div>,
+    );
+
+    expect(screen.getByText("Sleep trend")).toBeInTheDocument();
+    expect(screen.getByText("7h 00m")).toBeInTheDocument();
+    expect(screen.getByText("Current streak")).toBeInTheDocument();
+    expect(screen.getByText("3 days")).toBeInTheDocument();
+    expect(view.container.querySelector("[data-testid='sleep-trend-chart']")).not.toBeNull();
+  });
+
   it("renders parsed string results as preformatted text", () => {
     renderToolResult(<ToolResultContent toolName="get_summary" result='{"dailyActivity": 5}' />);
 

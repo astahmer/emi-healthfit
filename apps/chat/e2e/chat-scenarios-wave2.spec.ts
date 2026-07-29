@@ -393,6 +393,44 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
         },
       },
     },
+    {
+      type: "dynamic-tool",
+      toolName: "get_sleep_trend",
+      toolCallId: "sleep-1",
+      state: "output-available",
+      output: {
+        days: 2,
+        avg_in_bed_min: 495,
+        avg_asleep_min: 450,
+        avg_awake_min: 45,
+        avg_sleep_hours: 7.5,
+        nights: [
+          {
+            date: "2026-07-18",
+            in_bed_min: 480,
+            asleep_min: 420,
+            awake_min: 60,
+          },
+          {
+            date: "2026-07-19",
+            in_bed_min: 510,
+            asleep_min: 480,
+            awake_min: 30,
+          },
+        ],
+      },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "get_workout_streak",
+      toolCallId: "streak-1",
+      state: "output-available",
+      output: {
+        current_streak: 3,
+        longest_streak: 7,
+        last_workout_date: "2026-07-19",
+      },
+    },
   ];
   const mock = createChatMock({ state: { snapshots: { one: snapshot } } });
   await mock.open(page, "/chat/one");
@@ -401,22 +439,32 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
   const recoveryTool = page.locator("details").filter({ hasText: "get recovery" });
   const progressTool = page.locator("details").filter({ hasText: "get exercise progress" });
   const metricTool = page.locator("details").filter({ hasText: "render component" });
+  const sleepTool = page.locator("details").filter({ hasText: "get sleep trend" });
+  const streakTool = page.locator("details").filter({ hasText: "get workout streak" });
 
   await expect(rawTool).not.toHaveAttribute("open");
   await expect(recoveryTool).toHaveAttribute("open", "");
   await expect(progressTool).toHaveAttribute("open", "");
   await expect(metricTool).toHaveAttribute("open", "");
+  await expect(sleepTool).toHaveAttribute("open", "");
+  await expect(streakTool).toHaveAttribute("open", "");
   await expect(page.getByText("Ready")).toBeVisible();
   await expect(page.getByText("Bench Press")).toBeVisible();
   await expect(page.getByText("Metric")).toBeVisible();
   await expect(page.getByText("flat")).toBeVisible();
+  await expect(page.getByText("Sleep trend", { exact: true })).toBeVisible();
+  await expect(page.getByText("Current streak")).toBeVisible();
   await expect(metricTool.locator("pre")).toHaveCount(0);
   const chart = progressTool.getByTestId("exercise-progress-chart");
   await expect(chart).toBeVisible();
   expect(await chart.evaluate((element) => element.clientWidth)).toBeGreaterThan(0);
   await expect(chart.locator("svg")).toHaveCount(1);
+  const sleepChart = sleepTool.getByTestId("sleep-trend-chart");
+  await expect(sleepChart).toBeVisible();
+  await expect(sleepChart.locator("svg")).toHaveCount(1);
 
   await page.reload();
   await expect(page.getByText("Bench Press")).toBeVisible();
   await expect(page.getByText("Metric")).toBeVisible();
+  await expect(page.getByText("Sleep trend", { exact: true })).toBeVisible();
 });
