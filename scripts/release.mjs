@@ -82,7 +82,7 @@ const productionDatabase = () => {
         "list",
         "--json",
         "--env-file",
-        "../../.env.prod",
+        ".env.prod",
       ],
     }),
   );
