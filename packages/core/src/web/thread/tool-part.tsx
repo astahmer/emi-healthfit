@@ -3,6 +3,7 @@
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import type { ReactNode } from "react";
+import { useToolRenderer } from "../contributions.tsx";
 import { ToolResultContent } from "./tool-result-content.tsx";
 
 export type MessagePartValue = {
@@ -52,6 +53,7 @@ export const ToolPart = ({
       : type.startsWith("tool-")
         ? type.slice(5)
         : "tool";
+  const registeredRenderer = useToolRenderer(toolName);
   const input = toolPart.value.input ?? toolPart.value.args ?? toolPart.value.argsText;
   const output = toolPart.value.output ?? toolPart.value.result;
   const state = toolPart.value.state;
@@ -61,9 +63,11 @@ export const ToolPart = ({
   const hasOutput =
     output !== undefined || state === "output-available" || state === "output-error";
   const isRunning = isStreaming && !hasOutput;
+  const opensByDefault =
+    isRunning || registeredRenderer !== undefined || toolName === "render_component";
 
   return (
-    <details className="group/tool rounded-lg border bg-muted/15" open={isRunning}>
+    <details className="group/tool rounded-lg border bg-muted/15" open={opensByDefault}>
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground marker:content-none">
         {isRunning ? (
           <span

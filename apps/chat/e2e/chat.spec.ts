@@ -25,7 +25,6 @@ test("switches sessions, renders tools, and starts a new chat", async ({ page })
   await openMockedChat(page, "/chat/one");
 
   await expect(page.getByText("one message answer")).toBeVisible();
-  await page.getByText("get recovery", { exact: true }).click();
   await expect(page.getByText("Ready")).toBeVisible();
   await page.getByText("Session Two", { exact: true }).click();
   await expect(page).toHaveURL(/\/chat\/two$/);

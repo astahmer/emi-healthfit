@@ -70,6 +70,24 @@ const RawSpec = Schema.Struct({
 
 const decodeRawSpec = Schema.decodeUnknownOption(RawSpec);
 
+const LegacyMetricCardProps = Schema.Struct({
+  label: Schema.optional(Schema.String),
+  value: Schema.Union([Schema.String, Schema.Number]),
+  unit: Schema.optional(Schema.String),
+  trend: Schema.optional(Schema.Literals(["up", "down", "flat", "stable"])),
+});
+
+const normalizeMetricCardProps = (props: unknown): unknown => {
+  const metricCard = Schema.decodeUnknownOption(LegacyMetricCardProps)(props);
+  if (Option.isNone(metricCard)) return props;
+  const { label, trend, ...rest } = metricCard.value;
+  return {
+    ...rest,
+    label: label ?? "Metric",
+    ...(trend === undefined ? {} : { trend: trend === "stable" ? "flat" : trend }),
+  };
+};
+
 const normalizeSpec = (raw: unknown) => {
   const decoded = decodeRawSpec(raw);
   if (Option.isNone(decoded)) return null;
@@ -81,6 +99,8 @@ const normalizeSpec = (raw: unknown) => {
         key,
         {
           ...element,
+          props:
+            element.type === "MetricCard" ? normalizeMetricCardProps(element.props) : element.props,
           children: element.children ?? [],
           visible: element.visible,
         },

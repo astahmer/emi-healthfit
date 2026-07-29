@@ -33,6 +33,29 @@ describe("render_component tool", () => {
     assert.deepStrictEqual(root.props, { label: "Volume", value: 1000, unit: "kg" });
   });
 
+  it("normalizes legacy MetricCard label and stable trend", async () => {
+    const result = await run(
+      executeTool({
+        db: fakeDb,
+        userId: "test-user",
+        name: "render_component",
+        args: {
+          component: "MetricCard",
+          props: { value: 8742, unit: "steps/day", trend: "stable" },
+        },
+      }),
+    );
+
+    assert.ok(result && typeof result === "object" && "spec" in result);
+    const spec = result.spec as { elements: Record<string, { props: unknown }> };
+    assert.deepStrictEqual(spec.elements.root?.props, {
+      label: "Metric",
+      value: 8742,
+      unit: "steps/day",
+      trend: "flat",
+    });
+  });
+
   it("fails when component name is missing", async () => {
     await assert.rejects(
       run(

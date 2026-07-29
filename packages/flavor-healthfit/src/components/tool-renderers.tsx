@@ -190,8 +190,11 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
         </p>
       ) : (
         <>
-          <div className="h-48 w-full rounded-md border p-2">
-            <ResponsiveContainer width="100%" height="100%">
+          <div
+            data-testid="exercise-progress-chart"
+            className="w-full min-w-0 rounded-md border p-2"
+          >
+            <ResponsiveContainer width="100%" height={176}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} />

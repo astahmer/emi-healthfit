@@ -42,6 +42,49 @@ describe("core thread shell", () => {
     expect(screen.getByTestId("custom-tool")).toHaveTextContent("pong");
   });
 
+  it("opens rich tool results but keeps raw JSON folded", () => {
+    const Renderer = ({ result }: { result: unknown }) => <div>{String(result)}</div>;
+    render(
+      <CoreWebProvider
+        contributions={{
+          toolRenderers: [{ toolName: "ping", component: Renderer }],
+        }}
+      >
+        <MessagePart
+          part={{
+            type: "dynamic-tool",
+            toolName: "summary",
+            state: "output-available",
+            output: {},
+          }}
+          isStreaming={false}
+        />
+        <MessagePart
+          part={{
+            type: "dynamic-tool",
+            toolName: "ping",
+            state: "output-available",
+            output: "pong",
+          }}
+          isStreaming={false}
+        />
+        <MessagePart
+          part={{
+            type: "dynamic-tool",
+            toolName: "render_component",
+            state: "output-available",
+            output: {},
+          }}
+          isStreaming={false}
+        />
+      </CoreWebProvider>,
+    );
+
+    expect(screen.getByText("summary").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("ping").closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("render component").closest("details")).toHaveAttribute("open");
+  });
+
   it("lays out empty, messages, and composer slots", () => {
     render(
       <ThreadViewport empty={<p>Empty</p>} messages={<p>Messages</p>} composer={<p>Composer</p>} />,

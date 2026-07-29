@@ -332,3 +332,91 @@ test("renders multi-tool success and tool-error from a stream", async ({ page })
   await expect(toolsMessage.getByText("Failed")).toBeVisible();
   await expect(toolsMessage.getByText("Mixed tools done")).toBeVisible();
 });
+
+test("hydrates rich chat components open while keeping raw tool JSON folded", async ({ page }) => {
+  const snapshot = sessionOneSnapshot();
+  const assistant = snapshot.messages.find((message) => message.role === "assistant");
+  if (assistant === undefined)
+    throw new Error("Expected an assistant message in the chat fixture.");
+  assistant.parts = [
+    {
+      type: "dynamic-tool",
+      toolName: "get_summary",
+      toolCallId: "summary-1",
+      state: "output-available",
+      output: { dailyActivity: 1655 },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "get_recovery",
+      toolCallId: "recovery-1",
+      state: "output-available",
+      output: { label: "Ready", explanation: "Good recovery" },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "get_exercise_progress",
+      toolCallId: "progress-1",
+      state: "output-available",
+      output: {
+        exercise_title: "Bench Press",
+        weeks: 8,
+        workouts: [
+          {
+            session_id: "workout-1",
+            title: "Full body",
+            start_time: "2026-07-28T10:00:00.000Z",
+            max_weight_kg: 100,
+            max_volume_kg: 1200,
+            total_volume_kg: 2072,
+            total_reps: 24,
+            sets: 3,
+          },
+        ],
+        personalRecord: { weight_kg: 100, reps: 5, volume_kg: 500 },
+      },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "render_component",
+      toolCallId: "metric-1",
+      state: "output-available",
+      output: {
+        spec: {
+          root: "metric",
+          elements: {
+            metric: {
+              type: "MetricCard",
+              props: { value: 8742, unit: "steps/day", trend: "stable" },
+            },
+          },
+        },
+      },
+    },
+  ];
+  const mock = createChatMock({ state: { snapshots: { one: snapshot } } });
+  await mock.open(page, "/chat/one");
+
+  const rawTool = page.locator("details").filter({ hasText: "get summary" });
+  const recoveryTool = page.locator("details").filter({ hasText: "get recovery" });
+  const progressTool = page.locator("details").filter({ hasText: "get exercise progress" });
+  const metricTool = page.locator("details").filter({ hasText: "render component" });
+
+  await expect(rawTool).not.toHaveAttribute("open");
+  await expect(recoveryTool).toHaveAttribute("open", "");
+  await expect(progressTool).toHaveAttribute("open", "");
+  await expect(metricTool).toHaveAttribute("open", "");
+  await expect(page.getByText("Ready")).toBeVisible();
+  await expect(page.getByText("Bench Press")).toBeVisible();
+  await expect(page.getByText("Metric")).toBeVisible();
+  await expect(page.getByText("flat")).toBeVisible();
+  await expect(metricTool.locator("pre")).toHaveCount(0);
+  const chart = progressTool.getByTestId("exercise-progress-chart");
+  await expect(chart).toBeVisible();
+  expect(await chart.evaluate((element) => element.clientWidth)).toBeGreaterThan(0);
+  await expect(chart.locator("svg")).toHaveCount(1);
+
+  await page.reload();
+  await expect(page.getByText("Bench Press")).toBeVisible();
+  await expect(page.getByText("Metric")).toBeVisible();
+});

@@ -1,5 +1,6 @@
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
@@ -207,7 +208,7 @@ const SummarizeToMessage = Tool.make("summarize_to_message", {
 
 const RenderComponent = Tool.make("render_component", {
   description:
-    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard has no title, subtitle, or context props.",
+    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label?, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard defaults its label to Metric and accepts stable as flat. Never put title, subtitle, or context props on MetricCard.",
   parameters: Schema.Struct({
     component: Schema.String.annotate({
       description: "WorkoutTable, ExerciseProgress, RecoveryCard, MetricCard, or SetList.",
@@ -218,6 +219,13 @@ const RenderComponent = Tool.make("render_component", {
   }),
   success: Schema.Unknown,
   failure: Schema.Unknown,
+});
+
+const MetricCardProps = Schema.Struct({
+  label: Schema.optional(Schema.String),
+  value: Schema.Union([Schema.String, Schema.Number]),
+  unit: Schema.optional(Schema.String),
+  trend: Schema.optional(Schema.Literals(["up", "down", "flat", "stable"])),
 });
 
 const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
@@ -257,15 +265,7 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
       recentVolume: Schema.optional(Schema.NullOr(Schema.Number)),
     }),
   ],
-  [
-    "MetricCard",
-    Schema.Struct({
-      label: Schema.String,
-      value: Schema.Union([Schema.String, Schema.Number]),
-      unit: Schema.optional(Schema.String),
-      trend: Schema.optional(Schema.Literals(["up", "down", "flat"])),
-    }),
-  ],
+  ["MetricCard", MetricCardProps],
   [
     "SetList",
     Schema.Struct({
@@ -282,6 +282,18 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
     }),
   ],
 ]);
+
+const normalizeComponentProps = ({ component, props }: { component: string; props: unknown }) => {
+  if (component !== "MetricCard") return props;
+  const metricCard = Schema.decodeUnknownOption(MetricCardProps)(props);
+  if (Option.isNone(metricCard)) return props;
+  const { label, trend, ...rest } = metricCard.value;
+  return {
+    ...rest,
+    label: label ?? "Metric",
+    ...(trend === undefined ? {} : { trend: trend === "stable" ? "flat" : trend }),
+  };
+};
 
 const FitnessToolkit = Toolkit.make(
   GetSummary,
@@ -543,7 +555,10 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         spec: {
           root: "root",
           elements: {
-            root: { type: component, props: parsed.success },
+            root: {
+              type: component,
+              props: normalizeComponentProps({ component, props: parsed.success }),
+            },
           },
         },
       };
