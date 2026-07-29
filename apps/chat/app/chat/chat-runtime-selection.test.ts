@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runtimeSelectionMatches } from "./chat-runtime-selection";
+import { canQueueFollowUp, runtimeSelectionMatches } from "./chat-runtime-selection";
 
 describe("runtimeSelectionMatches", () => {
   it("matches identical selected and runtime session ids", () => {
@@ -40,5 +40,27 @@ describe("runtimeSelectionMatches", () => {
         temporary: false,
       }),
     ).toBe(false);
+  });
+
+  it("does not queue a new-chat submission into a stale stream", () => {
+    expect(
+      canQueueFollowUp({
+        isStreaming: true,
+        runtimeSessionId: "previous-chat",
+        selectedSessionId: undefined,
+        temporary: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("queues a follow-up only for the selected streaming chat", () => {
+    expect(
+      canQueueFollowUp({
+        isStreaming: true,
+        runtimeSessionId: "selected-chat",
+        selectedSessionId: "selected-chat",
+        temporary: false,
+      }),
+    ).toBe(true);
   });
 });

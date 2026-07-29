@@ -86,7 +86,15 @@ describe("sidebarItemMachine", () => {
     const onDeleted = vi.fn();
     const machine = sidebarItemMachine.provide({
       actors: {
-        remove: fromPromise(async (): Promise<void> => {}),
+        remove: fromPromise(
+          async ({
+            input,
+          }: {
+            input: { conversationId: string; onDeleted?: () => void };
+          }): Promise<void> => {
+            input.onDeleted?.();
+          },
+        ),
       },
     });
     const actor = createActor(machine, { input: { thread, onDeleted } });

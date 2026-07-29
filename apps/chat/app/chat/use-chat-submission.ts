@@ -11,6 +11,7 @@ import { type useNotes } from "../notes-context";
 import { createConversation } from "../sessions";
 import { type useSettings } from "../settings-store";
 import { chatRuntimeMachine, type QueuedFollowUp } from "./chat-runtime-machine";
+import { canQueueFollowUp, runtimeSelectionMatches } from "./chat-runtime-selection";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
 import {
   consumeAssistantStream,
@@ -116,8 +117,15 @@ export const useChatSubmission = ({
       interrupt?: boolean;
     }) => {
       const content = (text ?? stateRef.current.context.draft).trim();
+      const runtimeMatchesSelection = runtimeSelectionMatches({
+        runtimeSessionId: stateRef.current.context.sessionId,
+        selectedSessionId: config.sessionId,
+        temporary: config.temporary,
+      });
       const queuedFiles =
-        text === undefined && parts === undefined ? stateRef.current.context.files : [];
+        text === undefined && parts === undefined && runtimeMatchesSelection
+          ? stateRef.current.context.files
+          : [];
       if (parts === undefined && content === "" && queuedFiles.length === 0) return;
 
       const editingQueuedId = editingQueuedIdRef.current;
@@ -132,7 +140,16 @@ export const useChatSubmission = ({
         return;
       }
 
-      if (stateRef.current.matches("streaming") && replaceMessageId === undefined && !interrupt) {
+      if (
+        canQueueFollowUp({
+          isStreaming: stateRef.current.matches("streaming"),
+          runtimeSessionId: stateRef.current.context.sessionId,
+          selectedSessionId: config.sessionId,
+          temporary: config.temporary,
+        }) &&
+        replaceMessageId === undefined &&
+        !interrupt
+      ) {
         send({
           type: "followUp.queued",
           id: crypto.randomUUID(),
@@ -155,7 +172,7 @@ export const useChatSubmission = ({
       const userMessage: UIMessage = {
         id: replaceMessageId ?? crypto.randomUUID(),
         role: "user",
-        parts: parts ?? [...textParts, ...stateRef.current.context.files],
+        parts: parts ?? [...textParts, ...queuedFiles],
       };
       send(
         replaceMessageId === undefined

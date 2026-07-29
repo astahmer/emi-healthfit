@@ -98,8 +98,9 @@ export const sidebarItemMachine = setup({
     rename: fromPromise(({ input }: { input: { threadId: string; title: string } }) =>
       renameConversation(input.threadId, input.title),
     ),
-    remove: fromPromise(({ input }: { input: { threadId: string } }) =>
-      deleteConversation(input.threadId),
+    remove: fromPromise(
+      ({ input }: { input: { conversationId: string; onDeleted?: () => void } }) =>
+        deleteConversation(input),
     ),
     copyMarkdown: fromPromise(({ input }: { input: { threadId: string } }) =>
       copyMarkdown(input.threadId),
@@ -120,7 +121,6 @@ export const sidebarItemMachine = setup({
   },
   actions: {
     notifyRenamed: ({ context }) => context.onRenamed?.(),
-    notifyDeleted: ({ context }) => context.onDeleted?.(),
     notifyChanged: ({ context }) => context.onChanged?.(),
   },
 }).createMachine({
@@ -223,7 +223,10 @@ export const sidebarItemMachine = setup({
     deleting: {
       invoke: {
         src: "remove",
-        input: ({ context }) => ({ threadId: context.thread.id }),
+        input: ({ context }) => ({
+          conversationId: context.thread.id,
+          onDeleted: context.onDeleted,
+        }),
         onDone: { target: "deleted" },
         onError: {
           target: "idle",
@@ -347,7 +350,6 @@ export const sidebarItemMachine = setup({
     },
     deleted: {
       type: "final",
-      entry: "notifyDeleted",
     },
   },
 });

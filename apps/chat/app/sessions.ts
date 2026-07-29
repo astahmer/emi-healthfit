@@ -186,8 +186,15 @@ export const cloneConversation = async (conversationId: string): Promise<Thread>
   return data.conversation;
 };
 
-export const deleteConversation = async (conversationId: string): Promise<void> => {
+export const deleteConversation = async ({
+  conversationId,
+  onDeleted,
+}: {
+  conversationId: string;
+  onDeleted?: () => void;
+}): Promise<void> => {
   await runApi((client) => client.conversations.remove({ params: { id: conversationId } }));
-  ignoreCacheError(deleteCachedThread(conversationId));
+  await deleteCachedThread(conversationId).catch(() => undefined);
+  onDeleted?.();
   notifyConversationsChanged();
 };

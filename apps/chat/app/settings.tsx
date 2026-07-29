@@ -21,7 +21,7 @@ export function SettingsPanel() {
   const syncStatus = syncState.context.status;
 
   return (
-    <div className="mx-auto h-full max-w-xl overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
+    <div className="mx-auto max-w-xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
       <h2 className="mb-4 text-xl font-semibold">Settings</h2>
 
       <div className="space-y-4">
