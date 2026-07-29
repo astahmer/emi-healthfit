@@ -26,7 +26,8 @@ import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("fitness SQLite integration", () => {
-  it("returns owner-scoped history, progress, trends, exports, and analytics from persisted data", async () => {
+  it("returns owner-scoped history, progress, trends, exports, and analytics from persisted data", async (testContext) => {
+    testContext.mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-20T12:00:00Z") });
     const { db, sqlite } = makeSqliteDatabase();
     const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const userId = "user-a";

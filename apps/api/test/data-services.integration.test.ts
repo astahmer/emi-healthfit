@@ -91,7 +91,8 @@ const data: IngestedDataExport = {
 };
 
 describe("data service SQLite integration", () => {
-  it("previews import collisions, imports every data group, and builds a persisted chat context", async () => {
+  it("previews import collisions, imports every data group, and builds a persisted chat context", async (testContext) => {
+    testContext.mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-20T12:00:00Z") });
     const { db } = makeSqliteDatabase();
     const userId = "user-a";
 
