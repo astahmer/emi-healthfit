@@ -28,12 +28,14 @@ const exerciseProgressSchema = z.object({
       total_volume_kg: z.number().nullable(),
       total_reps: z.number().nullable(),
       sets: z.number(),
+      estimated_1rm_kg: z.number().nullable().optional(),
     }),
   ),
   personalRecord: z.object({
     weight_kg: z.number().nullable(),
     reps: z.number().nullable(),
     volume_kg: z.number().nullable(),
+    estimated_1rm_kg: z.number().nullable().optional(),
   }),
 });
 
@@ -67,6 +69,56 @@ const workoutStreakSchema = z.object({
   current_streak: z.number(),
   longest_streak: z.number(),
   last_workout_date: z.string().nullable(),
+});
+
+const trainingLoadSchema = z.object({
+  weeks: z.array(
+    z.object({
+      week_start: z.string(),
+      workouts: z.number(),
+      sets: z.number(),
+      volume_kg: z.number(),
+      duration_sec: z.number(),
+    }),
+  ),
+  total_volume_kg: z.number(),
+  current_week_volume_kg: z.number(),
+  previous_week_volume_kg: z.number().nullable(),
+  volume_change_pct: z.number().nullable(),
+});
+
+const recoveryTimelineSchema = z.object({
+  days: z.array(
+    z.object({
+      date: z.string(),
+      asleep_min: z.number().nullable(),
+      workouts: z.number(),
+      volume_kg: z.number(),
+    }),
+  ),
+  average_sleep_hours: z.number().nullable(),
+});
+
+const goalProgressSchema = z.object({
+  period_days: z.number(),
+  average_steps: z.number().nullable(),
+  step_goal: z.number().nullable(),
+  workouts: z.number(),
+  workouts_goal: z.number().nullable(),
+  latest_weight_kg: z.number().nullable(),
+  target_weight_kg: z.number().nullable(),
+  weight_remaining_kg: z.number().nullable(),
+});
+
+const nextWorkoutSchema = z.object({
+  suggested_title: z.string(),
+  readiness: z.enum(["ready", "recover", "unknown"]),
+  reason: z.string(),
+  last_workout_date: z.string().nullable(),
+  last_workout_title: z.string().nullable(),
+  days_since_last_workout: z.number().nullable(),
+  recent_workout_count: z.number(),
+  sleep_average_hours: z.number().nullable(),
 });
 
 const metricCardSchema = z.object({
@@ -113,6 +165,24 @@ export const catalog = defineCatalog(schema, {
     WorkoutStreak: {
       props: workoutStreakSchema,
       description: "A card showing current and longest consecutive workout-day streaks.",
+    },
+    TrainingLoad: {
+      props: trainingLoadSchema,
+      description:
+        "A weekly strength-training volume chart with workouts, sets, and week-over-week change.",
+    },
+    RecoveryTimeline: {
+      props: recoveryTimelineSchema,
+      description: "A daily sleep and strength-workout timeline for recovery context.",
+    },
+    GoalProgress: {
+      props: goalProgressSchema,
+      description: "Goal cards for supplied step, workout-frequency, and body-weight targets.",
+    },
+    NextWorkout: {
+      props: nextWorkoutSchema,
+      description:
+        "A next-workout focus with readiness, rationale, recent activity, and sleep context.",
     },
     MetricCard: {
       props: metricCardSchema,

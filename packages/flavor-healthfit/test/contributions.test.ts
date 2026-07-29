@@ -26,6 +26,10 @@ describe("healthFitWebContributions", () => {
       "get_recovery",
       "get_sleep_trend",
       "get_workout_streak",
+      "get_training_load",
+      "get_recovery_timeline",
+      "get_goal_progress",
+      "get_next_workout",
     ]);
   });
 

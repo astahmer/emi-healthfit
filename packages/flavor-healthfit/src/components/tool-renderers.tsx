@@ -4,6 +4,8 @@ import { useMemo, type FC, type ReactNode } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -32,6 +34,7 @@ interface ExerciseProgressSet {
   readonly total_volume_kg: number | null;
   readonly total_reps: number | null;
   readonly sets: number;
+  readonly estimated_1rm_kg?: number | null;
 }
 
 interface ExerciseProgress {
@@ -42,6 +45,7 @@ interface ExerciseProgress {
     readonly weight_kg: number | null;
     readonly reps: number | null;
     readonly volume_kg: number | null;
+    readonly estimated_1rm_kg?: number | null;
   };
 }
 
@@ -75,6 +79,52 @@ interface WorkoutStreak {
   readonly last_workout_date: string | null;
 }
 
+interface TrainingLoad {
+  readonly weeks: ReadonlyArray<{
+    readonly week_start: string;
+    readonly workouts: number;
+    readonly sets: number;
+    readonly volume_kg: number;
+    readonly duration_sec: number;
+  }>;
+  readonly total_volume_kg: number;
+  readonly current_week_volume_kg: number;
+  readonly previous_week_volume_kg: number | null;
+  readonly volume_change_pct: number | null;
+}
+
+interface RecoveryTimeline {
+  readonly days: ReadonlyArray<{
+    readonly date: string;
+    readonly asleep_min: number | null;
+    readonly workouts: number;
+    readonly volume_kg: number;
+  }>;
+  readonly average_sleep_hours: number | null;
+}
+
+interface GoalProgress {
+  readonly period_days: number;
+  readonly average_steps: number | null;
+  readonly step_goal: number | null;
+  readonly workouts: number;
+  readonly workouts_goal: number | null;
+  readonly latest_weight_kg: number | null;
+  readonly target_weight_kg: number | null;
+  readonly weight_remaining_kg: number | null;
+}
+
+interface NextWorkout {
+  readonly suggested_title: string;
+  readonly readiness: "ready" | "recover" | "unknown";
+  readonly reason: string;
+  readonly last_workout_date: string | null;
+  readonly last_workout_title: string | null;
+  readonly days_since_last_workout: number | null;
+  readonly recent_workout_count: number;
+  readonly sleep_average_hours: number | null;
+}
+
 const WorkoutHistory = Schema.Array(
   Schema.Struct({
     session_id: Schema.String,
@@ -98,12 +148,14 @@ const ExerciseProgressSchema = Schema.Struct({
       total_volume_kg: Schema.NullOr(Schema.Number),
       total_reps: Schema.NullOr(Schema.Number),
       sets: Schema.Number,
+      estimated_1rm_kg: Schema.optional(Schema.NullOr(Schema.Number)),
     }),
   ),
   personalRecord: Schema.Struct({
     weight_kg: Schema.NullOr(Schema.Number),
     reps: Schema.NullOr(Schema.Number),
     volume_kg: Schema.NullOr(Schema.Number),
+    estimated_1rm_kg: Schema.optional(Schema.NullOr(Schema.Number)),
   }),
 });
 const RecoveryResultSchema = Schema.Struct({
@@ -134,6 +186,52 @@ const WorkoutStreakSchema = Schema.Struct({
   current_streak: Schema.Number,
   longest_streak: Schema.Number,
   last_workout_date: Schema.NullOr(Schema.String),
+});
+const TrainingLoadSchema = Schema.Struct({
+  weeks: Schema.Array(
+    Schema.Struct({
+      week_start: Schema.String,
+      workouts: Schema.Number,
+      sets: Schema.Number,
+      volume_kg: Schema.Number,
+      duration_sec: Schema.Number,
+    }),
+  ),
+  total_volume_kg: Schema.Number,
+  current_week_volume_kg: Schema.Number,
+  previous_week_volume_kg: Schema.NullOr(Schema.Number),
+  volume_change_pct: Schema.NullOr(Schema.Number),
+});
+const RecoveryTimelineSchema = Schema.Struct({
+  days: Schema.Array(
+    Schema.Struct({
+      date: Schema.String,
+      asleep_min: Schema.NullOr(Schema.Number),
+      workouts: Schema.Number,
+      volume_kg: Schema.Number,
+    }),
+  ),
+  average_sleep_hours: Schema.NullOr(Schema.Number),
+});
+const GoalProgressSchema = Schema.Struct({
+  period_days: Schema.Number,
+  average_steps: Schema.NullOr(Schema.Number),
+  step_goal: Schema.NullOr(Schema.Number),
+  workouts: Schema.Number,
+  workouts_goal: Schema.NullOr(Schema.Number),
+  latest_weight_kg: Schema.NullOr(Schema.Number),
+  target_weight_kg: Schema.NullOr(Schema.Number),
+  weight_remaining_kg: Schema.NullOr(Schema.Number),
+});
+const NextWorkoutSchema = Schema.Struct({
+  suggested_title: Schema.String,
+  readiness: Schema.Literals(["ready", "recover", "unknown"]),
+  reason: Schema.String,
+  last_workout_date: Schema.NullOr(Schema.String),
+  last_workout_title: Schema.NullOr(Schema.String),
+  days_since_last_workout: Schema.NullOr(Schema.Number),
+  recent_workout_count: Schema.Number,
+  sleep_average_hours: Schema.NullOr(Schema.Number),
 });
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -211,6 +309,7 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
       data.workouts.map((workout) => ({
         date: formatDate(workout.start_time),
         weight: workout.max_weight_kg,
+        estimatedOneRepMax: workout.estimated_1rm_kg,
       })),
     [data.workouts],
   );
@@ -229,6 +328,12 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
             PR: {data.personalRecord.weight_kg} kg × {data.personalRecord.reps ?? "—"}
           </span>
         )}
+        {data.personalRecord.estimated_1rm_kg !== undefined &&
+          data.personalRecord.estimated_1rm_kg !== null && (
+            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+              Est. 1RM: {data.personalRecord.estimated_1rm_kg.toFixed(1)} kg
+            </span>
+          )}
       </div>
       {data.workouts.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
@@ -250,6 +355,15 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
                   type="monotone"
                   dataKey="weight"
                   stroke="var(--primary)"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="estimatedOneRepMax"
+                  name="Estimated 1RM"
+                  stroke="var(--chart-2)"
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   connectNulls
@@ -405,6 +519,177 @@ export const WorkoutStreakCard: FC<{ data: WorkoutStreak }> = ({ data }) => (
   </div>
 );
 
+export const TrainingLoadView: FC<{ data: TrainingLoad }> = ({ data }) => {
+  const chartData = useMemo(
+    () =>
+      data.weeks.map((week) => ({
+        week: formatDate(week.week_start),
+        volume: week.volume_kg,
+        workouts: week.workouts,
+      })),
+    [data.weeks],
+  );
+
+  if (data.weeks.length === 0) {
+    return <p className="text-sm text-muted-foreground">No training load in this period.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">Training load</span>
+        <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+          {data.total_volume_kg.toFixed(0)} kg total
+        </span>
+        {data.volume_change_pct !== null && (
+          <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+            {data.volume_change_pct >= 0 ? "+" : ""}
+            {data.volume_change_pct.toFixed(1)}% vs prior week
+          </span>
+        )}
+      </div>
+      <div data-testid="training-load-chart" className="w-full min-w-0 rounded-md border p-2">
+        <ResponsiveContainer width="100%" height={176}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="week" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} unit=" kg" />
+            <RechartsTooltip />
+            <Bar dataKey="volume" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+export const RecoveryTimelineView: FC<{ data: RecoveryTimeline }> = ({ data }) => {
+  const chartData = useMemo(
+    () =>
+      data.days.map((day) => ({
+        date: formatDate(day.date),
+        asleepHours: day.asleep_min === null ? null : day.asleep_min / 60,
+        workouts: day.workouts,
+      })),
+    [data.days],
+  );
+  const hasData = data.days.some((day) => day.asleep_min !== null || day.workouts > 0);
+
+  if (!hasData) {
+    return (
+      <p className="text-sm text-muted-foreground">No recovery timeline data in this period.</p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">Recovery timeline</span>
+        {data.average_sleep_hours !== null && (
+          <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+            Sleep avg: {data.average_sleep_hours.toFixed(1)} h
+          </span>
+        )}
+      </div>
+      <div data-testid="recovery-timeline-chart" className="w-full min-w-0 rounded-md border p-2">
+        <ResponsiveContainer width="100%" height={176}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+            <YAxis yAxisId="sleep" tick={{ fontSize: 10 }} unit=" h" />
+            <YAxis yAxisId="workouts" orientation="right" tick={{ fontSize: 10 }} />
+            <RechartsTooltip />
+            <Line
+              yAxisId="sleep"
+              type="monotone"
+              dataKey="asleepHours"
+              name="Sleep"
+              stroke="var(--primary)"
+              strokeWidth={2}
+              dot={{ r: 2 }}
+              connectNulls
+            />
+            <Line
+              yAxisId="workouts"
+              type="step"
+              dataKey="workouts"
+              name="Workouts"
+              stroke="var(--chart-2)"
+              strokeWidth={2}
+              dot={{ r: 2 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+export const GoalProgressCard: FC<{ data: GoalProgress }> = ({ data }) => {
+  const stepProgress =
+    data.average_steps === null || data.step_goal === null
+      ? null
+      : Math.round((data.average_steps / data.step_goal) * 100);
+  const workoutProgress =
+    data.workouts_goal === null ? null : Math.round((data.workouts / data.workouts_goal) * 100);
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      <div className="rounded-lg border p-3">
+        <p className="text-muted-foreground text-xs">Steps ({data.period_days}d avg)</p>
+        <p className="text-lg font-semibold">
+          {data.average_steps === null
+            ? "No data"
+            : Math.round(data.average_steps).toLocaleString()}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {data.step_goal === null
+            ? "No target set"
+            : `${stepProgress}% of ${data.step_goal.toLocaleString()}`}
+        </p>
+      </div>
+      <div className="rounded-lg border p-3">
+        <p className="text-muted-foreground text-xs">Strength workouts</p>
+        <p className="text-lg font-semibold">{data.workouts}</p>
+        <p className="text-xs text-muted-foreground">
+          {data.workouts_goal === null
+            ? "No target set"
+            : `${workoutProgress}% of ${data.workouts_goal}`}
+        </p>
+      </div>
+      <div className="rounded-lg border p-3">
+        <p className="text-muted-foreground text-xs">Body weight</p>
+        <p className="text-lg font-semibold">
+          {data.latest_weight_kg === null ? "No data" : `${data.latest_weight_kg.toFixed(1)} kg`}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {data.target_weight_kg === null
+            ? "No target set"
+            : `${data.weight_remaining_kg?.toFixed(1) ?? "—"} kg to target`}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export const NextWorkoutCard: FC<{ data: NextWorkout }> = ({ data }) => (
+  <div className="flex flex-col gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-baseline gap-2">
+      <p className="text-muted-foreground text-xs">Suggested next workout</p>
+      <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">{data.readiness}</span>
+    </div>
+    <p className="text-lg font-semibold">{data.suggested_title}</p>
+    <p className="text-sm text-muted-foreground">{data.reason}</p>
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <span>Recent workouts: {data.recent_workout_count}</span>
+      {data.last_workout_date !== null && <span>Last: {formatDate(data.last_workout_date)}</span>}
+      {data.sleep_average_hours !== null && (
+        <span>Sleep avg: {data.sleep_average_hours.toFixed(1)} h</span>
+      )}
+    </div>
+  </div>
+);
+
 export const WorkoutHistoryToolRenderer: FC<{ result: unknown; className?: string }> = ({
   result,
   className,
@@ -449,4 +734,41 @@ export const WorkoutStreakToolRenderer: FC<{ result: unknown; className?: string
   const workoutStreak = Schema.decodeUnknownOption(WorkoutStreakSchema)(result);
   if (Option.isNone(workoutStreak)) return <FallbackResult value={result} className={className} />;
   return <WorkoutStreakCard data={workoutStreak.value} />;
+};
+
+export const TrainingLoadToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const trainingLoad = Schema.decodeUnknownOption(TrainingLoadSchema)(result);
+  if (Option.isNone(trainingLoad)) return <FallbackResult value={result} className={className} />;
+  return <TrainingLoadView data={trainingLoad.value} />;
+};
+
+export const RecoveryTimelineToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const recoveryTimeline = Schema.decodeUnknownOption(RecoveryTimelineSchema)(result);
+  if (Option.isNone(recoveryTimeline))
+    return <FallbackResult value={result} className={className} />;
+  return <RecoveryTimelineView data={recoveryTimeline.value} />;
+};
+
+export const GoalProgressToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const goalProgress = Schema.decodeUnknownOption(GoalProgressSchema)(result);
+  if (Option.isNone(goalProgress)) return <FallbackResult value={result} className={className} />;
+  return <GoalProgressCard data={goalProgress.value} />;
+};
+
+export const NextWorkoutToolRenderer: FC<{ result: unknown; className?: string }> = ({
+  result,
+  className,
+}) => {
+  const nextWorkout = Schema.decodeUnknownOption(NextWorkoutSchema)(result);
+  if (Option.isNone(nextWorkout)) return <FallbackResult value={result} className={className} />;
+  return <NextWorkoutCard data={nextWorkout.value} />;
 };

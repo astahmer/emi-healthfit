@@ -7,8 +7,12 @@ import * as Schema from "effect/Schema";
 import { catalog } from "./catalog.ts";
 import {
   ExerciseProgressView,
+  GoalProgressCard,
+  NextWorkoutCard,
   RecoveryCard,
+  RecoveryTimelineView,
   SleepTrendView,
+  TrainingLoadView,
   WorkoutStreakCard,
   WorkoutHistoryTable,
 } from "../../components/tool-renderers.tsx";
@@ -21,6 +25,10 @@ const { registry } = defineRegistry(catalog, {
     RecoveryCard: ({ props }) => <RecoveryCard data={props} />,
     SleepTrend: ({ props }) => <SleepTrendView data={props} />,
     WorkoutStreak: ({ props }) => <WorkoutStreakCard data={props} />,
+    TrainingLoad: ({ props }) => <TrainingLoadView data={props} />,
+    RecoveryTimeline: ({ props }) => <RecoveryTimelineView data={props} />,
+    GoalProgress: ({ props }) => <GoalProgressCard data={props} />,
+    NextWorkout: ({ props }) => <NextWorkoutCard data={props} />,
     MetricCard: ({ props }) => (
       <div className="rounded-lg border p-3">
         <p className="text-xs text-muted-foreground">{props.label}</p>

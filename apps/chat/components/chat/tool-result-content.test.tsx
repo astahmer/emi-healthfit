@@ -277,6 +277,60 @@ describe("ToolResultContent", () => {
             last_workout_date: "2026-07-19",
           }}
         />
+        <ToolResultContent
+          toolName="get_training_load"
+          result={{
+            weeks: [
+              {
+                week_start: "2026-07-13",
+                workouts: 3,
+                sets: 18,
+                volume_kg: 6_500,
+                duration_sec: 10_800,
+              },
+            ],
+            total_volume_kg: 6_500,
+            current_week_volume_kg: 6_500,
+            previous_week_volume_kg: 5_000,
+            volume_change_pct: 30,
+          }}
+        />
+        <ToolResultContent
+          toolName="get_recovery_timeline"
+          result={{
+            days: [
+              { date: "2026-07-18", asleep_min: 420, workouts: 1, volume_kg: 2_000 },
+              { date: "2026-07-19", asleep_min: 480, workouts: 0, volume_kg: 0 },
+            ],
+            average_sleep_hours: 7.5,
+          }}
+        />
+        <ToolResultContent
+          toolName="get_goal_progress"
+          result={{
+            period_days: 7,
+            average_steps: 8_500,
+            step_goal: 10_000,
+            workouts: 3,
+            workouts_goal: 3,
+            latest_weight_kg: 78.5,
+            target_weight_kg: 75,
+            weight_remaining_kg: -3.5,
+          }}
+        />
+        <ToolResultContent
+          toolName="get_next_workout"
+          result={{
+            suggested_title: "Upper body",
+            readiness: "ready",
+            reason: "Your last logged session was Lower body; this rotates the next focus.",
+            last_workout_date: "2026-07-19",
+            last_workout_title: "Lower body",
+            days_since_last_workout: 1,
+            recent_workout_count: 3,
+            sleep_average_hours: 7.5,
+          }}
+        />
       </div>,
     );
 
@@ -284,7 +338,13 @@ describe("ToolResultContent", () => {
     expect(screen.getByText("7h 00m")).toBeInTheDocument();
     expect(screen.getByText("Current streak")).toBeInTheDocument();
     expect(screen.getByText("3 days")).toBeInTheDocument();
+    expect(screen.getByText("Training load")).toBeInTheDocument();
+    expect(screen.getByText("Recovery timeline")).toBeInTheDocument();
+    expect(screen.getByText("Strength workouts")).toBeInTheDocument();
+    expect(screen.getByText("Suggested next workout")).toBeInTheDocument();
     expect(view.container.querySelector("[data-testid='sleep-trend-chart']")).not.toBeNull();
+    expect(view.container.querySelector("[data-testid='training-load-chart']")).not.toBeNull();
+    expect(view.container.querySelector("[data-testid='recovery-timeline-chart']")).not.toBeNull();
   });
 
   it("renders parsed string results as preformatted text", () => {

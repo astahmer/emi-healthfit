@@ -431,16 +431,86 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
         last_workout_date: "2026-07-19",
       },
     },
+    {
+      type: "dynamic-tool",
+      toolName: "get_training_load",
+      toolCallId: "load-1",
+      state: "output-available",
+      output: {
+        weeks: [
+          {
+            week_start: "2026-07-13",
+            workouts: 3,
+            sets: 18,
+            volume_kg: 6500,
+            duration_sec: 10_800,
+          },
+        ],
+        total_volume_kg: 6500,
+        current_week_volume_kg: 6500,
+        previous_week_volume_kg: 5000,
+        volume_change_pct: 30,
+      },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "get_recovery_timeline",
+      toolCallId: "timeline-1",
+      state: "output-available",
+      output: {
+        days: [
+          { date: "2026-07-18", asleep_min: 420, workouts: 1, volume_kg: 2000 },
+          { date: "2026-07-19", asleep_min: 480, workouts: 0, volume_kg: 0 },
+        ],
+        average_sleep_hours: 7.5,
+      },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "get_goal_progress",
+      toolCallId: "goals-1",
+      state: "output-available",
+      output: {
+        period_days: 7,
+        average_steps: 8500,
+        step_goal: 10_000,
+        workouts: 3,
+        workouts_goal: 3,
+        latest_weight_kg: 78.5,
+        target_weight_kg: 75,
+        weight_remaining_kg: -3.5,
+      },
+    },
+    {
+      type: "dynamic-tool",
+      toolName: "get_next_workout",
+      toolCallId: "next-1",
+      state: "output-available",
+      output: {
+        suggested_title: "Upper body",
+        readiness: "ready",
+        reason: "Your last logged session was Lower body; this rotates the next focus.",
+        last_workout_date: "2026-07-19",
+        last_workout_title: "Lower body",
+        days_since_last_workout: 1,
+        recent_workout_count: 3,
+        sleep_average_hours: 7.5,
+      },
+    },
   ];
   const mock = createChatMock({ state: { snapshots: { one: snapshot } } });
   await mock.open(page, "/chat/one");
 
-  const rawTool = page.locator("details").filter({ hasText: "get summary" });
-  const recoveryTool = page.locator("details").filter({ hasText: "get recovery" });
-  const progressTool = page.locator("details").filter({ hasText: "get exercise progress" });
-  const metricTool = page.locator("details").filter({ hasText: "render component" });
-  const sleepTool = page.locator("details").filter({ hasText: "get sleep trend" });
-  const streakTool = page.locator("details").filter({ hasText: "get workout streak" });
+  const rawTool = page.locator("details").filter({ hasText: /^⚒get summary/ });
+  const recoveryTool = page.locator("details").filter({ hasText: /^⚒get recoveryCompleted/ });
+  const progressTool = page.locator("details").filter({ hasText: /^⚒get exercise progress/ });
+  const metricTool = page.locator("details").filter({ hasText: /^⚒render component/ });
+  const sleepTool = page.locator("details").filter({ hasText: /^⚒get sleep trend/ });
+  const streakTool = page.locator("details").filter({ hasText: /^⚒get workout streak/ });
+  const loadTool = page.locator("details").filter({ hasText: /^⚒get training load/ });
+  const timelineTool = page.locator("details").filter({ hasText: /^⚒get recovery timeline/ });
+  const goalsTool = page.locator("details").filter({ hasText: /^⚒get goal progress/ });
+  const nextWorkoutTool = page.locator("details").filter({ hasText: /^⚒get next workout/ });
 
   await expect(rawTool).not.toHaveAttribute("open");
   await expect(recoveryTool).toHaveAttribute("open", "");
@@ -448,12 +518,20 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
   await expect(metricTool).toHaveAttribute("open", "");
   await expect(sleepTool).toHaveAttribute("open", "");
   await expect(streakTool).toHaveAttribute("open", "");
-  await expect(page.getByText("Ready")).toBeVisible();
+  await expect(loadTool).toHaveAttribute("open", "");
+  await expect(timelineTool).toHaveAttribute("open", "");
+  await expect(goalsTool).toHaveAttribute("open", "");
+  await expect(nextWorkoutTool).toHaveAttribute("open", "");
+  await expect(recoveryTool.getByText("Ready", { exact: true })).toBeVisible();
   await expect(page.getByText("Bench Press")).toBeVisible();
   await expect(page.getByText("Metric")).toBeVisible();
   await expect(page.getByText("flat")).toBeVisible();
   await expect(page.getByText("Sleep trend", { exact: true })).toBeVisible();
   await expect(page.getByText("Current streak")).toBeVisible();
+  await expect(page.getByText("Training load", { exact: true })).toBeVisible();
+  await expect(page.getByText("Recovery timeline", { exact: true })).toBeVisible();
+  await expect(page.getByText("Strength workouts")).toBeVisible();
+  await expect(page.getByText("Suggested next workout")).toBeVisible();
   await expect(metricTool.locator("pre")).toHaveCount(0);
   const chart = progressTool.getByTestId("exercise-progress-chart");
   await expect(chart).toBeVisible();
@@ -462,9 +540,17 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
   const sleepChart = sleepTool.getByTestId("sleep-trend-chart");
   await expect(sleepChart).toBeVisible();
   await expect(sleepChart.locator("svg")).toHaveCount(1);
+  const loadChart = loadTool.getByTestId("training-load-chart");
+  await expect(loadChart).toBeVisible();
+  await expect(loadChart.locator("svg")).toHaveCount(1);
+  const recoveryChart = timelineTool.getByTestId("recovery-timeline-chart");
+  await expect(recoveryChart).toBeVisible();
+  await expect(recoveryChart.locator("svg")).toHaveCount(1);
 
   await page.reload();
   await expect(page.getByText("Bench Press")).toBeVisible();
   await expect(page.getByText("Metric")).toBeVisible();
   await expect(page.getByText("Sleep trend", { exact: true })).toBeVisible();
+  await expect(page.getByText("Training load", { exact: true })).toBeVisible();
+  await expect(page.getByText("Suggested next workout")).toBeVisible();
 });
