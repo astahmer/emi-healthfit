@@ -62,12 +62,20 @@ export default Api.make(
   Effect.gen(function* () {
     const stack = yield* Stack;
     const buildId = resolveEmiBuildId({ stage: stack.stage });
+    const releaseEnvironment = {
+      EMI_BUILD_ID: buildId,
+      EMI_CHANGE_ID: process.env.EMI_CHANGE_ID ?? "",
+      EMI_COMMIT_ID: process.env.EMI_COMMIT_ID ?? "",
+      EMI_RELEASED_AT: process.env.EMI_RELEASED_AT ?? "",
+      EMI_RELEASE_HISTORY: process.env.EMI_RELEASE_HISTORY ?? "",
+      EMI_RELEASE_VERSION: process.env.EMI_RELEASE_VERSION ?? "",
+    };
     const chatAssets = yield* Command.Build("ChatAssets", {
       command: "pnpm exec vite build",
       cwd: chatAppDirectory,
       outdir: "dist",
       env: {
-        EMI_BUILD_ID: buildId,
+        ...releaseEnvironment,
         NODE_ENV: "production",
       },
       memo: {

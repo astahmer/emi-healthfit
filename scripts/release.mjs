@@ -20,15 +20,14 @@ const currentRevision = () => {
     command: "jj",
     args: ["log", "--no-graph", "-r", "@-", "-T", 'commit_id ++ "\\n" ++ change_id'],
   }).split("\n");
-  if (commitId === undefined || changeId === undefined) throw new Error("Could not resolve JJ revision.");
+  if (commitId === undefined || changeId === undefined)
+    throw new Error("Could not resolve JJ revision.");
   return { commitId, changeId };
 };
 
 const releaseChanges = ({ previousCommitId }) => {
   const revision =
-    previousCommitId === undefined
-      ? "@-"
-      : `ancestors(@-) ~ ancestors(${previousCommitId})`;
+    previousCommitId === undefined ? "@-" : `ancestors(@-) ~ ancestors(${previousCommitId})`;
   const output = run({
     command: "jj",
     args: ["log", "--no-graph", "-r", revision, "-T", 'description.first_line() ++ "\\n"'],
@@ -63,12 +62,80 @@ const previousHistory = async () => {
 };
 
 const packageVersion = () => {
-  const packageJson = JSON.parse(readFileSync(resolve(rootDirectory, "apps/chat/package.json"), "utf8"));
+  const packageJson = JSON.parse(
+    readFileSync(resolve(rootDirectory, "apps/chat/package.json"), "utf8"),
+  );
   if (typeof packageJson.version !== "string") throw new Error("Chat package version is missing.");
   return packageJson.version;
 };
 
+const productionDatabase = () => {
+  const databases = JSON.parse(
+    run({
+      command: pnpm,
+      args: [
+        "--dir",
+        "apps/api",
+        "exec",
+        "wrangler",
+        "d1",
+        "list",
+        "--json",
+        "--env-file",
+        "../../.env.prod",
+      ],
+    }),
+  );
+  const database = databases.find(
+    (candidate) =>
+      typeof candidate.name === "string" &&
+      candidate.name.startsWith("emi-healthfit-GymData-prod-"),
+  );
+  if (database === undefined) throw new Error("Could not find the production GymData database.");
+  return database.name;
+};
+
+const assertProductionMigrations = () => {
+  const journal = JSON.parse(
+    readFileSync(resolve(rootDirectory, "apps/api/migrations/meta/_journal.json"), "utf8"),
+  );
+  const generatedMigrations = journal.entries.map((entry) => `${entry.tag}.sql`);
+  const database = productionDatabase();
+  const result = JSON.parse(
+    run({
+      command: pnpm,
+      args: [
+        "--dir",
+        "apps/api",
+        "exec",
+        "wrangler",
+        "d1",
+        "execute",
+        database,
+        "--remote",
+        "--command",
+        "SELECT name FROM d1_migrations",
+        "--json",
+        "--yes",
+        "--env-file",
+        "../../.env.prod",
+      ],
+    }),
+  );
+  const applied = new Set(
+    result.flatMap((command) => command.results ?? []).map((row) => row.name),
+  );
+  const latestApplied = generatedMigrations.filter((name) => applied.has(name)).at(-1);
+  const pending = generatedMigrations.filter(
+    (name) => (latestApplied === undefined || name > latestApplied) && !applied.has(name),
+  );
+  if (pending.length > 0) {
+    throw new Error(`Apply production D1 migrations before release: ${pending.join(", ")}`);
+  }
+};
+
 runPnpm({ args: ["release:check"] });
+assertProductionMigrations();
 
 if (run({ command: "jj", args: ["diff", "--from", "@-", "--to", "@", "--summary"] }) !== "") {
   throw new Error("Commit the release before deploying so the JJ revision is stable.");
