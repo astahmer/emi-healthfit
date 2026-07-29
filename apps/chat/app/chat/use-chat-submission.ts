@@ -194,6 +194,7 @@ export const useChatSubmission = ({
             sessionId,
             threadId: config.threadId,
             replaceMessageId,
+            requestId: userMessage.id,
           },
         });
         await consumeAssistantStream({

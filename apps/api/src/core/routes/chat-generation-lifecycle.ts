@@ -2,6 +2,7 @@ import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Content } from "@emi/core/contract";
 import * as Cause from "effect/Cause";
+import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -25,6 +26,7 @@ import {
   finishGeneration,
   GenerationAlreadyActiveError,
   getGeneration,
+  getGenerationByRequestId,
   getGenerationChunks,
   getResumableGeneration,
   getRunningGeneration,
@@ -35,6 +37,7 @@ import {
 } from "../chat/generation-store.ts";
 import { createGenerationReplayStream } from "../chat/generation-replay.ts";
 import { createChatStreamResponse } from "../chat/ui-message-stream-response.ts";
+import { createChatOperationBudget } from "../chat/generation-budget.ts";
 import {
   addThreadMessage,
   createConversation,
@@ -146,6 +149,55 @@ const DiagnosticEventRequest = Schema.Struct({
   payload: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 });
 
+const createGenerationReplayResponse = ({
+  db,
+  userId,
+  conversationId,
+  generation,
+  request,
+  services,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  conversationId: string;
+  generation: ChatGeneration;
+  request: HttpServerRequest;
+  services: Context.Context<RuntimeContext>;
+}) => {
+  const response = createChatStreamResponse({
+    stream: Stream.toReadableStreamWith(
+      createGenerationReplayStream({
+        generationId: generation.id,
+        getChunks: ({ generationId, afterSequence }) =>
+          getGenerationChunks({ db, userId, generationId, afterSequence }),
+        getGeneration: (generationId) =>
+          Effect.gen(function* () {
+            const current = yield* getGeneration({ db, userId, generationId });
+            if (current === null || !isGenerationStale(current)) return current;
+            yield* finishGeneration({
+              db,
+              userId,
+              generationId,
+              status: "failed",
+              error: "Generation timed out",
+            });
+            return { ...current, status: "failed", error: "Generation timed out" };
+          }),
+        poll: Effect.sleep("1 second"),
+      }),
+      services,
+    ),
+    headers: {
+      "x-thread-id": conversationId,
+      "x-generation-id": generation.id,
+      "x-request-id": generation.request_id,
+      "x-trace-id": generation.trace_id,
+      ...corsHeaders(request),
+    },
+  });
+  return HttpServerResponse.fromWeb(response);
+};
+
 export const handleConversationDiagnosticEvent = (
   db: QueryDatabaseClient,
   request: HttpServerRequest,
@@ -235,6 +287,9 @@ export const handleAiSdkChat = (
     const apiKey = chatRequest.config.apiKey;
 
     const isTemporary = chatRequest.temporary === true;
+    const requestId =
+      chatRequest.requestId ?? request.headers["x-request-id"] ?? crypto.randomUUID();
+    const traceId = request.headers["x-trace-id"] ?? requestId;
 
     const sessionId =
       chatRequest.sessionId ??
@@ -243,17 +298,34 @@ export const handleAiSdkChat = (
         : yield* createConversation(conversationDb, user.id));
 
     if (!isTemporary) {
-      const reconciledGenerations = yield* reconcileFinishedGenerations({ db, userId: user.id });
-      const abandonedGenerations = yield* expireStaleGenerations({ db, userId: user.id });
-      const deletedGenerations = yield* cleanupGenerationHistory({ db, userId: user.id });
-      if (reconciledGenerations > 0 || abandonedGenerations > 0 || deletedGenerations > 0) {
-        yield* Effect.logInfo("chat.generation.maintenance").pipe(
-          Effect.annotateLogs({ reconciledGenerations, abandonedGenerations, deletedGenerations }),
-        );
-      }
       const conversation = yield* getConversation(conversationDb, user.id, sessionId);
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+      }
+      const existingGeneration = yield* getGenerationByRequestId({
+        db,
+        userId: user.id,
+        conversationId: sessionId,
+        requestId,
+      });
+      if (existingGeneration !== null) {
+        const services = yield* Effect.context<RuntimeContext>();
+        yield* Effect.logInfo("chat.generation.idempotent-replay").pipe(
+          Effect.annotateLogs({
+            sessionId,
+            generationId: existingGeneration.id,
+            requestId,
+            traceId,
+          }),
+        );
+        return createGenerationReplayResponse({
+          db,
+          userId: user.id,
+          conversationId: sessionId,
+          generation: existingGeneration,
+          request,
+          services,
+        });
       }
     }
 
@@ -293,8 +365,7 @@ export const handleAiSdkChat = (
       ? undefined
       : yield* Cloudflare.Workers.WorkerExecutionContext;
     const generationId = crypto.randomUUID();
-    const requestId = request.headers["x-request-id"] ?? crypto.randomUUID();
-    const traceId = request.headers["x-trace-id"] ?? requestId;
+    const budget = createChatOperationBudget();
     if (hooks.beforeChat !== undefined) {
       yield* hooks.beforeChat({ db, userId: user.id, environment });
     }
@@ -316,6 +387,7 @@ export const handleAiSdkChat = (
       model: chatRequest.config.model,
       services,
       executeTool,
+      budget,
     });
 
     if (!isTemporary) {
@@ -548,6 +620,7 @@ export const handleAiSdkChat = (
             requestId,
             traceId,
             stream: streams[1],
+            budget,
           }),
         ),
       );
@@ -610,41 +683,14 @@ export const handleChatResume = (
     }
 
     const services = yield* Effect.context<RuntimeContext>();
-    const response = createChatStreamResponse({
-      stream: Stream.toReadableStreamWith(
-        createGenerationReplayStream({
-          generationId: generation.id,
-          getChunks: ({ generationId, afterSequence }) =>
-            getGenerationChunks({ db, userId: user.id, generationId, afterSequence }),
-          getGeneration: (generationId) =>
-            Effect.gen(function* () {
-              const current = yield* getGeneration({ db, userId: user.id, generationId });
-              if (current === null || !isGenerationStale(current)) return current;
-              yield* finishGeneration({
-                db,
-                userId: user.id,
-                generationId,
-                status: "failed",
-                error: "Generation timed out",
-              });
-              const failedGeneration: ChatGeneration = {
-                ...current,
-                status: "failed",
-                error: "Generation timed out",
-              };
-              return failedGeneration;
-            }),
-          poll: Effect.sleep("1 second"),
-        }),
-        services,
-      ),
-      headers: {
-        "x-thread-id": conversationId,
-        "x-generation-id": generation.id,
-        ...corsHeaders(request),
-      },
+    return createGenerationReplayResponse({
+      db,
+      userId: user.id,
+      conversationId,
+      generation,
+      request,
+      services,
     });
-    return HttpServerResponse.fromWeb(response);
   }).pipe(
     Effect.catch((error) =>
       HttpServerResponse.json(

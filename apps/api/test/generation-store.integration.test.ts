@@ -9,6 +9,7 @@ import {
   expireStaleGenerations,
   finishGeneration,
   getGeneration,
+  getGenerationByRequestId,
   getGenerationChunks,
   getResumableGeneration,
   getRunningGeneration,
@@ -48,6 +49,30 @@ describe("generation store SQLite integration", () => {
     assert.strictEqual(
       (await run(getGeneration({ db, userId, generationId: "generation-a" })))?.status,
       "pending",
+    );
+    assert.strictEqual(
+      (
+        await run(
+          getGenerationByRequestId({
+            db,
+            userId,
+            conversationId,
+            requestId: "request-a",
+          }),
+        )
+      )?.id,
+      "generation-a",
+    );
+    assert.strictEqual(
+      await run(
+        getGenerationByRequestId({
+          db,
+          userId,
+          conversationId,
+          requestId: "another-request",
+        }),
+      ),
+      null,
     );
     await run(markGenerationStreaming({ db, userId, generationId: "generation-a" }));
     await run(

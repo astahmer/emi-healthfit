@@ -2,6 +2,7 @@ import { RuntimeContext } from "alchemy";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { generateThreadSummary } from "../chat/ai-sdk.ts";
+import type { createChatOperationBudget } from "../chat/generation-budget.ts";
 import { recordChatEvent } from "../chat/generation-store.ts";
 import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
 import type { QueryDatabaseClient } from "../../platform/db/client.ts";
@@ -20,6 +21,7 @@ export const createChatToolExecutor = ({
   model,
   services,
   executeTool,
+  budget,
 }: {
   db: QueryDatabaseClient;
   userId: string;
@@ -33,21 +35,33 @@ export const createChatToolExecutor = ({
   model: string;
   services: Context.Context<RuntimeContext>;
   executeTool: ChatToolExecutor;
+  budget: ReturnType<typeof createChatOperationBudget>;
 }) => {
   const toolCircuitBreaker = createToolCircuitBreaker();
   const recordEvent = (type: string, payload: Record<string, unknown> = {}) =>
     isTemporary
       ? Effect.void
-      : recordChatEvent({
-          db,
-          userId,
-          conversationId: sessionId,
-          generationId,
-          requestId,
-          traceId,
-          type,
-          payload,
-        });
+      : !budget.tryReserve({ category: "telemetry" })
+        ? Effect.logWarning("chat.operation-budget.telemetry-skipped").pipe(
+            Effect.annotateLogs({
+              sessionId,
+              generationId,
+              requestId,
+              traceId,
+              type,
+              ...budget.snapshot(),
+            }),
+          )
+        : recordChatEvent({
+            db,
+            userId,
+            conversationId: sessionId,
+            generationId,
+            requestId,
+            traceId,
+            type,
+            payload,
+          });
   const executeToolWithServices = (name: string, args: Record<string, unknown>) => {
     const toolStartedAt = performance.now();
     if (toolCircuitBreaker.isBlocked({ name, args })) {
@@ -57,6 +71,19 @@ export const createChatToolExecutor = ({
             Effect.fail(
               new Error(
                 `Repeated failed ${name} call blocked. Use another tool or report the observed error.`,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    if (!budget.tryStartToolCall()) {
+      return Effect.runPromiseWith(services)(
+        recordEvent("tool.blocked", { tool: name, args, code: "TOOL_BUDGET_EXHAUSTED" }).pipe(
+          Effect.andThen(
+            Effect.fail(
+              new Error(
+                "Tool-call budget exhausted. Answer from available context or ask the user to retry.",
               ),
             ),
           ),

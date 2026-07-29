@@ -4,6 +4,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type { UIMessageChunk } from "ai";
+import type { createChatOperationBudget } from "../chat/generation-budget.ts";
 import {
   appendGenerationChunks,
   finishGeneration,
@@ -23,6 +24,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   requestId,
   traceId,
   stream,
+  budget,
 }: {
   db: QueryDatabaseClient;
   userId: string;
@@ -31,6 +33,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   requestId: string;
   traceId: string;
   stream: ReadableStream<UIMessageChunk>;
+  budget: ReturnType<typeof createChatOperationBudget>;
 }) {
   const streamError = yield* Ref.make<string | undefined>(undefined);
   const finishReason = yield* Ref.make<string | undefined>(undefined);
@@ -38,10 +41,31 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   const bufferedChunks = yield* Ref.make<Array<{ sequence: number; chunk: UIMessageChunk }>>([]);
   const persistenceStartedAt = performance.now();
   const previousChunkAt = yield* Ref.make(persistenceStartedAt);
+  const recordEvent = (type: string, payload: Record<string, unknown>) =>
+    budget.tryReserve({ category: "telemetry" })
+      ? recordChatEvent({
+          db,
+          userId,
+          conversationId,
+          generationId,
+          requestId,
+          traceId,
+          type,
+          payload,
+        })
+      : Effect.logWarning("chat.operation-budget.telemetry-skipped").pipe(
+          Effect.annotateLogs({ generationId, requestId, traceId, type, ...budget.snapshot() }),
+        );
   const flushChunks = () =>
     Effect.gen(function* () {
       const chunks = yield* Ref.getAndSet(bufferedChunks, []);
       if (chunks.length === 0) return;
+      if (!budget.tryReserve({ category: "persistence", operations: 2 })) {
+        yield* Effect.logWarning("chat.operation-budget.persistence-skipped").pipe(
+          Effect.annotateLogs({ generationId, chunks: chunks.length, ...budget.snapshot() }),
+        );
+        return;
+      }
       yield* appendGenerationChunks({ db, userId, generationId, chunks });
     });
   const persist = Stream.fromReadableStream({
@@ -56,16 +80,11 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
         yield* Ref.update(bufferedChunks, (chunks) => [...chunks, { sequence, chunk }]);
         if (sequence === 0) {
           yield* flushChunks();
-          yield* markGenerationStreaming({ db, userId, generationId });
-          yield* recordChatEvent({
-            db,
-            userId,
-            conversationId,
-            generationId,
-            requestId,
-            traceId,
-            type: "provider.first_chunk",
-            payload: { timeToFirstChunkMilliseconds: Math.round(timestamp - persistenceStartedAt) },
+          if (budget.tryReserve({ category: "persistence", essential: true })) {
+            yield* markGenerationStreaming({ db, userId, generationId });
+          }
+          yield* recordEvent("provider.first_chunk", {
+            timeToFirstChunkMilliseconds: Math.round(timestamp - persistenceStartedAt),
           });
         }
         if (sequence > 0 && (sequence + 1) % chunkBatchSize === 0) yield* flushChunks();
@@ -105,23 +124,16 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
           yield* Effect.logError("chat.generation.failure").pipe(
             Effect.annotateLogs({ generationId, error: message }),
           );
-          yield* recordChatEvent({
-            db,
-            userId,
-            conversationId,
-            generationId,
-            requestId,
-            traceId,
-            type: "persistence.failed",
-            payload: { error: message },
-          });
-          yield* finishGeneration({
-            db,
-            userId,
-            generationId,
-            status: "failed",
-            error: message,
-          });
+          yield* recordEvent("persistence.failed", { error: message });
+          if (budget.tryReserve({ category: "persistence", essential: true })) {
+            yield* finishGeneration({
+              db,
+              userId,
+              generationId,
+              status: "failed",
+              error: message,
+            });
+          }
         }),
       onSuccess: () =>
         Effect.all([Ref.get(streamError), Ref.get(finishReason), Ref.get(sawFinish)]).pipe(
@@ -130,27 +142,28 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
               streamError: streamErrorValue,
               sawFinish: finished,
             });
-            return Effect.all(
-              [
-                finishGeneration({
+            const persistTerminal = budget.tryReserve({
+              category: "persistence",
+              essential: true,
+            })
+              ? finishGeneration({
                   db,
                   userId,
                   generationId,
                   status: terminal.status,
                   error: terminal.error,
                   finishReason: reason,
-                }),
-                recordChatEvent({
-                  db,
-                  userId,
-                  conversationId,
-                  generationId,
-                  requestId,
-                  traceId,
-                  type:
-                    terminal.status === "completed" ? "generation.completed" : "generation.failed",
-                  payload: { error: terminal.error ?? null, finishReason: reason ?? null },
-                }),
+                })
+              : Effect.logError("chat.operation-budget.terminal-persistence-exhausted").pipe(
+                  Effect.annotateLogs({ generationId, ...budget.snapshot() }),
+                );
+            return Effect.all(
+              [
+                persistTerminal,
+                recordEvent(
+                  terminal.status === "completed" ? "generation.completed" : "generation.failed",
+                  { error: terminal.error ?? null, finishReason: reason ?? null },
+                ),
               ],
               { discard: true },
             );

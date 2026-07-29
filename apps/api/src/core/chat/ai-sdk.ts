@@ -75,6 +75,7 @@ export interface ChatStreamRequest {
   sessionId?: string | undefined;
   threadId?: string | undefined;
   replaceMessageId?: string | undefined;
+  requestId?: string | undefined;
 }
 
 const buildToolSet = (

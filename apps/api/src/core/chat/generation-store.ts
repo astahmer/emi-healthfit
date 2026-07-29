@@ -495,6 +495,31 @@ export const getGeneration = Effect.fn("chatGeneration.get")(function* ({
   return result ?? null;
 });
 
+export const getGenerationByRequestId = Effect.fn("chatGeneration.getByRequestId")(function* ({
+  db,
+  userId,
+  conversationId,
+  requestId,
+}: {
+  db: QueryDatabaseClient;
+  userId: string;
+  conversationId: string;
+  requestId: string;
+}) {
+  const kysely = yield* db.kysely;
+  const result = yield* Effect.promise(() =>
+    kysely
+      .selectFrom("chat_generations")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("conversation_id", "=", conversationId)
+      .where("request_id", "=", requestId)
+      .orderBy("created_at", "desc")
+      .executeTakeFirst(),
+  );
+  return result ?? null;
+});
+
 export const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* ({
   db,
   userId,
