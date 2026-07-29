@@ -7,8 +7,8 @@ const rootDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const productionReleaseHistoryUrl = "https://emi-healthfit.astahmer.dev/release-history.json";
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
-const run = ({ command, args }) =>
-  execFileSync(command, args, { cwd: rootDirectory, encoding: "utf8" }).trim();
+const run = ({ command, args, cwd = rootDirectory }) =>
+  execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 
 const runPnpm = ({ args, env = process.env }) => {
   const result = spawnSync(pnpm, args, { cwd: rootDirectory, env, stdio: "inherit" });
@@ -73,17 +73,8 @@ const productionDatabase = () => {
   const databases = JSON.parse(
     run({
       command: pnpm,
-      args: [
-        "--dir",
-        "apps/api",
-        "exec",
-        "wrangler",
-        "d1",
-        "list",
-        "--json",
-        "--env-file",
-        ".env.prod",
-      ],
+      cwd: resolve(rootDirectory, "apps/api"),
+      args: ["exec", "wrangler", "d1", "list", "--json", "--env-file", "../../.env.prod"],
     }),
   );
   const database = databases.find(
@@ -104,9 +95,8 @@ const assertProductionMigrations = () => {
   const result = JSON.parse(
     run({
       command: pnpm,
+      cwd: resolve(rootDirectory, "apps/api"),
       args: [
-        "--dir",
-        "apps/api",
         "exec",
         "wrangler",
         "d1",
