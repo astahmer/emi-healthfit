@@ -16,14 +16,14 @@ describe("app version helpers", () => {
   it("keeps the deployment metadata from a release manifest", () => {
     expect(
       parseAppVersionInfo({
-        version: "0.1.0-2026-07-29",
+        version: "0.1.0-2026-07-29-12-34",
         buildId: "a1c0fb3c6480",
         releasedAt: "2026-07-29T12:34:56.000Z",
         commitId: "a1c0fb3c6480",
         changeId: "qunyuxxxzxlz",
       }),
     ).toEqual({
-      version: "0.1.0-2026-07-29",
+      version: "0.1.0-2026-07-29-12-34",
       buildId: "a1c0fb3c6480",
       releasedAt: "2026-07-29T12:34:56.000Z",
       commitId: "a1c0fb3c6480",

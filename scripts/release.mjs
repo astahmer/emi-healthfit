@@ -143,7 +143,7 @@ if (run({ command: "jj", args: ["diff", "--from", "@-", "--to", "@", "--summary"
 
 const revision = currentRevision();
 const releasedAt = new Date().toISOString();
-const version = `${packageVersion()}-${releasedAt.slice(0, 10)}`;
+const version = `${packageVersion()}-${releasedAt.slice(0, 16).replace("T", "-").replace(":", "-")}`;
 const history = await previousHistory();
 const changes = releaseChanges({ previousCommitId: history[0]?.commitId });
 const release = { version, releasedAt, ...revision, changes };

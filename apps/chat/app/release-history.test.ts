@@ -7,7 +7,7 @@ describe("parseReleaseHistory", () => {
       parseReleaseHistory({
         releases: [
           {
-            version: "0.1.0-2026-07-29",
+            version: "0.1.0-2026-07-29-12-34",
             releasedAt: "2026-07-29T12:34:56.000Z",
             commitId: "a1c0fb3c6480",
             changeId: "qunyuxxxzxlz",
@@ -18,7 +18,7 @@ describe("parseReleaseHistory", () => {
     ).toEqual({
       releases: [
         {
-          version: "0.1.0-2026-07-29",
+          version: "0.1.0-2026-07-29-12-34",
           releasedAt: "2026-07-29T12:34:56.000Z",
           commitId: "a1c0fb3c6480",
           changeId: "qunyuxxxzxlz",
