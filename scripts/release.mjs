@@ -140,7 +140,7 @@ const release = { version, releasedAt, ...revision, changes };
 const releases = [release, ...history.filter((entry) => entry.commitId !== revision.commitId)];
 
 runPnpm({
-  args: ["--filter", "@emi/api", "deploy:prod"],
+  args: ["--filter", "@emi/api", "deploy:prod", "--", "--yes"],
   env: {
     ...process.env,
     EMI_BUILD_ID: revision.commitId.slice(0, 12),
