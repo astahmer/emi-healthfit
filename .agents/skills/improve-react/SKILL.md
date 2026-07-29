@@ -101,7 +101,7 @@ Then **stop and wait for the user to select** which findings become plans. If ru
 
 One plan per selected finding, using [PLAN-TEMPLATE.md](PLAN-TEMPLATE.md), written into `plans/` as `NNN-short-slug.md` (monotonic numbering; respect existing plans). Stamp each plan with the current commit (`git rev-parse --short HEAD`).
 
-Write for the weakest executor: exact file paths and current-code excerpts, the exact target code (pulled from the canonical per-rule prompt, never approximated), the repo's own conventions with an exemplar to imitate, ordered steps, hard scope boundaries, and a verification section — mechanical (`npx react-doctor@latest --scope changed` clears the diagnostic without dropping the score, plus typecheck/lint/tests) and behavioral (what to click and what to confirm in the React DevTools Profiler / "Highlight updates").
+Write for the weakest executor: exact file paths and current-code excerpts, the exact target code (pulled from the canonical per-rule prompt, never approximated), the repo's own conventions with an exemplar to imitate, ordered steps, hard scope boundaries, and a verification section — mechanical (`npx react-doctor@latest --scope changed` clears the diagnostic without dropping the score; React Doctor scopes are only `full` / `changed` / `files` / `lines`, never a file path — plus typecheck/lint/tests) and behavioral (what to click and what to confirm in the React DevTools Profiler / "Highlight updates").
 
 Finish by creating or updating `plans/README.md`: recommended execution order, dependencies between plans, and a status column.
 

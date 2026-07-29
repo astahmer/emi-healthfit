@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { useCallback, type MutableRefObject } from "react";
+import { useCallback, useRef, useState, type MutableRefObject } from "react";
 import { type EventFrom, type SnapshotFrom } from "xstate";
 import { runApi } from "../api-client";
 import { notifyConversationsChanged } from "../conversation-events";
@@ -10,15 +10,25 @@ import { buildNotesContext } from "../notes";
 import { type useNotes } from "../notes-context";
 import { createConversation } from "../sessions";
 import { type useSettings } from "../settings-store";
-import { chatRuntimeMachine } from "./chat-runtime-machine";
+import { chatRuntimeMachine, type QueuedFollowUp } from "./chat-runtime-machine";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
-import { consumeAssistantStream, type ChatTransport } from "./chat-transport";
+import {
+  consumeAssistantStream,
+  StreamInactivityError,
+  type ChatTransport,
+} from "./chat-transport";
 import { OrphanTurnError } from "./orphan-turn-error";
+import { shouldAcceptStreamUpdate } from "./stream-operation";
 
 type ChatRuntimeSnapshot = SnapshotFrom<typeof chatRuntimeMachine>;
 type ChatRuntimeEvent = EventFrom<typeof chatRuntimeMachine>;
 type ChatSettings = ReturnType<typeof useSettings.getState>["settings"];
 type Notes = ReturnType<typeof useNotes>["notes"];
+
+const partsFromQueuedFollowUp = (item: QueuedFollowUp): UIMessage["parts"] => [
+  ...(item.text.trim() === "" ? [] : [{ type: "text" as const, text: item.text }]),
+  ...item.files,
+];
 
 export const useChatSubmission = ({
   config,
@@ -33,6 +43,8 @@ export const useChatSubmission = ({
   synchronizePersistedHistory,
   onSessionCreated,
   recordClientEvent,
+  editingQueuedIdRef,
+  setEditingQueuedId,
 }: {
   config: ChatRuntimeConfig;
   settings: ChatSettings;
@@ -45,8 +57,13 @@ export const useChatSubmission = ({
   transport: ChatTransport;
   synchronizePersistedHistory: (sessionId: string) => Promise<ConversationSnapshot>;
   onSessionCreated?: (id: string) => void;
-  recordClientEvent: (type: "client.disconnected" | "client.retried") => void;
+  recordClientEvent: (type: "client.disconnected" | "client.stopped" | "client.retried") => void;
+  editingQueuedIdRef: MutableRefObject<string | null>;
+  setEditingQueuedId: (id: string | null) => void;
 }) => {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryInFlightRef = useRef(false);
+
   const autoSaveAssistantMemories = useCallback(
     async ({ sessionId, snapshot }: { sessionId: string; snapshot: ConversationSnapshot }) => {
       if (config.temporary) return;
@@ -77,20 +94,56 @@ export const useChatSubmission = ({
     [config.model, config.temporary, settings.apiKey, settings.baseUrl],
   );
 
+  const cancelActiveGeneration = useCallback(() => {
+    if (!stateRef.current.matches("streaming") && abortControllerRef.current === null) return;
+    recordClientEvent("client.stopped");
+    operationRef.current += 1;
+    abortControllerRef.current?.abort();
+    cancelStreamRef.current?.();
+    abortControllerRef.current = null;
+  }, [abortControllerRef, cancelStreamRef, operationRef, recordClientEvent, stateRef]);
+
   const submitMessage = useCallback(
     async ({
       text,
       parts,
       replaceMessageId,
+      interrupt = false,
     }: {
       text?: string;
       parts?: UIMessage["parts"];
       replaceMessageId?: string;
+      interrupt?: boolean;
     }) => {
-      if (stateRef.current.matches("streaming")) return;
       const content = (text ?? stateRef.current.context.draft).trim();
-      if (parts === undefined && content === "" && stateRef.current.context.files.length === 0)
+      const queuedFiles =
+        text === undefined && parts === undefined ? stateRef.current.context.files : [];
+      if (parts === undefined && content === "" && queuedFiles.length === 0) return;
+
+      const editingQueuedId = editingQueuedIdRef.current;
+      if (editingQueuedId !== null && replaceMessageId === undefined && !interrupt) {
+        send({
+          type: "followUp.updated",
+          id: editingQueuedId,
+          text: content,
+          files: parts === undefined ? queuedFiles : [],
+        });
+        setEditingQueuedId(null);
         return;
+      }
+
+      if (stateRef.current.matches("streaming") && replaceMessageId === undefined && !interrupt) {
+        send({
+          type: "followUp.queued",
+          id: crypto.randomUUID(),
+          text: content,
+          files: parts === undefined ? queuedFiles : [],
+        });
+        return;
+      }
+
+      cancelActiveGeneration();
+      setEditingQueuedId(null);
 
       let sessionId = config.sessionId;
       if (sessionId === undefined) {
@@ -146,17 +199,50 @@ export const useChatSubmission = ({
         await consumeAssistantStream({
           stream,
           onMessage: (message) => {
-            if (operationRef.current === operation) send({ type: "stream.updated", message });
+            if (
+              shouldAcceptStreamUpdate({
+                activeOperation: operationRef.current,
+                eventOperation: operation,
+              })
+            ) {
+              send({ type: "stream.updated", message });
+            }
           },
           cancelRef: cancelStreamRef,
         });
-        if (operationRef.current !== operation) return;
+        if (
+          !shouldAcceptStreamUpdate({
+            activeOperation: operationRef.current,
+            eventOperation: operation,
+          })
+        ) {
+          return;
+        }
         send({ type: "stream.completed" });
-        const snapshot = await synchronizePersistedHistory(sessionId);
-        notifyConversationsChanged();
-        void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
+        const nextQueued = stateRef.current.context.queuedFollowUps[0];
+        if (nextQueued !== undefined) {
+          send({ type: "followUp.removed", id: nextQueued.id });
+        }
+        if (!config.temporary) {
+          const snapshot = await synchronizePersistedHistory(sessionId);
+          notifyConversationsChanged();
+          void autoSaveAssistantMemories({ sessionId, snapshot }).catch(() => undefined);
+        }
+        if (nextQueued !== undefined) {
+          await submitMessage({
+            text: nextQueued.text,
+            parts: partsFromQueuedFollowUp(nextQueued),
+          });
+        }
       } catch (error) {
-        if (operationRef.current !== operation) return;
+        if (
+          !shouldAcceptStreamUpdate({
+            activeOperation: operationRef.current,
+            eventOperation: operation,
+          })
+        ) {
+          return;
+        }
         if (controller.signal.aborted) {
           send({ type: "stream.stopped" });
           return;
@@ -166,7 +252,9 @@ export const useChatSubmission = ({
           error: error instanceof Error ? error : new Error(String(error)),
           messageId: userMessage.id,
         });
-        recordClientEvent("client.disconnected");
+        recordClientEvent(
+          error instanceof StreamInactivityError ? "client.stopped" : "client.disconnected",
+        );
       } finally {
         if (abortControllerRef.current === controller) abortControllerRef.current = null;
       }
@@ -174,6 +262,7 @@ export const useChatSubmission = ({
     [
       abortControllerRef,
       autoSaveAssistantMemories,
+      cancelActiveGeneration,
       cancelStreamRef,
       config.coachMode,
       config.model,
@@ -181,11 +270,13 @@ export const useChatSubmission = ({
       config.temporary,
       config.threadId,
       config.webSearch,
+      editingQueuedIdRef,
       notes,
       onSessionCreated,
       operationRef,
       recordClientEvent,
       send,
+      setEditingQueuedId,
       settings.apiKey,
       settings.baseUrl,
       settings.provider,
@@ -196,7 +287,27 @@ export const useChatSubmission = ({
     ],
   );
 
-  const submit = useCallback((text?: string) => submitMessage({ text }), [submitMessage]);
+  const submit = useCallback(
+    (text?: string, options?: { interrupt?: boolean }) =>
+      submitMessage({ text, interrupt: options?.interrupt }),
+    [submitMessage],
+  );
+
+  const forceSendQueued = useCallback(
+    async (id?: string) => {
+      const queue = stateRef.current.context.queuedFollowUps;
+      const target = id === undefined ? queue[0] : queue.find((item) => item.id === id);
+      if (target === undefined) return;
+      send({ type: "followUp.removed", id: target.id });
+      if (editingQueuedIdRef.current === target.id) setEditingQueuedId(null);
+      await submitMessage({
+        text: target.text,
+        parts: partsFromQueuedFollowUp(target),
+        interrupt: true,
+      });
+    },
+    [editingQueuedIdRef, send, setEditingQueuedId, stateRef, submitMessage],
+  );
 
   const revise = useCallback(
     async ({ messageId, text }: { messageId: string; text?: string }) => {
@@ -207,6 +318,10 @@ export const useChatSubmission = ({
         .findLast((message) => message.role === "user");
       const sessionId = config.sessionId;
       if (userMessage === undefined || sessionId === undefined || config.temporary) return;
+      if (retryInFlightRef.current) return;
+
+      retryInFlightRef.current = true;
+      setIsRetrying(true);
 
       const parts: UIMessage["parts"] =
         text === undefined
@@ -216,6 +331,7 @@ export const useChatSubmission = ({
               ...userMessage.parts.filter((part) => part.type === "file"),
             ];
       try {
+        cancelActiveGeneration();
         await runApi((client) =>
           client.conversations.reviseMessage({
             params: { id: sessionId, messageId: userMessage.id },
@@ -230,9 +346,13 @@ export const useChatSubmission = ({
           error: error instanceof Error ? error : new Error(String(error)),
           messageId: userMessage.id,
         });
+      } finally {
+        retryInFlightRef.current = false;
+        setIsRetrying(false);
       }
     },
     [
+      cancelActiveGeneration,
       config.sessionId,
       config.temporary,
       config.threadId,
@@ -249,5 +369,5 @@ export const useChatSubmission = ({
     await revise({ messageId: error.orphanMessageId });
   }, [revise, stateRef]);
 
-  return { submit, revise, retryOrphan };
+  return { submit, revise, retryOrphan, forceSendQueued, isRetrying };
 };

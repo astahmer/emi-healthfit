@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { chatModels, defaultModel } from "./models";
 import { useSettings } from "./settings-store";
 import { settingsSyncMachine } from "./settings-sync-machine";
+import { AppAboutSettings } from "./app-about-settings";
 import { DataImport } from "./data-import";
 import { DataExport } from "./data-export";
+import { HevyIntegration } from "./hevy-integration";
 import { PrivacyControls } from "./privacy-controls";
+import { DiscordLinkControls } from "./discord-link-controls";
 
 export function SettingsPanel() {
   const { settings, update } = useSettings();
@@ -138,11 +141,17 @@ export function SettingsPanel() {
           </p>
         )}
 
+        <HevyIntegration />
+
         <DataExport />
 
         <DataImport />
 
         <PrivacyControls />
+
+        <DiscordLinkControls />
+
+        <AppAboutSettings />
 
         <Button
           onClick={() =>

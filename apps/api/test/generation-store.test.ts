@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { isGenerationStale, type ChatGeneration } from "../src/chat/generation-store.ts";
+import { isGenerationStale, type ChatGeneration } from "../src/core/chat/generation-store.ts";
 
 const generation = (updatedAt: string, status: ChatGeneration["status"] = "streaming") => ({
   id: "generation-1",

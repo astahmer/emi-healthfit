@@ -1,19 +1,8 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FC, ReactNode } from "react";
-import {
-  BrainIcon,
-  ChartNoAxesCombinedIcon,
-  DumbbellIcon,
-  FlaskConicalIcon,
-  MenuIcon,
-  MessageSquareIcon,
-  NotebookPenIcon,
-  SettingsIcon,
-  UploadIcon,
-  LogOutIcon,
-  UserRoundIcon,
-} from "lucide-react";
+import { MenuIcon, LogOutIcon, UserRoundIcon } from "lucide-react";
+import { useCoreWebContributions } from "@emi/core/web";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -29,26 +18,9 @@ import { authClient } from "./auth-client";
 import { isAnonymousAccountEmail } from "./anonymous-auth";
 import { clearSessionCache } from "./session-cache";
 
-const tabs = [
-  { href: "/chat", label: "Chat", icon: MessageSquareIcon, description: "Ask your coach" },
-  { href: "/upload", label: "Upload", icon: UploadIcon, description: "Import health data" },
-  { href: "/workouts", label: "Workouts", icon: DumbbellIcon, description: "Browse sessions" },
-  {
-    href: "/summary",
-    label: "Trends",
-    icon: ChartNoAxesCombinedIcon,
-    description: "Health analytics",
-  },
-  { href: "/notes", label: "Notes", icon: NotebookPenIcon, description: "Gym journal" },
-  { href: "/memory", label: "Memory", icon: BrainIcon, description: "Saved snippets" },
-  ...(import.meta.env.DEV
-    ? [{ href: "/gen-ui", label: "Sandbox", icon: FlaskConicalIcon, description: "UI playground" }]
-    : []),
-  { href: "/settings", label: "Settings", icon: SettingsIcon, description: "Preferences" },
-];
-
 export const NavHeader: FC = () => {
   const pathname = useLocation({ select: (location) => location.pathname });
+  const { nav } = useCoreWebContributions();
   if (pathname === "/auth" || pathname.startsWith("/auth/")) return null;
 
   return (
@@ -60,9 +32,9 @@ export const NavHeader: FC = () => {
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <nav className="hidden gap-1 md:flex">
-          {tabs.map((tab) => (
+          {nav.map((tab) => (
             <TabButton
-              key={tab.href}
+              key={tab.id}
               href={tab.href}
               active={pathname.replace(/\/$/, "") === tab.href}
               icon={tab.icon}
@@ -81,13 +53,13 @@ export const NavHeader: FC = () => {
             <SheetContent side="right" className="w-64">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
               <nav className="mt-6 flex flex-col gap-1">
-                {tabs.map((tab) => (
+                {nav.map((tab) => (
                   <MobileTabButton
-                    key={tab.href}
+                    key={tab.id}
                     href={tab.href}
                     active={pathname.replace(/\/$/, "") === tab.href}
                     icon={tab.icon}
-                    description={tab.description}
+                    description={tab.description ?? ""}
                   >
                     {tab.label}
                   </MobileTabButton>
@@ -149,7 +121,7 @@ const TabButton = ({
 }: {
   href: string;
   active: boolean;
-  icon: React.ElementType;
+  icon?: React.ElementType;
   children: ReactNode;
 }) => (
   <Link
@@ -160,7 +132,7 @@ const TabButton = ({
         : "text-muted-foreground hover:bg-muted hover:text-foreground"
     }`}
   >
-    <Icon className="size-4" />
+    {Icon !== undefined && <Icon className="size-4" />}
     {children}
   </Link>
 );
@@ -174,7 +146,7 @@ const MobileTabButton = ({
 }: {
   href: string;
   active: boolean;
-  icon: React.ElementType;
+  icon?: React.ElementType;
   description: string;
   children: ReactNode;
 }) => (
@@ -186,7 +158,7 @@ const MobileTabButton = ({
         : "text-muted-foreground hover:bg-muted hover:text-foreground"
     }`}
   >
-    <Icon className="size-5 shrink-0" />
+    {Icon !== undefined && <Icon className="size-5 shrink-0" />}
     <div className="flex flex-col items-start">
       <span>{children}</span>
       <span className="text-xs font-normal opacity-70">{description}</span>

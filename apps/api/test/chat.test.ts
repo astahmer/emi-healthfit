@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import { RuntimeContext } from "alchemy";
-import { executeTool } from "../src/tools/api.ts";
+import { executeTool } from "../src/healthfit/tools/api.ts";
 import * as Effect from "effect/Effect";
 
 const fakeDb = {} as never;

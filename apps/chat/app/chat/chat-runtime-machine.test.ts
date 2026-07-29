@@ -99,7 +99,7 @@ describe("chatRuntimeMachine", () => {
     expect(actor.getSnapshot().context.error?.message).toBe("Generation timed out");
   });
 
-  it("rejects a concurrent submission while one generation is streaming", () => {
+  it("keeps composer draft updates while a generation is streaming", () => {
     const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
     actor.start();
     actor.send({
@@ -107,13 +107,212 @@ describe("chatRuntimeMachine", () => {
       sessionId: "one",
       message: message("first", "user", "First"),
     });
+    actor.send({ type: "draft.changed", value: "typed while streaming" });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.draft).toBe("typed while streaming");
+  });
+
+  it("ignores same-session history snapshots while a generation is streaming", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("user", "user", "Hi"),
+    });
+    actor.send({ type: "stream.updated", message: message("assistant", "assistant", "Hello") });
+    actor.send({
+      type: "history.changed",
+      sessionId: "one",
+      messages: [message("stale", "user", "Should not replace live stream")],
+    });
+
+    const snapshot = actor.getSnapshot();
+    expect(snapshot.matches("streaming")).toBe(true);
+    expect(snapshot.context.messages).toEqual([
+      message("user", "user", "Hi"),
+      message("assistant", "assistant", "Hello"),
+    ]);
+  });
+
+  it("queues multiple follow-ups while streaming without dropping the live assistant", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Second", files: [] });
+    actor.send({ type: "followUp.queued", id: "q2", text: "Third", files: [] });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first", "user", "First"),
+      message("partial", "assistant", "Hel"),
+    ]);
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Second", files: [] },
+      { id: "q2", text: "Third", files: [] },
+    ]);
+    expect(actor.getSnapshot().context.draft).toBe("");
+  });
+
+  it("updates and removes queued follow-ups", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Second", files: [] });
+    actor.send({ type: "followUp.queued", id: "q2", text: "Third", files: [] });
+    actor.send({ type: "followUp.updated", id: "q1", text: "Second edited", files: [] });
+    actor.send({ type: "followUp.removed", id: "q2" });
+
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Second edited", files: [] },
+    ]);
+  });
+
+  it("keeps queued follow-ups across same-session history snapshots", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Second", files: [] });
+    actor.send({ type: "stream.completed" });
+    actor.send({
+      type: "history.changed",
+      sessionId: "one",
+      messages: [message("first", "user", "First"), message("assistant", "assistant", "Done")],
+    });
+
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Second", files: [] },
+    ]);
+  });
+
+  it("keeps queued follow-ups when the stream stops", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Later", files: [] });
+    actor.send({ type: "stream.stopped" });
+
+    expect(actor.getSnapshot().matches("idle")).toBe(true);
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "q1", text: "Later", files: [] },
+    ]);
+    expect(actor.getSnapshot().context.draft).toBe("");
+  });
+
+  it("replaces the full queue from a remote sync snapshot", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "followUp.queued", id: "q1", text: "Local", files: [] });
+    actor.send({
+      type: "followUp.replaced",
+      items: [
+        { id: "r1", text: "Remote one", files: [] },
+        { id: "r2", text: "Remote two", files: [] },
+      ],
+    });
+
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "r1", text: "Remote one", files: [] },
+      { id: "r2", text: "Remote two", files: [] },
+    ]);
+  });
+
+  it("replaces an in-flight generation when a new message is submitted", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first", "user", "First"),
+    });
+    actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
     actor.send({
       type: "submit.started",
       sessionId: "one",
       message: message("second", "user", "Second"),
     });
 
-    expect(actor.getSnapshot().context.messages).toEqual([message("first", "user", "First")]);
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first", "user", "First"),
+      message("second", "user", "Second"),
+    ]);
+    expect(actor.getSnapshot().context.draft).toBe("");
+  });
+
+  it("keeps a completed assistant answer when another user message is submitted from idle", () => {
+    const actor = createActor(chatRuntimeMachine, {
+      input: {
+        sessionId: "one",
+        messages: [
+          message("first-user", "user", "What should I eat?"),
+          message("first-assistant", "assistant", "Try more protein."),
+        ],
+      },
+    });
+    actor.start();
+    expect(actor.getSnapshot().matches("idle")).toBe(true);
+
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("second-user", "user", "Tell me about recovery"),
+    });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first-user", "user", "What should I eat?"),
+      message("first-assistant", "assistant", "Try more protein."),
+      message("second-user", "user", "Tell me about recovery"),
+    ]);
+  });
+
+  it("drops a failed partial assistant when submitting from error", () => {
+    const actor = createActor(chatRuntimeMachine, { input: { sessionId: "one" } });
+    actor.start();
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("first-user", "user", "First"),
+    });
+    actor.send({ type: "stream.updated", message: message("partial", "assistant", "Hel") });
+    actor.send({ type: "stream.failed", error: new Error("network") });
+    expect(actor.getSnapshot().matches("error")).toBe(true);
+
+    actor.send({
+      type: "submit.started",
+      sessionId: "one",
+      message: message("second-user", "user", "Second"),
+    });
+
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message("first-user", "user", "First"),
+      message("second-user", "user", "Second"),
+    ]);
   });
 
   it("keeps simultaneous browser tabs isolated", () => {

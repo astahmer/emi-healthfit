@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { getDataSummary } from "../src/db/fitness.ts";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { getDataSummary } from "../src/healthfit/db/fitness.ts";
 import {
   deleteIngestedSource,
   getRawUploadRetentionDays,
@@ -12,7 +13,8 @@ import {
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../src/db/ingested-data.ts";
+} from "../src/healthfit/db/ingested-data.ts";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("ingested data SQLite integration", () => {
@@ -85,6 +87,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySessions(db, userId, [
         {
           session_id: "session-a",
+          provider_workout_id: null,
+          source_updated_at: null,
           title: "Push",
           start_time: "2026-07-01T10:00:00Z",
           end_time: "2026-07-01T11:00:00Z",
@@ -97,6 +101,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySets(db, userId, [
         {
           session_id: "session-a",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Bench press",
           set_index: 1,
           set_type: "normal",
@@ -113,6 +119,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySets(db, userId, [
         {
           session_id: "session-a",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Bench press",
           set_index: 1,
           set_type: "normal",
@@ -152,20 +160,24 @@ describe("ingested data SQLite integration", () => {
     await run(updateSyncCursor(db, userId, "apple_health", "2026-07-01T12:00:00Z"));
     await run(updateSyncCursor(db, userId, "hevy", "2026-07-01T12:30:00Z"));
 
-    assert.deepStrictEqual(await run(getDataSummary(db, userId)), {
-      dailyActivity: 1,
-      healthWorkouts: 1,
-      hevySessions: 1,
-      hevySets: 1,
-      sleepSessions: 1,
-      bodyMetrics: 1,
-      lastHealthSync: "2026-07-01T12:00:00Z",
-      lastHevySync: "2026-07-01T12:30:00Z",
-    });
+    assert.deepStrictEqual(
+      await run(getDataSummary(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId)),
+      {
+        dailyActivity: 1,
+        healthWorkouts: 1,
+        hevySessions: 1,
+        hevySets: 1,
+        sleepSessions: 1,
+        bodyMetrics: 1,
+        lastHealthSync: "2026-07-01T12:00:00Z",
+        lastHevySync: "2026-07-01T12:30:00Z",
+      },
+    );
   });
 
   it("keeps privacy preference owner-scoped and removes only selected source data", async () => {
     const { db } = makeSqliteDatabase();
+    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const alice = "user-a";
     const bob = "user-b";
 
@@ -231,6 +243,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySessions(db, alice, [
         {
           session_id: "session-a",
+          provider_workout_id: null,
+          source_updated_at: null,
           title: null,
           start_time: "2026-07-01T10:00:00Z",
           end_time: null,
@@ -243,6 +257,8 @@ describe("ingested data SQLite integration", () => {
       upsertHevySets(db, alice, [
         {
           session_id: "session-a",
+          exercise_template_id: null,
+          exercise_index: 0,
           exercise_title: "Row",
           set_index: 1,
           set_type: null,
@@ -272,7 +288,7 @@ describe("ingested data SQLite integration", () => {
 
     await run(deleteIngestedSource({ db, userId: alice, source: "health" }));
 
-    assert.deepStrictEqual(await run(getDataSummary(db, alice)), {
+    assert.deepStrictEqual(await run(getDataSummary(fitnessDb, alice)), {
       dailyActivity: 0,
       healthWorkouts: 0,
       hevySessions: 1,
@@ -282,10 +298,10 @@ describe("ingested data SQLite integration", () => {
       lastHealthSync: null,
       lastHevySync: "hevy-sync",
     });
-    assert.strictEqual((await run(getDataSummary(db, bob))).dailyActivity, 1);
+    assert.strictEqual((await run(getDataSummary(fitnessDb, bob))).dailyActivity, 1);
 
     await run(deleteIngestedSource({ db, userId: alice, source: "hevy" }));
-    assert.strictEqual((await run(getDataSummary(db, alice))).hevySessions, 0);
-    assert.strictEqual((await run(getDataSummary(db, alice))).hevySets, 0);
+    assert.strictEqual((await run(getDataSummary(fitnessDb, alice))).hevySessions, 0);
+    assert.strictEqual((await run(getDataSummary(fitnessDb, alice))).hevySets, 0);
   });
 });

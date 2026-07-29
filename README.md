@@ -72,8 +72,18 @@ turn the downloaded client JSON into a complete local `.env`.
    ```
 
    The command checks the callback URI, imports the client ID and secret, generates a random
-   256-bit `BETTER_AUTH_SECRET`, lowercases the allowed email, and creates `.env` with owner-only
-   permissions. It refuses to overwrite an existing `.env`.
+   256-bit `BETTER_AUTH_SECRET`, a 32-byte `HEVY_CREDENTIAL_ENCRYPTION_KEY` (hex), lowercases the
+   allowed email, and creates `.env` with owner-only permissions. It refuses to overwrite an
+   existing `.env`.
+
+   If `.env` already exists from an older clone, add the Hevy encryption key with:
+
+   ```bash
+   pnpm --filter @emi/api setup:hevy-key
+   ```
+
+   Or generate manually: `openssl rand -hex 32` and set `HEVY_CREDENTIAL_ENCRYPTION_KEY` in `.env`
+   (and `.env.prod`). Required before Settings → Hevy → Connect works.
 
 8. Run `pnpm dev`, open the printed local URL, select **Continue with Google**, and verify that the
    allowed account reaches the app. A different account must be denied.
@@ -85,17 +95,20 @@ Rows are authorized by Better Auth user id, so multiple verified allowlisted acc
 after the ownership rollout below. Removing an email blocks its existing sessions on the next request.
 
 For a manual setup instead, copy `.env.example` to `.env`, generate at least 32 random bytes for
-`BETTER_AUTH_SECRET`, then fill in the client ID, client secret, base URL, and allowed email.
+`BETTER_AUTH_SECRET` and a separate 32-byte hex key for `HEVY_CREDENTIAL_ENCRYPTION_KEY`
+(`openssl rand -hex 32`), then fill in the client ID, client secret, base URL, and allowed email.
 
 For preview or production, create a separate web client in that environment's Google Cloud project,
 register `https://<your-worker-host>/api/auth/callback/google`, download its JSON, back up or remove
 the local `.env`, and run with the real deployed origin, for example:
 
 ```bash
-pnpm setup:google -- path/to/client.json you@example.com https://emi-healthfit.example.workers.dev
+pnpm setup:google -- path/to/client.json you@example.com https://emi-healthfit.astahmer.dev
 ```
 
-Use the same origin for `BETTER_AUTH_URL`; do not include a trailing slash. See Google's official
+Use the same origin for `BETTER_AUTH_URL`; do not include a trailing slash.
+Production uses the Alchemy custom domain `emi-healthfit.astahmer.dev` (stable; do not chase
+changing `*.workers.dev` hostnames). See Google's official
 [web OAuth client setup](https://developers.google.com/workspace/guides/create-credentials#web-client),
 [OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect#settingup),
 and [redirect URI rules](https://developers.google.com/identity/protocols/oauth2/web-server#uri-validation).
@@ -168,12 +181,16 @@ runbook so Alchemy state and Cloudflare state cannot drift.
 
 Create `.env.prod` with production values for every variable in `.env.example`:
 
-- `BETTER_AUTH_URL` is the exact public HTTPS Worker origin, without a trailing slash.
+- `BETTER_AUTH_URL` is the exact public HTTPS origin, without a trailing slash.
+  For production that is `https://emi-healthfit.astahmer.dev` (Alchemy binds this custom
+  domain to the `prod` Worker; `api.url` prefers it over `*.workers.dev`).
 - The Google production web client must authorize
   `<BETTER_AUTH_URL>/api/auth/callback/google` exactly.
 - Use a different `BETTER_AUTH_SECRET` from local development. A separate Google client is preferred;
   a personal deployment may reuse one client only when both local and production callback URIs are
   registered explicitly.
+- Use a different `HEVY_CREDENTIAL_ENCRYPTION_KEY` from local development (`openssl rand -hex 32`).
+  Changing it after users have connected Hevy makes stored keys undecryptable until they reconnect.
 - `ALLOWED_EMAILS` accepts a comma-separated list. Keep exactly one address through the legacy-data
   migration, then add accounts only after the isolation smoke test passes.
 
@@ -197,11 +214,13 @@ Alchemy will create/update:
 
 The command prints the deployed Worker URL. Open that URL in a browser to use the chat UI.
 
-On the first production deployment, the generated Worker origin does not exist until Alchemy creates
-the stage. After that bootstrap deploy:
+On the first production deployment, Alchemy creates the `prod` stage Worker and attaches the custom
+domain `emi-healthfit.astahmer.dev` (zone `astahmer.dev` must already exist in the Cloudflare
+account). After that bootstrap deploy:
 
-1. Copy the printed HTTPS Worker origin into `BETTER_AUTH_URL` in `.env.prod`, without a trailing slash.
-2. Register `<BETTER_AUTH_URL>/api/auth/callback/google` on the matching Google OAuth web client.
+1. Keep `BETTER_AUTH_URL=https://emi-healthfit.astahmer.dev` in `.env.prod` (no trailing slash).
+2. Register `https://emi-healthfit.astahmer.dev/api/auth/callback/google` on the matching Google
+   OAuth web client.
 3. Redeploy the same `prod` stage with `.env.prod` before testing sign-in.
 
 Never assume a successful bare deployment updated production. Confirm both the stage and env file in

@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { UIMessage } from "ai";
 import {
+  ArrowDownIcon,
   ArrowUpIcon,
   BookmarkIcon,
   BrainIcon,
@@ -16,16 +17,17 @@ import {
   PencilIcon,
   RefreshCwIcon,
   SquareIcon,
-  WrenchIcon,
   XIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
 import { assign, setup } from "xstate";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import {
+  MessagePart,
+  SuggestionChips,
+  type ComposerControls as CoreComposerControls,
+  type MessagePartValue,
+} from "@emi/core/web";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Message, MessageContent, MessageFooter } from "@/components/ui/message";
@@ -38,9 +40,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MessageRail } from "@/components/chat/message-rail";
 import { ToolResultContent } from "@/components/chat/tool-result-content";
 import { cn } from "@/lib/utils";
+import { CHAT_THREAD_SCROLL_ID } from "@/lib/chat-thread-scroll";
+import { useThreadViewportScroll } from "@/hooks/use-thread-viewport-scroll";
 import { useChatRuntime } from "@/app/chat/chat-runtime";
+import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@/app/chat/follow-up-queue";
 import type { ChatModel } from "@/app/models";
 import { fetchSuggestions } from "@/app/suggestions";
 import { useSettings } from "@/app/settings-store";
@@ -56,18 +62,10 @@ import {
 import { notifyMemoriesChanged } from "@/app/memory-events";
 import { useActionFeedback } from "@/app/action-feedback";
 
-export interface ComposerControls {
-  model: string;
-  onModelChange: (model: string) => void;
-  coachMode: boolean;
-  onCoachModeChange: () => void;
-  webSearch: boolean;
-  onWebSearchChange: (value: boolean) => void;
-  temporary: boolean;
-  onTemporaryChange: (value: boolean) => void;
+export type ComposerControls = Omit<CoreComposerControls, "onKeepTemporary" | "models"> & {
+  onKeepTemporary: (messages: UIMessage[]) => Promise<void>;
   models: ChatModel[];
-  canWebSearch: boolean;
-}
+};
 
 const suggestions = [
   "How is my recovery today?",
@@ -75,73 +73,6 @@ const suggestions = [
   "What's my current workout streak?",
   "Show my progress on bench press over the last 8 weeks.",
 ];
-
-const ReferenceMessageContext = createContext<((messageId: string) => void) | undefined>(undefined);
-
-const MarkdownLink: NonNullable<Components["a"]> = ({ children, href, ...props }) => {
-  const onReferenceMessage = useContext(ReferenceMessageContext);
-  if (href?.startsWith("message:") === true) {
-    const messageId = href.slice("message:".length);
-    return (
-      <button
-        type="button"
-        onClick={() => onReferenceMessage?.(messageId)}
-        className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
-      >
-        <GitBranchIcon className="size-3" /> {children}
-      </button>
-    );
-  }
-  return (
-    <a
-      {...props}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-primary underline underline-offset-4"
-    >
-      {children}
-    </a>
-  );
-};
-
-const markdownPlugins = [remarkGfm];
-
-const markdownComponents: Components = {
-  a: MarkdownLink,
-  code: ({ className, children, ...props }) => (
-    <code
-      {...props}
-      className={cn("rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]", className)}
-    >
-      {children}
-    </code>
-  ),
-  pre: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded-lg border bg-muted/50 p-3 text-sm leading-6">
-      {children}
-    </pre>
-  ),
-  table: ({ children }) => (
-    <div className="my-2 overflow-x-auto">
-      <table className="w-full border-collapse text-sm">{children}</table>
-    </div>
-  ),
-  th: ({ children }) => <th className="border bg-muted px-2 py-1 text-left">{children}</th>,
-  td: ({ children }) => <td className="border px-2 py-1 align-top">{children}</td>,
-  h1: ({ children }) => <h1 className="mt-6 mb-2 text-xl font-semibold">{children}</h1>,
-  h2: ({ children }) => <h2 className="mt-5 mb-2 text-lg font-semibold">{children}</h2>,
-  h3: ({ children }) => <h3 className="mt-4 mb-1.5 font-semibold">{children}</h3>,
-  blockquote: ({ children }) => (
-    <blockquote className="my-4 border-l-2 border-primary/30 pl-4 text-muted-foreground">
-      {children}
-    </blockquote>
-  ),
-  ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
-  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
-  p: ({ children }) => <p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
-  hr: () => <hr className="my-5 border-border/70" />,
-};
 
 const messageEditorMachine = setup({
   types: {
@@ -175,95 +106,7 @@ const messageEditorMachine = setup({
   },
 });
 
-type MessagePartValue = UIMessage["parts"][number];
-const ToolMessagePart = Schema.Struct({
-  type: Schema.String,
-  toolName: Schema.optional(Schema.String),
-  input: Schema.optional(Schema.Unknown),
-  args: Schema.optional(Schema.Unknown),
-  argsText: Schema.optional(Schema.Unknown),
-  output: Schema.optional(Schema.Unknown),
-  result: Schema.optional(Schema.Unknown),
-  state: Schema.optional(Schema.String),
-  outcome: Schema.optional(Schema.String),
-});
-const ToolErrorOutput = Schema.Union([
-  Schema.Struct({ type: Schema.Literal("error-text"), value: Schema.String }),
-  Schema.Struct({ error: Schema.String }),
-]);
-
-const ToolPart = ({ part, isStreaming }: { part: MessagePartValue; isStreaming: boolean }) => {
-  const toolPart = Schema.decodeUnknownOption(ToolMessagePart)(part);
-  if (Option.isNone(toolPart)) return null;
-  const type = toolPart.value.type;
-  const isTool = type === "dynamic-tool" || type === "tool-call" || type.startsWith("tool-");
-  if (!isTool) return null;
-
-  const configuredToolName = toolPart.value.toolName;
-  const toolName =
-    configuredToolName !== undefined
-      ? configuredToolName
-      : type.startsWith("tool-")
-        ? type.slice(5)
-        : "tool";
-  const input = toolPart.value.input ?? toolPart.value.args ?? toolPart.value.argsText;
-  const output = toolPart.value.output ?? toolPart.value.result;
-  const state = toolPart.value.state;
-  const outcome = toolPart.value.outcome;
-  const errorOutput = Option.isSome(Schema.decodeUnknownOption(ToolErrorOutput)(output));
-  const isFailed = state === "output-error" || outcome === "error" || errorOutput;
-  const hasOutput =
-    output !== undefined || state === "output-available" || state === "output-error";
-  const isRunning = isStreaming && !hasOutput;
-
-  return (
-    <details className="group/tool rounded-lg border bg-muted/15" open={isRunning}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground marker:content-none">
-        {isRunning ? (
-          <LoaderIcon className="size-3.5 animate-spin" />
-        ) : (
-          <WrenchIcon className="size-3.5" />
-        )}
-        <span>{toolName.replaceAll("_", " ")}</span>
-        <span className="ms-auto font-normal opacity-70">
-          {isRunning ? "Running" : isFailed ? "Failed" : "Completed"}
-        </span>
-      </summary>
-      <div className="border-t px-3 py-2">
-        {input !== undefined && (
-          <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground">Input</summary>
-            <pre className="mt-1 overflow-auto whitespace-pre-wrap">
-              {typeof input === "string" ? input : JSON.stringify(input, null, 2)}
-            </pre>
-          </details>
-        )}
-        {hasOutput && <ToolResultContent toolName={toolName} result={output} className="mt-2" />}
-      </div>
-    </details>
-  );
-};
-
-const MarkdownText = ({
-  text,
-  onReferenceMessage,
-}: {
-  text: string;
-  onReferenceMessage?: (messageId: string) => void;
-}) => (
-  <div className="max-w-3xl text-[15px] leading-7 text-foreground/95">
-    <ReferenceMessageContext.Provider value={onReferenceMessage}>
-      <ReactMarkdown remarkPlugins={markdownPlugins} components={markdownComponents}>
-        {text.replace(
-          /<message\s+id=["']([^"']+)["']\s*\/?\s*>/g,
-          (_, messageId: string) => `[Referenced message](message:${messageId})`,
-        )}
-      </ReactMarkdown>
-    </ReferenceMessageContext.Provider>
-  </div>
-);
-
-const MessagePart = ({
+const renderMessagePart = ({
   part,
   onReferenceMessage,
   isStreaming,
@@ -271,40 +114,16 @@ const MessagePart = ({
   part: MessagePartValue;
   onReferenceMessage?: (messageId: string) => void;
   isStreaming: boolean;
-}) => {
-  if (part.type === "text") {
-    return <MarkdownText text={part.text} onReferenceMessage={onReferenceMessage} />;
-  }
-  if (part.type === "file") {
-    if (part.mediaType.startsWith("image/")) {
-      return (
-        <img
-          src={part.url}
-          alt={part.filename ?? "Attachment"}
-          className="max-h-80 rounded-lg object-contain"
-        />
-      );
-    }
-    return (
-      <a
-        href={part.url}
-        download={part.filename}
-        className="text-primary underline underline-offset-4"
-      >
-        {part.filename ?? "Attachment"}
-      </a>
-    );
-  }
-  if (part.type === "reasoning") {
-    return (
-      <details className="text-sm text-muted-foreground">
-        <summary className="cursor-pointer">Reasoning</summary>
-        <div className="mt-2 whitespace-pre-wrap">{part.text}</div>
-      </details>
-    );
-  }
-  return <ToolPart part={part} isStreaming={isStreaming} />;
-};
+}) => (
+  <MessagePart
+    part={part}
+    onReferenceMessage={onReferenceMessage}
+    isStreaming={isStreaming}
+    renderToolResult={({ toolName, result }) => (
+      <ToolResultContent toolName={toolName} result={result} className="mt-2" />
+    )}
+  />
+);
 
 const getText = (message: UIMessage | undefined): string =>
   message?.parts.reduce(
@@ -313,13 +132,28 @@ const getText = (message: UIMessage | undefined): string =>
   ) ?? "";
 
 const messagePartKey = (part: MessagePartValue): string => {
-  if (part.type === "text") return `text:${part.text}`;
-  if (part.type === "file") return `file:${part.url}`;
+  if (part.type === "text") return `text:${String(part.text ?? "")}`;
+  if (part.type === "file") return `file:${String(part.url ?? "")}`;
   if ("toolCallId" in part && typeof part.toolCallId === "string") {
     return `tool:${part.type}:${part.toolCallId}`;
   }
   return `${part.type}:${JSON.stringify(part)}`;
 };
+
+const StreamingIndicator = () => (
+  <span
+    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+    role="status"
+    aria-label="Assistant is working"
+  >
+    <span>Thinking</span>
+    <span className="typing-dots" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </span>
+  </span>
+);
 
 const FollowUpSuggestions = () => {
   const runtime = useChatRuntime();
@@ -356,19 +190,12 @@ const FollowUpSuggestions = () => {
 
   if (query.data === undefined || query.data.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-2 pl-3">
-      {query.data.map((suggestion) => (
-        <Button
-          key={suggestion}
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-auto rounded-full whitespace-normal"
-          onClick={() => void runtime.submit(suggestion)}
-        >
-          {suggestion}
-        </Button>
-      ))}
+    <div className="pl-3">
+      <SuggestionChips
+        suggestions={query.data}
+        disabled={runtime.isStreaming}
+        onSelect={(suggestion) => void runtime.submit(suggestion)}
+      />
     </div>
   );
 };
@@ -389,6 +216,7 @@ const ChatMessage = ({
   onReferenceMessage,
   error,
   onRetry,
+  retryDisabled = false,
 }: {
   message: UIMessage;
   isStreaming: boolean;
@@ -405,6 +233,7 @@ const ChatMessage = ({
   onReferenceMessage?: (messageId: string) => void;
   error?: Error;
   onRetry?: (messageId: string) => void;
+  retryDisabled?: boolean;
 }) => {
   const isUser = message.role === "user";
   const feedback = useActionFeedback();
@@ -446,24 +275,15 @@ const ChatMessage = ({
           >
             <BubbleContent className={cn(!isUser && "w-full space-y-3")}>
               {message.parts.map((part) => (
-                <MessagePart
-                  key={messagePartKey(part)}
-                  part={part}
-                  onReferenceMessage={onReferenceMessage}
-                  isStreaming={isStreaming}
-                />
+                <div key={messagePartKey(part)}>
+                  {renderMessagePart({
+                    part,
+                    onReferenceMessage,
+                    isStreaming,
+                  })}
+                </div>
               ))}
-              {isStreaming && message.parts.length === 0 && (
-                <span
-                  className="typing-dots text-muted-foreground"
-                  role="status"
-                  aria-label="Assistant is working"
-                >
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              )}
+              {isStreaming && <StreamingIndicator />}
             </BubbleContent>
           </Bubble>
         ) : (
@@ -500,10 +320,11 @@ const ChatMessage = ({
             {onRetry !== undefined && (
               <button
                 type="button"
-                className="ms-auto cursor-pointer font-medium underline"
+                className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={retryDisabled}
                 onClick={() => onRetry(message.id)}
               >
-                Retry this request
+                {retryDisabled ? "Retrying…" : "Retry this request"}
               </button>
             )}
           </div>
@@ -548,6 +369,7 @@ const ChatMessage = ({
               side="top"
               type="button"
               aria-label="Regenerate response"
+              disabled={retryDisabled}
               onClick={() => onRegenerate(message.id)}
             >
               <RefreshCwIcon className="size-3.5" />
@@ -613,7 +435,30 @@ export const Thread = ({
   const feedback = useActionFeedback();
   const [editorState, sendEditor] = useMachine(messageEditorMachine);
   const [memoryMessageId, setMemoryMessageId] = useState<string | null>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const [isKeepingTemporary, setIsKeepingTemporary] = useState(false);
+  const usage = useUsage();
+  const userRailMessages = runtime.messages
+    .filter((message) => message.role === "user")
+    .map((message) => ({
+      id: message.id,
+      text: getText(message),
+      createdAt: usage.metaByMessageId.get(message.id)?.createdAt,
+    }));
+  const {
+    viewportRef,
+    isAwayFromTop,
+    isAwayFromBottom,
+    canScrollToPreviousUserMessage,
+    scrollToTop,
+    scrollToBottom,
+    scrollToMessage,
+    scrollToPreviousUserMessage,
+  } = useThreadViewportScroll({
+    sessionId: runtime.sessionId,
+    messageCount: runtime.messages.length,
+    userMessageIds: userRailMessages.map((message) => message.id),
+  });
+  const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
   const { data: conversationMemories = [] } = useQuery({
     queryKey: queryKeys.memories.messageSources,
     queryFn: () => fetchMemories(),
@@ -625,13 +470,6 @@ export const Thread = ({
       return messageId === undefined ? [] : [messageId];
     }),
   );
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) return;
-    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    if (distanceFromBottom < 160) viewport.scrollTo({ top: viewport.scrollHeight });
-  }, [runtime.messages]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -680,106 +518,142 @@ export const Thread = ({
           Assistant is responding
         </div>
       )}
-      <div
-        ref={viewportRef}
-        className="flex-1 overflow-y-auto"
-        role="log"
-        aria-relevant="additions"
-      >
-        <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
-          {contextSummary !== undefined && (
-            <aside
-              className="rounded-xl border bg-muted/40 px-4 py-3 text-sm"
-              aria-label="Compacted context"
-            >
-              <p className="font-medium">Compacted context</p>
-              <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
-            </aside>
-          )}
-          {runtime.messages.length === 0 && contextSummary === undefined ? (
-            <div className="my-auto space-y-6 text-center">
-              <div>
-                <h1 className="text-2xl font-semibold">What are we working on?</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Ask about training, recovery, sleep, or progress.
-                </p>
+      <div className="relative min-h-0 flex-1">
+        <MessageRail
+          messages={userRailMessages}
+          onSelect={(messageId) => scrollToMessage({ messageId })}
+          canScrollToPreviousUserMessage={canScrollToPreviousUserMessage}
+          onScrollToPreviousUserMessage={scrollToPreviousUserMessage}
+        />
+        {(isAwayFromTop || isAwayFromBottom) && (
+          <div className="pointer-events-none absolute right-3 bottom-3 z-10 flex flex-col gap-2 sm:right-4">
+            {isAwayFromTop && (
+              <TooltipIconButton
+                tooltip="Scroll to oldest"
+                side="left"
+                type="button"
+                data-testid="scroll-to-top"
+                className="pointer-events-auto size-8 rounded-full border bg-background/95 shadow-sm"
+                onClick={scrollToTop}
+              >
+                <ArrowUpIcon className="size-4" />
+              </TooltipIconButton>
+            )}
+            {isAwayFromBottom && (
+              <TooltipIconButton
+                tooltip="Scroll to newest"
+                side="left"
+                type="button"
+                data-testid="scroll-to-bottom"
+                className="pointer-events-auto size-8 rounded-full border bg-background/95 shadow-sm"
+                onClick={scrollToBottom}
+              >
+                <ArrowDownIcon className="size-4" />
+              </TooltipIconButton>
+            )}
+          </div>
+        )}
+        <div
+          ref={viewportRef}
+          className="h-full overflow-y-auto"
+          role="log"
+          aria-relevant="additions"
+          data-testid="chat-thread-viewport"
+          data-scroll-restoration-id={CHAT_THREAD_SCROLL_ID}
+        >
+          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
+            {contextSummary !== undefined && (
+              <aside
+                className="rounded-xl border bg-muted/40 px-4 py-3 text-sm"
+                aria-label="Compacted context"
+              >
+                <p className="font-medium">Compacted context</p>
+                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
+              </aside>
+            )}
+            {runtime.messages.length === 0 && contextSummary === undefined ? (
+              <div className="my-auto space-y-6 text-center">
+                <div>
+                  <h1 className="text-2xl font-semibold">What are we working on?</h1>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Ask about training, recovery, sleep, or progress.
+                  </p>
+                </div>
+                <div className="mx-auto grid max-w-xl gap-2 sm:grid-cols-2">
+                  {suggestions.map((suggestion) => (
+                    <Button
+                      key={suggestion}
+                      variant="outline"
+                      className="h-auto justify-start whitespace-normal p-3 text-left"
+                      onClick={() => void runtime.submit(suggestion)}
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <div className="mx-auto grid max-w-xl gap-2 sm:grid-cols-2">
-                {suggestions.map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    variant="outline"
-                    className="h-auto justify-start whitespace-normal p-3 text-left"
-                    onClick={() => void runtime.submit(suggestion)}
-                  >
-                    {suggestion}
-                  </Button>
+            ) : (
+              <>
+                {runtime.messages.map((message, index) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    isStreaming={
+                      runtime.isStreaming &&
+                      index === runtime.messages.length - 1 &&
+                      message.role === "assistant"
+                    }
+                    onFork={onForkMessage}
+                    onRemember={rememberMessage}
+                    isRemembered={savedMemoryMessageIds.has(message.id)}
+                    isRemembering={memoryMessageId === message.id}
+                    editingDraft={
+                      editorState.context.messageId === message.id
+                        ? editorState.context.draft
+                        : undefined
+                    }
+                    onEditStart={(selectedMessage) =>
+                      sendEditor({
+                        type: "edit.start",
+                        messageId: selectedMessage.id,
+                        draft: getText(selectedMessage),
+                      })
+                    }
+                    onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
+                    onEditCancel={() => sendEditor({ type: "edit.cancel" })}
+                    onEditSubmit={() => {
+                      void runtime.revise({
+                        messageId: message.id,
+                        text: editorState.context.draft,
+                      });
+                      sendEditor({ type: "edit.cancel" });
+                    }}
+                    onRegenerate={(messageId) => void runtime.revise({ messageId })}
+                    onReferenceMessage={onReferenceMessage}
+                    error={
+                      runtime.errorMessageId === message.id
+                        ? (runtime.error ?? undefined)
+                        : undefined
+                    }
+                    onRetry={(messageId) => void runtime.revise({ messageId })}
+                    retryDisabled={runtime.isRetrying || runtime.isStreaming}
+                  />
                 ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {runtime.messages.map((message, index) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  isStreaming={
-                    runtime.isStreaming &&
-                    index === runtime.messages.length - 1 &&
-                    message.role === "assistant"
-                  }
-                  onFork={onForkMessage}
-                  onRemember={rememberMessage}
-                  isRemembered={savedMemoryMessageIds.has(message.id)}
-                  isRemembering={memoryMessageId === message.id}
-                  editingDraft={
-                    editorState.context.messageId === message.id
-                      ? editorState.context.draft
-                      : undefined
-                  }
-                  onEditStart={(selectedMessage) =>
-                    sendEditor({
-                      type: "edit.start",
-                      messageId: selectedMessage.id,
-                      draft: getText(selectedMessage),
-                    })
-                  }
-                  onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
-                  onEditCancel={() => sendEditor({ type: "edit.cancel" })}
-                  onEditSubmit={() => {
-                    void runtime.revise({ messageId: message.id, text: editorState.context.draft });
-                    sendEditor({ type: "edit.cancel" });
-                  }}
-                  onRegenerate={(messageId) => void runtime.revise({ messageId })}
-                  onReferenceMessage={onReferenceMessage}
-                  error={
-                    runtime.errorMessageId === message.id ? (runtime.error ?? undefined) : undefined
-                  }
-                  onRetry={(messageId) => void runtime.revise({ messageId })}
-                />
-              ))}
-              {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
-                <Message align="start" aria-live="polite" className="py-1">
-                  <MessageContent>
-                    <Bubble align="start" variant="ghost">
-                      <BubbleContent>
-                        <span
-                          className="typing-dots text-muted-foreground"
-                          role="status"
-                          aria-label="Assistant is working"
-                        >
-                          <span />
-                          <span />
-                          <span />
-                        </span>
-                      </BubbleContent>
-                    </Bubble>
-                  </MessageContent>
-                </Message>
-              )}
-            </>
-          )}
-          <FollowUpSuggestions />
+                {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
+                  <Message align="start" aria-live="polite" className="py-1">
+                    <MessageContent>
+                      <Bubble align="start" variant="ghost">
+                        <BubbleContent>
+                          <StreamingIndicator />
+                        </BubbleContent>
+                      </Bubble>
+                    </MessageContent>
+                  </Message>
+                )}
+              </>
+            )}
+            <FollowUpSuggestions />
+          </div>
         </div>
       </div>
 
@@ -816,6 +690,61 @@ export const Thread = ({
           {runtime.attachmentError !== null && (
             <p className="px-3 pb-2 text-xs text-destructive">{runtime.attachmentError}</p>
           )}
+          {runtime.queuedFollowUps.length > 0 && (
+            <div className="mx-2 mb-2 space-y-1.5" aria-label="Queued follow-ups">
+              {runtime.queuedFollowUps.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs ${
+                    runtime.editingQueuedId === item.id
+                      ? "bg-primary/10 text-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {index + 1}.{" "}
+                    {item.text.trim() === ""
+                      ? `${item.files.length} attachment${item.files.length === 1 ? "" : "s"}`
+                      : item.text}
+                    {runtime.editingQueuedId === item.id ? " (editing)" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium underline"
+                    aria-label={`Edit queued message ${index + 1}`}
+                    onClick={() => runtime.beginEditingQueuedFollowUp(item.id)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium underline"
+                    aria-label={`Send queued message ${index + 1} now`}
+                    onClick={() => void runtime.forceSendQueued(item.id)}
+                  >
+                    Send now
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium underline"
+                    aria-label={`Cancel queued message ${index + 1}`}
+                    onClick={() => runtime.removeQueuedFollowUp(item.id)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ))}
+              <div className="flex justify-end px-1">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-muted-foreground underline"
+                  onClick={runtime.clearQueuedFollowUps}
+                >
+                  Clear queue
+                </button>
+              </div>
+            </div>
+          )}
           <textarea
             value={runtime.draft}
             onChange={(event) => runtime.setDraft(event.target.value)}
@@ -827,12 +756,50 @@ export const Thread = ({
               }
             }}
             onKeyDown={(event) => {
+              if (
+                shouldHandleQueueArrowKey({
+                  key: event.key,
+                  draft: runtime.draft,
+                  selectionStart: event.currentTarget.selectionStart,
+                  queueLength: runtime.queuedFollowUps.length,
+                  editingQueuedId: runtime.editingQueuedId,
+                })
+              ) {
+                event.preventDefault();
+                const target = resolveQueueEditTarget({
+                  queuedFollowUps: runtime.queuedFollowUps,
+                  editingQueuedId: runtime.editingQueuedId,
+                  direction: event.key === "ArrowUp" ? "up" : "down",
+                });
+                if (target === null) {
+                  runtime.clearQueuedFollowUpEdit();
+                  return;
+                }
+                runtime.beginEditingQueuedFollowUp(target.id);
+                return;
+              }
+              if (event.key === "Escape" && runtime.editingQueuedId !== null) {
+                event.preventDefault();
+                runtime.clearQueuedFollowUpEdit();
+                return;
+              }
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void runtime.submit();
+                return;
+              }
+              if (event.key === "Enter" && event.shiftKey && runtime.isStreaming) {
+                event.preventDefault();
+                void runtime.submit(undefined, { interrupt: true });
               }
             }}
-            placeholder="Send a message..."
+            placeholder={
+              runtime.editingQueuedId !== null
+                ? "Edit queued message…"
+                : runtime.isStreaming
+                  ? "Queue a follow-up, or Shift+Enter to send now…"
+                  : "Send a message..."
+            }
             aria-label="Message input"
             rows={1}
             className="max-h-48 min-h-11 w-full min-w-0 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none sm:min-h-14 sm:px-3"
@@ -843,23 +810,25 @@ export const Thread = ({
               {runtime.orphanMessageId !== undefined ? (
                 <button
                   type="button"
-                  className="ms-auto cursor-pointer font-medium underline"
+                  className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={runtime.isRetrying || runtime.isStreaming}
                   onClick={() => void runtime.retryOrphan()}
                 >
-                  Retry previous request
+                  {runtime.isRetrying ? "Retrying…" : "Retry previous request"}
                 </button>
               ) : (
                 runtime.messages.some((message) => message.role === "user") && (
                   <button
                     type="button"
-                    className="ms-auto cursor-pointer font-medium underline"
+                    className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={runtime.isRetrying || runtime.isStreaming}
                     onClick={() => {
                       const lastMessage = runtime.messages.at(-1);
                       if (lastMessage !== undefined)
                         void runtime.revise({ messageId: lastMessage.id });
                     }}
                   >
-                    Retry last turn
+                    {runtime.isRetrying ? "Retrying…" : "Retry last turn"}
                   </button>
                 )
               )}
@@ -936,21 +905,71 @@ export const Thread = ({
               size="sm"
               variant={composerControls.temporary ? "secondary" : "ghost"}
               className="shrink-0 px-2 sm:px-3"
-              disabled={runtime.isStreaming}
-              onClick={() => composerControls.onTemporaryChange(!composerControls.temporary)}
+              disabled={runtime.isStreaming || isKeepingTemporary}
+              onClick={() => {
+                if (canKeepTemporary) {
+                  setIsKeepingTemporary(true);
+                  void composerControls
+                    .onKeepTemporary(runtime.messages)
+                    .catch(() => {
+                      feedback.show({
+                        kind: "error",
+                        message: "Could not keep temporary chat.",
+                      });
+                    })
+                    .finally(() => setIsKeepingTemporary(false));
+                  return;
+                }
+                composerControls.onTemporaryChange(!composerControls.temporary);
+              }}
             >
-              <GhostIcon className="size-4" /> <span className="hidden sm:inline">Temporary</span>
+              {canKeepTemporary ? (
+                <BookmarkIcon className="size-4" />
+              ) : (
+                <GhostIcon className="size-4" />
+              )}{" "}
+              <span className="hidden sm:inline">{canKeepTemporary ? "Keep" : "Temporary"}</span>
             </Button>
             <TooltipIconButton
-              tooltip={runtime.isStreaming ? "Stop generating" : "Send message"}
+              tooltip={
+                runtime.editingQueuedId !== null
+                  ? "Update queued message"
+                  : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                    ? "Stop generating"
+                    : runtime.isStreaming
+                      ? "Send after reply"
+                      : "Send message"
+              }
               side="top"
-              type={runtime.isStreaming ? "button" : "submit"}
+              type={
+                runtime.isStreaming &&
+                runtime.draft.trim() === "" &&
+                runtime.files.length === 0 &&
+                runtime.editingQueuedId === null
+                  ? "button"
+                  : "submit"
+              }
               variant="default"
               className="ms-auto size-9 shrink-0 rounded-full"
-              onClick={runtime.isStreaming ? runtime.stop : undefined}
-              aria-label={runtime.isStreaming ? "Stop generating" : "Send message"}
+              onClick={
+                runtime.isStreaming &&
+                runtime.draft.trim() === "" &&
+                runtime.files.length === 0 &&
+                runtime.editingQueuedId === null
+                  ? runtime.stop
+                  : undefined
+              }
+              aria-label={
+                runtime.editingQueuedId !== null
+                  ? "Update queued message"
+                  : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                    ? "Stop generating"
+                    : runtime.isStreaming
+                      ? "Send after reply"
+                      : "Send message"
+              }
             >
-              {runtime.isStreaming ? (
+              {runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (
                 <SquareIcon className="size-4" />
               ) : (
                 <ArrowUpIcon className="size-4" />

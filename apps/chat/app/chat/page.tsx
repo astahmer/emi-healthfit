@@ -14,6 +14,7 @@ import { queryKeys } from "../query-cache";
 import { compactConversation } from "../conversations";
 import { chatModels } from "../models";
 import type { ChatSearch } from "../router";
+import { createConversationWithMessages } from "../sessions";
 import { composerConfigMachine } from "./composer-config-machine";
 import type { MessageNode } from "./conversation-machine";
 import { conversationMarkdown } from "./conversation-markdown";
@@ -122,7 +123,9 @@ export const ChatPage = ({
     : [];
   const isLoading = conversationState.matches("loading");
   const loadError = conversationState.matches("error") ? conversationState.context.error : null;
-  const isRenaming = conversationState.matches({ ready: "renamingConversation" });
+  const isRenaming =
+    conversationState.matches({ ready: "editingConversationTitle" }) ||
+    conversationState.matches({ ready: "renamingConversation" });
   const hasOpenAiKey = settings.apiKey.trim() !== "";
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);
@@ -206,6 +209,24 @@ export const ChatPage = ({
       sendConfig({ type: "temporary.toggle", value });
       sendConversation({ type: "temporary.changed", isTemporary: value });
       if (value && activeConversationId !== undefined) onNavigate(undefined);
+    },
+    onKeepTemporary: async (messages) => {
+      const persistable = messages.flatMap((message) =>
+        message.role === "user" || message.role === "assistant" || message.role === "system"
+          ? [{ role: message.role, parts: message.parts }]
+          : [],
+      );
+      if (persistable.length === 0) {
+        sendConfig({ type: "temporary.toggle", value: false });
+        sendConversation({ type: "temporary.changed", isTemporary: false });
+        return;
+      }
+      const conversation = await createConversationWithMessages(persistable);
+      sendConfig({ type: "temporary.toggle", value: false });
+      sendConversation({ type: "temporary.changed", isTemporary: false });
+      sendConversation({ type: "session.created", conversationId: conversation.id });
+      onNavigate(conversation.id);
+      feedback.show({ kind: "success", message: "Temporary chat kept." });
     },
     models: chatModels,
     canWebSearch,

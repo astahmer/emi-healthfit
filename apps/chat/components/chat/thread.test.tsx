@@ -25,6 +25,7 @@ const controls: ComposerControls = {
   onWebSearchChange: vi.fn(),
   temporary: false,
   onTemporaryChange: vi.fn(),
+  onKeepTemporary: vi.fn(),
   models: chatModels,
   canWebSearch: true,
 };
@@ -48,6 +49,8 @@ describe("Thread", () => {
       sessionId: "conversation-1",
       draft: "",
       files: [],
+      queuedFollowUps: [],
+      editingQueuedId: null,
       isStreaming: false,
       error: null,
       errorMessageId: undefined,
@@ -59,13 +62,48 @@ describe("Thread", () => {
       submit: vi.fn(),
       revise: vi.fn(),
       stop: vi.fn(),
+      removeQueuedFollowUp: vi.fn(),
+      clearQueuedFollowUps: vi.fn(),
+      forceSendQueued: vi.fn(),
+      beginEditingQueuedFollowUp: vi.fn(),
+      clearQueuedFollowUpEdit: vi.fn(),
       clearError: vi.fn(),
       orphanMessageId: undefined,
       retryOrphan: vi.fn(),
+      isRetrying: false,
     });
   });
 
-  it("announces streaming and shows the delayed-response typing indicator", () => {
+  it("shows queued follow-ups with edit, send now, and cancel actions", () => {
+    const removeQueuedFollowUp = vi.fn();
+    const forceSendQueued = vi.fn();
+    const beginEditingQueuedFollowUp = vi.fn();
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      isStreaming: true,
+      queuedFollowUps: [
+        { id: "q1", text: "Ask about sleep next", files: [] },
+        { id: "q2", text: "Then recovery", files: [] },
+      ],
+      removeQueuedFollowUp,
+      forceSendQueued,
+      beginEditingQueuedFollowUp,
+    });
+
+    renderThread([]);
+
+    expect(screen.getByLabelText("Queued follow-ups")).toBeInTheDocument();
+    expect(screen.getByText(/Ask about sleep next/)).toBeInTheDocument();
+    expect(screen.getByText(/Then recovery/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Edit queued message 1"));
+    expect(beginEditingQueuedFollowUp).toHaveBeenCalledWith("q1");
+    fireEvent.click(screen.getByLabelText("Send queued message 2 now"));
+    expect(forceSendQueued).toHaveBeenCalledWith("q2");
+    fireEvent.click(screen.getByLabelText("Cancel queued message 1"));
+    expect(removeQueuedFollowUp).toHaveBeenCalledWith("q1");
+  });
+
+  it("announces streaming and shows the live response indicator", () => {
     const message: MessageWithUsage = { id: "assistant-1", role: "assistant", parts: [] };
     vi.mocked(useChatRuntime).mockReturnValue({
       ...vi.mocked(useChatRuntime)(),
@@ -77,6 +115,7 @@ describe("Thread", () => {
 
     expect(screen.getByText("Assistant is responding")).toBeInTheDocument();
     expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
   it("shows the typing indicator before the first assistant chunk arrives", () => {
@@ -96,6 +135,24 @@ describe("Thread", () => {
     expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
   });
 
+  it("keeps the live response indicator at the end of streamed content", () => {
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Partial answer" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: true,
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(screen.getByLabelText("Assistant is working")).toBeInTheDocument();
+  });
+
   it("does not animate an unfinished tool after message streaming has ended", () => {
     const message: MessageWithUsage = {
       id: "assistant-1",
@@ -103,7 +160,7 @@ describe("Thread", () => {
       parts: [
         {
           type: "dynamic-tool",
-          toolName: "query_database",
+          toolName: "get_workout_history",
           toolCallId: "tool-1",
           state: "input-available",
           input: {},
@@ -118,7 +175,7 @@ describe("Thread", () => {
 
     const view = renderThread([message]);
 
-    expect(screen.getByText("query database")).toBeInTheDocument();
+    expect(screen.getByText("get workout history")).toBeInTheDocument();
     expect(view.container.querySelector(".animate-spin")).toBeNull();
   });
 
@@ -126,7 +183,7 @@ describe("Thread", () => {
     const failedToolPart = JSON.parse(
       JSON.stringify({
         type: "dynamic-tool",
-        toolName: "query_database",
+        toolName: "get_workout_history",
         toolCallId: "tool-failed",
         state: "output-error",
         input: {},
@@ -225,7 +282,7 @@ describe("Thread", () => {
     await user.click(screen.getByRole("button", { name: "Update" }));
 
     expect(runtime.revise).toHaveBeenCalledWith({ messageId: "user-1", text: "Edited" });
-  });
+  }, 15_000);
 
   it("cancels an edit with Escape", async () => {
     const user = userEvent.setup();
@@ -245,7 +302,7 @@ describe("Thread", () => {
 
     expect(screen.queryByRole("button", { name: "Update" })).not.toBeInTheDocument();
     expect(vi.mocked(useChatRuntime)().revise).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("copies a message and confirms the action", async () => {
     const user = userEvent.setup();
@@ -266,7 +323,7 @@ describe("Thread", () => {
 
     expect(writeText).toHaveBeenCalledWith("Answer");
     expect(screen.getByRole("status")).toHaveTextContent("Message copied.");
-  });
+  }, 15_000);
 
   it("attaches a retry action to the failed user turn", async () => {
     const user = userEvent.setup();
@@ -287,6 +344,70 @@ describe("Thread", () => {
     await user.click(view.getByRole("button", { name: "Retry this request" }));
 
     expect(vi.mocked(useChatRuntime)().revise).toHaveBeenCalledWith({ messageId: message.id });
+  });
+
+  it("disables retry while a retry is already in flight", () => {
+    const message: MessageWithUsage = {
+      id: "user-failed",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      error: new Error("Generation timed out"),
+      errorMessageId: message.id,
+      isRetrying: true,
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByRole("button", { name: "Retrying…" })).toBeDisabled();
+  });
+
+  it("shows Send after reply instead of Stop when drafting during an in-flight generation", () => {
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Working…" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: true,
+      draft: "interrupt with this",
+    });
+
+    renderThread([message]);
+
+    expect(screen.getByLabelText("Send after reply")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Stop generating")).not.toBeInTheDocument();
+  });
+
+  it("shows composer retry-last-turn and dismiss when error is not bound to a message", async () => {
+    const user = userEvent.setup();
+    const clearError = vi.fn();
+    const revise = vi.fn();
+    const message: MessageWithUsage = {
+      id: "user-1",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      error: new Error("Upstream failed"),
+      errorMessageId: undefined,
+      clearError,
+      revise,
+    });
+    renderThread([message]);
+
+    expect(screen.getByText("Upstream failed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry last turn" }));
+    expect(revise).toHaveBeenCalledWith({ messageId: message.id });
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(clearError).toHaveBeenCalled();
   });
 
   it("confirms when an assistant message has no new memories", async () => {

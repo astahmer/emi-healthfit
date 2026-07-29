@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { buildAssistantParts } from "../src/chat/assistant-parts.ts";
+import { buildAssistantParts } from "../src/core/chat/assistant-parts.ts";
 
 describe("buildAssistantParts", () => {
   it("preserves tool results from separate tool messages", () => {
@@ -108,7 +108,7 @@ describe("buildAssistantParts", () => {
       {
         role: "assistant",
         content: [
-          { type: "tool-call", toolCallId: "failed-1", toolName: "query_database", input: {} },
+          { type: "tool-call", toolCallId: "failed-1", toolName: "get_workout_history", input: {} },
         ],
       },
       {
@@ -125,11 +125,10 @@ describe("buildAssistantParts", () => {
 
     assert.deepStrictEqual(parts[0], {
       type: "dynamic-tool",
-      toolName: "query_database",
+      toolName: "get_workout_history",
       toolCallId: "failed-1",
       input: {},
-      output: { type: "error-text", value: "Only one SELECT query is allowed." },
-      outcome: "error",
+      errorText: "Only one SELECT query is allowed.",
       state: "output-error",
     });
   });

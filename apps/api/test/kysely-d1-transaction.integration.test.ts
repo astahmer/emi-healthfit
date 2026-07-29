@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { runTransaction } from "../src/db/client.ts";
-import { getNotes } from "../src/db/memories.ts";
+import type { MemoryDatabaseSchema } from "@emi/core/server";
+import { narrowQueryDatabaseClient, runTransaction } from "../src/platform/db/client.ts";
+import { getNotes } from "../src/core/db/memories.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("Kysely D1 transaction integration", () => {
@@ -20,6 +21,9 @@ describe("Kysely D1 transaction integration", () => {
 
     await assert.rejects(run(runTransaction(db, [note, note])));
 
-    assert.deepStrictEqual(await run(getNotes(db, userId)), []);
+    assert.deepStrictEqual(
+      await run(getNotes(narrowQueryDatabaseClient<MemoryDatabaseSchema>(db), userId)),
+      [],
+    );
   });
 });

@@ -1,0 +1,23 @@
+id: no-nested-stack-use-sync
+language: TypeScript
+files:
+  - apps/**/*.ts
+  - apps/**/*.tsx
+ignores:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+message: >-
+  Wrap the entire resource props object in Stack.useSync(...). Nested
+  Stack.useSync fields stay unresolved Effects (alchemy resolveInput skips
+  them) and break deploy — e.g. domain hostname SchemaError.
+severity: error
+rule:
+  any:
+    - pattern: Stack.useSync($$$ARGS)
+      inside:
+        kind: pair
+        stopBy: end
+    - pattern: Alchemy.Stack.useSync($$$ARGS)
+      inside:
+        kind: pair
+        stopBy: end

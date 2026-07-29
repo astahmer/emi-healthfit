@@ -2,11 +2,14 @@
 
 ## Current architecture
 
-- The API Worker already owns Effect-based database operations for analytics, workouts, notes,
-  memories, conversation threads, and durable generations.
-- The monorepo uses pnpm workspaces/catalogs, TypeScript 7, Alchemy, Oxlint, and Oxfmt.
-- Authentication and per-user ownership are planned but not implemented. A Discord identity must not
-  implicitly receive access to the current single-user dataset.
+- Auth and per-user ownership are implemented. Discord identities must link explicitly to an
+  application user; never infer ownership from email or guild.
+- Shared domain reads live in `@emi/flavor-healthfit`. Conversation/auth ports live in
+  `@emi/core/server`. Discord verify/DTO helpers live in `@emi/core/discord`.
+- `apps/discord-bot` is a thin Alchemy Worker. Skeleton MVP shipped: signature verification, Ping,
+  `/healthfit` dispatch with fail-closed “not linked” stubs, boundary tests, dry-run deploy.
+- **No npm publish** for the bot or for `@emi/core` just to run it — workspace packages only.
+  Registry publish is an optional later choice for external consumers (see package `PUBLISH.md`).
 
 ## Goal
 
@@ -16,11 +19,10 @@ cost, and durable follow-up behavior are proven.
 
 ## Architecture
 
-- Create `apps/discord-bot` with its own Alchemy Worker and least-privilege binding to the shared D1.
-- Extract provider-neutral data access and domain summaries from `apps/api` into a workspace package
-  before reuse. Do not import through another app’s source tree and do not duplicate SQL.
-- Keep Discord signature verification/interaction DTOs in the bot app. Keep health calculations and
-  owner-scoped queries in shared packages.
+- `apps/discord-bot` with its own Alchemy Worker and least-privilege binding to the shared D1.
+- Health calculations and owner-scoped queries stay in `@emi/flavor-healthfit` / `@emi/core/server`.
+- Discord signature verification and interaction DTOs live in `@emi/core/discord` (reusable
+  subpath; no React / no flavor imports).
 - Link Discord users through a short-lived one-time code generated in authenticated Settings. Store
   `discord_user_id -> application_user_id`; never infer ownership from a Discord email or guild.
 
@@ -37,46 +39,166 @@ cost, and durable follow-up behavior are proven.
 Use ephemeral responses by default because health data is sensitive. A user may explicitly opt into
 visible responses per command later.
 
-## Implementation steps
+## Implementation status
 
-1. Land auth/user ownership first.
-2. Extract `packages/data-access` with owner-scoped Effect operations and schemas; keep Worker/R2/AI
-   bindings in their apps.
-3. Add `discord_account_links` and single-use `discord_link_codes` migrations with hashed codes,
-   expiry, consumed timestamp, and user indexes.
-4. Scaffold `apps/discord-bot` using catalog dependencies and the existing Nix/pnpm toolchain.
-5. Verify `X-Signature-Ed25519` and `X-Signature-Timestamp` against the exact raw body before JSON
-   parsing. Reject stale timestamps and invalid signatures with `401`.
-6. Decode interactions with Effect Schema, handle Ping, and dispatch only registered commands.
-7. Resolve the Discord user link before every data command and pass the application user id into
-   shared operations.
-8. Add an Effect-based registration script for guild commands in preview and global commands in
-   production. Use `Effect.log*`; redact tokens and interaction payload fields containing user data.
-9. Add Settings UI to create/revoke link codes and show linked Discord identities.
-10. Add per-user command rate limits and response-size limits.
+1. Land auth/user ownership. **DONE**
+2. Owner-scoped Effect operations in shared packages (not `apps/api` source). **DONE**
+   (via `@emi/core/server` + `@emi/flavor-healthfit`; no separate `packages/data-access`).
+3. `discord_account_links` + `discord_link_codes` migrations. **DONE**
+4. Scaffold `apps/discord-bot`. **DONE**
+5. Verify Ed25519 signature + timestamp before JSON parse. **DONE** (`@emi/core/discord`)
+6. Decode interactions with Effect Schema, Ping, dispatch. **DONE**
+7. Resolve Discord user link before every data command. **DONE**
+8. Registration script (guild preview / global prod). **DONE** (`pnpm discord:register`)
+9. Settings UI for link codes. **DONE**
+10. Per-user rate limits and response-size limits. **DONE**
 
 ## Deferred `/ask`
 
-Do not call the current chat handler directly in MVP. `/ask` needs:
+Shipped as a first slice (2026-07-21):
 
-- deferred interaction acknowledgement within Discord’s deadline;
-- a dedicated Discord conversation or explicit target conversation, never accidental reuse of the
-  last web session;
-- the same durable-generation ownership and stale-lease recovery as web chat;
-- per-user model/token budgets and a maximum cost per command;
-- webhook follow-up handling that survives Worker termination;
-- content controls for public guild channels.
+- Top-level `/ask question:` command (guild/global register via `discordCommandDefinitions`).
+- Deferred ephemeral ack (`DeferredChannelMessageWithSource`) + webhook edit follow-up.
+- Dedicated conversation title `[Discord] /ask` on the linked app user (via API).
+- Bot proxies to `POST /api/discord/ask` with `x-discord-internal-secret` (no provider keys on the bot).
+- Answer truncated to Discord content limits; rate-limited like other commands (soft per-isolate Map).
+- API builds HealthFit `buildChatContext` into the model prompt (recovery / last workout / sleep).
 
-Proxy through a stable authenticated internal API or shared generation service when those contracts
-exist. Do not duplicate the chat pipeline in the bot.
+**Secret trust:** anyone holding `DISCORD_INTERNAL_ASK_SECRET` can POST any `userId`. Keep the
+secret Worker-only (never browser), rotate on leak, prefer ≥32 chars in prod.
+
+Still tighten before calling it “done”:
+
+- per-user token/cost budgets beyond `maxOutputTokens`;
+- stale-lease / durable generation parity with web chat streaming;
+- richer content controls for non-ephemeral guild posts (MVP stays ephemeral);
+- Durable Object / D1-backed rate limits if soft isolate limits prove insufficient;
+- bot secrets: `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET` (+ API `OPENAI_API_KEY`,
+  matching `DISCORD_INTERNAL_ASK_SECRET`).
 
 ## Secrets and deployment
 
-- Worker secrets: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`.
-- Bind the existing D1 with least privilege available in the deployment model; do not bind R2 or AI
-  Gateway for the read-only MVP.
-- Add `discord:dev`, `discord:deploy`, and `discord:register` root scripts.
-- Start with guild commands for immediate test iteration; promote the reviewed definitions globally.
+- Worker secrets: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`,
+  `EMI_API_BASE_URL` (API origin, `https://…`), `DISCORD_INTERNAL_ASK_SECRET` (≥16 chars,
+  same value on the API Worker). Local scaffold: `apps/discord-bot/.env.example`.
+- API Worker (for `/api/discord/ask`): `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET`
+  (Alchemy `Config.redacted` in `apps/api`); optional `OPENAI_BASE_URL`, `DISCORD_ASK_MODEL`.
+- Bind the existing D1 (`GymData`) used by `apps/api`. Migrations stay owned by the API stack —
+  do **not** set `migrationsDir` on the bot’s GymData binding.
+- Root scripts: `discord:dev`, `discord:deploy`, `discord:deploy:prod`, `discord:register`,
+  `discord:setup:check`.
+- Start with guild commands (`DISCORD_GUILD_ID` set) for immediate test iteration; omit it to
+  register global commands.
+
+### Zero → smoke (Alchemy-first, no wrangler)
+
+You do **not** need `wrangler login`. Alchemy owns Cloudflare auth for this repo.
+
+#### 0. Prerequisites you can do by hand (or ask an agent to guide)
+
+1. Cloudflare account that already owns the Emi API / `GymData` stack.
+2. A Discord account + a **test guild** (server) you administer. Create one free at
+   https://discord.com → **+** → **Create My Own** → **For me and my friends**.
+3. Discord Developer Application:
+   - https://discord.com/developers/applications → **New Application** → name it.
+   - **Bot** → **Reset Token** → copy into `apps/discord-bot/.env` as `DISCORD_BOT_TOKEN`.
+   - **General Information** → copy **Application ID** → `DISCORD_APPLICATION_ID`.
+   - **General Information** → copy **Public Key** → `DISCORD_PUBLIC_KEY`.
+   - **Bot** → enable **Message Content Intent** only if you later ship free-form `/ask`
+     that reads message text outside slash options (MVP slash options do not need it).
+4. Invite the bot to your guild:
+   - Developer Portal → **OAuth2** → **URL Generator**
+   - Scopes: `bot`, `applications.commands`
+   - Bot permissions: none required for ephemeral slash replies (or `Send Messages` if you
+     later post non-ephemeral follow-ups)
+   - Open the generated URL, pick your test guild, authorize.
+5. Copy guild id: Discord user settings → Advanced → Developer Mode → right-click guild
+   → Copy Server ID → use as `DISCORD_GUILD_ID` when registering.
+
+#### 1. Alchemy Cloudflare login (interactive, once)
+
+From repo root (or `apps/discord-bot`):
+
+```bash
+pnpm --filter @emi/discord-bot exec alchemy login
+# or first deploy will prompt interactively:
+pnpm --filter @emi/discord-bot exec alchemy deploy --stage prod --env-file .env --dry-run
+```
+
+Alchemy stores the Cloudflare profile under `~/.alchemy/profiles.json` (OAuth or API token).
+CI alternative: set `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` and `CI=1`.
+
+Validate local secrets without deploying:
+
+```bash
+pnpm discord:setup:check
+```
+
+#### 2. Apply Discord link tables via the **API** stack
+
+Migrations for `discord_account_links` / `discord_link_codes` live on `apps/api` (`GymData`):
+
+```bash
+pnpm --filter @emi/api deploy   # or deploy:prod
+```
+
+#### 3. Deploy the Discord bot to production
+
+The bot references the API stack's `GymData` D1 binding. Deploy it to the same `prod` stage:
+
+```bash
+pnpm discord:deploy:prod
+# equivalent:
+pnpm --filter @emi/discord-bot exec alchemy deploy --stage prod --env-file .env
+```
+
+Confirm the plan first:
+
+```bash
+pnpm --filter @emi/discord-bot exec alchemy deploy --stage prod --env-file .env --dry-run
+# Plan must include DiscordBotWorker but never GymData create.
+```
+
+After deploy, copy the Worker URL from Alchemy output into Discord Developer Portal →
+**General Information** → **Interactions Endpoint URL**:
+`https://<worker-host>/interactions` (path matches the bot router).
+
+#### 4. Register guild slash commands
+
+```bash
+# loads apps/discord-bot/.env if you export it, or pass env inline:
+set -a && source apps/discord-bot/.env && set +a
+DISCORD_GUILD_ID=<your-guild-id> pnpm discord:register
+```
+
+Guild commands appear in seconds. Omit `DISCORD_GUILD_ID` only when promoting **global**
+commands (can take up to ~1 hour).
+
+#### 5. Manual smoke
+
+1. Run chat app → Settings → Discord → Generate link code.
+2. In the test guild: `/healthfit link code:<code>`
+3. `/healthfit summary` | `last-workout` | `recovery` → ephemeral owner-scoped data.
+4. `/healthfit unlink` → data commands fail closed again.
+
+### Agent-automatable vs human-only
+
+| Step | Agent can do | Human must do |
+| --- | --- | --- |
+| Write/update `.env` keys once pasted | yes | create Discord app + copy secrets |
+| `alchemy login` / deploy / register | yes if CF profile or token in env | first interactive OAuth if no token |
+| Create Discord guild + invite bot | no (browser) | yes |
+| Paste Interactions Endpoint URL | no (portal) | yes after deploy prints URL |
+| Settings link-code smoke | drive browser e2e if app up | Discord client slash commands |
+
+### GymData binding — exact commands and blocker notes
+
+Observed without Cloudflare credentials in Alchemy profile:
+
+The bot resolves `GymData` as a read-only cross-stack reference to the API stack.
+If the API stack has not been deployed for the selected stage, deployment fails instead of
+creating a new database. Do not use `alchemy destroy` on a production bot stack without
+reviewing its plan.
 
 ## Tests
 
@@ -101,3 +223,9 @@ exist. Do not duplicate the chat pipeline in the bot.
 - 2026-07-15: auth and ownership are prerequisites.
 - 2026-07-15: account linking uses one-time codes from authenticated Settings.
 - 2026-07-15: read-only commands ship before assistant chat; responses default to ephemeral.
+- 2026-07-21: Discord transport lives at `@emi/core/discord` subpath (not a separate package).
+- 2026-07-21: reusable core unified as `@emi/core` with contract/server/web/cloudflare/discord exports.
+- 2026-07-22: Discord bot resolves API-owned `GymData` through an explicit cross-stack
+  reference. Production deploy uses `pnpm discord:deploy:prod`; plans must never create
+  `GymData`. Migrations stay on the API stack only. Ops auth is **Alchemy**
+  (`alchemy login` / `CLOUDFLARE_API_TOKEN`), not wrangler. See Zero→smoke checklist above.

@@ -1,5 +1,12 @@
 import type { FileUIPart, UIMessage } from "ai";
 import { assign, setup } from "xstate";
+import { shouldApplyHistoryWhileStreaming } from "./stream-operation";
+
+export type QueuedFollowUp = {
+  id: string;
+  text: string;
+  files: FileUIPart[];
+};
 
 export interface ChatRuntimeContext {
   sessionId: string | undefined;
@@ -7,6 +14,7 @@ export interface ChatRuntimeContext {
   drafts: Record<string, { text: string; files: FileUIPart[] }>;
   draft: string;
   files: FileUIPart[];
+  queuedFollowUps: QueuedFollowUp[];
   error: Error | null;
   errorMessageId: string | undefined;
 }
@@ -15,6 +23,11 @@ export type ChatRuntimeEvent =
   | { type: "history.changed"; sessionId: string | undefined; messages: UIMessage[] }
   | { type: "draft.changed"; value: string }
   | { type: "files.changed"; files: FileUIPart[] }
+  | { type: "followUp.queued"; id: string; text: string; files: FileUIPart[] }
+  | { type: "followUp.updated"; id: string; text: string; files: FileUIPart[] }
+  | { type: "followUp.removed"; id: string }
+  | { type: "followUp.cleared" }
+  | { type: "followUp.replaced"; items: QueuedFollowUp[] }
   | { type: "submit.started"; sessionId: string; message: UIMessage }
   | {
       type: "revision.started";
@@ -31,11 +44,34 @@ export type ChatRuntimeEvent =
 
 const sessionKey = (sessionId: string | undefined): string => sessionId ?? "new";
 
+const clearComposer = ({
+  context,
+  sessionId,
+}: {
+  context: ChatRuntimeContext;
+  sessionId: string | undefined;
+}) => ({
+  draft: "",
+  files: [] as FileUIPart[],
+  drafts: {
+    ...context.drafts,
+    [sessionKey(sessionId)]: { text: "", files: [] as FileUIPart[] },
+  },
+});
+
 export const chatRuntimeMachine = setup({
   types: {
     context: {} as ChatRuntimeContext,
     events: {} as ChatRuntimeEvent,
     input: {} as { sessionId?: string; messages?: UIMessage[] },
+  },
+  guards: {
+    isDifferentSessionHistory: ({ context, event }) =>
+      event.type === "history.changed" &&
+      shouldApplyHistoryWhileStreaming({
+        contextSessionId: context.sessionId,
+        eventSessionId: event.sessionId,
+      }),
   },
   actions: {
     changeHistory: assign(({ context, event }) => {
@@ -56,6 +92,7 @@ export const chatRuntimeMachine = setup({
         drafts,
         draft: nextDraft?.text ?? "",
         files: nextDraft?.files ?? [],
+        queuedFollowUps: event.sessionId === context.sessionId ? context.queuedFollowUps : [],
         error: context.error,
         errorMessageId,
       };
@@ -80,17 +117,56 @@ export const chatRuntimeMachine = setup({
         },
       };
     }),
+    queueFollowUp: assign(({ context, event }) => {
+      if (event.type !== "followUp.queued") return {};
+      return {
+        queuedFollowUps: [
+          ...context.queuedFollowUps,
+          { id: event.id, text: event.text, files: event.files },
+        ],
+        ...clearComposer({ context, sessionId: context.sessionId }),
+      };
+    }),
+    updateFollowUp: assign(({ context, event }) => {
+      if (event.type !== "followUp.updated") return {};
+      return {
+        queuedFollowUps: context.queuedFollowUps.map((item) =>
+          item.id === event.id ? { id: event.id, text: event.text, files: event.files } : item,
+        ),
+        ...clearComposer({ context, sessionId: context.sessionId }),
+      };
+    }),
+    removeFollowUp: assign(({ context, event }) => {
+      if (event.type !== "followUp.removed") return {};
+      return {
+        queuedFollowUps: context.queuedFollowUps.filter((item) => item.id !== event.id),
+      };
+    }),
+    clearFollowUps: assign({ queuedFollowUps: () => [] }),
+    replaceFollowUps: assign(({ event }) => {
+      if (event.type !== "followUp.replaced") return {};
+      return { queuedFollowUps: event.items };
+    }),
     startSubmission: assign(({ context, event }) => {
       if (event.type !== "submit.started") return {};
       return {
         sessionId: event.sessionId,
         messages: [...context.messages, event.message],
-        draft: "",
-        files: [],
-        drafts: {
-          ...context.drafts,
-          [sessionKey(event.sessionId)]: { text: "", files: [] },
-        },
+        ...clearComposer({ context, sessionId: event.sessionId }),
+        error: null,
+        errorMessageId: undefined,
+      };
+    }),
+    supersedeInFlightSubmission: assign(({ context, event }) => {
+      if (event.type !== "submit.started") return {};
+      const baseMessages =
+        context.messages.at(-1)?.role === "assistant"
+          ? context.messages.slice(0, -1)
+          : context.messages;
+      return {
+        sessionId: event.sessionId,
+        messages: [...baseMessages, event.message],
+        ...clearComposer({ context, sessionId: event.sessionId }),
         error: null,
         errorMessageId: undefined,
       };
@@ -106,6 +182,7 @@ export const chatRuntimeMachine = setup({
           replacedIndex < 0
             ? [...context.messages, event.message]
             : [...context.messages.slice(0, replacedIndex), event.message],
+        queuedFollowUps: [],
         error: null,
         errorMessageId: undefined,
       };
@@ -137,6 +214,7 @@ export const chatRuntimeMachine = setup({
     drafts: {},
     draft: "",
     files: [],
+    queuedFollowUps: [],
     error: null,
     errorMessageId: undefined,
   }),
@@ -146,6 +224,10 @@ export const chatRuntimeMachine = setup({
         "history.changed": { actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
+        "followUp.removed": { actions: "removeFollowUp" },
+        "followUp.updated": { actions: "updateFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUps" },
+        "followUp.replaced": { actions: "replaceFollowUps" },
         "submit.started": { target: "streaming", actions: "startSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
@@ -155,11 +237,26 @@ export const chatRuntimeMachine = setup({
     },
     streaming: {
       on: {
+        "draft.changed": { actions: "changeDraft" },
+        "files.changed": { actions: "changeFiles" },
+        "followUp.queued": { actions: "queueFollowUp" },
+        "followUp.updated": { actions: "updateFollowUp" },
+        "followUp.removed": { actions: "removeFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUps" },
+        "followUp.replaced": { actions: "replaceFollowUps" },
+        "submit.started": { actions: "supersedeInFlightSubmission" },
+        "revision.started": { actions: "startRevision" },
         "stream.updated": { actions: "updateStream" },
         "stream.completed": { target: "idle" },
         "stream.stopped": { target: "idle" },
         "stream.failed": { target: "error", actions: "failStream" },
-        "history.changed": { target: "idle", actions: "changeHistory" },
+        "history.changed": [
+          {
+            guard: "isDifferentSessionHistory",
+            target: "idle",
+            actions: "changeHistory",
+          },
+        ],
       },
     },
     error: {
@@ -168,7 +265,11 @@ export const chatRuntimeMachine = setup({
         "history.changed": { target: "idle", actions: "changeHistory" },
         "draft.changed": { actions: "changeDraft" },
         "files.changed": { actions: "changeFiles" },
-        "submit.started": { target: "streaming", actions: "startSubmission" },
+        "followUp.removed": { actions: "removeFollowUp" },
+        "followUp.updated": { actions: "updateFollowUp" },
+        "followUp.cleared": { actions: "clearFollowUps" },
+        "followUp.replaced": { actions: "replaceFollowUps" },
+        "submit.started": { target: "streaming", actions: "supersedeInFlightSubmission" },
         "revision.started": { target: "streaming", actions: "startRevision" },
         "resume.started": { target: "streaming", actions: "clearError" },
       },

@@ -4,21 +4,18 @@ import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { parseDiagnosticOptions } from "../src/core/diagnostics/diagnostic-cli-options.ts";
 import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
-} from "../src/diagnostics/bundle.ts";
-import { analyzeDiagnosticBundle, renderDiagnosticMarkdown } from "../src/diagnostics/analyzer.ts";
-import { decodeJson } from "../src/json-codec.ts";
+} from "../src/core/diagnostics/bundle.ts";
+import {
+  analyzeDiagnosticBundle,
+  renderDiagnosticMarkdown,
+} from "../src/core/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/core/lib/json-codec.ts";
 
-const Options = Schema.Struct({
-  url: Schema.String.check(Schema.isMinLength(1)),
-  env: Schema.String.check(Schema.isMinLength(1)),
-  envFile: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
-  output: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
-  includeSensitive: Schema.optional(Schema.Boolean),
-});
 const WranglerError = Schema.Struct({ stderr: Schema.optional(Schema.Unknown) });
 const QueryCommands = Schema.Array(
   Schema.Struct({
@@ -26,34 +23,6 @@ const QueryCommands = Schema.Array(
   }),
 );
 const Databases = Schema.Array(Schema.Struct({ name: Schema.String }));
-
-const parseOptions = () => {
-  const values: Record<string, string | boolean> = {};
-  for (let index = 2; index < process.argv.length; index += 1) {
-    const argument = process.argv[index];
-    if (argument === "--include-sensitive") {
-      values.includeSensitive = true;
-      continue;
-    }
-    if (
-      argument !== "--url" &&
-      argument !== "--env" &&
-      argument !== "--env-file" &&
-      argument !== "--output"
-    )
-      continue;
-    const value = process.argv[index + 1];
-    if (value === undefined) throw new Error(`${argument} requires a value.`);
-    values[argument.slice(2)] = value;
-    index += 1;
-  }
-  const options = Schema.decodeUnknownSync(Options)(values);
-  return {
-    ...options,
-    output: options.output ?? ".diagnostics",
-    includeSensitive: options.includeSensitive ?? false,
-  };
-};
 
 const workspaceRoot = resolve(import.meta.dirname, "../../..");
 
@@ -226,7 +195,7 @@ const buildBundle = ({
 };
 
 const main = () => {
-  const options = parseOptions();
+  const options = parseDiagnosticOptions({ arguments_: process.argv.slice(2) });
   loadEnvironment(options);
   const conversationId = conversationIdFrom(options.url);
   const database = selectDatabase(options.env);

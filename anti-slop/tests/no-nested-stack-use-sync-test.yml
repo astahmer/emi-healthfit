@@ -1,0 +1,19 @@
+id: no-nested-stack-use-sync
+valid:
+  - |
+    Stack.useSync(({ stage }) => ({
+      domain: stage === "prod" ? "example.com" : undefined,
+    }))
+  - |
+    Alchemy.Stack.useSync((stack) => ({
+      domain: stack.stage === "prod" ? "example.com" : undefined,
+    }))
+invalid:
+  - |
+    {
+      domain: Stack.useSync(({ stage }) => (stage === "prod" ? "example.com" : undefined)),
+    }
+  - |
+    {
+      domain: Alchemy.Stack.useSync(({ stage }) => "example.com"),
+    }

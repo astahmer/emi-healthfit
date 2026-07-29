@@ -1,0 +1,59 @@
+{
+  "name": "@emi/flavor-healthfit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "hevy:client": "node --experimental-strip-types ./scripts/generate-hevy-client.ts",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "dependencies": {
+    "@emi/core": "workspace:*",
+    "@json-render/core": "0.19.0",
+    "@json-render/react": "0.19.0",
+    "alchemy": "2.0.0-beta.59",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "0.45.2",
+    "effect": "catalog:",
+    "kysely": "0.29.3",
+    "lucide-react": "^1.21.0",
+    "recharts": "^3.9.2",
+    "tailwind-merge": "^3.6.0",
+    "xstate": "^5.32.4",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/json-schema": "catalog:",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@xstate/react": "^6.1.0",
+    "jsdom": "^29.1.1",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "@xstate/react": "^6.1.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

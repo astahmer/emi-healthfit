@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { getRevisionDeletionIds } from "../src/chat/conversation-revision.ts";
+import { getRevisionDeletionIds } from "../src/core/chat/conversation-revision.ts";
 
 describe("getRevisionDeletionIds", () => {
   it("removes later root turns and every branch descending from the revised turn", () => {

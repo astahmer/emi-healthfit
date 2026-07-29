@@ -20,11 +20,16 @@
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt",
     "setup:google": "node scripts/setup-google-auth.mjs",
-    "verify": "node --experimental-strip-types scripts/verify-parsers.ts"
+    "setup:hevy-key": "node scripts/ensure-hevy-encryption-key.mjs",
+    "verify": "node --experimental-strip-types scripts/verify-parsers.ts",
+    "hevy:openapi": "node --experimental-strip-types scripts/fetch-hevy-openapi.ts",
+    "hevy:client": "node --experimental-strip-types scripts/generate-hevy-client.ts",
+    "hevy:reset-from-api": "node --experimental-strip-types scripts/reset-hevy-from-api.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "catalog:",
-    "@emi/api-contract": "workspace:*",
+    "@emi/core": "workspace:*",
+    "@emi/flavor-healthfit": "workspace:*",
     "ai": "catalog:",
     "alchemy": "2.0.0-beta.59",
     "better-auth": "catalog:",
@@ -43,6 +48,7 @@
     "miniflare": "4.20260710.0",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "typed-openapi": "^2.2.7",
     "typescript": "catalog:",
     "wrangler": "^4.111.0"
   }

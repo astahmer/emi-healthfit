@@ -28,4 +28,10 @@ const serwist = new Serwist({
   },
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    void self.skipWaiting();
+  }
+});
+
 serwist.addEventListeners();

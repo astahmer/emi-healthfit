@@ -3,8 +3,8 @@ import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { UIMessageChunk } from "ai";
-import { buildAssistantParts } from "../src/chat/assistant-parts.ts";
-import { createChatStream } from "../src/chat/ai-sdk.ts";
+import { buildAssistantParts } from "../src/core/chat/assistant-parts.ts";
+import { createChatStream } from "../src/core/chat/ai-sdk.ts";
 
 const toSseData = (items: unknown[]): string =>
   items.map((item) => `data: ${JSON.stringify(item)}\n\n`).join("");

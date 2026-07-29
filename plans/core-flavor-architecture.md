@@ -21,19 +21,25 @@ where there is a demonstrated need.
 
 ```text
 apps/
-  healthfit-web/          Next.js composition root
-  healthfit-worker/       Cloudflare composition root
+  api/                    HealthFit Worker composition root (legacy name)
+  chat/                   HealthFit web composition root (legacy name)
   generic-web/            deployable generic chat app and template fixture
   generic-worker/
+  discord-bot/            Discord interactions Worker
 packages/
-  core-contract/          schemas and API contracts with no platform imports
-  core-server/            auth, conversations, branches, generation, memory, notes
-  core-web/               chat shell, composer, sidebar, settings, core pages
-  platform-cloudflare/    D1, R2, Durable Object, Worker, and Alchemy adapters
+  core/                   reusable layer via subpath exports
+    contract/             schemas and API contracts with no platform imports
+    server/               auth ports, conversations, branches, generation, memory, notes
+    web/                  chat shell, composer slots, settings contributions
+    cloudflare/           D1, R2, Durable Object, Worker adapters
+    discord/              Discord signature verify + interaction DTOs
   flavor-healthfit/       health schemas, ingestion, tools, prompt, API and UI extensions
-  transport-discord/      Discord event and response adapter
   create-chat-app/        scaffolder for a thin self-hostable composition root
 ```
+
+Consumers import `@emi/core/contract`, `@emi/core/server`, `@emi/core/web`,
+`@emi/core/cloudflare`, or `@emi/core/discord` — never a grab-bag root that mixes React and
+Worker code. Flavors may import core; core must never import a flavor.
 
 ## Composition contract
 
@@ -49,14 +55,14 @@ magic:
 - optional transports: web chat, Discord, or another event source.
 
 Core packages expose narrow extension points. Flavors may import core contracts, but core packages
-must never import a flavor. Platform packages implement ports declared by core (`ConversationStore`,
+must never import a flavor. Platform adapters implement ports declared by core (`ConversationStore`,
 `GenerationCoordinator`, `BlobStore`, `Identity`, and `ModelProvider`).
 
 ## Data boundaries
 
 Core owns users, sessions, conversations, messages, threads, memories, notes, suggestions,
-generation state, and rate-limit state. HealthFit owns activity, workouts, sleep, body metrics,
-imports, exports, and fitness analytics.
+generation state, rate-limit state, and Discord account-link mappings. HealthFit owns activity,
+workouts, sleep, body metrics, imports, exports, and fitness analytics.
 
 Every repository is constructed with an authenticated `RequestContext` containing `userId` and a
 request id. Ownership is applied inside repositories, not remembered by route handlers. Child rows
@@ -86,30 +92,44 @@ and deployment configuration. Generated apps depend on released core packages, s
 normal dependency update rather than a manual port.
 
 The upstream repository continuously generates a fixture and deploys/tests it. A public template
-repository may mirror that generated fixture for GitHub's “Use this template” experience, but its
+repository may mirror that generated fixture for GitHub’s “Use this template” experience, but its
 README states that application logic comes from versioned packages.
 
 ## Extraction phases
 
-1. Finish per-user ownership and replace the raw database tool with owned domain queries.
-2. Split current Worker into route modules and current database file into repositories at the
-   core/health boundary without changing behavior.
-3. Move schemas and shared types into `core-contract`; remove imports from frontend source into
-   Worker implementation details.
-4. Extract `core-server` repositories and services behind ports, keeping the existing Cloudflare
-   implementations as adapters.
-5. Extract `core-web` shell and accept typed navigation/page/tool-renderer contributions.
-6. Move fitness prompt, tools, ingestion, analytics, and screens into `flavor-healthfit`.
-7. Add generic composition roots and verify local development plus a free-tier deployment.
-8. Add `create-chat-app`, package releases, generated-template CI, and an upgrade test.
-9. Add Discord transport only after generic web and HealthFit both consume the same released core.
+1–9. **DONE** — ownership, route/repo split, `core-contract`/`core-server`/`core-web`/
+`platform-cloudflare`/`flavor-healthfit` extraction, generic composition roots, `create-chat-app`,
+and Discord transport skeleton (see git history / prior plan revisions for detail).
+
+10. Unify reusable packages into `@emi/core` with subpath exports. **DONE**
+    (`packages/core` replaces `@emi/core-contract`, `@emi/core-server`, `@emi/core-web`,
+    `@emi/platform-cloudflare`, and `@emi/transport-discord` with subpaths `/contract`,
+    `/server`, `/web`, `/cloudflare`, `/discord`. Entry isolation enforced by boundary tests.
+    `flavor-healthfit` and `create-chat-app` stay separate.)
+
+## Remaining deferrals
+
+- Chat `Thread` / `ChatMessage` orchestration still app-local (memories, usage, HealthFit
+  empty suggestions); portable markdown / message parts / tool-result / `ThreadViewport` /
+  `SuggestionChips` now live in `@emi/core/web`.
+- Leftover HealthFit HTTP still in apps (`http/data`, Hevy route wrappers). Hevy OAuth/sync
+  client + gen-ui catalog/renderer live in `@emi/flavor-healthfit` (+ `/web`).
+- npm publishing of `@emi/core` / `@emi/create-chat-app` is **optional and not required**
+  for this private monorepo (chat, API, Discord bot all use the workspace). Prep docs live
+  in each package `PUBLISH.md`; keep `"private": true` unless shipping to external npm
+  consumers.
+- Discord `/ask` MVP landed (deferred ack → API → webhook edit); tighten budgets / durable
+  generation parity — see `plans/discord-bot.md`.
+- Discord linking **ops ship**: GymData adopt + migrate + register + smoke. Use Alchemy
+  (`alchemy login` / `pnpm discord:deploy:adopt`), not wrangler. See `plans/discord-bot.md`.
+  Do not invent a second D1.
 
 ## Guardrails
 
 - No source copying between template and HealthFit.
 - No dynamic plugin loading in the first extraction.
-- No platform types in core contracts.
+- No platform types in `@emi/core/contract`.
+- No React in `@emi/core/server` / `@emi/core/cloudflare` / `@emi/core/discord`.
 - No raw SQL tool in multi-user apps.
-- No generic abstraction until at least core plus HealthFit need it; Discord validates transport
-  boundaries later.
+- No generic abstraction until at least core plus HealthFit need it.
 - Each extraction step keeps the existing app deployable and includes contract/isolation tests.

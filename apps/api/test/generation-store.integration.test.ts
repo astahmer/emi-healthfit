@@ -2,6 +2,8 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import {
   appendGenerationChunk,
+  appendGenerationChunks,
+  cancelRunningGenerations,
   cleanupGenerationHistory,
   createGeneration,
   expireStaleGenerations,
@@ -14,15 +16,23 @@ import {
   reconcileFinishedGenerations,
   recordChatEvent,
   updateGenerationMetadata,
-} from "../src/chat/generation-store.ts";
-import { createConversation } from "../src/db/conversations.ts";
+} from "../src/core/chat/generation-store.ts";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
+import { createConversation } from "../src/core/db/conversations.ts";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("generation store SQLite integration", () => {
   it("persists streaming lifecycle, ordered chunks, events, reconciliation, expiry, and cleanup", async () => {
     const { db, sqlite } = makeSqliteDatabase();
     const userId = "user-a";
-    const conversationId = await run(createConversation(db, userId, "Streaming"));
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Streaming",
+      ),
+    );
 
     await run(
       createGeneration({
@@ -51,21 +61,14 @@ describe("generation store SQLite integration", () => {
       }),
     );
     await run(
-      appendGenerationChunk({
+      appendGenerationChunks({
         db,
         userId,
         generationId: "generation-a",
-        sequence: 0,
-        chunk: { type: "start" },
-      }),
-    );
-    await run(
-      appendGenerationChunk({
-        db,
-        userId,
-        generationId: "generation-a",
-        sequence: 1,
-        chunk: { type: "finish" },
+        chunks: [
+          { sequence: 0, chunk: { type: "start" } },
+          { sequence: 1, chunk: { type: "finish" } },
+        ],
       }),
     );
     await run(
@@ -194,6 +197,219 @@ describe("generation store SQLite integration", () => {
     assert.strictEqual(
       await run(getGeneration({ db, userId, generationId: "generation-d" })),
       null,
+    );
+  });
+
+  it("cancels running generations for a conversation without touching finished ones", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-cancel";
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Cancel running",
+      ),
+    );
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "running-a",
+        conversationId,
+      }),
+    );
+    await run(markGenerationStreaming({ db, userId, generationId: "running-a" }));
+
+    assert.strictEqual(
+      await run(
+        cancelRunningGenerations({
+          db,
+          userId,
+          conversationId,
+          reason: "superseded",
+          error: "Superseded by a newer request",
+        }),
+      ),
+      1,
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "running-a" })))?.status,
+      "cancelled",
+    );
+    assert.strictEqual(await run(getRunningGeneration({ db, userId, conversationId })), null);
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "next-c",
+        conversationId,
+      }),
+    );
+    await run(
+      finishGeneration({
+        db,
+        userId,
+        generationId: "next-c",
+        status: "completed",
+        finishReason: "stop",
+      }),
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "next-c" })))?.status,
+      "completed",
+    );
+    assert.strictEqual(
+      await run(
+        cancelRunningGenerations({
+          db,
+          userId,
+          conversationId,
+          reason: "superseded",
+        }),
+      ),
+      0,
+    );
+  });
+
+  it("ignores late finishGeneration after a generation was cancelled", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-late-finish";
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Late finish",
+      ),
+    );
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "cancelled-a",
+        conversationId,
+      }),
+    );
+    await run(markGenerationStreaming({ db, userId, generationId: "cancelled-a" }));
+    assert.strictEqual(
+      await run(
+        finishGeneration({
+          db,
+          userId,
+          generationId: "cancelled-a",
+          status: "cancelled",
+          finishReason: "client_stopped",
+          error: "Stopped by client",
+        }),
+      ),
+      true,
+    );
+    assert.strictEqual(
+      await run(
+        finishGeneration({
+          db,
+          userId,
+          generationId: "cancelled-a",
+          status: "completed",
+          finishReason: "stop",
+        }),
+      ),
+      false,
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "cancelled-a" })))?.status,
+      "cancelled",
+    );
+  });
+
+  it("cancel-then-create unlocks the one-active unique index", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-supersede";
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Supersede",
+      ),
+    );
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "first",
+        conversationId,
+      }),
+    );
+    await run(markGenerationStreaming({ db, userId, generationId: "first" }));
+    await run(
+      cancelRunningGenerations({
+        db,
+        userId,
+        conversationId,
+        reason: "superseded",
+        error: "Superseded by a newer request",
+      }),
+    );
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "second",
+        conversationId,
+      }),
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "second" })))?.status,
+      "pending",
+    );
+    assert.strictEqual(
+      (await run(getGeneration({ db, userId, generationId: "first" })))?.status,
+      "cancelled",
+    );
+  });
+
+  it("rejects a second active generation for the same conversation", async () => {
+    const { db } = makeSqliteDatabase();
+    const userId = "user-unique";
+    const conversationId = await run(
+      createConversation(
+        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+        userId,
+        "Unique active",
+      ),
+    );
+
+    await run(
+      createGeneration({
+        db,
+        userId,
+        generationId: "active-1",
+        conversationId,
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        run(
+          createGeneration({
+            db,
+            userId,
+            generationId: "active-2",
+            conversationId,
+          }),
+        ),
+      (error: unknown) => {
+        assert.equal(
+          error instanceof Error && error.name === "GenerationAlreadyActiveError"
+            ? true
+            : String(error).includes("GenerationAlreadyActiveError"),
+          true,
+        );
+        return true;
+      },
     );
   });
 });

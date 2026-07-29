@@ -26,12 +26,15 @@ import {
   saveSuggestions,
   summarizeThread,
   updateConversationState,
-} from "../src/db/conversations.ts";
+} from "../src/core/db/conversations.ts";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("conversations SQLite integration", () => {
   it("persists conversation, branch, summary, suggestion, and revision lifecycle", async () => {
-    const { db } = makeSqliteDatabase();
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ConversationDatabaseSchema>(rawDb);
     const userId = "user-a";
     const conversationId = await run(createConversation(db, userId, "Running plan"));
     const [questionId] = await run(
@@ -73,6 +76,7 @@ describe("conversations SQLite integration", () => {
     const threadId = await run(
       createThread(db, userId, conversationId, questionId, "Recovery branch"),
     );
+    assert.ok(threadId);
     await run(addThreadMessage(db, userId, threadId, answerId));
     await run(renameThread(db, userId, threadId, "Recovery details"));
     await run(pinThread(db, userId, threadId, true));
@@ -151,8 +155,44 @@ describe("conversations SQLite integration", () => {
     );
   });
 
+  it("creates a conversation with a batch of root messages in order", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ConversationDatabaseSchema>(rawDb);
+    const userId = "user-a";
+    const conversationId = await run(createConversation(db, userId, "Kept ghost"));
+    await run(
+      saveConversationMessages(db, userId, conversationId, null, [
+        { role: "user", parts: [{ type: "text", text: "Ghost note" }] },
+        { role: "assistant", parts: [{ type: "text", text: "Ghost reply" }] },
+      ]),
+    );
+    const messages = await run(getConversationMessages(db, userId, conversationId));
+    assert.deepStrictEqual(
+      messages.map((message) => ({
+        role: message.role,
+        parent_id: message.parent_id,
+        parts: message.parts,
+      })),
+      [
+        {
+          role: "user",
+          parent_id: null,
+          parts: JSON.stringify([{ type: "text", text: "Ghost note" }]),
+        },
+        {
+          role: "assistant",
+          parent_id: null,
+          parts: JSON.stringify([{ type: "text", text: "Ghost reply" }]),
+        },
+      ],
+    );
+    assert.ok(messages[0] !== undefined && messages[1] !== undefined);
+    assert.ok(messages[0].created_at <= messages[1].created_at);
+  });
+
   it("clones linked messages and threads, then deletes only owned original conversation", async () => {
-    const { db } = makeSqliteDatabase();
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ConversationDatabaseSchema>(rawDb);
     const alice = "user-a";
     const bob = "user-b";
     const conversationId = await run(createConversation(db, alice, "Strength plan"));
@@ -167,6 +207,7 @@ describe("conversations SQLite integration", () => {
       ]),
     );
     const threadId = await run(createThread(db, alice, conversationId, rootId));
+    assert.ok(threadId);
     await run(addThreadMessage(db, alice, threadId, childId));
 
     const cloned = await run(cloneConversation({ db, userId: alice, conversationId }));

@@ -1,0 +1,70 @@
+{
+  "name": "@emi/core",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "src",
+    "PUBLISH.md"
+  ],
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./contract/healthfit": "./src/contract/healthfit.ts",
+    "./server": "./src/server/index.ts",
+    "./web": "./src/web/index.ts",
+    "./web/contributions": "./src/web/contributions.tsx",
+    "./cloudflare": "./src/cloudflare/index.ts",
+    "./discord": "./src/discord/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts && vitest run",
+    "test:watch": "vitest",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "dependencies": {
+    "alchemy": "2.0.0-beta.59",
+    "better-auth": "catalog:",
+    "drizzle-orm": "0.45.2",
+    "effect": "catalog:",
+    "kysely": "0.29.3",
+    "kysely-d1": "0.4.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20250805.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/json-schema": "catalog:",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "jsdom": "^29.1.1",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "catalog:",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  }
+}

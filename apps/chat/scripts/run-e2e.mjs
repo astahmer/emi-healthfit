@@ -1,9 +1,24 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const require = createRequire(import.meta.url);
 const serverPath = fileURLToPath(new URL("./serve-e2e.mjs", import.meta.url));
 const playwrightPath = fileURLToPath(import.meta.resolve("@playwright/test/cli"));
+const bddgenPath = join(
+  dirname(require.resolve("playwright-bdd/package.json")),
+  "dist/cli/index.js",
+);
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const runChild = async ({ command, args, env }) => {
+  const child = spawn(command, args, { env, stdio: "inherit" });
+  const result = await waitForChild({ child });
+  if ((result.code ?? 1) !== 0) {
+    throw new Error(`${args.join(" ")} exited with code ${result.code}`);
+  }
+};
 
 const waitForChild = ({ child }) => {
   if (child.exitCode !== null || child.signalCode !== null) {
@@ -66,8 +81,14 @@ process.once("SIGINT", () => interrupt("SIGINT"));
 process.once("SIGTERM", () => interrupt("SIGTERM"));
 
 try {
+  await runChild({
+    command: process.execPath,
+    args: [bddgenPath],
+    env: process.env,
+  });
   const serverUrl = await waitForServer({ child: server });
-  playwright = spawn(process.execPath, [playwrightPath, "test"], {
+  const playwrightArgs = process.argv.slice(2).filter((arg) => arg !== "--");
+  playwright = spawn(process.execPath, [playwrightPath, "test", ...playwrightArgs], {
     env: { ...process.env, E2E_BASE_URL: serverUrl },
     stdio: "inherit",
   });

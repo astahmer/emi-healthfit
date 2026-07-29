@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 import type { UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { createGenerationReplayStream } from "../src/chat/generation-replay.ts";
-import type { ChatGeneration } from "../src/chat/generation-store.ts";
+import { createGenerationReplayStream } from "../src/core/chat/generation-replay.ts";
+import type { ChatGeneration } from "../src/core/chat/generation-store.ts";
 
 const generation = (
   status: ChatGeneration["status"],

@@ -28,10 +28,15 @@ you already know the symbol:
    Tune density with `--format=names|compact|default|wide` (alias
    `--oneline`=`names`) — `wide` adds private members and fields.
 
-2. **File-level shape** — `ast-outline <paths…>`: signatures with line
-   ranges, no bodies (2–10× smaller than a full read on non-trivial
-   files). A `# WARNING: N parse errors` line in the header means the
-   outline is partial — read the source for the affected region.
+2. **File-level shape** — `ast-outline <paths…>` or
+ `ast-outline outline <paths…>`: signatures with line ranges, no bodies
+ (2–10× smaller than a full read on non-trivial files). Bare paths are
+ the outline shorthand; both forms are valid. A `# WARNING: N parse
+ errors` line in the header means the outline is partial — read the
+ source for the affected region. Quote paths that contain spaces or
+ shell glob characters. Pass exact file extensions (`foo.ts`, not
+ `foo`); inventory with `rg --files` before batching if a path may be
+ missing — one absent path can abort a multi-path call.
 
 3. **One method, type, markdown heading, or yaml key** —
    `ast-outline show <file> <Symbol>`. Suffix matching: `TakeDamage`
@@ -190,6 +195,21 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Debug by running a single file, not the whole suite.
 - Use full path and `--run` for fast feedback.
 - Add `.only` to isolate a single failing test.
+- Package-scoped Vitest filters need paths relative to that package
+  (`src/foo.test.ts`), not workspace-root paths (`apps/chat/src/...`).
+- Prefer `pnpm --dir apps/api <script>` / `pnpm --dir apps/chat <script>`
+  for scoped scripts when `rtk` rewrites `pnpm --filter` ambiguously.
+- Expected-empty ripgrep checks: `scripts/expect-no-match.sh <rg-args…>`
+  (plain `rg` exits 1 on zero matches and breaks `&&` chains).
+- Whitespace validation: `jj` has no `git diff --check`. Use
+  `pnpm format` / `pnpm fmt`, or `git diff --check` against the git
+  export if needed.
+- React Doctor scopes are `full`, `changed`, `files`, and `lines` — not
+  arbitrary path arguments. Use `npx react-doctor@latest --scope changed`.
+- Feature plans: copy from this repo's `plans/_template.md` (skill
+  fallback: `~/.agents/skills/feature-plan/_template.md`).
+- Product docs: `docs/` (architecture, features, user guide). Active
+  plans stay in `plans/`.
 
 ## Release handoff
 

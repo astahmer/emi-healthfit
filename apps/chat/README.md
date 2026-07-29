@@ -11,6 +11,8 @@ pnpm --filter chat dev
 
 Open [http://localhost:3232/chat](http://localhost:3232/chat).
 
+Production assets are built by Alchemy (`Command.Build` in `apps/api/src/api.worker.ts`) with `EMI_BUILD_ID` (or `GITHUB_SHA` / stage fallback) so Settings can show the running build.
+
 Key files:
 
 - `app/chat/chat-runtime-machine.ts` — valid runtime states and message ownership

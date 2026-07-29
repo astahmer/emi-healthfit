@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { FileUIPart, UIMessage } from "ai";
+import type { QueuedFollowUp } from "./chat-runtime-machine";
 
 export interface ChatRuntimeConfig {
   model: string;
@@ -17,6 +18,8 @@ export interface ChatRuntimeValue {
   sessionId: string | undefined;
   draft: string;
   files: FileUIPart[];
+  queuedFollowUps: QueuedFollowUp[];
+  editingQueuedId: string | null;
   isStreaming: boolean;
   error: Error | null;
   errorMessageId: string | undefined;
@@ -25,11 +28,17 @@ export interface ChatRuntimeValue {
   setDraft: (value: string) => void;
   addFiles: (files: FileList) => Promise<void>;
   removeFile: (url: string) => void;
-  submit: (text?: string) => Promise<void>;
+  submit: (text?: string, options?: { interrupt?: boolean }) => Promise<void>;
   revise: (options: { messageId: string; text?: string }) => Promise<void>;
   orphanMessageId: string | undefined;
   retryOrphan: () => Promise<void>;
+  isRetrying: boolean;
   stop: () => void;
+  removeQueuedFollowUp: (id: string) => void;
+  clearQueuedFollowUps: () => void;
+  forceSendQueued: (id?: string) => Promise<void>;
+  beginEditingQueuedFollowUp: (id: string) => void;
+  clearQueuedFollowUpEdit: () => void;
   clearError: () => void;
 }
 

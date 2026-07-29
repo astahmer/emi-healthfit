@@ -1,6 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # generated on demand by `pnpm fixture:chat-app`, absent otherwise (gitignored)
+  - "apps/generated-fixture/*"
 catalog:
   "@ai-sdk/openai": "^3.0.74"
   "@types/json-schema": "^7.0.15"

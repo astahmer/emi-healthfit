@@ -1,0 +1,38 @@
+{
+  "name": "@emi/discord-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "alchemy deploy",
+    "deploy:adopt": "alchemy deploy --adopt",
+    "deploy:prod": "alchemy deploy --stage prod --env-file .env",
+    "destroy": "alchemy destroy",
+    "dev": "alchemy dev",
+    "dry": "alchemy deploy --dry-run",
+    "dry:adopt": "alchemy deploy --dry-run --adopt",
+    "register": "node --experimental-strip-types scripts/register-commands.ts",
+    "test": "node --test --experimental-strip-types test/**/*.test.ts",
+    "test:file": "node --test --experimental-strip-types",
+    "typecheck": "tsc --noEmit",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "dependencies": {
+    "@emi/core": "workspace:*",
+    "@emi/flavor-healthfit": "workspace:*",
+    "alchemy": "2.0.0-beta.59",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20250805.0",
+    "@types/node": "^26.0.0",
+    "miniflare": "4.20260710.0",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "wrangler": "^4.111.0"
+  }
+}

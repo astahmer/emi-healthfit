@@ -8,15 +8,15 @@ import {
   OpenAiClientConfig,
   Thread,
   ThreadWithMessages,
-} from "@emi/api-contract";
+} from "@emi/core/contract";
 import * as Schema from "effect/Schema";
-import { decodeGenerationChunk } from "../src/chat/generation-store.ts";
-import { normalizeGeneratedStrings } from "../src/chat/ai-sdk.ts";
+import { decodeGenerationChunk } from "../src/core/chat/generation-store.ts";
+import { normalizeGeneratedStrings } from "../src/core/chat/ai-sdk.ts";
 import {
   decodeMessageParts,
   decodeSuggestions,
   textFromMessageParts,
-} from "../src/http-api-codecs.ts";
+} from "../src/core/http/codecs.ts";
 
 const conversation = {
   id: "conversation-1",

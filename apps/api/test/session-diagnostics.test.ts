@@ -7,9 +7,9 @@ import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
-} from "../src/diagnostics/bundle.ts";
-import { analyzeDiagnosticBundle } from "../src/diagnostics/analyzer.ts";
-import { decodeJson } from "../src/json-codec.ts";
+} from "../src/core/diagnostics/bundle.ts";
+import { analyzeDiagnosticBundle } from "../src/core/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/core/lib/json-codec.ts";
 
 const timestamp = "2026-07-16T12:00:00.000Z";
 const SessionFixture = Schema.Struct({
@@ -41,7 +41,7 @@ const session9745Bundle = (): DiagnosticBundle =>
         parts: [
           {
             type: "dynamic-tool",
-            toolName: "query_database",
+            toolName: "get_workout_history",
             state: "output-available",
             outcome: "success",
             output: { type: "error-text", value: "Only one SELECT query is allowed." },
@@ -95,7 +95,7 @@ const session9745Bundle = (): DiagnosticBundle =>
         traceId: "trace-9745",
         type: "tool.failed",
         schemaVersion: 1,
-        payload: { tool: "query_database", code: "ONLY_ONE_SELECT" },
+        payload: { tool: "get_workout_history", code: "ONLY_ONE_SELECT" },
         createdAt: timestamp,
       })),
       {
