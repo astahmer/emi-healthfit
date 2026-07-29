@@ -25,7 +25,8 @@ export const AppAboutSettings = ({
 }: {
   updater?: ServiceWorkerUpdater;
 }) => {
-  const versionLabel = formatAppVersionLabel(readAppVersionInfo());
+  const versionInfo = readAppVersionInfo();
+  const versionLabel = formatAppVersionLabel(versionInfo);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<ServiceWorkerUpdateResult | null>(null);
 
@@ -46,10 +47,18 @@ export const AppAboutSettings = ({
         <p className="text-muted-foreground mt-1 text-sm" data-testid="app-version-label">
           {versionLabel}
         </p>
+        {versionInfo.releasedAt !== undefined && (
+          <p className="text-muted-foreground mt-1 text-xs">
+            Released {new Date(versionInfo.releasedAt).toLocaleString()} · JJ {versionInfo.commitId}
+          </p>
+        )}
         <p className="text-muted-foreground mt-1 text-xs">
           The app checks for updates automatically. Use the button below if a phone still shows an
           older build after a release.
         </p>
+        <a href="/releases" className="mt-2 inline-block text-xs underline underline-offset-4">
+          View release history
+        </a>
       </div>
       <Button
         type="button"

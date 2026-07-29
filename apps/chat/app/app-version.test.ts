@@ -13,6 +13,24 @@ describe("app version helpers", () => {
     );
   });
 
+  it("keeps the deployment metadata from a release manifest", () => {
+    expect(
+      parseAppVersionInfo({
+        version: "0.1.0-2026-07-29",
+        buildId: "a1c0fb3c6480",
+        releasedAt: "2026-07-29T12:34:56.000Z",
+        commitId: "a1c0fb3c6480",
+        changeId: "qunyuxxxzxlz",
+      }),
+    ).toEqual({
+      version: "0.1.0-2026-07-29",
+      buildId: "a1c0fb3c6480",
+      releasedAt: "2026-07-29T12:34:56.000Z",
+      commitId: "a1c0fb3c6480",
+      changeId: "qunyuxxxzxlz",
+    });
+  });
+
   it("omits redundant build id for local and version-only builds", () => {
     expect(formatAppVersionLabel({ version: "0.1.0", buildId: "dev" })).toBe("v0.1.0");
     expect(formatAppVersionLabel({ version: "0.1.0", buildId: "0.1.0" })).toBe("v0.1.0");

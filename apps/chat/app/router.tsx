@@ -14,6 +14,7 @@ import GenUISandboxPage from "./gen-ui/page";
 import ThreadLayoutsPage from "./gen-ui/thread-layouts/page";
 import MemoryPage from "./memory/page";
 import NotesPage from "./notes/page";
+import ReleasesPage from "./releases/page";
 import SettingsPage from "./settings/page";
 import SummaryPage from "./summary/page";
 import UploadPage from "./upload/page";
@@ -124,6 +125,12 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const releasesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/releases",
+  component: ReleasesPage,
+});
+
 const genUiRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/gen-ui",
@@ -146,6 +153,7 @@ const routeTree = rootRoute.addChildren([
   notesRoute,
   memoryRoute,
   settingsRoute,
+  releasesRoute,
   genUiRoute,
   threadLayoutsRoute,
 ]);
