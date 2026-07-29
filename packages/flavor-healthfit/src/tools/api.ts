@@ -24,7 +24,11 @@ import { buildChatContext } from "../chat/context.ts";
 import {
   getDataSummary,
   getExerciseProgress,
+  getGoalProgress,
+  getNextWorkout,
+  getRecoveryTimeline,
   getSleepTrend,
+  getTrainingLoad,
   getWorkoutHistory,
   getWorkoutDetails,
   getWorkoutStreak,
@@ -139,6 +143,58 @@ const GetWorkoutStreak = Tool.make("get_workout_streak", {
   failure: Schema.Unknown,
 });
 
+const GetTrainingLoad = Tool.make("get_training_load", {
+  description: "Get weekly strength-training volume, workouts, sets, and week-over-week change.",
+  parameters: Schema.Struct({
+    weeks: Schema.optional(
+      Schema.Int.annotate({ description: "Number of weeks to look back (default 4)." }),
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetRecoveryTimeline = Tool.make("get_recovery_timeline", {
+  description: "Get a daily timeline of sleep and strength-training load for recovery context.",
+  parameters: Schema.Struct({
+    days: Schema.optional(
+      Schema.Int.annotate({ description: "Number of days to look back (default 14)." }),
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetGoalProgress = Tool.make("get_goal_progress", {
+  description:
+    "Get progress for supplied step, workout-frequency, and body-weight goals. Search memories first when a goal is not in the current chat.",
+  parameters: Schema.Struct({
+    days: Schema.optional(
+      Schema.Int.annotate({ description: "Evaluation window in days (default 7)." }),
+    ),
+    step_goal: Schema.optional(
+      Schema.Number.annotate({ description: "Daily step target, when known." }),
+    ),
+    workouts_goal: Schema.optional(
+      Schema.Int.annotate({
+        description: "Strength-workout target for the evaluation window, when known.",
+      }),
+    ),
+    target_weight_kg: Schema.optional(
+      Schema.Number.annotate({ description: "Body-weight target in kg, when known." }),
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetNextWorkout = Tool.make("get_next_workout", {
+  description:
+    "Suggest the next strength-workout focus from the latest logged session and seven-day sleep context.",
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
 const SearchMemories = Tool.make("search_memories", {
   description:
     "Search permanent user memories. Call this when a question may depend on earlier chats, preferences, goals, or constraints and the supplied memory context is absent or uncertain. Never guess a past detail instead of searching.",
@@ -208,11 +264,11 @@ const SummarizeToMessage = Tool.make("summarize_to_message", {
 
 const RenderComponent = Tool.make("render_component", {
   description:
-    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; SleepTrend {days, avg_sleep_hours?, nights}; WorkoutStreak {current_streak, longest_streak, last_workout_date?}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label?, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard defaults its label to Metric and accepts stable as flat. Never put title, subtitle, or context props on MetricCard.",
+    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; SleepTrend {days, avg_sleep_hours?, nights}; WorkoutStreak {current_streak, longest_streak, last_workout_date?}; TrainingLoad {weeks, total_volume_kg, current_week_volume_kg, previous_week_volume_kg?, volume_change_pct?}; RecoveryTimeline {days, average_sleep_hours?}; GoalProgress {period_days, average_steps?, step_goal?, workouts, workouts_goal?, latest_weight_kg?, target_weight_kg?, weight_remaining_kg?}; NextWorkout {suggested_title, readiness, reason, last_workout_date?, last_workout_title?, days_since_last_workout?, recent_workout_count, sleep_average_hours?}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label?, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard defaults its label to Metric and accepts stable as flat. Never put title, subtitle, or context props on MetricCard.",
   parameters: Schema.Struct({
     component: Schema.String.annotate({
       description:
-        "WorkoutTable, ExerciseProgress, SleepTrend, WorkoutStreak, RecoveryCard, MetricCard, or SetList.",
+        "WorkoutTable, ExerciseProgress, SleepTrend, WorkoutStreak, TrainingLoad, RecoveryTimeline, GoalProgress, NextWorkout, RecoveryCard, MetricCard, or SetList.",
     }),
     props: Schema.Record(Schema.String, Schema.Unknown).annotate({
       description: "Props for the selected component.",
@@ -294,6 +350,64 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
     }),
   ],
   [
+    "TrainingLoad",
+    Schema.Struct({
+      weeks: Schema.Array(
+        Schema.Struct({
+          week_start: Schema.String,
+          workouts: Schema.Number,
+          sets: Schema.Number,
+          volume_kg: Schema.Number,
+          duration_sec: Schema.Number,
+        }),
+      ),
+      total_volume_kg: Schema.Number,
+      current_week_volume_kg: Schema.Number,
+      previous_week_volume_kg: Schema.NullOr(Schema.Number),
+      volume_change_pct: Schema.NullOr(Schema.Number),
+    }),
+  ],
+  [
+    "RecoveryTimeline",
+    Schema.Struct({
+      days: Schema.Array(
+        Schema.Struct({
+          date: Schema.String,
+          asleep_min: Schema.NullOr(Schema.Number),
+          workouts: Schema.Number,
+          volume_kg: Schema.Number,
+        }),
+      ),
+      average_sleep_hours: Schema.NullOr(Schema.Number),
+    }),
+  ],
+  [
+    "GoalProgress",
+    Schema.Struct({
+      period_days: Schema.Number,
+      average_steps: Schema.NullOr(Schema.Number),
+      step_goal: Schema.NullOr(Schema.Number),
+      workouts: Schema.Number,
+      workouts_goal: Schema.NullOr(Schema.Number),
+      latest_weight_kg: Schema.NullOr(Schema.Number),
+      target_weight_kg: Schema.NullOr(Schema.Number),
+      weight_remaining_kg: Schema.NullOr(Schema.Number),
+    }),
+  ],
+  [
+    "NextWorkout",
+    Schema.Struct({
+      suggested_title: Schema.String,
+      readiness: Schema.Literals(["ready", "recover", "unknown"]),
+      reason: Schema.String,
+      last_workout_date: Schema.NullOr(Schema.String),
+      last_workout_title: Schema.NullOr(Schema.String),
+      days_since_last_workout: Schema.NullOr(Schema.Number),
+      recent_workout_count: Schema.Number,
+      sleep_average_hours: Schema.NullOr(Schema.Number),
+    }),
+  ],
+  [
     "SetList",
     Schema.Struct({
       sets: Schema.Array(
@@ -330,6 +444,10 @@ const FitnessToolkit = Toolkit.make(
   GetExerciseProgress,
   GetSleepTrend,
   GetWorkoutStreak,
+  GetTrainingLoad,
+  GetRecoveryTimeline,
+  GetGoalProgress,
+  GetNextWorkout,
   SearchMemories,
   GetThreads,
   ReadThread,
@@ -486,6 +604,30 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     ),
     get_workout_streak: Effect.fn("FitnessToolkit.getWorkoutStreak")(() =>
       getWorkoutStreak(narrow<HealthfitDatabaseSchema>(db), userId).pipe(
+        Effect.provideContext(services),
+      ),
+    ),
+    get_training_load: Effect.fn("FitnessToolkit.getTrainingLoad")(({ weeks }) =>
+      getTrainingLoad(narrow<HealthfitDatabaseSchema>(db), userId, weeks ?? 4).pipe(
+        Effect.provideContext(services),
+      ),
+    ),
+    get_recovery_timeline: Effect.fn("FitnessToolkit.getRecoveryTimeline")(({ days }) =>
+      getRecoveryTimeline(narrow<HealthfitDatabaseSchema>(db), userId, days ?? 14).pipe(
+        Effect.provideContext(services),
+      ),
+    ),
+    get_goal_progress: Effect.fn("FitnessToolkit.getGoalProgress")(
+      ({ days, step_goal, workouts_goal, target_weight_kg }) =>
+        getGoalProgress(narrow<HealthfitDatabaseSchema>(db), userId, {
+          days,
+          stepGoal: step_goal,
+          workoutsGoal: workouts_goal,
+          targetWeightKg: target_weight_kg,
+        }).pipe(Effect.provideContext(services)),
+    ),
+    get_next_workout: Effect.fn("FitnessToolkit.getNextWorkout")(() =>
+      getNextWorkout(narrow<HealthfitDatabaseSchema>(db), userId).pipe(
         Effect.provideContext(services),
       ),
     ),

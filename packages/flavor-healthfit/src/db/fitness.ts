@@ -145,6 +145,7 @@ export interface ExerciseProgressSet {
   total_volume_kg: number | null;
   total_reps: number | null;
   sets: number;
+  estimated_1rm_kg: number | null;
 }
 
 interface ExerciseProgress {
@@ -155,6 +156,7 @@ interface ExerciseProgress {
     weight_kg: number | null;
     reps: number | null;
     volume_kg: number | null;
+    estimated_1rm_kg: number | null;
   };
 }
 
@@ -189,6 +191,7 @@ export const getExerciseProgress = (
             eb.fn.sum<number>(sql`st.weight_kg * st.reps`).as("total_volume_kg"),
             eb.fn.sum<number>("st.reps").as("total_reps"),
             eb.fn.countAll<number>().as("sets"),
+            eb.fn.max<number>(sql`st.weight_kg * (1 + st.reps / 30.0)`).as("estimated_1rm_kg"),
           ])
           .where("st.user_id", "=", userId)
           .where("st.exercise_title", "=", exerciseTitle)
@@ -222,6 +225,10 @@ export const getExerciseProgress = (
           prSet === undefined || prSet.weight_kg === null || prSet.reps === null
             ? null
             : prSet.weight_kg * prSet.reps,
+        estimated_1rm_kg:
+          prSet === undefined || prSet.weight_kg === null || prSet.reps === null
+            ? null
+            : Number((prSet.weight_kg * (1 + prSet.reps / 30)).toFixed(1)),
       },
     } satisfies ExerciseProgress;
   });
@@ -343,6 +350,302 @@ export const getWorkoutStreak = (db: FitnessDb, userId: string) =>
       longest_streak: streaks.longest,
       last_workout_date: streaks.last,
     } satisfies WorkoutStreak;
+  });
+
+interface TrainingLoadWeek {
+  week_start: string;
+  workouts: number;
+  sets: number;
+  volume_kg: number;
+  duration_sec: number;
+}
+
+interface TrainingLoad {
+  weeks: TrainingLoadWeek[];
+  total_volume_kg: number;
+  current_week_volume_kg: number;
+  previous_week_volume_kg: number | null;
+  volume_change_pct: number | null;
+}
+
+const weekStart = (date: string): string => {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() - ((value.getUTCDay() + 6) % 7));
+  return value.toISOString().slice(0, 10);
+};
+
+export const getTrainingLoad = (db: FitnessDb, userId: string, weeks = 4) =>
+  Effect.gen(function* () {
+    const since = isoDateDaysAgo(weeks * 7);
+    const kysely = yield* db.kysely;
+    const sessions = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sessions as s")
+        .leftJoin("hevy_sets as st", (join) =>
+          join.onRef("st.user_id", "=", "s.user_id").onRef("st.session_id", "=", "s.session_id"),
+        )
+        .select((eb) => [
+          "s.session_id",
+          "s.start_time",
+          "s.total_volume_kg",
+          "s.duration_sec",
+          eb.fn.count<number>("st.set_index").as("sets"),
+        ])
+        .where("s.user_id", "=", userId)
+        .where("s.start_time", ">=", since)
+        .groupBy(["s.session_id", "s.start_time", "s.total_volume_kg", "s.duration_sec"])
+        .orderBy("s.start_time", "asc")
+        .execute(),
+    );
+    const byWeek = new Map<string, TrainingLoadWeek>();
+    for (const session of sessions) {
+      const key = weekStart(session.start_time.slice(0, 10));
+      const week = byWeek.get(key) ?? {
+        week_start: key,
+        workouts: 0,
+        sets: 0,
+        volume_kg: 0,
+        duration_sec: 0,
+      };
+      week.workouts += 1;
+      week.sets += session.sets;
+      week.volume_kg += session.total_volume_kg ?? 0;
+      week.duration_sec += session.duration_sec ?? 0;
+      byWeek.set(key, week);
+    }
+    const weekly = [...byWeek.values()].sort((left, right) =>
+      left.week_start.localeCompare(right.week_start),
+    );
+    const current = weekly.at(-1);
+    const previous = weekly.at(-2);
+    const currentVolume = current?.volume_kg ?? 0;
+    const previousVolume = previous?.volume_kg ?? null;
+
+    return {
+      weeks: weekly,
+      total_volume_kg: weekly.reduce((total, week) => total + week.volume_kg, 0),
+      current_week_volume_kg: currentVolume,
+      previous_week_volume_kg: previousVolume,
+      volume_change_pct:
+        previousVolume === null || previousVolume === 0
+          ? null
+          : Number((((currentVolume - previousVolume) / previousVolume) * 100).toFixed(1)),
+    } satisfies TrainingLoad;
+  });
+
+interface RecoveryTimelineDay {
+  date: string;
+  asleep_min: number | null;
+  workouts: number;
+  volume_kg: number;
+}
+
+interface RecoveryTimeline {
+  days: RecoveryTimelineDay[];
+  average_sleep_hours: number | null;
+}
+
+const calendarDates = (days: number): string[] =>
+  Array.from({ length: days }, (_, index) => isoDateDaysAgo(days - index - 1));
+
+export const getRecoveryTimeline = (db: FitnessDb, userId: string, days = 14) =>
+  Effect.gen(function* () {
+    const since = isoDateDaysAgo(days - 1);
+    const kysely = yield* db.kysely;
+    const [sleepRows, workoutRows] = yield* Effect.all([
+      Effect.promise(() =>
+        kysely
+          .selectFrom("sleep_sessions")
+          .select((eb) => ["date", eb.fn.sum<number>("asleep_min").as("asleep_min")])
+          .where("user_id", "=", userId)
+          .where("date", ">=", since)
+          .where("date", "is not", null)
+          .groupBy("date")
+          .execute(),
+      ),
+      Effect.promise(() =>
+        kysely
+          .selectFrom("hevy_sessions")
+          .select((eb) => [
+            sql<string>`date(start_time)`.as("date"),
+            eb.fn.countAll<number>().as("workouts"),
+            eb.fn.sum<number>("total_volume_kg").as("volume_kg"),
+          ])
+          .where("user_id", "=", userId)
+          .where("start_time", ">=", since)
+          .groupBy(sql`date(start_time)`)
+          .execute(),
+      ),
+    ]);
+    const sleepByDate = new Map(
+      sleepRows.flatMap((row) => (row.date === null ? [] : [[row.date, row.asleep_min] as const])),
+    );
+    const workoutsByDate = new Map(workoutRows.map((row) => [row.date, row]));
+    const timeline = calendarDates(days).map((date) => {
+      const workout = workoutsByDate.get(date);
+      return {
+        date,
+        asleep_min: sleepByDate.get(date) ?? null,
+        workouts: workout?.workouts ?? 0,
+        volume_kg: workout?.volume_kg ?? 0,
+      };
+    });
+    const averageSleep = average(
+      timeline.flatMap((day) => (day.asleep_min === null ? [] : [day.asleep_min])),
+    );
+
+    return {
+      days: timeline,
+      average_sleep_hours: averageSleep === null ? null : Number((averageSleep / 60).toFixed(2)),
+    } satisfies RecoveryTimeline;
+  });
+
+interface GoalProgress {
+  period_days: number;
+  average_steps: number | null;
+  step_goal: number | null;
+  workouts: number;
+  workouts_goal: number | null;
+  latest_weight_kg: number | null;
+  target_weight_kg: number | null;
+  weight_remaining_kg: number | null;
+}
+
+export const getGoalProgress = (
+  db: FitnessDb,
+  userId: string,
+  {
+    days = 7,
+    stepGoal,
+    workoutsGoal,
+    targetWeightKg,
+  }: { days?: number; stepGoal?: number; workoutsGoal?: number; targetWeightKg?: number } = {},
+) =>
+  Effect.gen(function* () {
+    const since = isoDateDaysAgo(days - 1);
+    const kysely = yield* db.kysely;
+    const [activity, workouts, latestBodyMetric] = yield* Effect.all([
+      Effect.promise(() =>
+        kysely
+          .selectFrom("daily_activity")
+          .select("steps")
+          .where("user_id", "=", userId)
+          .where("date", ">=", since)
+          .execute(),
+      ),
+      Effect.promise(() =>
+        kysely
+          .selectFrom("hevy_sessions")
+          .select("session_id")
+          .where("user_id", "=", userId)
+          .where("start_time", ">=", since)
+          .execute(),
+      ),
+      Effect.promise(() =>
+        kysely
+          .selectFrom("body_metrics")
+          .select("weight_kg")
+          .where("user_id", "=", userId)
+          .orderBy("date", "desc")
+          .executeTakeFirst(),
+      ),
+    ]);
+    const latestWeight = latestBodyMetric?.weight_kg ?? null;
+    return {
+      period_days: days,
+      average_steps: average(activity.flatMap((row) => (row.steps === null ? [] : [row.steps]))),
+      step_goal: stepGoal ?? null,
+      workouts: workouts.length,
+      workouts_goal: workoutsGoal ?? null,
+      latest_weight_kg: latestWeight,
+      target_weight_kg: targetWeightKg ?? null,
+      weight_remaining_kg:
+        latestWeight === null || targetWeightKg === undefined
+          ? null
+          : Number((targetWeightKg - latestWeight).toFixed(1)),
+    } satisfies GoalProgress;
+  });
+
+interface NextWorkout {
+  suggested_title: string;
+  readiness: "ready" | "recover" | "unknown";
+  reason: string;
+  last_workout_date: string | null;
+  last_workout_title: string | null;
+  days_since_last_workout: number | null;
+  recent_workout_count: number;
+  sleep_average_hours: number | null;
+}
+
+const nextWorkoutTitle = (lastTitle: string | null): string => {
+  const title = lastTitle?.toLowerCase() ?? "";
+  if (title.includes("lower") || title.includes("leg")) return "Upper body";
+  if (title.includes("upper")) return "Lower body";
+  return "Full body";
+};
+
+export const getNextWorkout = (db: FitnessDb, userId: string) =>
+  Effect.gen(function* () {
+    const since = isoDateDaysAgo(7);
+    const kysely = yield* db.kysely;
+    const [lastWorkout, recentWorkouts, sleepRows] = yield* Effect.all([
+      Effect.promise(() =>
+        kysely
+          .selectFrom("hevy_sessions")
+          .select(["title", "start_time"])
+          .where("user_id", "=", userId)
+          .orderBy("start_time", "desc")
+          .executeTakeFirst(),
+      ),
+      Effect.promise(() =>
+        kysely
+          .selectFrom("hevy_sessions")
+          .select("session_id")
+          .where("user_id", "=", userId)
+          .where("start_time", ">=", since)
+          .execute(),
+      ),
+      Effect.promise(() =>
+        kysely
+          .selectFrom("sleep_sessions")
+          .select("asleep_min")
+          .where("user_id", "=", userId)
+          .where("date", ">=", since)
+          .execute(),
+      ),
+    ]);
+    const sleepMinutes = average(
+      sleepRows.flatMap((row) => (row.asleep_min === null ? [] : [row.asleep_min])),
+    );
+    const sleepHours = sleepMinutes === null ? null : Number((sleepMinutes / 60).toFixed(2));
+    const lastDate = lastWorkout?.start_time.slice(0, 10) ?? null;
+    const readiness = sleepHours === null ? "unknown" : sleepHours < 6 ? "recover" : "ready";
+    const suggestedTitle =
+      readiness === "recover"
+        ? "Recovery-focused session"
+        : nextWorkoutTitle(lastWorkout?.title ?? null);
+    const reason =
+      readiness === "recover"
+        ? `Your 7-day sleep average is ${sleepHours?.toFixed(1)} h, so keep the next session easy.`
+        : lastWorkout === undefined
+          ? "No prior strength session is logged, so start with a balanced full-body session."
+          : `Your last logged session was ${lastWorkout.title ?? "untitled"}; this rotates the next focus.`;
+    return {
+      suggested_title: suggestedTitle,
+      readiness,
+      reason,
+      last_workout_date: lastDate,
+      last_workout_title: lastWorkout?.title ?? null,
+      days_since_last_workout:
+        lastDate === null
+          ? null
+          : Math.max(
+              0,
+              Math.floor((Date.now() - Date.parse(`${lastDate}T00:00:00.000Z`)) / 86_400_000),
+            ),
+      recent_workout_count: recentWorkouts.length,
+      sleep_average_hours: sleepHours,
+    } satisfies NextWorkout;
   });
 
 export interface DataSummary {

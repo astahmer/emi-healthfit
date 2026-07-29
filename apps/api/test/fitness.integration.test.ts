@@ -5,9 +5,13 @@ import {
   getAnalyticsOverview,
   getDataSummary,
   getExerciseProgress,
+  getGoalProgress,
   getIngestedDataExport,
   getIngestedDataExportSummary,
+  getNextWorkout,
+  getRecoveryTimeline,
   getSleepTrend,
+  getTrainingLoad,
   getWorkoutDetails,
   getWorkoutHistory,
   getWorkouts,
@@ -267,6 +271,7 @@ describe("fitness SQLite integration", () => {
           total_volume_kg: 640,
           total_reps: 8,
           sets: 1,
+          estimated_1rm_kg: 101.33333333333333,
         },
         {
           session_id: "session-b",
@@ -277,9 +282,10 @@ describe("fitness SQLite integration", () => {
           total_volume_kg: 510,
           total_reps: 6,
           sets: 1,
+          estimated_1rm_kg: 102,
         },
       ],
-      personalRecord: { weight_kg: 80, reps: 8, volume_kg: 640 },
+      personalRecord: { weight_kg: 80, reps: 8, volume_kg: 640, estimated_1rm_kg: 101.3 },
     });
     assert.deepStrictEqual(await run(getSleepTrend(fitnessDb, userId, 7)), {
       days: 2,
@@ -301,6 +307,58 @@ describe("fitness SQLite integration", () => {
           awake_min: 30,
         },
       ],
+    });
+    assert.deepStrictEqual(await run(getTrainingLoad(fitnessDb, userId, 4)), {
+      weeks: [
+        {
+          week_start: "2026-07-13",
+          workouts: 2,
+          sets: 3,
+          volume_kg: 1_850,
+          duration_sec: 8_100,
+        },
+      ],
+      total_volume_kg: 1_850,
+      current_week_volume_kg: 1_850,
+      previous_week_volume_kg: null,
+      volume_change_pct: null,
+    });
+    const recoveryTimeline = await run(getRecoveryTimeline(fitnessDb, userId, 7));
+    assert.strictEqual(recoveryTimeline.average_sleep_hours, 7.5);
+    assert.deepStrictEqual(recoveryTimeline.days.slice(-3), [
+      { date: "2026-07-18", asleep_min: 420, workouts: 1, volume_kg: 640 },
+      { date: "2026-07-19", asleep_min: 480, workouts: 1, volume_kg: 1_210 },
+      { date: "2026-07-20", asleep_min: null, workouts: 0, volume_kg: 0 },
+    ]);
+    assert.deepStrictEqual(
+      await run(
+        getGoalProgress(fitnessDb, userId, {
+          days: 7,
+          stepGoal: 2_500,
+          workoutsGoal: 2,
+          targetWeightKg: 78,
+        }),
+      ),
+      {
+        period_days: 7,
+        average_steps: 2_000,
+        step_goal: 2_500,
+        workouts: 2,
+        workouts_goal: 2,
+        latest_weight_kg: 79,
+        target_weight_kg: 78,
+        weight_remaining_kg: -1,
+      },
+    );
+    assert.deepStrictEqual(await run(getNextWorkout(fitnessDb, userId)), {
+      suggested_title: "Full body",
+      readiness: "ready",
+      reason: "Your last logged session was Strength; this rotates the next focus.",
+      last_workout_date: "2026-07-19",
+      last_workout_title: "Strength",
+      days_since_last_workout: 1,
+      recent_workout_count: 2,
+      sleep_average_hours: 7.5,
     });
     const exported = await run(getIngestedDataExport({ db: fitnessDb, userId }));
     assert.deepStrictEqual(
