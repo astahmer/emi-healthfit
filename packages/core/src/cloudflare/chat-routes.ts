@@ -17,7 +17,9 @@ import {
   createConversation,
   createGeneration,
   createGenerationReplayStream,
+  createThread,
   cloneConversation,
+  discardThread,
   deleteConversation,
   finishGeneration,
   getConversation,
@@ -26,12 +28,18 @@ import {
   getGenerationByRequestId,
   getGenerationChunks,
   getResumableGeneration,
+  getThread,
+  getThreadMessages,
+  getThreads,
   makeConversationStore,
   makeRequestContext,
   markGenerationStreaming,
   renameConversation,
+  renameThread,
+  restoreThread,
   saveConversationMessages,
   updateConversationState,
+  pinThread,
   type ConversationDatabaseSchema,
 } from "@emi/core/server";
 import type * as Context from "effect/Context";
@@ -49,6 +57,17 @@ type PersistedChatDatabase = ConversationDatabaseSchema;
 const ConversationActionSchema = Schema.Struct({
   title: Schema.optional(Schema.String),
   status: Schema.optional(Schema.Literals(["regular", "archived"])),
+  pinned: Schema.optional(Schema.Boolean),
+});
+
+const CreateThreadSchema = Schema.Struct({
+  anchorMessageId: Schema.String,
+  title: Schema.optional(Schema.String),
+});
+
+const ThreadActionSchema = Schema.Struct({
+  title: Schema.optional(Schema.String),
+  status: Schema.optional(Schema.Literals(["regular", "discarded"])),
   pinned: Schema.optional(Schema.Boolean),
 });
 
@@ -80,6 +99,26 @@ const messageResponse = (message: {
   parts: message.parts,
   model: message.model,
   createdAt: message.created_at,
+});
+
+const threadResponse = (thread: {
+  id: string;
+  conversation_id: string;
+  anchor_message_id: string;
+  title: string | null;
+  status: "regular" | "discarded" | "merged";
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}) => ({
+  id: thread.id,
+  conversationId: thread.conversation_id,
+  anchorMessageId: thread.anchor_message_id,
+  title: thread.title,
+  status: thread.status,
+  pinned: thread.pinned,
+  createdAt: thread.created_at,
+  updatedAt: thread.updated_at,
 });
 
 const persistGeneration = async ({
@@ -227,6 +266,88 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       { conversation: conversationResponse(cloned) },
       { status: 201 },
     );
+  });
+
+  const threads = Effect.fn("core.chat.threads")(function* (request: HttpServerRequest) {
+    const user = yield* CurrentUser;
+    const params = yield* HttpRouter.params;
+    const conversationId = params.conversationId;
+    if (conversationId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    const conversation = yield* getConversation(conversationDb, user.id, conversationId);
+    if (conversation === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    if (request.method === "GET") {
+      const values = yield* getThreads(conversationDb, user.id, conversationId);
+      return yield* HttpServerResponse.json({ threads: values.map(threadResponse) });
+    }
+    const decoded = Schema.decodeUnknownOption(CreateThreadSchema)(yield* request.json);
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json({ error: "Invalid thread" }, { status: 400 });
+    }
+    const id = yield* createThread(
+      conversationDb,
+      user.id,
+      conversationId,
+      decoded.value.anchorMessageId,
+      decoded.value.title,
+    );
+    if (id === null) {
+      return yield* HttpServerResponse.json({ error: "Anchor message not found" }, { status: 404 });
+    }
+    const thread = yield* getThread(conversationDb, user.id, id);
+    if (thread === null) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json({ thread: threadResponse(thread) }, { status: 201 });
+  });
+
+  const thread = Effect.fn("core.chat.thread")(function* (request: HttpServerRequest) {
+    const user = yield* CurrentUser;
+    const params = yield* HttpRouter.params;
+    const conversationId = params.conversationId;
+    const threadId = params.threadId;
+    if (conversationId === undefined || threadId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+    const existing = yield* getThread(conversationDb, user.id, threadId);
+    if (existing === null || existing.conversation_id !== conversationId) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+    if (request.method === "GET") {
+      const messages = yield* getThreadMessages(conversationDb, user.id, threadId);
+      return yield* HttpServerResponse.json({
+        thread: threadResponse(existing),
+        messages: messages.map(messageResponse),
+      });
+    }
+    if (request.method === "DELETE") {
+      yield* discardThread(conversationDb, user.id, threadId);
+      return yield* HttpServerResponse.json({ deleted: true });
+    }
+    const decoded = Schema.decodeUnknownOption(ThreadActionSchema)(yield* request.json);
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json({ error: "Invalid thread update" }, { status: 400 });
+    }
+    if (decoded.value.title !== undefined) {
+      yield* renameThread(conversationDb, user.id, threadId, decoded.value.title);
+    }
+    if (decoded.value.pinned !== undefined) {
+      yield* pinThread(conversationDb, user.id, threadId, decoded.value.pinned);
+    }
+    if (decoded.value.status === "discarded") {
+      yield* discardThread(conversationDb, user.id, threadId);
+    }
+    if (decoded.value.status === "regular") {
+      yield* restoreThread(conversationDb, user.id, threadId);
+    }
+    const updated = yield* getThread(conversationDb, user.id, threadId);
+    if (updated === null) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json({ thread: threadResponse(updated) });
   });
 
   const chat = Effect.fn("core.chat.stream")(function* (request: HttpServerRequest) {
@@ -426,5 +547,5 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       );
     });
 
-  return { conversations, conversation, clone, chat, resume };
+  return { conversations, conversation, clone, threads, thread, chat, resume };
 };

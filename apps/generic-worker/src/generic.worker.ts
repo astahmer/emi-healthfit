@@ -52,6 +52,23 @@ export default GenericWorker.make(
       yield* router.add("PATCH", "/api/conversations/:conversationId", routes.conversation);
       yield* router.add("DELETE", "/api/conversations/:conversationId", routes.conversation);
       yield* router.add("POST", "/api/conversations/:conversationId/clone", routes.clone);
+      yield* router.add("GET", "/api/conversations/:conversationId/threads", routes.threads);
+      yield* router.add("POST", "/api/conversations/:conversationId/threads", routes.threads);
+      yield* router.add(
+        "GET",
+        "/api/conversations/:conversationId/threads/:threadId",
+        routes.thread,
+      );
+      yield* router.add(
+        "PATCH",
+        "/api/conversations/:conversationId/threads/:threadId",
+        routes.thread,
+      );
+      yield* router.add(
+        "DELETE",
+        "/api/conversations/:conversationId/threads/:threadId",
+        routes.thread,
+      );
       yield* router.add("POST", "/api/chat", routes.chat);
       yield* router.add("GET", "/api/chat/:conversationId/stream", () =>
         Effect.gen(function* () {

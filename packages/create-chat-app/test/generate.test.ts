@@ -93,6 +93,8 @@ describe("buildGeneratedFiles", () => {
     assert.match(worker, /"POST", "\/api\/chat"/);
     assert.match(worker, /"GET", "\/api\/chat\/:conversationId\/stream"/);
     assert.match(worker, /"PATCH", "\/api\/conversations\/:conversationId"/);
+    assert.match(worker, /"POST", "\/api\/conversations\/:conversationId\/threads"/);
+    assert.match(worker, /"PATCH", "\/api\/conversations\/:conversationId\/threads\/:threadId"/);
   });
 
   it("never points @emi/* dependencies at a local src copy (relative path or file: protocol)", () => {

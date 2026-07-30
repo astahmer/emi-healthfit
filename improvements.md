@@ -4,7 +4,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 ## P0 — misleading scaffold
 
-- `apps/generic-worker/src/generic.worker.ts` now uses public core streaming/replay and conversation-action route factories, but still needs branch endpoints, settings APIs, and a web asset deployment path.
+- `apps/generic-worker/src/generic.worker.ts` now uses public core streaming/replay, conversation-action, and branch route factories, but still needs settings APIs and a web asset deployment path.
 - `packages/create-chat-app/src/templates.ts` now produces a working workspace-mode chat with durable history/actions, resume, queued follow-ups, and attachments, but the fixture must still prove a deployable Worker plus web build as one acceptance flow.
 - Existing generator guardrails forbid copied core source, which conflicts with the requested shadcn-like, user-owned default. Replace this with a versioned owned-source manifest and an explicit workspace-import mode.
 
