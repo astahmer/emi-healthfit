@@ -138,6 +138,7 @@ export const webPackageJson = (context: TemplateContext): string =>
       },
       dependencies: {
         "@emi/core": coreDependency(context),
+        "@xstate/react": "^6.1.0",
         ai: "catalog:",
         effect: "catalog:",
         react: "^19.2.7",

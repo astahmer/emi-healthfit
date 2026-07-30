@@ -117,10 +117,6 @@ describe("buildGeneratedFiles", () => {
       { generatedPath: "web/src/app.tsx", sourcePath: "../../../apps/generic-web/src/app.tsx" },
       { generatedPath: "web/src/app.css", sourcePath: "../../../apps/generic-web/src/app.css" },
       {
-        generatedPath: "web/src/chat-session.ts",
-        sourcePath: "../../../apps/generic-web/src/chat-session.ts",
-      },
-      {
         generatedPath: "web/src/conversation-client.ts",
         sourcePath: "../../../apps/generic-web/src/conversation-client.ts",
       },

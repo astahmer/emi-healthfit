@@ -1,6 +1,6 @@
 # 001 — Extract the generic chat runtime and UI primitives
 
-- **Status**: TODO
+- **Status**: IN PROGRESS
 - **Commit**: b131a3b
 - **Severity**: HIGH
 - **Category**: Maintainability & architecture
@@ -44,7 +44,7 @@ The runtime owns all legal chat transitions. It uses one reducer for durable int
 
 ## Steps
 
-1. Move `ChatSession`, `ChatSessionAction`, `initialChatSession`, and `reduceChatSession` from `apps/generic-web/src/chat-session.ts` to `packages/core/src/web/chat-runtime/session.ts`. Preserve all current transitions and tests; extend reducer tests to explicitly cover fresh start, conversation open, thread open, stream replacement, queue force-send, and errors.
+1. Complete — `ChatSession`, `initialChatSession`, and legal session events now live in `packages/core/src/web/chat-session-machine.ts` as an XState machine. Tests cover fresh start, conversation open, branch open, and queue force-send. Add stream replacement/error cases when the transport moves into the runtime hook.
 2. Move generic API DTO schemas and the conversation/memory/thread HTTP client from `apps/generic-web/src/conversation-client.ts` to `packages/core/src/web/chat-runtime/client.ts`. Parameterize the API origin rather than reading `import.meta.env` in core.
 3. Add `useChatRuntime` in `packages/core/src/web/chat-runtime/use-chat-runtime.ts`. It owns stream operation IDs, abort controller lifecycle, resume, send, queue force-send, conversation actions, branch operations, memory operations, online state, and draft/settings persistence. Its inputs are explicit adapters: `client`, `transportFactory`, `settingsStorage`, `settingsStorageKey`, and configuration defaults. Do not expose `setState` functions; expose state plus named commands.
 4. Keep the stream operation counter and abort controller inside the runtime, with the cancellation invariant: only the active operation may update session state or clear streaming. Preserve current resume and forced-send behavior from `apps/generic-web/src/app.tsx:135-343`.

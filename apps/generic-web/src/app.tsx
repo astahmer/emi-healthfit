@@ -4,10 +4,11 @@ import {
   readUIMessageStream,
   type UIMessage,
 } from "ai";
-import { type FormEvent, useEffect, useReducer, useRef, useState } from "react";
+import { useMachine } from "@xstate/react";
+import { chatSessionMachine } from "@emi/core/web";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
-import { initialChatSession, reduceChatSession } from "./chat-session.ts";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 import {
   cloneConversation,
@@ -37,7 +38,7 @@ export const App = () => {
   const messageElements = useRef(new Map<string, HTMLElement>());
   const streamOperation = useRef(0);
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
-  const [session, dispatchSession] = useReducer(reduceChatSession, initialChatSession);
+  const [sessionState, dispatchSession] = useMachine(chatSessionMachine);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -45,17 +46,9 @@ export const App = () => {
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryDraft, setMemoryDraft] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
-  const {
-    conversationId,
-    draft,
-    error,
-    files,
-    messages,
-    queuedFollowUps,
-    streaming,
-    temporary,
-    threadId,
-  } = session;
+  const { conversationId, draft, error, files, messages, queuedFollowUps, temporary, threadId } =
+    sessionState.context;
+  const streaming = sessionState.matches("streaming");
 
   useEffect(
     () => setSettings(readChatSettings({ storageKey: genericChatAppConfig.settingsStorageKey })),
@@ -68,7 +61,7 @@ export const App = () => {
   useEffect(() => {
     const savedDraft = localStorage.getItem(`${genericChatAppConfig.settingsStorageKey}:draft`);
     if (savedDraft !== null) dispatchSession({ type: "draft-changed", draft: savedDraft });
-  }, []);
+  }, [dispatchSession]);
   useEffect(() => {
     const updateOnlineState = () => setOnline(navigator.onLine);
     window.addEventListener("online", updateOnlineState);

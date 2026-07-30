@@ -11,7 +11,8 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 ## P0 — core extraction boundaries
 
 - Generic chat lifecycle and memory/title/suggestion orchestration still live under `apps/api/src/core`. Provider streaming, durable generation storage/replay, and protocol helpers now live behind public core exports; move the remaining server services next.
-- Generic browser runtime, transport, composer, thread renderer, minimap, and settings still live under `apps/chat`. Generic fixture now has a focused session reducer and basic branch navigation; extract reusable UI primitives before adding more generic behavior.
+- Generic browser runtime, transport, composer, thread renderer, minimap, and settings still live under `apps/chat`. Generic fixture now has a focused XState session machine and basic branch navigation; extract reusable UI primitives before adding more generic behavior.
+- Generic session state now uses the exported `@emi/core/web` XState machine instead of a React reducer. Keep sidebar search and memory-input state local; they are independent view state, not chat protocol transitions. Next extract transport ownership and presentational chat primitives from the generic app.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
 ## P1 — product contracts and persistence
@@ -32,5 +33,6 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 - Add a generated-app manifest with source version, mode, feature flags, and hashes. `create-chat-app upgrade` should show a diff and preserve modified files.
 - Make the generated app's first-run/deploy path executable in CI: install, typecheck, Drizzle generate/check, local Worker smoke, browser chat smoke, and Alchemy dry run.
+- Generic web currently produces a 509 kB minified entry bundle after adding XState. Split settings/history and other cold sidebar features before this grows further.
 - Add an extension guide covering custom auth, prompts, tools, dynamic components, theme, release history, provider adapters, and data retention.
 - Keep `apps/generic-web` / `apps/generic-worker` as continuously tested canonical fixtures, not a second hand-written product.

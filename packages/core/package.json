@@ -41,7 +41,8 @@
     "kysely": "0.29.3",
     "kysely-d1": "0.4.0",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "xstate": "^5.32.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20250805.0",
