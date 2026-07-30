@@ -1,6 +1,7 @@
 import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Content } from "@emi/core/contract";
+import { generateConversationTitle } from "@emi/core/chat";
 import * as Cause from "effect/Cause";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -11,12 +12,7 @@ import { safeValidateUIMessages, type UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { CurrentUser } from "../auth/request-auth.ts";
-import {
-  createChatStream,
-  generateThreadTitle,
-  toUiMessageStream,
-  type ChatStreamRequest,
-} from "../chat/ai-sdk.ts";
+import { createChatStream, toUiMessageStream, type ChatStreamRequest } from "../chat/ai-sdk.ts";
 import { buildAssistantParts } from "../chat/assistant-parts.ts";
 import {
   cancelRunningGenerations,
@@ -575,7 +571,14 @@ export const handleAiSdkChat = (
                     )
                       return;
                     const title = yield* Effect.promise(() =>
-                      generateThreadTitle(apiKey, chatRequest.config.baseUrl, firstUserText),
+                      generateConversationTitle({
+                        configuration: {
+                          apiKey,
+                          baseUrl: chatRequest.config.baseUrl,
+                          model: "gpt-4o-mini",
+                        },
+                        firstUserMessage: firstUserText,
+                      }),
                     );
                     yield* renameConversation(conversationDb, user.id, sessionId, title);
                   }).pipe(

@@ -1,10 +1,10 @@
 import { EmiApi } from "@emi/core/contract";
+import { generateSuggestions, normalizeGeneratedStrings } from "@emi/core/chat";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { CurrentUser } from "../../core/auth/request-auth.ts";
-import { generateSuggestions, normalizeGeneratedStrings } from "../../core/chat/ai-sdk.ts";
 import type { ConversationDatabaseSchema } from "@emi/core/server";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import {
@@ -71,9 +71,7 @@ export const suggestionsHandlers = ({
           }
           const suggestions = yield* Effect.promise(() =>
             generateSuggestions({
-              apiKey: payload.config.apiKey,
-              baseUrl: payload.config.baseUrl,
-              model: payload.config.model,
+              configuration: payload.config,
               lastAssistantText,
               lastUserText: payload.lastUserText,
             }),

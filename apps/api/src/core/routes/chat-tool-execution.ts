@@ -1,7 +1,7 @@
 import { RuntimeContext } from "alchemy";
+import { generateConversationSummary } from "@emi/core/chat";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import { generateThreadSummary } from "../chat/ai-sdk.ts";
 import type { createChatOperationBudget } from "../chat/generation-budget.ts";
 import { recordChatEvent } from "../chat/generation-store.ts";
 import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
@@ -100,7 +100,12 @@ export const createChatToolExecutor = ({
             args,
             ...(isTemporary ? {} : { conversationId: sessionId }),
             summarize: (messages) =>
-              Effect.promise(() => generateThreadSummary(apiKey, baseUrl, model, messages)),
+              Effect.promise(() =>
+                generateConversationSummary({
+                  configuration: { apiKey, baseUrl, model },
+                  messages,
+                }),
+              ),
           }),
         ),
         Effect.tap((output) =>

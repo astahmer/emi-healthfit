@@ -201,18 +201,29 @@ export const generateSuggestions = async ({
   return normalizeGeneratedStrings(result.text).slice(0, 5);
 };
 
+export const defaultConversationTitlePrompt =
+  "Generate a short, concise 2-5 word title for a chat that starts with this message.";
+
+export const buildConversationTitlePrompt = ({
+  firstUserMessage,
+  prompt = defaultConversationTitlePrompt,
+}: {
+  firstUserMessage: string;
+  prompt?: string | undefined;
+}): string => `${prompt}\nReply with only the title, no quotes.\n\nMessage: ${firstUserMessage}`;
+
 export const generateConversationTitle = async ({
   configuration,
   firstUserMessage,
+  prompt,
 }: {
   configuration: GenerateTextConfiguration;
   firstUserMessage: string;
+  prompt?: string | undefined;
 }): Promise<string> => {
   const result = await generateText({
     model: openaiChatModel({ configuration }),
-    prompt:
-      "Generate a short, concise 2-5 word title for a chat that starts with this message. " +
-      `Reply with only the title, no quotes.\n\nMessage: ${firstUserMessage}`,
+    prompt: buildConversationTitlePrompt({ firstUserMessage, prompt }),
   });
   return result.text.trim().replace(/^["']|["']$/g, "");
 };

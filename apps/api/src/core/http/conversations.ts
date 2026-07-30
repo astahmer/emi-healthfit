@@ -12,9 +12,9 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
+import { extractMemories, generateConversationSummary } from "@emi/core/chat";
 import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core/server";
 import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
-import { extractMemories, generateThreadSummary } from "../chat/ai-sdk.ts";
 import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";
 import {
@@ -268,7 +268,14 @@ export const conversationsHandlers = ({
               return yield* new BadRequest({ message: "Conversation has no text to compact" });
             }
             const summary = yield* Effect.promise(() =>
-              generateThreadSummary(payload.apiKey, payload.baseUrl, payload.model, messages),
+              generateConversationSummary({
+                configuration: {
+                  apiKey: payload.apiKey,
+                  baseUrl: payload.baseUrl,
+                  model: payload.model,
+                },
+                messages,
+              }),
             );
             const title = conversation.title?.trim() || "New chat";
             const compactedId = yield* createConversation(
@@ -566,13 +573,11 @@ export const memoryExtractionHandlers = ({
           if (existingIds.length > 0) return { ids: existingIds, count: 0 };
           const existingMemories = yield* getMemories(memoryDb, user.id, { limit: 60 });
           const snippets = yield* Effect.promise(() =>
-            extractMemories(
-              payload.config.apiKey,
-              payload.config.baseUrl,
-              payload.config.model,
+            extractMemories({
+              configuration: payload.config,
               text,
-              existingMemories.map((memory) => memory.content),
-            ),
+              existingMemories: existingMemories.map((memory) => memory.content),
+            }),
           );
           const ids = yield* insertMemories(
             memoryDb,

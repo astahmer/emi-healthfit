@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeGeneratedStrings } from "../../src/chat/index.ts";
+import {
+  buildConversationTitlePrompt,
+  defaultConversationTitlePrompt,
+  normalizeGeneratedStrings,
+} from "../../src/chat/index.ts";
 
 describe("@emi/core/chat", () => {
   it("normalizes JSON and list-shaped model output", () => {
@@ -12,5 +16,19 @@ describe("@emi/core/chat", () => {
       "First question",
       "Second question",
     ]);
+  });
+
+  it("uses an overrideable title instruction while retaining the user message and output guardrail", () => {
+    assert.equal(
+      buildConversationTitlePrompt({ firstUserMessage: "Help me plan a trip" }),
+      `${defaultConversationTitlePrompt}\nReply with only the title, no quotes.\n\nMessage: Help me plan a trip`,
+    );
+    assert.equal(
+      buildConversationTitlePrompt({
+        firstUserMessage: "Help me plan a trip",
+        prompt: "Name this conversation like an explorer's journal.",
+      }),
+      "Name this conversation like an explorer's journal.\nReply with only the title, no quotes.\n\nMessage: Help me plan a trip",
+    );
   });
 });

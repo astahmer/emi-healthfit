@@ -1,13 +1,7 @@
 import {
   createChatStream as createCoreChatStream,
-  extractMemories as extractCoreMemories,
-  generateConversationSummary,
-  generateConversationTitle,
-  generateMemorySummary as generateCoreMemorySummary,
-  generateSuggestions as generateCoreSuggestions,
   normalizeGeneratedStrings,
   toUiMessageStream,
-  type GenerateTextConfiguration,
   type OpenAiCompatibleConfiguration,
 } from "@emi/core/chat";
 import type { StreamTextOnChunkCallback, ToolSet, UIMessage } from "ai";
@@ -31,12 +25,6 @@ export interface ChatStreamRequest {
   requestId?: string | undefined;
 }
 
-const configurationOf = ({
-  apiKey,
-  baseUrl,
-  model,
-}: GenerateTextConfiguration): GenerateTextConfiguration => ({ apiKey, baseUrl, model });
-
 export const createChatStream = (options: {
   request: ChatStreamRequest;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -54,48 +42,3 @@ export const createChatStream = (options: {
       webSearch: options.request.webSearch,
     },
   });
-
-export const generateSuggestions = (request: {
-  apiKey: string;
-  baseUrl?: string | undefined;
-  model: string;
-  lastAssistantText: string;
-  lastUserText?: string | undefined;
-}) =>
-  generateCoreSuggestions({
-    configuration: configurationOf(request),
-    lastAssistantText: request.lastAssistantText,
-    lastUserText: request.lastUserText,
-  });
-
-export const generateThreadTitle = (
-  apiKey: string,
-  baseUrl: string | undefined,
-  firstUserMessage: string,
-) =>
-  generateConversationTitle({
-    configuration: { apiKey, baseUrl, model: "gpt-4o-mini" },
-    firstUserMessage,
-  });
-
-export const generateThreadSummary = (
-  apiKey: string,
-  baseUrl: string | undefined,
-  model: string,
-  messages: Array<{ role: string; text: string }>,
-) => generateConversationSummary({ configuration: { apiKey, baseUrl, model }, messages });
-
-export const generateMemorySummary = (
-  apiKey: string,
-  baseUrl: string | undefined,
-  model: string,
-  memories: string[],
-) => generateCoreMemorySummary({ configuration: { apiKey, baseUrl, model }, memories });
-
-export const extractMemories = (
-  apiKey: string,
-  baseUrl: string | undefined,
-  model: string,
-  text: string,
-  existingMemories: string[],
-) => extractCoreMemories({ configuration: { apiKey, baseUrl, model }, text, existingMemories });
