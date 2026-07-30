@@ -1,39 +1,9 @@
 import { DefaultChatTransport, readUIMessageStream, type UIMessage } from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
-
-type ChatSettings = {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-};
+import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 
 const settingsStorageKey = "emi-core-chat-settings";
-const defaultSettings: ChatSettings = {
-  apiKey: "",
-  baseUrl: "",
-  model: "gpt-4o-mini",
-};
-
-const readSettings = (): ChatSettings => {
-  const stored = localStorage.getItem(settingsStorageKey);
-  if (stored === null) return defaultSettings;
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    if (parsed === null || typeof parsed !== "object") return defaultSettings;
-    const valueOf = (key: keyof ChatSettings): string => {
-      const value = Reflect.get(parsed, key);
-      return typeof value === "string" ? value : "";
-    };
-    return {
-      apiKey: valueOf("apiKey"),
-      baseUrl: valueOf("baseUrl"),
-      model: valueOf("model") || "gpt-4o-mini",
-    };
-  } catch {
-    return defaultSettings;
-  }
-};
 
 const messageText = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
@@ -52,7 +22,7 @@ const replaceMessage = ({
 
 export const App = () => {
   const abortController = useRef<AbortController | undefined>(undefined);
-  const [settings, setSettings] = useState<ChatSettings>(defaultSettings);
+  const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState<string>();
@@ -60,7 +30,7 @@ export const App = () => {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string>();
 
-  useEffect(() => setSettings(readSettings()), []);
+  useEffect(() => setSettings(readChatSettings({ storageKey: settingsStorageKey })), []);
   useEffect(() => localStorage.setItem(settingsStorageKey, JSON.stringify(settings)), [settings]);
 
   const updateSettings = (patch: Partial<ChatSettings>) => {

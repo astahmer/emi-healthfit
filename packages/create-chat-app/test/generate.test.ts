@@ -22,6 +22,7 @@ describe("buildGeneratedFiles", () => {
       "web/package.json",
       "web/src/app.css",
       "web/src/app.tsx",
+      "web/src/chat-settings.ts",
       "web/src/main.tsx",
       "web/tsconfig.json",
       "web/vite-env.d.ts",

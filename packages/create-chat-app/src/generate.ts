@@ -52,6 +52,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     { path: "web/tsconfig.json", contents: templates.webTsconfig() },
     { path: "web/src/app.css", contents: templates.webAppCss() },
     { path: "web/src/app.tsx", contents: templates.webAppTsx(context) },
+    { path: "web/src/chat-settings.ts", contents: templates.webChatSettings() },
     { path: "web/src/main.tsx", contents: templates.webMainTsx() },
     { path: "worker/package.json", contents: templates.workerPackageJson(context) },
     { path: "worker/alchemy.run.ts", contents: templates.workerAlchemyRun(context) },

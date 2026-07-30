@@ -97,6 +97,7 @@ export const webPackageJson = (context: TemplateContext): string =>
   "dependencies": {
     "@emi/core": "${context.coreVersion}",
     "ai": "catalog:",
+    "effect": "catalog:",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -169,33 +170,10 @@ export const webAppTsx = (context: TemplateContext): string =>
   `import { DefaultChatTransport, readUIMessageStream, type UIMessage } from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
+import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 
 const appName = ${JSON.stringify(context.appName)};
 const settingsStorageKey = "chat-settings";
-const defaultSettings = { apiKey: "", baseUrl: "", model: "gpt-4o-mini" };
-
-type ChatSettings = typeof defaultSettings;
-
-const readSettings = (): ChatSettings => {
-  const stored = localStorage.getItem(settingsStorageKey);
-  if (stored === null) return defaultSettings;
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    if (parsed === null || typeof parsed !== "object") return defaultSettings;
-    const valueOf = (key: keyof ChatSettings): string => {
-      const value = Reflect.get(parsed, key);
-      return typeof value === "string" ? value : "";
-    };
-    return {
-      apiKey: valueOf("apiKey"),
-      baseUrl: valueOf("baseUrl"),
-      model: valueOf("model") || defaultSettings.model,
-    };
-  } catch {
-    return defaultSettings;
-  }
-};
-
 const textFrom = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\\n");
 
@@ -207,7 +185,7 @@ const replaceMessage = (messages: UIMessage[], message: UIMessage): UIMessage[] 
 
 export const App = () => {
   const abortController = useRef<AbortController | undefined>(undefined);
-  const [settings, setSettings] = useState<ChatSettings>(defaultSettings);
+  const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState<string>();
@@ -215,7 +193,7 @@ export const App = () => {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string>();
 
-  useEffect(() => setSettings(readSettings()), []);
+  useEffect(() => setSettings(readChatSettings({ storageKey: settingsStorageKey })), []);
   useEffect(() => localStorage.setItem(settingsStorageKey, JSON.stringify(settings)), [settings]);
 
   const startFresh = () => {
@@ -319,6 +297,28 @@ export const App = () => {
 
 export const webAppCss = (): string =>
   `:root { color: #e8eef6; background: #0b1020; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } * { box-sizing: border-box; } body { margin: 0; min-width: 320px; } button, input, textarea { font: inherit; } button { cursor: pointer; } .chat-app { display: grid; grid-template-columns: 18rem minmax(0, 1fr); min-height: 100vh; } .settings-panel { display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; background: #111a31; border-right: 1px solid #273556; } .settings-panel h1, .chat-panel h2 { margin: 0; } label { display: grid; gap: .4rem; color: #bcc8dc; font-size: .85rem; } input, textarea { width: 100%; border: 1px solid #405174; border-radius: .55rem; padding: .65rem .75rem; color: #edf3ff; background: #0c1428; } .eyebrow { margin: 0 0 .35rem; color: #78a6ff; font-size: .72rem; font-weight: 700; letter-spacing: .11em; } .muted { color: #9dadc6; font-size: .9rem; } .metadata { overflow-wrap: anywhere; } .toggle { display: flex; align-items: center; gap: .55rem; } .toggle input { width: auto; } .chat-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100vh; padding: 1.5rem clamp(1rem, 4vw, 4rem); background: radial-gradient(circle at 75% 0, #18274a, #0b1020 45%); } .chat-panel header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #273556; } .messages { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding: 2rem 0; } .message { max-width: 52rem; padding: 1rem 1.15rem; border-radius: .75rem; line-height: 1.5; white-space: pre-wrap; } .message-user { align-self: flex-end; background: #2451a4; } .message-assistant { background: #17213a; } .message-role { margin: 0 0 .4rem; color: #a9c6ff; font-size: .72rem; font-weight: 700; text-transform: uppercase; } .empty-state { display: grid; place-items: center; flex: 1; color: #a8b7d0; text-align: center; } .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; padding-top: 1rem; border-top: 1px solid #273556; } .composer textarea { resize: vertical; } .composer button, .secondary-button { border: 0; border-radius: .55rem; padding: .65rem 1rem; color: white; background: #3e78ef; } .secondary-button { background: #263858; } button:disabled { cursor: not-allowed; opacity: .5; } .error-message { margin: 0; color: #ffb4bd; } @media (max-width: 760px) { .chat-app { grid-template-columns: 1fr; } .settings-panel { border-right: 0; border-bottom: 1px solid #273556; } .chat-panel { min-height: 65vh; } }\n`;
+
+export const webChatSettings = (): string => `import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+
+const SettingsSchema = Schema.Struct({ apiKey: Schema.String, baseUrl: Schema.String, model: Schema.String });
+
+export type ChatSettings = { apiKey: string; baseUrl: string; model: string };
+
+export const defaultChatSettings: ChatSettings = { apiKey: "", baseUrl: "", model: "gpt-4o-mini" };
+
+export const readChatSettings = ({ storageKey }: { storageKey: string }): ChatSettings => {
+  const stored = localStorage.getItem(storageKey);
+  if (stored === null) return defaultChatSettings;
+  try {
+    const decoded = Schema.decodeUnknownOption(SettingsSchema)(JSON.parse(stored));
+    if (Option.isNone(decoded)) return defaultChatSettings;
+    return decoded.value.model === "" ? { ...decoded.value, model: defaultChatSettings.model } : decoded.value;
+  } catch {
+    return defaultChatSettings;
+  }
+};
+`;
 
 export const webMainTsx = (): string =>
   `import { StrictMode } from "react";

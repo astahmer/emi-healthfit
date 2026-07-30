@@ -19,6 +19,7 @@
   "dependencies": {
     "@emi/core": "workspace:*",
     "ai": "catalog:",
+    "effect": "catalog:",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
