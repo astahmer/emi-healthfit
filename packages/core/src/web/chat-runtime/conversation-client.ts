@@ -258,3 +258,5 @@ export const createConversationClient = ({
     loadThread,
   };
 };
+
+export type ConversationClient = ReturnType<typeof createConversationClient>;

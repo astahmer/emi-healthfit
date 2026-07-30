@@ -6,16 +6,24 @@ import {
   type ChatTransportActorEvent,
   type ChatTransportActorInput,
 } from "./chat-transport-actor.ts";
+import {
+  conversationStoreActor,
+  type ConversationStoreActorEvent,
+  type ConversationStoreActorInput,
+} from "./conversation-store-actor.ts";
 
-export interface GenericChatAppInput extends Pick<
-  ChatTransportActorInput,
-  "api" | "createId" | "fetch"
-> {}
+export interface GenericChatAppInput
+  extends
+    Pick<ChatTransportActorInput, "api" | "createId" | "fetch">,
+    Pick<ConversationStoreActorInput, "client"> {}
 
 export type GenericChatAppEvent =
   | { type: "session-event"; event: ChatSessionEvent }
   | { type: "transport-event"; event: ChatTransportActorEvent }
-  | { type: "transport-session-event"; event: ChatSessionEvent };
+  | { type: "conversation-store-event"; event: ConversationStoreActorEvent }
+  | { type: "transport-session-event"; event: ChatSessionEvent }
+  | { type: "conversation-store-session-event"; event: ChatSessionEvent }
+  | { type: "conversation-store-transport-event"; event: ChatTransportActorEvent };
 
 export const genericChatAppMachine = setup({
   types: {
@@ -26,6 +34,7 @@ export const genericChatAppMachine = setup({
   actors: {
     session: chatSessionMachine,
     transport: chatTransportActor,
+    conversationStore: conversationStoreActor,
   },
   actions: {
     forwardSessionEvent: sendTo("session", ({ event }) =>
@@ -34,8 +43,23 @@ export const genericChatAppMachine = setup({
     forwardTransportEvent: sendTo("transport", ({ event }) =>
       event.type === "transport-event" ? event.event : { type: "stream-cancelled" },
     ),
-    forwardTransportSessionEvent: sendTo("session", ({ event }) =>
-      event.type === "transport-session-event" ? event.event : { type: "fresh-started" },
+    forwardConversationStoreEvent: sendTo("conversationStore", ({ event }) =>
+      event.type === "conversation-store-event" ? event.event : { type: "threads-cleared" },
+    ),
+    forwardConversationStoreTransportEvent: sendTo("transport", ({ event }) =>
+      event.type === "conversation-store-transport-event"
+        ? event.event
+        : { type: "stream-cancelled" },
+    ),
+    forwardChildSessionEvent: sendTo("session", ({ event }) => {
+      if (event.type === "transport-session-event") return event.event;
+      if (event.type === "conversation-store-session-event") return event.event;
+      return { type: "fresh-started" };
+    }),
+    forwardSessionToConversationStore: sendTo("conversationStore", ({ event }) =>
+      event.type === "transport-session-event"
+        ? { type: "session-event", event: event.event }
+        : { type: "threads-cleared" },
     ),
   },
 }).createMachine({
@@ -51,10 +75,24 @@ export const genericChatAppMachine = setup({
         sendSession: (event) => self.send({ type: "transport-session-event", event }),
       }),
     },
+    {
+      id: "conversationStore",
+      src: "conversationStore",
+      input: ({ context, self }) => ({
+        client: context.client,
+        sendSession: (event) => self.send({ type: "conversation-store-session-event", event }),
+        sendTransport: (event) => self.send({ type: "conversation-store-transport-event", event }),
+      }),
+    },
   ],
   on: {
     "session-event": { actions: "forwardSessionEvent" },
     "transport-event": { actions: "forwardTransportEvent" },
-    "transport-session-event": { actions: "forwardTransportSessionEvent" },
+    "conversation-store-event": { actions: "forwardConversationStoreEvent" },
+    "transport-session-event": {
+      actions: ["forwardChildSessionEvent", "forwardSessionToConversationStore"],
+    },
+    "conversation-store-session-event": { actions: "forwardChildSessionEvent" },
+    "conversation-store-transport-event": { actions: "forwardConversationStoreTransportEvent" },
   },
 });

@@ -12,7 +12,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 - Generic chat lifecycle and memory/title/suggestion orchestration still live under `apps/api/src/core`. Provider streaming, durable generation storage/replay, and protocol helpers now live behind public core exports; move the remaining server services next.
 - Generic browser runtime, transport, composer, thread renderer, minimap, and settings still live under `apps/chat`. Generic fixture now has a focused XState session machine and basic branch navigation; extract reusable UI primitives before adding more generic behavior.
-- Generic session and transport now compose under `genericChatAppMachine`; the parent retains injected adapters only and routes typed events without mirroring child snapshots. Continue with conversation, settings, browser, and UI actors to remove remaining generic React application state.
+- Generic session, transport, and conversation-store actors now compose under `genericChatAppMachine`; the parent retains injected adapters only and routes typed events without mirroring child snapshots. Conversation list/load, branches, memories, mutation failures, and stream resume now live in the store actor. Continue with settings, browser, and UI actors to remove remaining generic React application state.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
 ## P1 — product contracts and persistence
@@ -24,6 +24,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 ## P1 — user experience
 
+- React Doctor's changed-scope audit still finds two cross-app React correctness defects: conditional `useToolRenderer` in `packages/core/src/web/thread/tool-part.tsx` and a render-time ref mutation in `apps/chat/src/hooks/use-thread-viewport-scroll.ts`. Fix them in focused revisions before treating the audit as clean.
 - Promote the existing HealthFit conversation features into a core feature matrix with baseline vs optional status; users cannot currently tell what generic chat receives.
 - Make summarization and provider credentials configurable per app, with safe defaults and clear local/server storage behavior. Generic title generation accepts optional model and prompt overrides; compaction uses the selected chat model, while memory extraction has its own local model setting.
 - Extract generic sidebar, queue, attachments, minimap, message actions, and scroll controls into reusable `@emi/core/web` primitives rather than leaving the current generic fixture app-local.

@@ -5,9 +5,7 @@ import {
   createConversationClient,
   type ChatSessionEvent,
   type ChatTransportActorEvent,
-  type Conversation,
-  type ConversationThread,
-  type Memory,
+  type ConversationStoreActorEvent,
 } from "@emi/core/web";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./app.css";
@@ -25,20 +23,6 @@ export const App = () => {
       }),
     [],
   );
-  const {
-    cloneConversation,
-    compactConversation,
-    createMemory,
-    createThread,
-    deleteConversation,
-    deleteMemory,
-    listConversations,
-    listMemories,
-    listThreads,
-    loadConversation,
-    loadThread,
-    updateConversation,
-  } = conversationClient;
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
@@ -47,11 +31,16 @@ export const App = () => {
       api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
       fetch: window.fetch.bind(window),
       createId: () => crypto.randomUUID(),
+      client: conversationClient,
     },
   });
   const sessionActor = chatAppActor.getSnapshot().children.session;
   if (sessionActor === undefined) throw new Error("Chat session actor is unavailable.");
+  const conversationStoreActor = chatAppActor.getSnapshot().children.conversationStore;
+  if (conversationStoreActor === undefined)
+    throw new Error("Conversation store actor is unavailable.");
   const sessionState = useSelector(sessionActor, (snapshot) => snapshot);
+  const conversationStoreState = useSelector(conversationStoreActor, (snapshot) => snapshot);
   const dispatchSession = useCallback(
     (event: ChatSessionEvent) => chatAppActor.send({ type: "session-event", event }),
     [chatAppActor],
@@ -60,15 +49,18 @@ export const App = () => {
     (event: ChatTransportActorEvent) => chatAppActor.send({ type: "transport-event", event }),
     [chatAppActor],
   );
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [threads, setThreads] = useState<ConversationThread[]>([]);
-  const [memories, setMemories] = useState<Memory[]>([]);
+  const dispatchConversationStore = useCallback(
+    (event: ConversationStoreActorEvent) =>
+      chatAppActor.send({ type: "conversation-store-event", event }),
+    [chatAppActor],
+  );
   const [conversationSearch, setConversationSearch] = useState("");
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryDraft, setMemoryDraft] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
   const { conversationId, draft, error, files, messages, queuedFollowUps, temporary, threadId } =
     sessionState.context;
+  const { conversations, memories, threads } = conversationStoreState.context;
   const streaming = sessionState.matches("streaming");
 
   useEffect(
@@ -100,45 +92,6 @@ export const App = () => {
     }
     localStorage.setItem(storageKey, draft);
   }, [draft]);
-
-  const refreshConversations = async ({ search }: { search: string }) => {
-    try {
-      setConversations(await listConversations({ search }));
-    } catch {
-      setConversations([]);
-    }
-  };
-
-  const refreshThreads = async ({ id }: { id: string }) => {
-    try {
-      setThreads(await listThreads({ conversationId: id }));
-    } catch {
-      setThreads([]);
-    }
-  };
-
-  const refreshMemories = async ({ search }: { search: string }) => {
-    try {
-      setMemories(await listMemories({ search }));
-    } catch {
-      setMemories([]);
-    }
-  };
-
-  useEffect(() => {
-    void conversationClient
-      .listConversations({ search: "" })
-      .then(setConversations, () => setConversations([]));
-  }, [conversationClient]);
-  useEffect(() => {
-    if (conversationId === undefined) return;
-    void conversationClient
-      .listConversations({ search: conversationSearch })
-      .then(setConversations, () => setConversations([]));
-  }, [conversationClient, conversationId, conversationSearch]);
-  useEffect(() => {
-    void conversationClient.listMemories({ search: "" }).then(setMemories, () => setMemories([]));
-  }, [conversationClient]);
 
   const updateSettings = (patch: Partial<ChatSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -187,76 +140,38 @@ export const App = () => {
   const startFresh = () => {
     dispatchTransport({ type: "stream-cancelled" });
     dispatchSession({ type: "fresh-started" });
-    setThreads([]);
+    dispatchConversationStore({ type: "threads-cleared" });
   };
 
-  const openConversation = async ({ id }: { id: string }) => {
-    try {
-      const loaded = await loadConversation({ conversationId: id });
-      dispatchSession({
-        type: "conversation-opened",
-        conversationId: loaded.conversation.id,
-        messages: loaded.messages,
-      });
-      void refreshThreads({ id: loaded.conversation.id });
-      dispatchTransport({ type: "stream-resume-requested", conversationId: id });
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to load this conversation.",
-      });
-    }
-  };
+  const openConversation = ({ id }: { id: string }) =>
+    dispatchConversationStore({ type: "conversation-load-requested", conversationId: id });
 
-  const openThread = async ({ id }: { id: string }) => {
+  const openThread = ({ id }: { id: string }) => {
     if (conversationId === undefined) return;
-    try {
-      const loaded = await loadThread({ conversationId, threadId: id });
-      dispatchSession({
-        type: "thread-opened",
-        threadId: loaded.thread.id,
-        messages: loaded.messages,
-      });
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to load this branch.",
-      });
-    }
+    dispatchConversationStore({
+      type: "thread-load-requested",
+      conversationId,
+      threadId: id,
+    });
   };
 
-  const branchFromMessage = async ({ messageId }: { messageId: string }) => {
+  const branchFromMessage = ({ messageId }: { messageId: string }) => {
     if (conversationId === undefined || temporary) return;
-    try {
-      const thread = await createThread({ conversationId, anchorMessageId: messageId });
-      await refreshThreads({ id: conversationId });
-      await openThread({ id: thread.id });
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to create this branch.",
-      });
-    }
+    dispatchConversationStore({
+      type: "thread-create-requested",
+      conversationId,
+      anchorMessageId: messageId,
+    });
   };
 
-  const updateConversationAction = async ({
+  const updateConversationAction = ({
     id,
     patch,
   }: {
     id: string;
     patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
   }) => {
-    try {
-      const updated = await updateConversation({ conversationId: id, patch });
-      setConversations((current) =>
-        current.map((conversation) => (conversation.id === updated.id ? updated : conversation)),
-      );
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to update this conversation.",
-      });
-    }
+    dispatchConversationStore({ type: "conversation-update-requested", conversationId: id, patch });
   };
 
   const compactConversationAction = async ({ id }: { id: string }) => {
@@ -267,52 +182,27 @@ export const App = () => {
       });
       return;
     }
-    try {
-      const compacted = await compactConversation({
-        conversationId: id,
-        config: {
-          provider: settings.provider,
-          apiKey: settings.apiKey,
-          ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
-          model: settings.model,
-        },
-      });
-      setConversations((current) => [compacted, ...current]);
-      await openConversation({ id: compacted.id });
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to compact this conversation.",
-      });
-    }
+    dispatchConversationStore({
+      type: "conversation-compact-requested",
+      conversationId: id,
+      config: {
+        provider: settings.provider,
+        apiKey: settings.apiKey,
+        ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
+        model: settings.model,
+      },
+    });
   };
 
   const createMemoryAction = async () => {
     const content = memoryDraft.trim();
     if (content === "") return;
-    try {
-      await createMemory({ content });
-      setMemoryDraft("");
-      await refreshMemories({ search: memorySearch });
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to save this memory.",
-      });
-    }
+    dispatchConversationStore({ type: "memory-create-requested", content, search: memorySearch });
+    setMemoryDraft("");
   };
 
-  const deleteMemoryAction = async ({ id }: { id: string }) => {
-    try {
-      await deleteMemory({ memoryId: id });
-      setMemories((current) => current.filter((memory) => memory.id !== id));
-    } catch (cause) {
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to delete this memory.",
-      });
-    }
-  };
+  const deleteMemoryAction = ({ id }: { id: string }) =>
+    dispatchConversationStore({ type: "memory-delete-requested", memoryId: id });
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -389,7 +279,7 @@ export const App = () => {
             onChange={(event) => {
               const search = event.target.value;
               setConversationSearch(search);
-              void refreshConversations({ search });
+              dispatchConversationStore({ type: "conversations-load-requested", search });
             }}
             placeholder="Search chats"
             value={conversationSearch}
@@ -403,7 +293,7 @@ export const App = () => {
               }
               key={conversation.id}
             >
-              <button onClick={() => void openConversation({ id: conversation.id })} type="button">
+              <button onClick={() => openConversation({ id: conversation.id })} type="button">
                 {conversation.title || "New chat"}
               </button>
               <div className="conversation-actions">
@@ -435,19 +325,12 @@ export const App = () => {
                 </button>
                 <button
                   aria-label="Clone conversation"
-                  onClick={() => {
-                    void cloneConversation({ conversationId: conversation.id })
-                      .then((cloned) => {
-                        setConversations((current) => [cloned, ...current]);
-                        void openConversation({ id: cloned.id });
-                      })
-                      .catch(() =>
-                        dispatchSession({
-                          type: "error-reported",
-                          error: "Unable to clone this conversation.",
-                        }),
-                      );
-                  }}
+                  onClick={() =>
+                    dispatchConversationStore({
+                      type: "conversation-clone-requested",
+                      conversationId: conversation.id,
+                    })
+                  }
                   type="button"
                 >
                   Clone
@@ -475,19 +358,11 @@ export const App = () => {
                   aria-label="Delete conversation"
                   onClick={() => {
                     if (!window.confirm("Delete this conversation permanently?")) return;
-                    void deleteConversation({ conversationId: conversation.id })
-                      .then(() => {
-                        setConversations((current) =>
-                          current.filter((item) => item.id !== conversation.id),
-                        );
-                        if (conversation.id === conversationId) startFresh();
-                      })
-                      .catch(() =>
-                        dispatchSession({
-                          type: "error-reported",
-                          error: "Unable to delete this conversation.",
-                        }),
-                      );
+                    dispatchConversationStore({
+                      type: "conversation-delete-requested",
+                      conversationId: conversation.id,
+                      resetSession: conversation.id === conversationId,
+                    });
                   }}
                   type="button"
                 >
@@ -504,7 +379,7 @@ export const App = () => {
               <button
                 className={thread.id === threadId ? "active" : undefined}
                 key={thread.id}
-                onClick={() => void openThread({ id: thread.id })}
+                onClick={() => openThread({ id: thread.id })}
                 type="button"
               >
                 {thread.title || "Branch"}
@@ -520,7 +395,7 @@ export const App = () => {
               onChange={(event) => {
                 const search = event.target.value;
                 setMemorySearch(search);
-                void refreshMemories({ search });
+                dispatchConversationStore({ type: "memory-load-requested", search });
               }}
               placeholder="Search saved details"
               value={memorySearch}
@@ -539,7 +414,7 @@ export const App = () => {
             {memories.map((memory) => (
               <div key={memory.id}>
                 <span>{memory.content}</span>
-                <button onClick={() => void deleteMemoryAction({ id: memory.id })} type="button">
+                <button onClick={() => deleteMemoryAction({ id: memory.id })} type="button">
                   Delete
                 </button>
               </div>
@@ -739,7 +614,7 @@ export const App = () => {
                   {conversationId !== undefined && !temporary && (
                     <button
                       className="message-branch-button"
-                      onClick={() => void branchFromMessage({ messageId: message.id })}
+                      onClick={() => branchFromMessage({ messageId: message.id })}
                       type="button"
                     >
                       Branch here
