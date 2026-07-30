@@ -2,35 +2,43 @@ import { convertFileListToFileUIParts, type UIMessage } from "ai";
 import { useActorRef, useSelector } from "@xstate/react";
 import {
   genericChatAppMachine,
+  createConversationClient,
   type ChatSessionEvent,
   type ChatTransportActorEvent,
-} from "@emi/core/web";
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import "./app.css";
-import { genericChatAppConfig } from "./app-config.ts";
-import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
-import {
-  cloneConversation,
-  compactConversation,
-  createMemory,
-  createThread,
-  deleteConversation,
-  deleteMemory,
-  listConversations,
-  listMemories,
-  listThreads,
-  loadConversation,
-  loadThread,
-  updateConversation,
   type Conversation,
   type ConversationThread,
   type Memory,
-} from "./conversation-client.ts";
-
+} from "@emi/core/web";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./app.css";
+import { genericChatAppConfig } from "./app-config.ts";
+import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 const messageText = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
 export const App = () => {
+  const conversationClient = useMemo(
+    () =>
+      createConversationClient({
+        apiOrigin: import.meta.env.VITE_API_ORIGIN ?? "",
+        fetch: window.fetch.bind(window),
+      }),
+    [],
+  );
+  const {
+    cloneConversation,
+    compactConversation,
+    createMemory,
+    createThread,
+    deleteConversation,
+    deleteMemory,
+    listConversations,
+    listMemories,
+    listThreads,
+    loadConversation,
+    loadThread,
+    updateConversation,
+  } = conversationClient;
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
@@ -118,15 +126,19 @@ export const App = () => {
   };
 
   useEffect(() => {
-    void refreshConversations({ search: "" });
-  }, []);
+    void conversationClient
+      .listConversations({ search: "" })
+      .then(setConversations, () => setConversations([]));
+  }, [conversationClient]);
   useEffect(() => {
     if (conversationId === undefined) return;
-    void refreshConversations({ search: conversationSearch });
-  }, [conversationId, conversationSearch]);
+    void conversationClient
+      .listConversations({ search: conversationSearch })
+      .then(setConversations, () => setConversations([]));
+  }, [conversationClient, conversationId, conversationSearch]);
   useEffect(() => {
-    void refreshMemories({ search: "" });
-  }, []);
+    void conversationClient.listMemories({ search: "" }).then(setMemories, () => setMemories([]));
+  }, [conversationClient]);
 
   const updateSettings = (patch: Partial<ChatSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));

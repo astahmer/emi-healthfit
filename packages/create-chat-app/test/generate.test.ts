@@ -91,9 +91,7 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /Add attachments/);
     assert.match(app, /Search conversations/);
     assert.match(app, /draft is saved locally/);
-    const conversationClient = findFile(files, "web/src/conversation-client.ts").contents;
-    assert.match(conversationClient, /validateStoredUIMessages/);
-    assert.match(conversationClient, /\/clone/);
+    assert.match(app, /createConversationClient/);
     assert.equal(packageJson.dependencies.ai, "catalog:");
   });
 
@@ -116,10 +114,6 @@ describe("buildGeneratedFiles", () => {
     const sourceFiles = [
       { generatedPath: "web/src/app.tsx", sourcePath: "../../../apps/generic-web/src/app.tsx" },
       { generatedPath: "web/src/app.css", sourcePath: "../../../apps/generic-web/src/app.css" },
-      {
-        generatedPath: "web/src/conversation-client.ts",
-        sourcePath: "../../../apps/generic-web/src/conversation-client.ts",
-      },
       {
         generatedPath: "worker/src/generic.worker.ts",
         sourcePath: "../../../apps/generic-worker/src/generic.worker.ts",

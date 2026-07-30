@@ -111,10 +111,6 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
       path: "web/src/chat-settings.ts",
       contents: genericSourceFile("apps/generic-web/src/chat-settings.ts"),
     },
-    {
-      path: "web/src/conversation-client.ts",
-      contents: genericSourceFile("apps/generic-web/src/conversation-client.ts"),
-    },
     { path: "web/src/main.tsx", contents: genericSourceFile("apps/generic-web/src/main.tsx") },
     { path: "worker/package.json", contents: templates.workerPackageJson(context) },
     {
