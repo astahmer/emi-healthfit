@@ -160,6 +160,52 @@ button {
   justify-content: space-between;
   padding-bottom: 1.25rem;
 }
+
+.message-navigation {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.message-navigation button {
+  border: 1px solid #bfb5aa;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  color: #463c35;
+  background: #fffdf9;
+  font-size: 0.75rem;
+}
+
+.message-content {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  min-height: 0;
+}
+
+.message-minimap {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 2rem 0.75rem 2rem 0;
+}
+
+.message-minimap button {
+  display: grid;
+  grid-template-columns: 0.25rem minmax(0, 1fr);
+  gap: 0.35rem;
+  overflow: hidden;
+  border: 0;
+  padding: 0.2rem;
+  color: #766d65;
+  background: transparent;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-minimap span {
+  border-radius: 1rem;
+  background: #ad7353;
+}
 .messages {
   display: flex;
   flex-direction: column;
@@ -340,5 +386,14 @@ button {
   .chat-panel {
     min-height: calc(100dvh - 15rem);
     padding: 1rem;
+  }
+  .message-content {
+    grid-template-columns: 1fr;
+  }
+  .message-minimap {
+    display: none;
+  }
+  .message-navigation {
+    display: none;
   }
 }

@@ -28,6 +28,8 @@ const messageText = (message: UIMessage): string =>
 export const App = () => {
   const abortController = useRef<AbortController | undefined>(undefined);
   const composerForm = useRef<HTMLFormElement | null>(null);
+  const messageContainer = useRef<HTMLDivElement | null>(null);
+  const messageElements = useRef(new Map<string, HTMLElement>());
   const streamOperation = useRef(0);
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [session, dispatchSession] = useReducer(reduceChatSession, initialChatSession);
@@ -63,9 +65,9 @@ export const App = () => {
     }
   };
 
-  const refreshThreads = async ({ conversationId }: { conversationId: string }) => {
+  const refreshThreads = async ({ id }: { id: string }) => {
     try {
-      setThreads(await listThreads({ conversationId }));
+      setThreads(await listThreads({ conversationId: id }));
     } catch {
       setThreads([]);
     }
@@ -77,6 +79,28 @@ export const App = () => {
 
   const updateSettings = (patch: Partial<ChatSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
+  };
+
+  const scrollToMessage = ({ id }: { id: string }) => {
+    messageElements.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const scrollMessages = ({ target }: { target: "top" | "previous" | "bottom" }) => {
+    const container = messageContainer.current;
+    if (container === null) return;
+    if (target === "top") {
+      container.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (target === "bottom") {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      return;
+    }
+    const previous = messages.toReversed().find((message) => {
+      const element = messageElements.current.get(message.id);
+      return element !== undefined && element.offsetTop < container.scrollTop - 8;
+    });
+    if (previous !== undefined) scrollToMessage({ id: previous.id });
   };
 
   const startFresh = () => {
@@ -132,7 +156,7 @@ export const App = () => {
         conversationId: loaded.conversation.id,
         messages: loaded.messages,
       });
-      void refreshThreads({ conversationId: loaded.conversation.id });
+      void refreshThreads({ id: loaded.conversation.id });
       void resumeConversation({ id });
     } catch (cause) {
       dispatchSession({
@@ -163,7 +187,7 @@ export const App = () => {
     if (conversationId === undefined || temporary) return;
     try {
       const thread = await createThread({ conversationId, anchorMessageId: messageId });
-      await refreshThreads({ conversationId });
+      await refreshThreads({ id: conversationId });
       await openThread({ id: thread.id });
     } catch (cause) {
       dispatchSession({
@@ -504,6 +528,17 @@ export const App = () => {
                   : "Branch"}
             </h2>
           </div>
+          <div className="message-navigation">
+            <button onClick={() => scrollMessages({ target: "top" })} type="button">
+              Top
+            </button>
+            <button onClick={() => scrollMessages({ target: "previous" })} type="button">
+              Previous
+            </button>
+            <button onClick={() => scrollMessages({ target: "bottom" })} type="button">
+              Bottom
+            </button>
+          </div>
           {streaming && (
             <button
               className="secondary-button"
@@ -515,31 +550,64 @@ export const App = () => {
           )}
         </header>
 
-        <div aria-live="polite" className="messages" data-testid="messages">
-          {messages.length === 0 ? (
-            <div className="empty-state">
-              <p>Ask anything. Configure a GPT-compatible provider in the settings panel.</p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <article className={`message message-${message.role}`} key={message.id}>
-                <p className="message-role">{message.role}</p>
-                <div>
-                  {messageText(message) ||
-                    (message.role === "assistant" && streaming ? "Thinking…" : "")}
-                </div>
-                {conversationId !== undefined && !temporary && (
+        <div className="message-content">
+          <aside aria-label="User message minimap" className="message-minimap">
+            {messages
+              .filter((message) => message.role === "user")
+              .map((message) => {
+                const preview = messageText(message) || "Attachment";
+                return (
                   <button
-                    className="message-branch-button"
-                    onClick={() => void branchFromMessage({ messageId: message.id })}
+                    aria-label={`Scroll to ${preview}`}
+                    key={message.id}
+                    onClick={() => scrollToMessage({ id: message.id })}
+                    title={preview}
                     type="button"
                   >
-                    Branch here
+                    <span />
+                    {preview}
                   </button>
-                )}
-              </article>
-            ))
-          )}
+                );
+              })}
+          </aside>
+          <div
+            aria-live="polite"
+            className="messages"
+            data-testid="messages"
+            ref={messageContainer}
+          >
+            {messages.length === 0 ? (
+              <div className="empty-state">
+                <p>Ask anything. Configure a GPT-compatible provider in the settings panel.</p>
+              </div>
+            ) : (
+              messages.map((message) => (
+                <article
+                  className={`message message-${message.role}`}
+                  key={message.id}
+                  ref={(element) => {
+                    if (element === null) messageElements.current.delete(message.id);
+                    else messageElements.current.set(message.id, element);
+                  }}
+                >
+                  <p className="message-role">{message.role}</p>
+                  <div>
+                    {messageText(message) ||
+                      (message.role === "assistant" && streaming ? "Thinking…" : "")}
+                  </div>
+                  {conversationId !== undefined && !temporary && (
+                    <button
+                      className="message-branch-button"
+                      onClick={() => void branchFromMessage({ messageId: message.id })}
+                      type="button"
+                    >
+                      Branch here
+                    </button>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
         </div>
 
         {error !== undefined && <p className="error-message">{error}</p>}

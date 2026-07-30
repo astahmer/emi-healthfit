@@ -28,6 +28,7 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 - Resumable generations: refresh or reconnect without losing an in-flight answer.
 - Conversation history: create, rename, pin, archive, clone, delete, search.
 - Branches / side threads from any persisted message; fork, focus, summarize, discard, restore.
+- Message minimap: user-message previews jump to their turns; top, previous, and bottom controls navigate long chats.
 - Edit and regenerate user turns; stop mid-stream.
 - Attachments (images) in the composer.
 - Follow-up suggestions after a turn.
