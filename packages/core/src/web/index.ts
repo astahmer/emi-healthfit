@@ -6,3 +6,4 @@ export * from "./conversation/conversation-tree.ts";
 export * from "./conversation/conversation-markdown.ts";
 export * from "./attachments/attachments.ts";
 export * from "./chat-session-machine.ts";
+export * from "./chat-runtime/chat-transport-actor.ts";

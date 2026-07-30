@@ -1,11 +1,6 @@
-import {
-  convertFileListToFileUIParts,
-  DefaultChatTransport,
-  readUIMessageStream,
-  type UIMessage,
-} from "ai";
-import { useMachine } from "@xstate/react";
-import { chatSessionMachine } from "@emi/core/web";
+import { convertFileListToFileUIParts, type UIMessage } from "ai";
+import { useActorRef, useMachine } from "@xstate/react";
+import { chatSessionMachine, chatTransportActor } from "@emi/core/web";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
@@ -32,13 +27,18 @@ const messageText = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
 export const App = () => {
-  const abortController = useRef<AbortController | undefined>(undefined);
-  const composerForm = useRef<HTMLFormElement | null>(null);
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
-  const streamOperation = useRef(0);
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [sessionState, dispatchSession] = useMachine(chatSessionMachine);
+  const transportActor = useActorRef(chatTransportActor, {
+    input: {
+      api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
+      fetch: window.fetch.bind(window),
+      createId: () => crypto.randomUUID(),
+      sendSession: dispatchSession,
+    },
+  });
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -108,12 +108,34 @@ export const App = () => {
     void refreshConversations({ search: "" });
   }, []);
   useEffect(() => {
+    if (conversationId === undefined) return;
+    void refreshConversations({ search: conversationSearch });
+  }, [conversationId]);
+  useEffect(() => {
     void refreshMemories({ search: "" });
   }, []);
 
   const updateSettings = (patch: Partial<ChatSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
   };
+
+  const chatRequestBody = (): Record<string, unknown> => ({
+    system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
+    config: {
+      provider: settings.provider,
+      apiKey: settings.apiKey,
+      ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
+      model: settings.model,
+    },
+    memory: {
+      enabled: settings.memoryEnabled,
+      ...(settings.memoryModel === "" ? {} : { model: settings.memoryModel }),
+    },
+    title: {
+      ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
+      ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
+    },
+  });
 
   const scrollToMessage = ({ id }: { id: string }) => {
     messageElements.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -138,48 +160,9 @@ export const App = () => {
   };
 
   const startFresh = () => {
-    streamOperation.current += 1;
-    abortController.current?.abort();
-    abortController.current = undefined;
+    transportActor.send({ type: "stream-cancelled" });
     dispatchSession({ type: "fresh-started" });
     setThreads([]);
-  };
-
-  const consumeStream = async ({
-    operation,
-    stream,
-  }: {
-    operation: number;
-    stream: ReadableStream<
-      Parameters<typeof readUIMessageStream>[0]["stream"] extends ReadableStream<infer Chunk>
-        ? Chunk
-        : never
-    >;
-  }) => {
-    for await (const streamedMessage of readUIMessageStream({ stream, terminateOnError: true })) {
-      if (operation !== streamOperation.current) return;
-      dispatchSession({ type: "stream-message", message: streamedMessage });
-    }
-  };
-
-  const resumeConversation = async ({ id }: { id: string }) => {
-    const operation = streamOperation.current + 1;
-    streamOperation.current = operation;
-    dispatchSession({ type: "stream-resumed" });
-    try {
-      const transport = new DefaultChatTransport<UIMessage>({
-        api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
-      });
-      const stream = await transport.reconnectToStream({ chatId: id });
-      if (stream === null) return;
-      await consumeStream({ operation, stream });
-    } catch {
-      if (operation === streamOperation.current) {
-        dispatchSession({ type: "error-reported", error: "Unable to resume this conversation." });
-      }
-    } finally {
-      if (operation === streamOperation.current) dispatchSession({ type: "stream-finished" });
-    }
   };
 
   const openConversation = async ({ id }: { id: string }) => {
@@ -191,7 +174,7 @@ export const App = () => {
         messages: loaded.messages,
       });
       void refreshThreads({ id: loaded.conversation.id });
-      void resumeConversation({ id });
+      transportActor.send({ type: "stream-resume-requested", conversationId: id });
     } catch (cause) {
       dispatchSession({
         type: "error-reported",
@@ -306,7 +289,7 @@ export const App = () => {
     }
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!online) {
       dispatchSession({
@@ -332,81 +315,34 @@ export const App = () => {
       return;
     }
 
-    const userMessage: UIMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      parts: [{ type: "text", text }, ...files],
-    };
-    const nextMessages = [...messages, userMessage];
-    const controller = new AbortController();
-    const operation = streamOperation.current + 1;
-    streamOperation.current = operation;
-    abortController.current = controller;
-    dispatchSession({ type: "stream-started", messages: nextMessages });
-
-    try {
-      const transport = new DefaultChatTransport<UIMessage>({
-        api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
-        fetch: async (input, init) => {
-          const response = await fetch(input, init);
-          const returnedConversationId = response.headers.get("x-conversation-id");
-          if (returnedConversationId !== null) {
-            dispatchSession({
-              type: "conversation-identified",
-              conversationId: returnedConversationId,
-            });
-            void refreshConversations({ search: conversationSearch });
-          }
-          return response;
-        },
-      });
-      const stream = await transport.sendMessages({
-        trigger: "submit-message",
-        chatId: conversationId ?? userMessage.id,
-        messageId: userMessage.id,
-        messages: nextMessages,
-        abortSignal: controller.signal,
-        body: {
-          sessionId: conversationId,
-          ...(threadId === undefined ? {} : { threadId }),
-          temporary,
-          system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
-          config: {
-            provider: settings.provider,
-            apiKey: settings.apiKey,
-            ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
-            model: settings.model,
-          },
-          memory: {
-            enabled: settings.memoryEnabled,
-            ...(settings.memoryModel === "" ? {} : { model: settings.memoryModel }),
-          },
-          title: {
-            ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
-            ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
-          },
-        },
-      });
-      await consumeStream({ operation, stream });
-    } catch (cause) {
-      if (controller.signal.aborted || operation !== streamOperation.current) return;
-      dispatchSession({
-        type: "error-reported",
-        error: cause instanceof Error ? cause.message : "Unable to complete this chat request.",
-      });
-    } finally {
-      if (abortController.current === controller) abortController.current = undefined;
-      if (operation === streamOperation.current) dispatchSession({ type: "stream-finished" });
-    }
+    transportActor.send({
+      type: "stream-send-requested",
+      request: {
+        conversationId,
+        threadId,
+        temporary,
+        messages,
+        text,
+        files,
+        body: chatRequestBody(),
+      },
+    });
   };
 
   const forceSendQueued = ({ id }: { id: string }) => {
-    if (!queuedFollowUps.some((item) => item.id === id)) return;
-    streamOperation.current += 1;
-    abortController.current?.abort();
-    abortController.current = undefined;
-    dispatchSession({ type: "queued-follow-up-forced", id });
-    setTimeout(() => composerForm.current?.requestSubmit());
+    const followUp = queuedFollowUps.find((item) => item.id === id);
+    if (followUp === undefined) return;
+    transportActor.send({
+      type: "queued-follow-up-force-requested",
+      followUp,
+      request: {
+        conversationId,
+        threadId,
+        temporary,
+        messages,
+        body: chatRequestBody(),
+      },
+    });
   };
 
   return (
@@ -722,7 +658,7 @@ export const App = () => {
           {streaming && (
             <button
               className="secondary-button"
-              onClick={() => abortController.current?.abort()}
+              onClick={() => transportActor.send({ type: "stream-cancelled" })}
               type="button"
             >
               Stop
@@ -813,7 +749,7 @@ export const App = () => {
             ))}
           </section>
         )}
-        <form className="composer" onSubmit={submit} ref={composerForm}>
+        <form className="composer" onSubmit={submit}>
           <label className="attachment-button">
             Attach
             <input

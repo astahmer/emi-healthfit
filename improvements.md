@@ -12,7 +12,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 - Generic chat lifecycle and memory/title/suggestion orchestration still live under `apps/api/src/core`. Provider streaming, durable generation storage/replay, and protocol helpers now live behind public core exports; move the remaining server services next.
 - Generic browser runtime, transport, composer, thread renderer, minimap, and settings still live under `apps/chat`. Generic fixture now has a focused XState session machine and basic branch navigation; extract reusable UI primitives before adding more generic behavior.
-- Generic session state now uses the exported `@emi/core/web` XState machine instead of a React reducer. Keep sidebar search and memory-input state local; they are independent view state, not chat protocol transitions. Next extract transport ownership and presentational chat primitives from the generic app.
+- Generic session state now uses the exported `@emi/core/web` XState machine, and generic stream identity, abort, reconnect/retry, stale chunks, and queue force-send now live in `chatTransportActor`. Add the root actor next so child actors route typed events through parent ownership rather than React callbacks.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
 ## P1 — product contracts and persistence
