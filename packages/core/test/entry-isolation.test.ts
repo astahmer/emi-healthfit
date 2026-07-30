@@ -56,10 +56,34 @@ describe("@emi/core entry isolation", () => {
     });
   });
 
-  it("server never imports web, discord, or react", async () => {
+  it("chat never imports server, web, cloudflare, discord, or react", async () => {
+    await assertNoMatches({
+      entry: "chat",
+      forbidden: [
+        "@emi/core/server",
+        "@emi/core/web",
+        "@emi/core/cloudflare",
+        "@emi/core/discord",
+        'from "react"',
+        "from 'react'",
+        "drizzle-orm",
+        "kysely",
+        "alchemy",
+      ],
+    });
+  });
+
+  it("server never imports web, chat, discord, or react", async () => {
     await assertNoMatches({
       entry: "server",
-      forbidden: ["@emi/core/web", "@emi/core/discord", 'from "react"', "from 'react'", ".tsx"],
+      forbidden: [
+        "@emi/core/web",
+        "@emi/core/chat",
+        "@emi/core/discord",
+        'from "react"',
+        "from 'react'",
+        ".tsx",
+      ],
     });
   });
 

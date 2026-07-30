@@ -10,6 +10,7 @@
   "exports": {
     "./contract": "./src/contract/index.ts",
     "./contract/healthfit": "./src/contract/healthfit.ts",
+    "./chat": "./src/chat/index.ts",
     "./server": "./src/server/index.ts",
     "./web": "./src/web/index.ts",
     "./web/contributions": "./src/web/contributions.tsx",
@@ -29,6 +30,8 @@
     "lint:fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
+    "@ai-sdk/openai": "catalog:",
+    "ai": "catalog:",
     "alchemy": "2.0.0-beta.59",
     "better-auth": "catalog:",
     "drizzle-orm": "0.45.2",

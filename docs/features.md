@@ -11,7 +11,7 @@ The target is a full generic default chat app produced by `create-chat-app`, wit
 | Capability | HealthFit today | Reusable core today | Generic scaffold target |
 |---|---:|---:|---:|
 | Composer, attachments, model choice | Yes | Attachment helper only | Core baseline |
-| Streaming, stop, resume, retry | Yes | Persistence primitives only | Core baseline |
+| Provider streaming and protocol helpers | Yes | Yes | Core baseline |
 | Conversations, search, actions | Yes | Contract/store helpers | Core baseline |
 | Branches, compact, start fresh | Yes | Contract/tree helpers | Core baseline |
 | Queue and force-send | Yes | No | Core baseline |

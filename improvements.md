@@ -11,7 +11,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 ## P0 — core extraction boundaries
 
-- Generic chat lifecycle, streaming/replay, provider, durable generation store, and memory/title/suggestion services still live under `apps/api/src/core`. Move them behind public `@emi/core` server/cloudflare exports.
+- Generic chat lifecycle, streaming replay, durable generation store, and memory/title/suggestion orchestration still live under `apps/api/src/core`. The provider adapter and protocol helpers now live at `@emi/core/chat`; move the remaining server services behind public core exports.
 - Generic browser runtime, state machines, transport, conversation controller, sidebar actions, composer, thread renderer, minimap, and settings still live under `apps/chat`. Extract them before adding new generic UI behavior.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
