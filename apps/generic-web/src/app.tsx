@@ -6,11 +6,12 @@ import {
   type ChatSessionEvent,
   type ChatTransportActorEvent,
   type ConversationStoreActorEvent,
+  type SettingsActorEvent,
+  type ChatUiActorEvent,
 } from "@emi/core/web";
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useMemo, useRef } from "react";
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
-import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 const messageText = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
@@ -25,13 +26,33 @@ export const App = () => {
   );
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
-  const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
+  const settingsStorage = useMemo(() => window.localStorage, []);
+  const browserAdapter = useMemo(
+    () => ({
+      online: () => navigator.onLine,
+      subscribeOnline: (listener: (online: boolean) => void) => {
+        const update = () => listener(navigator.onLine);
+        window.addEventListener("online", update);
+        window.addEventListener("offline", update);
+        return () => {
+          window.removeEventListener("online", update);
+          window.removeEventListener("offline", update);
+        };
+      },
+      storage: window.localStorage,
+    }),
+    [],
+  );
   const chatAppActor = useActorRef(genericChatAppMachine, {
     input: {
       api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
       fetch: window.fetch.bind(window),
       createId: () => crypto.randomUUID(),
       client: conversationClient,
+      storage: settingsStorage,
+      storageKey: genericChatAppConfig.settingsStorageKey,
+      browser: browserAdapter,
+      draftStorageKey: `${genericChatAppConfig.settingsStorageKey}:draft`,
     },
   });
   const sessionActor = chatAppActor.getSnapshot().children.session;
@@ -39,8 +60,17 @@ export const App = () => {
   const conversationStoreActor = chatAppActor.getSnapshot().children.conversationStore;
   if (conversationStoreActor === undefined)
     throw new Error("Conversation store actor is unavailable.");
+  const settingsActor = chatAppActor.getSnapshot().children.settings;
+  if (settingsActor === undefined) throw new Error("Settings actor is unavailable.");
+  const browserStateActor = chatAppActor.getSnapshot().children.browserState;
+  if (browserStateActor === undefined) throw new Error("Browser state actor is unavailable.");
+  const chatUiActor = chatAppActor.getSnapshot().children.chatUi;
+  if (chatUiActor === undefined) throw new Error("Chat UI actor is unavailable.");
   const sessionState = useSelector(sessionActor, (snapshot) => snapshot);
   const conversationStoreState = useSelector(conversationStoreActor, (snapshot) => snapshot);
+  const settingsState = useSelector(settingsActor, (snapshot) => snapshot);
+  const browserState = useSelector(browserStateActor, (snapshot) => snapshot);
+  const chatUiState = useSelector(chatUiActor, (snapshot) => snapshot);
   const dispatchSession = useCallback(
     (event: ChatSessionEvent) => chatAppActor.send({ type: "session-event", event }),
     [chatAppActor],
@@ -54,48 +84,24 @@ export const App = () => {
       chatAppActor.send({ type: "conversation-store-event", event }),
     [chatAppActor],
   );
-  const [conversationSearch, setConversationSearch] = useState("");
-  const [memorySearch, setMemorySearch] = useState("");
-  const [memoryDraft, setMemoryDraft] = useState("");
-  const [online, setOnline] = useState(navigator.onLine);
+  const dispatchSettings = useCallback(
+    (event: SettingsActorEvent) => chatAppActor.send({ type: "settings-event", event }),
+    [chatAppActor],
+  );
+  const dispatchChatUi = useCallback(
+    (event: ChatUiActorEvent) => chatAppActor.send({ type: "chat-ui-event", event }),
+    [chatAppActor],
+  );
   const { conversationId, draft, error, files, messages, queuedFollowUps, temporary, threadId } =
     sessionState.context;
   const { conversations, memories, threads } = conversationStoreState.context;
+  const { settings } = settingsState.context;
+  const { online } = browserState.context;
+  const { conversationSearch, memoryDraft, memoryPanelOpen, memorySearch } = chatUiState.context;
   const streaming = sessionState.matches("streaming");
 
-  useEffect(
-    () => setSettings(readChatSettings({ storageKey: genericChatAppConfig.settingsStorageKey })),
-    [],
-  );
-  useEffect(
-    () => localStorage.setItem(genericChatAppConfig.settingsStorageKey, JSON.stringify(settings)),
-    [settings],
-  );
-  useEffect(() => {
-    const savedDraft = localStorage.getItem(`${genericChatAppConfig.settingsStorageKey}:draft`);
-    if (savedDraft !== null) dispatchSession({ type: "draft-changed", draft: savedDraft });
-  }, [dispatchSession]);
-  useEffect(() => {
-    const updateOnlineState = () => setOnline(navigator.onLine);
-    window.addEventListener("online", updateOnlineState);
-    window.addEventListener("offline", updateOnlineState);
-    return () => {
-      window.removeEventListener("online", updateOnlineState);
-      window.removeEventListener("offline", updateOnlineState);
-    };
-  }, []);
-  useEffect(() => {
-    const storageKey = `${genericChatAppConfig.settingsStorageKey}:draft`;
-    if (draft === "") {
-      localStorage.removeItem(storageKey);
-      return;
-    }
-    localStorage.setItem(storageKey, draft);
-  }, [draft]);
-
-  const updateSettings = (patch: Partial<ChatSettings>) => {
-    setSettings((current) => ({ ...current, ...patch }));
-  };
+  const updateSettings = (patch: Partial<typeof settings>) =>
+    dispatchSettings({ type: "settings-patch-requested", patch });
 
   const chatRequestBody = (): Record<string, unknown> => ({
     system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
@@ -198,7 +204,7 @@ export const App = () => {
     const content = memoryDraft.trim();
     if (content === "") return;
     dispatchConversationStore({ type: "memory-create-requested", content, search: memorySearch });
-    setMemoryDraft("");
+    dispatchChatUi({ type: "memory-draft-cleared" });
   };
 
   const deleteMemoryAction = ({ id }: { id: string }) =>
@@ -278,7 +284,7 @@ export const App = () => {
           <input
             onChange={(event) => {
               const search = event.target.value;
-              setConversationSearch(search);
+              dispatchChatUi({ type: "conversation-search-changed", search });
               dispatchConversationStore({ type: "conversations-load-requested", search });
             }}
             placeholder="Search chats"
@@ -387,14 +393,20 @@ export const App = () => {
             ))}
           </section>
         )}
-        <details className="memory-panel">
+        <details
+          className="memory-panel"
+          onToggle={(event) =>
+            dispatchChatUi({ type: "memory-panel-changed", open: event.currentTarget.open })
+          }
+          open={memoryPanelOpen}
+        >
           <summary>Memories</summary>
           <label>
             Search memories
             <input
               onChange={(event) => {
                 const search = event.target.value;
-                setMemorySearch(search);
+                dispatchChatUi({ type: "memory-search-changed", search });
                 dispatchConversationStore({ type: "memory-load-requested", search });
               }}
               placeholder="Search saved details"
@@ -402,7 +414,9 @@ export const App = () => {
             />
           </label>
           <textarea
-            onChange={(event) => setMemoryDraft(event.target.value)}
+            onChange={(event) =>
+              dispatchChatUi({ type: "memory-draft-changed", draft: event.target.value })
+            }
             placeholder="Save a detail for future chats"
             rows={2}
             value={memoryDraft}

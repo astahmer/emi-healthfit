@@ -22,6 +22,7 @@ export interface BrowserStateContext extends BrowserStateActorInput {
 }
 
 export type BrowserStateActorEvent =
+  | { type: "browser-noop" }
   | { type: "online-changed"; online: boolean }
   | { type: "draft-persist-requested"; draft: string }
   | { type: "draft-restored"; draft: string }

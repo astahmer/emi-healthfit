@@ -71,6 +71,17 @@ const client: ConversationClient = {
   }),
 };
 
+const rootAdapters = {
+  storage: { getItem: () => null, setItem: () => undefined },
+  storageKey: "settings",
+  draftStorageKey: "draft",
+  browser: {
+    online: () => true,
+    subscribeOnline: () => () => undefined,
+    storage: { getItem: () => null, setItem: () => undefined, removeItem: () => undefined },
+  },
+};
+
 const assistantResponse = () =>
   new Response(
     new ReadableStream<Uint8Array>({
@@ -98,6 +109,7 @@ describe("genericChatAppMachine", () => {
         fetch: async () => assistantResponse(),
         createId: () => "user-message",
         client,
+        ...rootAdapters,
       },
     }).start();
 
@@ -134,6 +146,7 @@ describe("genericChatAppMachine", () => {
         fetch: async () => assistantResponse(),
         createId: () => "user-message",
         client,
+        ...rootAdapters,
       },
     }).start();
 
