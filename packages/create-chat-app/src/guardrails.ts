@@ -60,11 +60,13 @@ export const buildCoreSourceHashIndex = async (repoRoot: string): Promise<Set<st
 export const scanGeneratedTreeForCopiedCoreSource = async (options: {
   generatedRoot: string;
   coreSourceHashes: Set<string>;
+  ownedCore?: boolean;
 }): Promise<GuardrailViolation[]> => {
   const files = await walkFiles(options.generatedRoot);
   const violationLists = await Promise.all(
     files.map(async (file) => {
       const relPath = relative(options.generatedRoot, file);
+      if (options.ownedCore === true && relPath.startsWith("core/")) return [];
       const contents = await readFile(file);
       const violations: GuardrailViolation[] = [];
       if (options.coreSourceHashes.has(hashContents(contents))) {

@@ -1,10 +1,9 @@
 # @emi/create-chat-app
 
-Scaffolder for a self-hostable, full-stack chat starter in workspace composition mode. It generates
-a Vite + React web app with browser-local BYOK settings, streaming, temporary chats, stop, and new
-chat controls; plus an Alchemy Cloudflare Worker with D1 conversations, durable generation chunks,
-and a resume endpoint. Both packages depend on the single `@emi/core` package. **No core package
-source is copied** — generated files only use its public subpath exports.
+Scaffolder for a self-hostable, full-stack chat starter. By default it generates a Vite + React web
+app, an Alchemy Cloudflare Worker with D1 persistence, and the full reusable `@emi/core` source.
+Everything is local and editable. Dependency mode remains available for an existing workspace or a
+published core package.
 
 ## Usage
 
@@ -18,28 +17,35 @@ node --experimental-strip-types bin/create-chat-app.ts my-chat-app --dir ./out/m
 # Print the file list without writing anything
 node --experimental-strip-types bin/create-chat-app.ts my-chat-app --dry-run
 
-# Pin a released core version instead of the workspace protocol
-node --experimental-strip-types bin/create-chat-app.ts my-chat-app --core-version "^1.2.0"
+# Use an existing or published @emi/core package instead of copying source
+node --experimental-strip-types bin/create-chat-app.ts my-chat-app --mode dependency --core-version "^1.2.0"
+
+# Verify the owned generated application end to end
+pnpm test:generated
 ```
 
 Once published, the same CLI is reachable as `create-chat-app` via the `bin` field.
 
 ## Options
 
-| Flag                   | Description                                                        |
-| ---------------------- | ------------------------------------------------------------------ |
-| `-n, --name <name>`    | App name (prompted if omitted and stdin is a TTY)                  |
-| `-d, --dir <path>`     | Target directory (default: `./<name>`)                             |
-| `--core-version <ver>` | Dependency version string for `@emi/core` (default: `workspace:*`) |
-| `--dry-run`            | Print the file list without writing anything                       |
-| `--force`              | Overwrite a non-empty target directory                             |
-| `-h, --help`           | Show help text                                                     |
+| Flag                   | Description                                                             |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `-n, --name <name>`    | App name (prompted if omitted and stdin is a TTY)                       |
+| `-d, --dir <path>`     | Target directory (default: `./<name>`)                                  |
+| `--mode <mode>`        | `owned` (default) copies editable core; `dependency` uses external core |
+| `--core-version <ver>` | Dependency version string in dependency mode (default: `workspace:*`)   |
+| `--dry-run`            | Print the file list without writing anything                            |
+| `--force`              | Overwrite a non-empty target directory                                  |
+| `-h, --help`           | Show help text                                                          |
 
 ## Generated tree
 
 ```text
 <target>/
   README.md
+  package.json
+  pnpm-workspace.yaml
+  core/                  # editable @emi/core source and tests
   .env.example
   .gitignore
   web/
@@ -49,19 +55,18 @@ Once published, the same CLI is reachable as `create-chat-app` via the `bin` fie
     ...
   worker/
     package.json          # depends on @emi/core (+ alchemy/drizzle)
-    src/app.worker.ts     # D1 conversations + core chat stream/replay routes
+    src/generic.worker.ts # D1 conversations + core chat stream/replay routes
     ...
 ```
 
 ## Guardrails
 
-`src/guardrails.ts` hashes every file under `packages/core/src/{contract,server,web,cloudflare,discord}`
-and scans for relative imports that reach into the monorepo. The fixture script
-(`pnpm fixture:chat-app`) regenerates `apps/generated-fixture/{web,worker}` and re-runs that scan.
+`src/guardrails.ts` hashes fixture-derived app files and scans them for relative imports that reach
+into the monorepo. Intentional owned `core/` files are exempt, because they are now part of the
+generated project. The fixture script (`pnpm fixture:chat-app`) regenerates an ignored local fixture.
 
 ## Deferred
 
-Real npm publishing of `@emi/create-chat-app` and `@emi/core` is out of scope here. Until then,
-`workspace:*` only resolves inside a pnpm workspace that also contains those packages. The planned
-owned-source mode is not implemented yet; do not treat this workspace mode as the final
-shadcn-style distribution path.
+Real npm publishing of `@emi/create-chat-app` and `@emi/core` is out of scope here. The default
+owned workspace works without publishing; dependency mode requires a workspace or registry that
+can resolve the selected `@emi/core` version.

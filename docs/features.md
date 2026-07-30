@@ -6,7 +6,7 @@ What Emi HealthFit offers today, plus status of reusable chat-platform work. How
 
 This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, provider streaming, durable generation/replay, generic Cloudflare route factories, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. `apps/generic-web` and `create-chat-app` now provide interactive BYOK chat with durable history/actions, stream reconnection, queued follow-ups, and attachments; most advanced chat behavior remains in the HealthFit web and API applications.
 
-`create-chat-app` materializes the canonical `apps/generic-web` and `apps/generic-worker` source files, then generates only app configuration and package metadata. Generated projects own those copied fixture files while importing reusable primitives from `@emi/core`. See the plan for scope and delivery phases.
+`create-chat-app` materializes the canonical `apps/generic-web` and `apps/generic-worker` source files, then generates only app configuration and package metadata. Its default mode also copies the full `@emi/core` source and tests into an editable workspace; dependency mode is available when another workspace or a registry supplies core. See the plan for scope and delivery phases.
 
 | Capability                          |        HealthFit today |                                          Reusable core today |     Generic scaffold target |
 | ----------------------------------- | ---------------------: | -----------------------------------------------------------: | --------------------------: |
@@ -19,7 +19,7 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 | Memory extraction and management    |                    Yes | Auto-extraction, compact summary context, searchable manager |               Core baseline |
 | Dynamic component foundation        | Yes, HealthFit widgets |                                        Contribution registry | Core baseline, generic only |
 | Settings, theme, releases           |                    Yes |         Generic persisted theme and configured release notes |               Core baseline |
-| PWA/offline                         |                Partial |                  Installable shell, offline fallback, local drafts | Progressive enhancement |
+| PWA/offline                         |                Partial |            Installable shell, offline fallback, local drafts |     Progressive enhancement |
 | Health/Hevy data and coaching       |                    Yes |                                                           No |                 Flavor-only |
 
 ## Chat

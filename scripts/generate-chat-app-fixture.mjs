@@ -24,19 +24,19 @@ const main = async () => {
   const violations = await scanGeneratedTreeForCopiedCoreSource({
     generatedRoot: targetDir,
     coreSourceHashes,
+    ownedCore: true,
   });
   if (violations.length > 0) {
-    console.error("Guardrail violations: generated fixture references copied core source.");
+    console.error("Guardrail violations: generated fixture leaks core source outside owned core/.");
     for (const violation of violations) console.error(`  ${violation.file}: ${violation.reason}`);
     process.exitCode = 1;
     return;
   }
-  console.log("Guardrail check passed: no copied packages/core/src found.");
+  console.log("Guardrail check passed: copied core is limited to owned core/.");
 
-  console.log("\nTo fully verify (typecheck against real @emi/core package):");
+  console.log("\nTo fully verify:");
   console.log("  pnpm install");
-  console.log("  pnpm --filter generated-fixture-web typecheck");
-  console.log("  pnpm --filter generated-fixture-worker typecheck");
+  console.log("  pnpm typecheck");
 };
 
 await main();

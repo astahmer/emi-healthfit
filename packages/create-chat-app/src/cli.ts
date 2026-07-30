@@ -1,18 +1,24 @@
 import { createInterface } from "node:readline/promises";
 import { resolve } from "node:path";
 
-import { DEFAULT_CORE_VERSION, generateApp } from "./generate.ts";
+import {
+  DEFAULT_CORE_VERSION,
+  DEFAULT_DISTRIBUTION_MODE,
+  generateApp,
+  type DistributionMode,
+} from "./generate.ts";
 
 export interface ParsedArgs {
   name?: string;
   dir?: string;
   coreVersion?: string;
+  distributionMode?: DistributionMode;
   dryRun: boolean;
   force: boolean;
   help: boolean;
 }
 
-const flagsWithValue = new Set(["--name", "-n", "--dir", "-d", "--core-version"]);
+const flagsWithValue = new Set(["--name", "-n", "--dir", "-d", "--core-version", "--mode"]);
 
 export const parseArgs = (argv: string[]): ParsedArgs => {
   const args: ParsedArgs = { dryRun: false, force: false, help: false };
@@ -29,6 +35,14 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
     if (arg === "--core-version") {
       args.coreVersion = argv[++index];
       continue;
+    }
+    if (arg === "--mode") {
+      const mode = argv[++index];
+      if (mode === "dependency" || mode === "owned") {
+        args.distributionMode = mode;
+        continue;
+      }
+      throw new Error(`Unknown distribution mode: ${mode ?? "missing"}. Use owned or dependency.`);
     }
     if (arg === "--dry-run") {
       args.dryRun = true;
@@ -55,14 +69,16 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
 
 export const helpText = `Usage: create-chat-app [name] [options]
 
-Generates a thin composition root (web/ + worker/) depending on @emi/core
-(subpaths: /contract, /server, /web, /cloudflare). No core package source is copied.
+Generates an owned full-stack workspace (core/ + web/ + worker/). Use dependency
+mode when an existing workspace or published @emi/core package supplies the core.
 
 Options:
   -n, --name <name>          App name (prompted if omitted and stdin is a TTY)
   -d, --dir <path>           Target directory (default: ./<name>)
       --core-version <ver>   Dependency version string for @emi/core
                               (default: "${DEFAULT_CORE_VERSION}")
+      --mode <owned|dependency>
+                              Distribution mode (default: "${DEFAULT_DISTRIBUTION_MODE}")
       --dry-run              Print the file list without writing anything
       --force                Overwrite a non-empty target directory
   -h, --help                 Show this help text
@@ -96,6 +112,7 @@ export const run = async (argv: string[]): Promise<void> => {
     appName,
     targetDir,
     coreVersion: args.coreVersion ?? DEFAULT_CORE_VERSION,
+    distributionMode: args.distributionMode ?? DEFAULT_DISTRIBUTION_MODE,
     dryRun: args.dryRun,
     force: args.force,
   });
@@ -108,9 +125,8 @@ export const run = async (argv: string[]): Promise<void> => {
 
   console.log(`Generated ${files.length} files for "${appName}" in ${targetDir}`);
   console.log("Next steps:");
-  console.log(`  1. Add "${targetDir}" (or its web/ and worker/ folders) to a pnpm workspace`);
-  console.log("     that also resolves @emi/core-* packages.");
-  console.log("  2. pnpm install");
-  console.log("  3. pnpm --filter <web-package-name> typecheck");
-  console.log("  4. pnpm --filter <worker-package-name> typecheck");
+  console.log("  1. pnpm install");
+  console.log("  2. pnpm typecheck");
+  console.log("  3. pnpm --dir worker db:generate");
+  console.log("  4. pnpm --dir web build");
 };

@@ -36,6 +36,7 @@ describe("generated fixture never contains packages/core/src internals", () => {
     const violations = await scanGeneratedTreeForCopiedCoreSource({
       generatedRoot: targetDir,
       coreSourceHashes,
+      ownedCore: true,
     });
     assert.deepEqual(violations, []);
   });
@@ -46,6 +47,7 @@ describe("generated fixture never contains packages/core/src internals", () => {
     const violations = await scanGeneratedTreeForCopiedCoreSource({
       generatedRoot: targetDir,
       coreSourceHashes,
+      ownedCore: true,
     });
     const pathViolations = violations.filter((violation) =>
       distinctivePaths.some((distinctivePath) => violation.reason.includes(distinctivePath)),

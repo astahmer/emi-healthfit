@@ -10,10 +10,20 @@ import { helpText, parseArgs } from "../src/cli.ts";
 
 describe("parseArgs", () => {
   it("reads a positional app name plus flags", () => {
-    const args = parseArgs(["my-app", "--dir", "/tmp/out", "--core-version", "^1.0.0", "--force"]);
+    const args = parseArgs([
+      "my-app",
+      "--dir",
+      "/tmp/out",
+      "--core-version",
+      "^1.0.0",
+      "--mode",
+      "dependency",
+      "--force",
+    ]);
     assert.equal(args.name, "my-app");
     assert.equal(args.dir, "/tmp/out");
     assert.equal(args.coreVersion, "^1.0.0");
+    assert.equal(args.distributionMode, "dependency");
     assert.equal(args.force, true);
     assert.equal(args.dryRun, false);
   });
@@ -28,6 +38,10 @@ describe("parseArgs", () => {
     assert.equal(parseArgs(["--help"]).help, true);
     assert.ok(helpText.includes("create-chat-app"));
   });
+
+  it("rejects an unknown distribution mode", () => {
+    assert.throws(() => parseArgs(["--mode", "registry"]), /Unknown distribution mode/);
+  });
 });
 
 describe("running the scaffolder into a real temp directory", () => {
@@ -37,7 +51,7 @@ describe("running the scaffolder into a real temp directory", () => {
     await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
-  it("writes web/ and worker/ composition roots with typecheck scripts", async () => {
+  it("writes a standalone owned workspace with typecheck scripts", async () => {
     const targetDir = await mkdtemp(join(tmpdir(), "create-chat-app-cli-"));
     tempDirs.push(targetDir);
 
@@ -57,15 +71,8 @@ describe("running the scaffolder into a real temp directory", () => {
 
     assert.equal(webPackageJson.scripts.typecheck, "tsc --noEmit");
     assert.equal(workerPackageJson.scripts.typecheck, "tsc --noEmit");
-
-    // Actually invoking `tsc` here requires `pnpm install` first so that the
-    // workspace links @emi/core-* packages into node_modules — running it
-    // against a bare temp directory would only report missing modules, not
-    // a meaningful typecheck result. The documented, real verification path
-    // is: add the generated web/ and worker/ folders to a pnpm workspace
-    // that resolves @emi/core-*, run `pnpm install`, then
-    // `pnpm --filter <name> typecheck` (exercised by `pnpm fixture:chat-app`
-    // for the in-repo fixture, see scripts/generate-chat-app-fixture.mjs).
+    assert.ok(existsSync(join(targetDir, "core/src/chat/index.ts")));
+    assert.ok(existsSync(join(targetDir, "pnpm-workspace.yaml")));
   });
 
   it("refuses to overwrite a non-empty target directory without force", async () => {

@@ -14,8 +14,13 @@ describe("upgrading the generated app's core dependency", () => {
     const before = buildGeneratedFiles({
       appName: "Upgrade Fixture",
       coreVersion: DEFAULT_CORE_VERSION,
+      distributionMode: "dependency",
     });
-    const after = buildGeneratedFiles({ appName: "Upgrade Fixture", coreVersion: "^0.2.0" });
+    const after = buildGeneratedFiles({
+      appName: "Upgrade Fixture",
+      coreVersion: "^0.2.0",
+      distributionMode: "dependency",
+    });
 
     const webBefore = parsePackageJson(before, "web/package.json");
     const webAfter = parsePackageJson(after, "web/package.json");
@@ -38,8 +43,16 @@ describe("upgrading the generated app's core dependency", () => {
   });
 
   it("resolves the same @emi/* package names across a pinned-to-pinned bump", () => {
-    const v1 = buildGeneratedFiles({ appName: "Upgrade Fixture", coreVersion: "0.1.0" });
-    const v2 = buildGeneratedFiles({ appName: "Upgrade Fixture", coreVersion: "0.2.0" });
+    const v1 = buildGeneratedFiles({
+      appName: "Upgrade Fixture",
+      coreVersion: "0.1.0",
+      distributionMode: "dependency",
+    });
+    const v2 = buildGeneratedFiles({
+      appName: "Upgrade Fixture",
+      coreVersion: "0.2.0",
+      distributionMode: "dependency",
+    });
 
     for (const path of ["web/package.json", "worker/package.json"]) {
       const before = parsePackageJson(v1, path);

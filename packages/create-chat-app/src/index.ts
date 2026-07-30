@@ -1,9 +1,15 @@
-export { DEFAULT_CORE_VERSION, buildGeneratedFiles, generateApp } from "./generate.ts";
+export {
+  DEFAULT_CORE_VERSION,
+  DEFAULT_DISTRIBUTION_MODE,
+  buildGeneratedFiles,
+  generateApp,
+} from "./generate.ts";
 export type {
   BuildFilesOptions,
   GenerateAppOptions,
   GenerateAppResult,
   GeneratedFile,
+  DistributionMode,
 } from "./generate.ts";
 export { buildCoreSourceHashIndex, scanGeneratedTreeForCopiedCoreSource } from "./guardrails.ts";
 export type { GuardrailViolation } from "./guardrails.ts";

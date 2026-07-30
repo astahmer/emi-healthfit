@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
-import { buildGeneratedFiles, DEFAULT_CORE_VERSION } from "../src/generate.ts";
+import {
+  buildGeneratedFiles,
+  DEFAULT_CORE_VERSION,
+  DEFAULT_DISTRIBUTION_MODE,
+} from "../src/generate.ts";
 
 const findFile = (files: { path: string; contents: string }[], path: string) => {
   const file = files.find((candidate) => candidate.path === path);
@@ -11,38 +15,24 @@ const findFile = (files: { path: string; contents: string }[], path: string) => 
 };
 
 describe("buildGeneratedFiles", () => {
-  it("emits exactly the expected file set for a given app name", () => {
+  it("emits an owned workspace with editable core source by default", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     const paths = files.map((file) => file.path).toSorted();
 
-    assert.deepEqual(paths, [
-      ".env.example",
-      ".gitignore",
-      "README.md",
-      "web/index.html",
-      "web/package.json",
-      "web/public/icon.svg",
-      "web/public/manifest.webmanifest",
-      "web/public/service-worker.js",
-      "web/src/app-config.ts",
-      "web/src/app.css",
+    for (const path of [
+      "package.json",
+      "pnpm-workspace.yaml",
+      ".oxfmtrc.json",
+      "core/package.json",
+      "core/src/chat/index.ts",
+      "core/test/chat/request.test.ts",
+      "core/tsconfig.json",
       "web/src/app.tsx",
-      "web/src/chat-session.ts",
-      "web/src/chat-settings.ts",
-      "web/src/conversation-client.ts",
-      "web/src/main.tsx",
-      "web/tsconfig.json",
-      "web/vite-env.d.ts",
-      "web/vite.config.ts",
-      "worker/alchemy.run.ts",
-      "worker/drizzle.config.ts",
-      "worker/migrations/.gitkeep",
-      "worker/package.json",
-      "worker/src/app-config.ts",
-      "worker/src/db/schema.ts",
       "worker/src/generic.worker.ts",
-      "worker/tsconfig.json",
-    ]);
+    ]) {
+      assert.ok(paths.includes(path), `expected generated file "${path}"`);
+    }
+    assert.equal(DEFAULT_DISTRIBUTION_MODE, "owned");
   });
 
   it("defaults @emi/core dependency version to workspace:*", () => {
@@ -61,6 +51,20 @@ describe("buildGeneratedFiles", () => {
 
     assert.equal(workerPackageJson.name, "acme-chat-worker");
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
+  });
+
+  it("supports dependency mode for an existing @emi/core package", () => {
+    const files = buildGeneratedFiles({
+      appName: "Acme Chat",
+      coreVersion: "^1.2.0",
+      distributionMode: "dependency",
+    });
+    const webPackageJson = JSON.parse(findFile(files, "web/package.json").contents) as {
+      dependencies: Record<string, string>;
+    };
+
+    assert.equal(webPackageJson.dependencies["@emi/core"], "^1.2.0");
+    assert.ok(!files.some((file) => file.path.startsWith("core/")));
   });
 
   it("includes durable generation tables in the generated worker schema", () => {
@@ -158,7 +162,7 @@ describe("buildGeneratedFiles", () => {
   });
 
   it("never emits a relative import into packages/core/src", () => {
-    const files = buildGeneratedFiles({ appName: "Acme Chat" });
+    const files = buildGeneratedFiles({ appName: "Acme Chat", distributionMode: "dependency" });
     for (const file of files) {
       assert.doesNotMatch(
         file.contents,
