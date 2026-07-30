@@ -18,7 +18,7 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 | Suggestions and auto title/summary  |                    Yes |                Generic auto-title, configurable prompt/model |               Core baseline |
 | Memory extraction and management    |                    Yes |                                            Storage/contracts |               Core baseline |
 | Dynamic component foundation        | Yes, HealthFit widgets |                                        Contribution registry | Core baseline, generic only |
-| Settings, theme, releases           |                    Yes |                                                           No |               Core baseline |
+| Settings, theme, releases           |                    Yes |         Generic persisted theme and configured release notes |               Core baseline |
 | PWA/offline                         |                Partial |                                                           No |     Progressive enhancement |
 | Health/Hevy data and coaching       |                    Yes |                                                           No |                 Flavor-only |
 

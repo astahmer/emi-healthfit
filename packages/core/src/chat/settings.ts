@@ -8,6 +8,7 @@ export const GenericChatSettingsSchema = Schema.Struct({
   systemPrompt: Schema.String,
   titleModel: Schema.String,
   titlePrompt: Schema.String,
+  theme: Schema.Literals(["light", "dark"]),
 });
 
 export type GenericChatSettings = typeof GenericChatSettingsSchema.Type;
@@ -20,4 +21,5 @@ export const defaultGenericChatSettings: GenericChatSettings = {
   systemPrompt: "",
   titleModel: "gpt-4o-mini",
   titlePrompt: "",
+  theme: "light",
 };

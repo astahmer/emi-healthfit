@@ -126,6 +126,8 @@ export const webAppConfig = (context: TemplateContext): string =>
     "export const genericChatAppConfig = {",
     "  name: " + JSON.stringify(context.appName) + ",",
     '  settingsStorageKey: "chat-settings",',
+    '  version: "0.1.0",',
+    '  releaseNotes: ["Generic chat foundations are ready for application-specific extensions."],',
     "};",
   ]);
 

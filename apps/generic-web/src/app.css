@@ -14,6 +14,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -26,6 +27,33 @@ button {
   display: grid;
   grid-template-columns: 20rem minmax(0, 1fr);
   min-height: 100dvh;
+}
+
+.chat-app[data-theme="dark"] {
+  color: #e8eef6;
+  background: #0b1020;
+}
+
+.chat-app[data-theme="dark"] .chat-panel {
+  background: radial-gradient(circle at 75% 0, #18274a, #0b1020 45%);
+}
+
+.chat-app[data-theme="dark"] .chat-panel header,
+.chat-app[data-theme="dark"] .composer {
+  border-color: #273556;
+}
+
+.chat-app[data-theme="dark"] .message-assistant,
+.chat-app[data-theme="dark"] .composer textarea,
+.chat-app[data-theme="dark"] .message-navigation button {
+  border-color: #405174;
+  color: #edf3ff;
+  background: #17213a;
+}
+
+.chat-app[data-theme="dark"] .message-branch-button {
+  color: #dce9ff;
+  background: #263858;
 }
 .settings-panel {
   background: #23201d;
@@ -138,6 +166,16 @@ button {
 .metadata {
   margin-top: auto;
   overflow-wrap: anywhere;
+}
+
+.release-notes {
+  color: #bdb5ab;
+  font-size: 0.8rem;
+}
+
+.release-notes ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
 }
 .toggle {
   align-items: center;

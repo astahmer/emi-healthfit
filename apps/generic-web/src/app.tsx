@@ -310,7 +310,7 @@ export const App = () => {
   };
 
   return (
-    <main className="chat-app">
+    <main className="chat-app" data-theme={settings.theme}>
       <aside className="settings-panel">
         <div>
           <p className="eyebrow">EMI CORE</p>
@@ -445,6 +445,18 @@ export const App = () => {
           </section>
         )}
         <label>
+          Theme
+          <select
+            onChange={(event) =>
+              updateSettings({ theme: event.target.value === "dark" ? "dark" : "light" })
+            }
+            value={settings.theme}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <label>
           API key
           <input
             autoComplete="off"
@@ -514,6 +526,14 @@ export const App = () => {
               ? "New conversation"
               : conversationId}
         </p>
+        <details className="release-notes">
+          <summary>Release notes · v{genericChatAppConfig.version}</summary>
+          <ul>
+            {genericChatAppConfig.releaseNotes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </details>
       </aside>
 
       <section className="chat-panel">
