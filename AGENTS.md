@@ -29,14 +29,14 @@ you already know the symbol:
    `--oneline`=`names`) — `wide` adds private members and fields.
 
 2. **File-level shape** — `ast-outline <paths…>` or
- `ast-outline outline <paths…>`: signatures with line ranges, no bodies
- (2–10× smaller than a full read on non-trivial files). Bare paths are
- the outline shorthand; both forms are valid. A `# WARNING: N parse
- errors` line in the header means the outline is partial — read the
- source for the affected region. Quote paths that contain spaces or
- shell glob characters. Pass exact file extensions (`foo.ts`, not
- `foo`); inventory with `rg --files` before batching if a path may be
- missing — one absent path can abort a multi-path call.
+   `ast-outline outline <paths…>`: signatures with line ranges, no bodies
+   (2–10× smaller than a full read on non-trivial files). Bare paths are
+   the outline shorthand; both forms are valid. A `# WARNING: N parse
+errors` line in the header means the outline is partial — read the
+   source for the affected region. Quote paths that contain spaces or
+   shell glob characters. Pass exact file extensions (`foo.ts`, not
+   `foo`); inventory with `rg --files` before batching if a path may be
+   missing — one absent path can abort a multi-path call.
 
 3. **One method, type, markdown heading, or yaml key** —
    `ast-outline show <file> <Symbol>`. Suffix matching: `TakeDamage`
@@ -214,7 +214,7 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 ## Release handoff
 
 - During implementation and debugging, run focused checks only. Do not run the full release suite repeatedly.
-- Immediately before final handoff or marking a session complete, run `pnpm release:check` once on the final worktree.
+- If you made any code change (not just markdown/docs/...); immediately before final handoff or marking a session complete, run `pnpm release:check` once on the final worktree.
 - Do not mark the session complete unless that final release check passes.
 
 ## Unacceptable comments

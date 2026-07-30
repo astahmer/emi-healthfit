@@ -1,6 +1,26 @@
 # Features
 
-What Emi HealthFit offers today. How-to steps live in [USER_GUIDE.md](./USER_GUIDE.md); system shape in [architecture.md](./architecture.md).
+What Emi HealthFit offers today, plus status of reusable chat-platform work. How-to steps live in [USER_GUIDE.md](./USER_GUIDE.md); system shape in [architecture.md](./architecture.md); extraction sequence lives in [core-chat-platform.md](../plans/core-chat-platform.md).
+
+## Core chat platform status
+
+This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. Most finished chat behavior is still in the HealthFit web and API applications. `apps/generic-web` is currently a smoke fixture, not a usable generic chat.
+
+The target is a full generic default chat app produced by `create-chat-app`, with source owned by the generated project, plus optional direct `@emi/core` composition. See the plan for scope and delivery phases.
+
+| Capability | HealthFit today | Reusable core today | Generic scaffold target |
+|---|---:|---:|---:|
+| Composer, attachments, model choice | Yes | Attachment helper only | Core baseline |
+| Streaming, stop, resume, retry | Yes | Persistence primitives only | Core baseline |
+| Conversations, search, actions | Yes | Contract/store helpers | Core baseline |
+| Branches, compact, start fresh | Yes | Contract/tree helpers | Core baseline |
+| Queue and force-send | Yes | No | Core baseline |
+| Suggestions and auto title/summary | Yes | Endpoint contracts only | Core baseline |
+| Memory extraction and management | Yes | Storage/contracts | Core baseline |
+| Dynamic component foundation | Yes, HealthFit widgets | Contribution registry | Core baseline, generic only |
+| Settings, theme, releases | Yes | No | Core baseline |
+| PWA/offline | Partial | No | Progressive enhancement |
+| Health/Hevy data and coaching | Yes | No | Flavor-only |
 
 ## Chat
 
