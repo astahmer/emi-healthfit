@@ -1,7 +1,11 @@
 import { convertFileListToFileUIParts, type UIMessage } from "ai";
-import { useActorRef, useMachine } from "@xstate/react";
-import { chatSessionMachine, chatTransportActor } from "@emi/core/web";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useActorRef, useSelector } from "@xstate/react";
+import {
+  genericChatAppMachine,
+  type ChatSessionEvent,
+  type ChatTransportActorEvent,
+} from "@emi/core/web";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
@@ -30,15 +34,24 @@ export const App = () => {
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
-  const [sessionState, dispatchSession] = useMachine(chatSessionMachine);
-  const transportActor = useActorRef(chatTransportActor, {
+  const chatAppActor = useActorRef(genericChatAppMachine, {
     input: {
       api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
       fetch: window.fetch.bind(window),
       createId: () => crypto.randomUUID(),
-      sendSession: dispatchSession,
     },
   });
+  const sessionActor = chatAppActor.getSnapshot().children.session;
+  if (sessionActor === undefined) throw new Error("Chat session actor is unavailable.");
+  const sessionState = useSelector(sessionActor, (snapshot) => snapshot);
+  const dispatchSession = useCallback(
+    (event: ChatSessionEvent) => chatAppActor.send({ type: "session-event", event }),
+    [chatAppActor],
+  );
+  const dispatchTransport = useCallback(
+    (event: ChatTransportActorEvent) => chatAppActor.send({ type: "transport-event", event }),
+    [chatAppActor],
+  );
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -110,7 +123,7 @@ export const App = () => {
   useEffect(() => {
     if (conversationId === undefined) return;
     void refreshConversations({ search: conversationSearch });
-  }, [conversationId]);
+  }, [conversationId, conversationSearch]);
   useEffect(() => {
     void refreshMemories({ search: "" });
   }, []);
@@ -160,7 +173,7 @@ export const App = () => {
   };
 
   const startFresh = () => {
-    transportActor.send({ type: "stream-cancelled" });
+    dispatchTransport({ type: "stream-cancelled" });
     dispatchSession({ type: "fresh-started" });
     setThreads([]);
   };
@@ -174,7 +187,7 @@ export const App = () => {
         messages: loaded.messages,
       });
       void refreshThreads({ id: loaded.conversation.id });
-      transportActor.send({ type: "stream-resume-requested", conversationId: id });
+      dispatchTransport({ type: "stream-resume-requested", conversationId: id });
     } catch (cause) {
       dispatchSession({
         type: "error-reported",
@@ -315,7 +328,7 @@ export const App = () => {
       return;
     }
 
-    transportActor.send({
+    dispatchTransport({
       type: "stream-send-requested",
       request: {
         conversationId,
@@ -332,7 +345,7 @@ export const App = () => {
   const forceSendQueued = ({ id }: { id: string }) => {
     const followUp = queuedFollowUps.find((item) => item.id === id);
     if (followUp === undefined) return;
-    transportActor.send({
+    dispatchTransport({
       type: "queued-follow-up-force-requested",
       followUp,
       request: {
@@ -658,7 +671,7 @@ export const App = () => {
           {streaming && (
             <button
               className="secondary-button"
-              onClick={() => transportActor.send({ type: "stream-cancelled" })}
+              onClick={() => dispatchTransport({ type: "stream-cancelled" })}
               type="button"
             >
               Stop
