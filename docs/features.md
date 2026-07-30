@@ -4,14 +4,14 @@ What Emi HealthFit offers today, plus status of reusable chat-platform work. How
 
 ## Core chat platform status
 
-This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, provider streaming, durable generation/replay, a generic Cloudflare route factory, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. `apps/generic-web` is now an interactive BYOK streaming chat fixture; most advanced chat behavior remains in the HealthFit web and API applications.
+This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, provider streaming, durable generation/replay, generic Cloudflare route factories, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. `apps/generic-web` and `create-chat-app` now provide interactive BYOK chat with durable history/actions, stream reconnection, queued follow-ups, and attachments; most advanced chat behavior remains in the HealthFit web and API applications.
 
 The target is a full generic default chat app produced by `create-chat-app`, with source owned by the generated project, plus optional direct `@emi/core` composition. See the plan for scope and delivery phases.
 
 | Capability                          |        HealthFit today |                                          Reusable core today |     Generic scaffold target |
 | ----------------------------------- | ---------------------: | -----------------------------------------------------------: | --------------------------: |
 | Composer, attachments, model choice |                    Yes |         Generic composer, local settings, inline attachments |               Core baseline |
-| Streaming, durable chunks, resume   |                    Yes |                                    Engine and generic Worker |               Core baseline |
+| Streaming, durable chunks, resume   |                    Yes |                     Generic web/Worker and generated starter |               Core baseline |
 | Conversations, search, actions      |                    Yes | Generic history, search, rename, pin, archive, clone, delete |               Core baseline |
 | Branches, compact, start fresh      |                    Yes |                                        Contract/tree helpers |               Core baseline |
 | Queue and force-send                |                    Yes |                             Generic web queue and force-send |               Core baseline |

@@ -23,6 +23,7 @@ describe("buildGeneratedFiles", () => {
       "web/src/app.css",
       "web/src/app.tsx",
       "web/src/chat-settings.ts",
+      "web/src/conversation-client.ts",
       "web/src/main.tsx",
       "web/tsconfig.json",
       "web/vite-env.d.ts",
@@ -74,6 +75,13 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /DefaultChatTransport/);
     assert.match(app, /\/api\/chat/);
     assert.match(app, /Temporary chat/);
+    assert.match(app, /Queued follow-ups/);
+    assert.match(app, /reconnectToStream/);
+    assert.match(app, /Add attachments/);
+    assert.match(app, /Search conversations/);
+    const conversationClient = findFile(files, "web/src/conversation-client.ts").contents;
+    assert.match(conversationClient, /validateStoredUIMessages/);
+    assert.match(conversationClient, /\/clone/);
     assert.equal(packageJson.dependencies.ai, "catalog:");
   });
 

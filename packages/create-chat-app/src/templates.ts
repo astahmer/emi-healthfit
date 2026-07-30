@@ -167,10 +167,24 @@ export const webTsconfig = (): string =>
 `;
 
 export const webAppTsx = (context: TemplateContext): string =>
-  `import { DefaultChatTransport, readUIMessageStream, type UIMessage } from "ai";
+  `import {
+  convertFileListToFileUIParts,
+  DefaultChatTransport,
+  readUIMessageStream,
+  type FileUIPart,
+  type UIMessage,
+} from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
+import {
+  cloneConversation,
+  deleteConversation,
+  listConversations,
+  loadConversation,
+  updateConversation,
+  type Conversation,
+} from "./conversation-client.ts";
 
 const appName = ${JSON.stringify(context.appName)};
 const settingsStorageKey = "chat-settings";
@@ -185,10 +199,16 @@ const replaceMessage = (messages: UIMessage[], message: UIMessage): UIMessage[] 
 
 export const App = () => {
   const abortController = useRef<AbortController | undefined>(undefined);
+  const composerForm = useRef<HTMLFormElement | null>(null);
+  const streamOperation = useRef(0);
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState<string>();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [queuedFollowUps, setQueuedFollowUps] = useState<Array<{ id: string; text: string; files: FileUIPart[] }>>([]);
+  const [files, setFiles] = useState<FileUIPart[]>([]);
   const [temporary, setTemporary] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string>();
@@ -196,7 +216,20 @@ export const App = () => {
   useEffect(() => setSettings(readChatSettings({ storageKey: settingsStorageKey })), []);
   useEffect(() => localStorage.setItem(settingsStorageKey, JSON.stringify(settings)), [settings]);
 
+  const refreshConversations = async ({ search }: { search: string }) => {
+    try {
+      setConversations(await listConversations({ search }));
+    } catch {
+      setConversations([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshConversations({ search: "" });
+  }, []);
+
   const startFresh = () => {
+    streamOperation.current += 1;
     abortController.current?.abort();
     abortController.current = undefined;
     setConversationId(undefined);
@@ -204,12 +237,65 @@ export const App = () => {
     setDraft("");
     setError(undefined);
     setStreaming(false);
+    setQueuedFollowUps([]);
+    setFiles([]);
+  };
+
+  const consumeStream = async ({ operation, stream }: { operation: number; stream: ReadableStream<Parameters<typeof readUIMessageStream>[0]["stream"] extends ReadableStream<infer Chunk> ? Chunk : never> }) => {
+    for await (const streamedMessage of readUIMessageStream({ stream, terminateOnError: true })) {
+      if (operation !== streamOperation.current) return;
+      setMessages((current) => replaceMessage(current, streamedMessage));
+    }
+  };
+
+  const resumeConversation = async ({ id }: { id: string }) => {
+    const operation = streamOperation.current + 1;
+    streamOperation.current = operation;
+    setStreaming(true);
+    try {
+      const transport = new DefaultChatTransport<UIMessage>({ api: (import.meta.env.VITE_API_ORIGIN ?? "") + "/api/chat" });
+      const stream = await transport.reconnectToStream({ chatId: id });
+      if (stream === null) return;
+      await consumeStream({ operation, stream });
+    } catch {
+      if (operation === streamOperation.current) setError("Unable to resume this conversation.");
+    } finally {
+      if (operation === streamOperation.current) setStreaming(false);
+    }
+  };
+
+  const openConversation = async ({ id }: { id: string }) => {
+    try {
+      const loaded = await loadConversation({ conversationId: id });
+      setConversationId(loaded.conversation.id);
+      setMessages(loaded.messages);
+      setTemporary(false);
+      setError(undefined);
+      void resumeConversation({ id });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load this conversation.");
+    }
+  };
+
+  const updateConversationAction = async ({ id, patch }: { id: string; patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean } }) => {
+    try {
+      const updated = await updateConversation({ conversationId: id, patch });
+      setConversations((current) => current.map((conversation) => conversation.id === updated.id ? updated : conversation));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update this conversation.");
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
-    if (text === "" || streaming) return;
+    if (text === "" && files.length === 0) return;
+    if (streaming) {
+      setQueuedFollowUps((current) => [...current, { id: crypto.randomUUID(), text, files }]);
+      setDraft("");
+      setFiles([]);
+      return;
+    }
     if (settings.apiKey.trim() === "") {
       setError("Add an API key in settings before sending a message.");
       return;
@@ -218,23 +304,29 @@ export const App = () => {
     const userMessage: UIMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      parts: [{ type: "text", text }],
+      parts: [{ type: "text", text }, ...files],
     };
     const nextMessages = [...messages, userMessage];
     const controller = new AbortController();
+    const operation = streamOperation.current + 1;
+    streamOperation.current = operation;
     abortController.current = controller;
     setMessages(nextMessages);
     setDraft("");
+    setFiles([]);
     setError(undefined);
     setStreaming(true);
 
     try {
       const transport = new DefaultChatTransport<UIMessage>({
-        api: \`\${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat\`,
+        api: (import.meta.env.VITE_API_ORIGIN ?? "") + "/api/chat",
         fetch: async (input, init) => {
           const response = await fetch(input, init);
           const returnedConversationId = response.headers.get("x-conversation-id");
-          if (returnedConversationId !== null) setConversationId(returnedConversationId);
+          if (returnedConversationId !== null) {
+            setConversationId(returnedConversationId);
+            void refreshConversations({ search: conversationSearch });
+          }
           return response;
         },
       });
@@ -260,16 +352,27 @@ export const App = () => {
           },
         },
       });
-      for await (const streamedMessage of readUIMessageStream({ stream, terminateOnError: true })) {
-        setMessages((current) => replaceMessage(current, streamedMessage));
-      }
+      await consumeStream({ operation, stream });
     } catch (cause) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || operation !== streamOperation.current) return;
       setError(cause instanceof Error ? cause.message : "Unable to complete this chat request.");
     } finally {
       if (abortController.current === controller) abortController.current = undefined;
-      setStreaming(false);
+      if (operation === streamOperation.current) setStreaming(false);
     }
+  };
+
+  const forceSendQueued = ({ id }: { id: string }) => {
+    const queued = queuedFollowUps.find((item) => item.id === id);
+    if (queued === undefined) return;
+    streamOperation.current += 1;
+    abortController.current?.abort();
+    abortController.current = undefined;
+    setQueuedFollowUps((current) => current.filter((item) => item.id !== id));
+    setDraft(queued.text);
+    setFiles(queued.files);
+    setStreaming(false);
+    setTimeout(() => composerForm.current?.requestSubmit());
   };
 
   return (
@@ -281,6 +384,21 @@ export const App = () => {
           <p className="muted">Your provider key stays in this browser.</p>
         </div>
         <button className="secondary-button" onClick={startFresh} type="button">New chat</button>
+        <label>Search conversations<input onChange={(event) => { const search = event.target.value; setConversationSearch(search); void refreshConversations({ search }); }} placeholder="Search chats" value={conversationSearch} /></label>
+        <div className="conversation-list">
+          {conversations.map((conversation) => (
+            <article className={conversation.id === conversationId ? "conversation active" : "conversation"} key={conversation.id}>
+              <button onClick={() => void openConversation({ id: conversation.id })} type="button">{conversation.title || "New chat"}</button>
+              <div className="conversation-actions">
+                <button aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"} onClick={() => void updateConversationAction({ id: conversation.id, patch: { pinned: !conversation.pinned } })} type="button">{conversation.pinned ? "Unpin" : "Pin"}</button>
+                <button aria-label="Rename conversation" onClick={() => { const title = window.prompt("Conversation name", conversation.title ?? ""); if (title === null || title.trim() === "") return; void updateConversationAction({ id: conversation.id, patch: { title: title.trim() } }); }} type="button">Rename</button>
+                <button aria-label="Clone conversation" onClick={() => void cloneConversation({ conversationId: conversation.id }).then((cloned) => { setConversations((current) => [cloned, ...current]); void openConversation({ id: cloned.id }); }).catch(() => setError("Unable to clone this conversation."))} type="button">Clone</button>
+                <button aria-label="Archive conversation" onClick={() => void updateConversationAction({ id: conversation.id, patch: { status: conversation.status === "regular" ? "archived" : "regular" } })} type="button">{conversation.status === "regular" ? "Archive" : "Restore"}</button>
+                <button aria-label="Delete conversation" onClick={() => { if (!window.confirm("Delete this conversation permanently?")) return; void deleteConversation({ conversationId: conversation.id }).then(() => { setConversations((current) => current.filter((item) => item.id !== conversation.id)); if (conversation.id === conversationId) startFresh(); }).catch(() => setError("Unable to delete this conversation.")); }} type="button">Delete</button>
+              </div>
+            </article>
+          ))}
+        </div>
         <label>API key<input autoComplete="off" onChange={(event) => setSettings((current) => ({ ...current, apiKey: event.target.value }))} placeholder="sk-..." type="password" value={settings.apiKey} /></label>
         <label>Provider base URL<input onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.openai.com/v1" value={settings.baseUrl} /></label>
         <label>Default model<input onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))} placeholder="gpt-4o-mini" value={settings.model} /></label>
@@ -296,7 +414,13 @@ export const App = () => {
           {messages.length === 0 ? <div className="empty-state"><p>Ask anything. Configure a GPT-compatible provider in settings.</p></div> : messages.map((message) => <article className={"message message-" + message.role} key={message.id}><p className="message-role">{message.role}</p><div>{textFrom(message) || (message.role === "assistant" && streaming ? "Thinking…" : "")}</div></article>)}
         </div>
         {error !== undefined && <p className="error-message">{error}</p>}
-        <form className="composer" onSubmit={submit}><textarea aria-label="Message" disabled={streaming} onChange={(event) => setDraft(event.target.value)} placeholder="Message…" rows={3} value={draft} /><button disabled={draft.trim() === "" || streaming || settings.apiKey.trim() === ""} type="submit">Send</button></form>
+        {queuedFollowUps.length > 0 && <section className="follow-up-queue"><p>Queued follow-ups</p>{queuedFollowUps.map((queued) => <div key={queued.id}><span>{queued.text || queued.files.length + " attachment(s)"}</span><button onClick={() => forceSendQueued({ id: queued.id })} type="button">Force send</button><button aria-label="Remove queued follow-up" onClick={() => setQueuedFollowUps((current) => current.filter((item) => item.id !== queued.id))} type="button">Remove</button></div>)}</section>}
+        <form className="composer" onSubmit={submit} ref={composerForm}>
+          <label className="attachment-button">Attach<input aria-label="Add attachments" multiple onChange={(event) => { void convertFileListToFileUIParts(event.target.files ?? undefined).then((nextFiles) => setFiles((current) => [...current, ...nextFiles])).catch(() => setError("Unable to prepare one or more attachments.")); event.target.value = ""; }} type="file" /></label>
+          <textarea aria-label="Message" onChange={(event) => setDraft(event.target.value)} placeholder="Message…" rows={3} value={draft} />
+          <button disabled={draft.trim() === "" && files.length === 0} type="submit">{streaming ? "Queue" : "Send"}</button>
+        </form>
+        {files.length > 0 && <div className="attachment-list">{files.map((file) => <button key={file.url} onClick={() => setFiles((current) => current.filter((item) => item.url !== file.url))} type="button">{file.filename ?? "Attachment"} ×</button>)}</div>}
       </section>
     </main>
   );
@@ -304,7 +428,7 @@ export const App = () => {
 `;
 
 export const webAppCss = (): string =>
-  `:root { color: #e8eef6; background: #0b1020; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } * { box-sizing: border-box; } body { margin: 0; min-width: 320px; } button, input, textarea { font: inherit; } button { cursor: pointer; } .chat-app { display: grid; grid-template-columns: 18rem minmax(0, 1fr); min-height: 100vh; } .settings-panel { display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; background: #111a31; border-right: 1px solid #273556; } .settings-panel h1, .chat-panel h2 { margin: 0; } label { display: grid; gap: .4rem; color: #bcc8dc; font-size: .85rem; } input, textarea { width: 100%; border: 1px solid #405174; border-radius: .55rem; padding: .65rem .75rem; color: #edf3ff; background: #0c1428; } .eyebrow { margin: 0 0 .35rem; color: #78a6ff; font-size: .72rem; font-weight: 700; letter-spacing: .11em; } .muted { color: #9dadc6; font-size: .9rem; } .metadata { overflow-wrap: anywhere; } .toggle { display: flex; align-items: center; gap: .55rem; } .toggle input { width: auto; } .chat-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100vh; padding: 1.5rem clamp(1rem, 4vw, 4rem); background: radial-gradient(circle at 75% 0, #18274a, #0b1020 45%); } .chat-panel header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #273556; } .messages { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding: 2rem 0; } .message { max-width: 52rem; padding: 1rem 1.15rem; border-radius: .75rem; line-height: 1.5; white-space: pre-wrap; } .message-user { align-self: flex-end; background: #2451a4; } .message-assistant { background: #17213a; } .message-role { margin: 0 0 .4rem; color: #a9c6ff; font-size: .72rem; font-weight: 700; text-transform: uppercase; } .empty-state { display: grid; place-items: center; flex: 1; color: #a8b7d0; text-align: center; } .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; padding-top: 1rem; border-top: 1px solid #273556; } .composer textarea { resize: vertical; } .composer button, .secondary-button { border: 0; border-radius: .55rem; padding: .65rem 1rem; color: white; background: #3e78ef; } .secondary-button { background: #263858; } button:disabled { cursor: not-allowed; opacity: .5; } .error-message { margin: 0; color: #ffb4bd; } @media (max-width: 760px) { .chat-app { grid-template-columns: 1fr; } .settings-panel { border-right: 0; border-bottom: 1px solid #273556; } .chat-panel { min-height: 65vh; } }\n`;
+  `:root { color: #e8eef6; background: #0b1020; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } * { box-sizing: border-box; } body { margin: 0; min-width: 320px; } button, input, textarea { font: inherit; } button { cursor: pointer; } .chat-app { display: grid; grid-template-columns: 18rem minmax(0, 1fr); min-height: 100vh; } .settings-panel { display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; background: #111a31; border-right: 1px solid #273556; } .settings-panel h1, .chat-panel h2 { margin: 0; } label { display: grid; gap: .4rem; color: #bcc8dc; font-size: .85rem; } input, textarea { width: 100%; border: 1px solid #405174; border-radius: .55rem; padding: .65rem .75rem; color: #edf3ff; background: #0c1428; } .eyebrow { margin: 0 0 .35rem; color: #78a6ff; font-size: .72rem; font-weight: 700; letter-spacing: .11em; } .muted { color: #9dadc6; font-size: .9rem; } .metadata { overflow-wrap: anywhere; } .toggle { display: flex; align-items: center; gap: .55rem; } .toggle input { width: auto; } .conversation-list { display: grid; gap: .5rem; max-height: 16rem; overflow-y: auto; } .conversation { border: 1px solid #405174; border-radius: .55rem; padding: .45rem; } .conversation.active { border-color: #78a6ff; } .conversation > button { width: 100%; overflow: hidden; border: 0; padding: .35rem; color: inherit; background: transparent; text-align: left; text-overflow: ellipsis; white-space: nowrap; } .conversation-actions { display: flex; flex-wrap: wrap; gap: .25rem; } .conversation-actions button, .follow-up-queue button, .attachment-list button { border: 0; border-radius: .35rem; padding: .3rem .45rem; color: #dce9ff; background: #263858; font-size: .75rem; } .chat-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100vh; padding: 1.5rem clamp(1rem, 4vw, 4rem); background: radial-gradient(circle at 75% 0, #18274a, #0b1020 45%); } .chat-panel header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #273556; } .messages { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding: 2rem 0; } .message { max-width: 52rem; padding: 1rem 1.15rem; border-radius: .75rem; line-height: 1.5; white-space: pre-wrap; } .message-user { align-self: flex-end; background: #2451a4; } .message-assistant { background: #17213a; } .message-role { margin: 0 0 .4rem; color: #a9c6ff; font-size: .72rem; font-weight: 700; text-transform: uppercase; } .empty-state { display: grid; place-items: center; flex: 1; color: #a8b7d0; text-align: center; } .composer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .75rem; padding-top: 1rem; border-top: 1px solid #273556; } .composer textarea { resize: vertical; } .attachment-button { align-self: start; border: 1px solid #405174; border-radius: .55rem; padding: .65rem .75rem; color: #c8d7f1; cursor: pointer; } .attachment-button input { display: none; } .attachment-list { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; } .composer button, .secondary-button { border: 0; border-radius: .55rem; padding: .65rem 1rem; color: white; background: #3e78ef; } .secondary-button { background: #263858; } button:disabled { cursor: not-allowed; opacity: .5; } .error-message { margin: 0; color: #ffb4bd; } .follow-up-queue { display: grid; gap: .45rem; margin-bottom: .75rem; padding: .75rem; border: 1px solid #405174; border-radius: .55rem; background: #111a31; } .follow-up-queue p { margin: 0; color: #a9c6ff; font-size: .8rem; font-weight: 700; } .follow-up-queue div { display: flex; align-items: center; gap: .5rem; } .follow-up-queue span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } @media (max-width: 760px) { .chat-app { grid-template-columns: 1fr; } .settings-panel { border-right: 0; border-bottom: 1px solid #273556; } .chat-panel { min-height: 65vh; } }\n`;
 
 export const webChatSettings = (): string => `import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -329,6 +453,106 @@ export const readChatSettings = ({ storageKey }: { storageKey: string }): ChatSe
   } catch {
     return defaultChatSettings;
   }
+};
+`;
+
+export const webConversationClient = (): string => `import type { UIMessage } from "ai";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import { validateStoredUIMessages } from "@emi/core/chat/ui-messages";
+
+const ConversationSchema = Schema.Struct({
+  id: Schema.String,
+  title: Schema.NullOr(Schema.String),
+  status: Schema.Literals(["regular", "archived"]),
+  pinned: Schema.Boolean,
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+});
+
+const ConversationListSchema = Schema.Struct({ conversations: Schema.Array(ConversationSchema) });
+const ConversationMessageSchema = Schema.Struct({
+  id: Schema.String,
+  role: Schema.String,
+  parts: Schema.String,
+  model: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+});
+const ConversationDetailSchema = Schema.Struct({
+  conversation: ConversationSchema,
+  messages: Schema.Array(ConversationMessageSchema),
+});
+
+export type Conversation = typeof ConversationSchema.Type;
+
+const apiUrl = (path: string): string => (import.meta.env.VITE_API_ORIGIN ?? "") + path;
+
+const readResponse = async ({ response }: { response: Response }): Promise<unknown> => {
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    const error = Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String }))(payload);
+    throw new Error(Option.isSome(error) ? error.value.error : "Request failed (" + response.status + ").");
+  }
+  return payload;
+};
+
+export const listConversations = async ({ search }: { search: string }): Promise<Conversation[]> => {
+  const parameters = new URLSearchParams(search === "" ? {} : { search });
+  const response = await fetch(apiUrl("/api/conversations?" + parameters.toString()));
+  const payload = await readResponse({ response });
+  const decoded = Schema.decodeUnknownSync(ConversationListSchema)(payload);
+  return [...decoded.conversations];
+};
+
+export const loadConversation = async ({
+  conversationId,
+}: {
+  conversationId: string;
+}): Promise<{ conversation: Conversation; messages: UIMessage[] }> => {
+  const response = await fetch(apiUrl("/api/conversations/" + conversationId));
+  const payload = await readResponse({ response });
+  const decoded = Schema.decodeUnknownSync(ConversationDetailSchema)(payload);
+  const validated = await Promise.all(
+    decoded.messages.map(async (message) => {
+      if (message.role !== "user" && message.role !== "assistant" && message.role !== "system") return [];
+      const parts = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(message.parts);
+      if (Option.isNone(parts)) return [];
+      try {
+        return await validateStoredUIMessages([{ id: message.id, role: message.role, parts: parts.value }]);
+      } catch {
+        return [];
+      }
+    }),
+  );
+  return { conversation: decoded.conversation, messages: validated.flat() };
+};
+
+export const updateConversation = async ({
+  conversationId,
+  patch,
+}: {
+  conversationId: string;
+  patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
+}): Promise<Conversation> => {
+  const response = await fetch(apiUrl("/api/conversations/" + conversationId), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  const payload = await readResponse({ response });
+  return Schema.decodeUnknownSync(Schema.Struct({ conversation: ConversationSchema }))(payload).conversation;
+};
+
+export const deleteConversation = async ({ conversationId }: { conversationId: string }): Promise<void> => {
+  const response = await fetch(apiUrl("/api/conversations/" + conversationId), { method: "DELETE" });
+  const payload = await readResponse({ response });
+  Schema.decodeUnknownSync(Schema.Struct({ deleted: Schema.Literal(true) }))(payload);
+};
+
+export const cloneConversation = async ({ conversationId }: { conversationId: string }): Promise<Conversation> => {
+  const response = await fetch(apiUrl("/api/conversations/" + conversationId + "/clone"), { method: "POST" });
+  const payload = await readResponse({ response });
+  return Schema.decodeUnknownSync(Schema.Struct({ conversation: ConversationSchema }))(payload).conversation;
 };
 `;
 
