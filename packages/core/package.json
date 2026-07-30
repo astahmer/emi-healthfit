@@ -12,6 +12,7 @@
     "./contract/healthfit": "./src/contract/healthfit.ts",
     "./chat": "./src/chat/index.ts",
     "./chat/settings": "./src/chat/settings.ts",
+    "./chat/ui-messages": "./src/chat/ui-messages.ts",
     "./server": "./src/server/index.ts",
     "./web": "./src/web/index.ts",
     "./web/contributions": "./src/web/contributions.tsx",

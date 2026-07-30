@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { validateStoredUIMessages } from "@emi/core/chat";
+import { validateStoredUIMessages } from "@emi/core/chat/ui-messages";
 
 const ConversationSchema = Schema.Struct({
   id: Schema.String,
