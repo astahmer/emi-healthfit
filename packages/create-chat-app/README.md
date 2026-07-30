@@ -1,10 +1,10 @@
 # @emi/create-chat-app
 
-Scaffolder for a thin, self-hostable chat-app composition root. Generates a `web/` (Vite + React,
-imports `@emi/core/web` + `@emi/core/contract`) and a `worker/` (Alchemy Cloudflare Worker,
-imports `@emi/core/server` + `@emi/core/cloudflare`) pair of packages. Both depend on the single
-`@emi/core` package. **No core package source is ever copied** — generated files only reference
-`@emi/core` by package name and use subpath imports.
+Scaffolder for a self-hostable, full-stack chat starter in workspace composition mode. It generates
+a Vite + React web app with browser-local BYOK settings, streaming, temporary chats, stop, and new
+chat controls; plus an Alchemy Cloudflare Worker with D1 conversations, durable generation chunks,
+and a resume endpoint. Both packages depend on the single `@emi/core` package. **No core package
+source is copied** — generated files only use its public subpath exports.
 
 ## Usage
 
@@ -43,12 +43,13 @@ Once published, the same CLI is reachable as `create-chat-app` via the `bin` fie
   .env.example
   .gitignore
   web/
-    package.json          # depends on @emi/core (+ react)
-    src/app.tsx           # CoreWebProvider + ChatShell
+    package.json          # depends on @emi/core, ai, react
+    src/app.tsx           # working streaming chat + local settings
+    src/app.css           # portable responsive starter styling
     ...
   worker/
     package.json          # depends on @emi/core (+ alchemy/drizzle)
-    src/app.worker.ts     # coreAppDefinition + D1 conversation routes
+    src/app.worker.ts     # D1 conversations + core chat stream/replay routes
     ...
 ```
 
@@ -60,5 +61,7 @@ and scans for relative imports that reach into the monorepo. The fixture script
 
 ## Deferred
 
-Real npm publishing of `@emi/create-chat-app` and `@emi/core` is out of scope here.
-Until then, `workspace:*` only resolves inside a pnpm workspace that also contains those packages.
+Real npm publishing of `@emi/create-chat-app` and `@emi/core` is out of scope here. Until then,
+`workspace:*` only resolves inside a pnpm workspace that also contains those packages. The planned
+owned-source mode is not implemented yet; do not treat this workspace mode as the final
+shadcn-style distribution path.

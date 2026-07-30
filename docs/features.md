@@ -4,23 +4,23 @@ What Emi HealthFit offers today, plus status of reusable chat-platform work. How
 
 ## Core chat platform status
 
-This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. Most finished chat behavior is still in the HealthFit web and API applications. `apps/generic-web` is currently a smoke fixture, not a usable generic chat.
+This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, provider streaming, durable generation/replay, a generic Cloudflare route factory, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. `apps/generic-web` is now an interactive BYOK streaming chat fixture; most advanced chat behavior remains in the HealthFit web and API applications.
 
 The target is a full generic default chat app produced by `create-chat-app`, with source owned by the generated project, plus optional direct `@emi/core` composition. See the plan for scope and delivery phases.
 
-| Capability | HealthFit today | Reusable core today | Generic scaffold target |
-|---|---:|---:|---:|
-| Composer, attachments, model choice | Yes | Attachment helper only | Core baseline |
-| Streaming, durable chunks, resume | Yes | Engine and generic Worker | Core baseline |
-| Conversations, search, actions | Yes | Contract/store helpers | Core baseline |
-| Branches, compact, start fresh | Yes | Contract/tree helpers | Core baseline |
-| Queue and force-send | Yes | No | Core baseline |
-| Suggestions and auto title/summary | Yes | Endpoint contracts only | Core baseline |
-| Memory extraction and management | Yes | Storage/contracts | Core baseline |
-| Dynamic component foundation | Yes, HealthFit widgets | Contribution registry | Core baseline, generic only |
-| Settings, theme, releases | Yes | No | Core baseline |
-| PWA/offline | Partial | No | Progressive enhancement |
-| Health/Hevy data and coaching | Yes | No | Flavor-only |
+| Capability                          |        HealthFit today |                 Reusable core today |     Generic scaffold target |
+| ----------------------------------- | ---------------------: | ----------------------------------: | --------------------------: |
+| Composer, attachments, model choice |                    Yes | Text composer + local model setting |               Core baseline |
+| Streaming, durable chunks, resume   |                    Yes |           Engine and generic Worker |               Core baseline |
+| Conversations, search, actions      |                    Yes |    Durable create/save + list store |               Core baseline |
+| Branches, compact, start fresh      |                    Yes |               Contract/tree helpers |               Core baseline |
+| Queue and force-send                |                    Yes |                                  No |               Core baseline |
+| Suggestions and auto title/summary  |                    Yes |             Endpoint contracts only |               Core baseline |
+| Memory extraction and management    |                    Yes |                   Storage/contracts |               Core baseline |
+| Dynamic component foundation        | Yes, HealthFit widgets |               Contribution registry | Core baseline, generic only |
+| Settings, theme, releases           |                    Yes |                                  No |               Core baseline |
+| PWA/offline                         |                Partial |                                  No |     Progressive enhancement |
+| Health/Hevy data and coaching       |                    Yes |                                  No |                 Flavor-only |
 
 ## Chat
 
