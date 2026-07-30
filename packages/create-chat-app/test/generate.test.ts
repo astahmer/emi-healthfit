@@ -87,7 +87,8 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /\/api\/chat/);
     assert.match(app, /Temporary chat/);
     assert.match(app, /Queued follow-ups/);
-    assert.match(app, /stream-resume-requested/);
+    assert.match(app, /conversation-store-event/);
+    assert.match(app, /conversation-load-requested/);
     assert.match(app, /Add attachments/);
     assert.match(app, /Search conversations/);
     assert.match(app, /draft is saved locally/);
