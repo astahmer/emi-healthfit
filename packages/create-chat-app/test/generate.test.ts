@@ -76,6 +76,15 @@ describe("buildGeneratedFiles", () => {
     assert.equal(packageJson.dependencies.ai, "catalog:");
   });
 
+  it("generates the core streaming and replay worker routes", () => {
+    const files = buildGeneratedFiles({ appName: "Acme Chat" });
+    const worker = findFile(files, "worker/src/app.worker.ts").contents;
+
+    assert.match(worker, /makeGenericChatRoutes/);
+    assert.match(worker, /"POST", "\/api\/chat"/);
+    assert.match(worker, /"GET", "\/api\/chat\/:conversationId\/stream"/);
+  });
+
   it("never points @emi/* dependencies at a local src copy (relative path or file: protocol)", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     for (const path of ["web/package.json", "worker/package.json"]) {

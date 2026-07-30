@@ -471,38 +471,20 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import {
-  coreAppDefinition,
-  CurrentUser,
-  isGenericProtectedPath,
-  makeConversationStore,
-  makeRequestContext,
-  type AuthDatabaseSchema,
-  type ConversationDatabaseSchema,
-} from "@emi/core/server";
-import {
   authenticateWorkerFetch,
+  makeGenericChatRoutes,
   makeQueryDatabaseClient,
   type CloudflareQueryDatabaseClient,
 } from "@emi/core/cloudflare";
+import {
+  isGenericProtectedPath,
+  type AuthDatabaseSchema,
+  type ConversationDatabaseSchema,
+} from "@emi/core/server";
 
 const DB = Cloudflare.D1.Database("AppData");
 
 type AppDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema;
-
-const conversationsRoute = (db: CloudflareQueryDatabaseClient<AppDatabaseSchema>) =>
-  Effect.fn("app.conversations")(function* (_request: HttpServerRequest) {
-    const user = yield* CurrentUser;
-    const store = makeConversationStore({
-      db: db as unknown as CloudflareQueryDatabaseClient<ConversationDatabaseSchema>,
-      requestContext: makeRequestContext({ userId: user.id }),
-    });
-    if (_request.method === "POST") {
-      const id = yield* store.create();
-      return yield* HttpServerResponse.json({ id }, { status: 201 });
-    }
-    const conversations = yield* store.list();
-    return yield* HttpServerResponse.json({ conversations });
-  });
 
 export class AppWorker extends Cloudflare.Worker<AppWorker, {}>()("AppWorker") {}
 
@@ -526,17 +508,25 @@ export default AppWorker.make(
     const query = yield* Cloudflare.D1.QueryDatabase(DB);
     const db = makeQueryDatabaseClient<AppDatabaseSchema>({ query });
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
-
     const router = yield* HttpRouter.make;
+    const routes = makeGenericChatRoutes({
+      db: db as unknown as CloudflareQueryDatabaseClient<ConversationDatabaseSchema>,
+    });
     yield* Effect.gen(function* () {
       yield* router.add("GET", "/api/health", () =>
         HttpServerResponse.json({
-          name: coreAppDefinition.identity.name,
-          description: coreAppDefinition.identity.description,
+          name: ${JSON.stringify(context.appName)},
         }),
       );
-      yield* router.add("GET", "/api/conversations", conversationsRoute(db));
-      yield* router.add("POST", "/api/conversations", conversationsRoute(db));
+      yield* router.add("GET", "/api/conversations", routes.conversations);
+      yield* router.add("POST", "/api/conversations", routes.conversations);
+      yield* router.add("POST", "/api/chat", routes.chat);
+      yield* router.add("GET", "/api/chat/:conversationId/stream", () =>
+        Effect.gen(function* () {
+          const params = yield* HttpRouter.params;
+          return yield* routes.resume({ conversationId: params.conversationId ?? "" })();
+        }),
+      );
       yield* router.add("*", "/*", () =>
         Effect.succeed(HttpServerResponse.text("Not Found", { status: 404 })),
       );

@@ -12,7 +12,7 @@ describe("generic-worker session auth", () => {
     assert.match(source, /authenticateWorkerFetch/);
     assert.match(source, /policy:\s*"anonymous"/);
     assert.match(source, /isGenericProtectedPath/);
-    assert.match(source, /CurrentUser/);
+    assert.match(source, /makeGenericChatRoutes/);
     assert.doesNotMatch(source, /x-demo-user-id/);
   });
 
