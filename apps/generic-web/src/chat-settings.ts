@@ -23,8 +23,7 @@ export const readChatSettings = ({ storageKey }: { storageKey: string }): ChatSe
   const stored = localStorage.getItem(storageKey);
   if (stored === null) return defaultChatSettings;
   try {
-    const parsed: unknown = JSON.parse(stored);
-    const decoded = Schema.decodeUnknownOption(SettingsSchema)(parsed);
+    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(SettingsSchema))(stored);
     if (Option.isNone(decoded)) return defaultChatSettings;
     return decoded.value.model === ""
       ? { ...decoded.value, model: defaultChatSettings.model }
