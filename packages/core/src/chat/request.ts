@@ -11,6 +11,12 @@ export const ChatStreamRequestSchema = Schema.Struct({
     model: Schema.String.check(Schema.isMinLength(1)),
     system: Schema.optional(Schema.String),
   }),
+  title: Schema.optional(
+    Schema.Struct({
+      model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+      prompt: Schema.optional(Schema.String),
+    }),
+  ),
   temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
   requestId: Schema.optional(Schema.String.check(Schema.isUUID())),

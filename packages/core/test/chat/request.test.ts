@@ -13,6 +13,17 @@ describe("chat request", () => {
     );
   });
 
+  it("accepts an optional title model and prompt override", () => {
+    const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+      messages: [],
+      config: { provider: "openai", apiKey: "key", model: "chat-model" },
+      title: { model: "cheap-model", prompt: "Give this chat a compact project name." },
+    });
+
+    assert.equal(decoded.title?.model, "cheap-model");
+    assert.equal(decoded.title?.prompt, "Give this chat a compact project name.");
+  });
+
   it("rejects more than ten attachments in one message", () => {
     assert.match(
       validateChatAttachments([

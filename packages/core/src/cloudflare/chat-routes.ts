@@ -5,6 +5,8 @@ import {
   buildAssistantParts,
   createChatStream,
   createChatStreamResponse,
+  firstUserText,
+  generateConversationTitle,
   toUiMessageStream,
   validateChatAttachments,
   validateStoredUIMessages,
@@ -24,6 +26,7 @@ import {
   makeConversationStore,
   makeRequestContext,
   markGenerationStreaming,
+  renameConversation,
   saveConversationMessages,
   type ConversationDatabaseSchema,
 } from "@emi/core/server";
@@ -171,6 +174,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     }
 
     const lastMessage = messages.at(-1);
+    const titleSource = firstUserText(messages);
     if (!temporary && lastMessage?.role === "user") {
       yield* saveConversationMessages(conversationDb, user.id, conversationId, null, [
         { role: "user", parts: lastMessage.parts },
@@ -218,6 +222,24 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
                   },
                 },
               ]),
+            );
+            if (titleSource === undefined) return;
+            const conversation = await Effect.runPromiseWith(services)(
+              getConversation(conversationDb, user.id, conversationId),
+            );
+            if (conversation?.title !== null) return;
+            const title = await generateConversationTitle({
+              configuration: {
+                apiKey: decoded.value.config.apiKey,
+                baseUrl: decoded.value.config.baseUrl,
+                model: decoded.value.title?.model ?? "gpt-4o-mini",
+              },
+              firstUserMessage: titleSource,
+              prompt: decoded.value.title?.prompt,
+            });
+            if (title === "") return;
+            await Effect.runPromiseWith(services)(
+              renameConversation(conversationDb, user.id, conversationId, title),
             );
           },
         }),

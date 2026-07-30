@@ -24,7 +24,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 ## P1 — user experience
 
 - Promote the existing HealthFit conversation features into a core feature matrix with baseline vs optional status; users cannot currently tell what generic chat receives.
-- Make title generation, summarization, memory extraction, and provider credentials configurable per app, with safe defaults and clear local/server storage behavior.
+- Make summarization, memory extraction, and provider credentials configurable per app, with safe defaults and clear local/server storage behavior. Generic title generation now accepts optional model and prompt overrides.
 - Define one accessible responsive implementation for sidebar, minimap, message actions, queued follow-ups, and scroll controls rather than leaving them app-local.
 - Treat PWA offline behavior as a declared capability matrix: cache shell/history/drafts when supported, but show reconnect state for streaming/generation.
 
