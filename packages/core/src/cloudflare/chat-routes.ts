@@ -17,8 +17,11 @@ import {
   createConversation,
   createGeneration,
   createGenerationReplayStream,
+  cloneConversation,
+  deleteConversation,
   finishGeneration,
   getConversation,
+  getConversationMessages,
   getGeneration,
   getGenerationByRequestId,
   getGenerationChunks,
@@ -28,6 +31,7 @@ import {
   markGenerationStreaming,
   renameConversation,
   saveConversationMessages,
+  updateConversationState,
   type ConversationDatabaseSchema,
 } from "@emi/core/server";
 import type * as Context from "effect/Context";
@@ -36,10 +40,47 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
+import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
 
 type PersistedChatDatabase = ConversationDatabaseSchema;
+
+const ConversationActionSchema = Schema.Struct({
+  title: Schema.optional(Schema.String),
+  status: Schema.optional(Schema.Literals(["regular", "archived"])),
+  pinned: Schema.optional(Schema.Boolean),
+});
+
+const conversationResponse = (conversation: {
+  id: string;
+  title: string | null;
+  status: "regular" | "archived";
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}) => ({
+  id: conversation.id,
+  title: conversation.title,
+  status: conversation.status,
+  pinned: conversation.pinned,
+  createdAt: conversation.created_at,
+  updatedAt: conversation.updated_at,
+});
+
+const messageResponse = (message: {
+  id: string;
+  role: string;
+  parts: string;
+  model: string | null;
+  created_at: string;
+}) => ({
+  id: message.id,
+  role: message.role,
+  parts: message.parts,
+  model: message.model,
+  createdAt: message.created_at,
+});
 
 const persistGeneration = async ({
   db,
@@ -116,7 +157,75 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       return yield* HttpServerResponse.json({ id }, { status: 201 });
     }
     const values = yield* store.list();
-    return yield* HttpServerResponse.json({ conversations: values });
+    return yield* HttpServerResponse.json({ conversations: values.map(conversationResponse) });
+  });
+
+  const conversation = Effect.fn("core.chat.conversation")(function* (request: HttpServerRequest) {
+    const user = yield* CurrentUser;
+    const params = yield* HttpRouter.params;
+    const conversationId = params.conversationId;
+    if (conversationId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    const existing = yield* getConversation(conversationDb, user.id, conversationId);
+    if (existing === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    if (request.method === "GET") {
+      const messages = yield* getConversationMessages(conversationDb, user.id, conversationId);
+      return yield* HttpServerResponse.json({
+        conversation: conversationResponse(existing),
+        messages: messages.map(messageResponse),
+      });
+    }
+    if (request.method === "DELETE") {
+      yield* deleteConversation(conversationDb, user.id, conversationId);
+      return yield* HttpServerResponse.json({ deleted: true });
+    }
+
+    const decoded = Schema.decodeUnknownOption(ConversationActionSchema)(yield* request.json);
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json(
+        { error: "Invalid conversation update" },
+        { status: 400 },
+      );
+    }
+    if (decoded.value.title !== undefined) {
+      yield* renameConversation(conversationDb, user.id, conversationId, decoded.value.title);
+    }
+    yield* updateConversationState({
+      db: conversationDb,
+      userId: user.id,
+      conversationId,
+      status: decoded.value.status,
+      pinned: decoded.value.pinned,
+    });
+    const updated = yield* getConversation(conversationDb, user.id, conversationId);
+    if (updated === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json({ conversation: conversationResponse(updated) });
+  });
+
+  const clone = Effect.fn("core.chat.conversation.clone")(function* () {
+    const user = yield* CurrentUser;
+    const params = yield* HttpRouter.params;
+    const conversationId = params.conversationId;
+    if (conversationId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    const cloned = yield* cloneConversation({
+      db: conversationDb,
+      userId: user.id,
+      conversationId,
+    });
+    if (cloned === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    return yield* HttpServerResponse.json(
+      { conversation: conversationResponse(cloned) },
+      { status: 201 },
+    );
   });
 
   const chat = Effect.fn("core.chat.stream")(function* (request: HttpServerRequest) {
@@ -316,5 +425,5 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       );
     });
 
-  return { conversations, chat, resume };
+  return { conversations, conversation, clone, chat, resume };
 };

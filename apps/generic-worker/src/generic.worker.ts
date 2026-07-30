@@ -48,6 +48,10 @@ export default GenericWorker.make(
       yield* router.add("GET", "/api/health", () => HttpServerResponse.json({ name: "Core Chat" }));
       yield* router.add("GET", "/api/conversations", routes.conversations);
       yield* router.add("POST", "/api/conversations", routes.conversations);
+      yield* router.add("GET", "/api/conversations/:conversationId", routes.conversation);
+      yield* router.add("PATCH", "/api/conversations/:conversationId", routes.conversation);
+      yield* router.add("DELETE", "/api/conversations/:conversationId", routes.conversation);
+      yield* router.add("POST", "/api/conversations/:conversationId/clone", routes.clone);
       yield* router.add("POST", "/api/chat", routes.chat);
       yield* router.add("GET", "/api/chat/:conversationId/stream", () =>
         Effect.gen(function* () {
