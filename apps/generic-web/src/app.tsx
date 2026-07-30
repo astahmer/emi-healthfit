@@ -88,11 +88,16 @@ export const App = () => {
         body: {
           sessionId: conversationId,
           temporary,
+          system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
           config: {
-            provider: "openai",
+            provider: settings.provider,
             apiKey: settings.apiKey,
             ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
             model: settings.model,
+          },
+          title: {
+            ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
+            ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
           },
         },
       });
@@ -148,6 +153,32 @@ export const App = () => {
             onChange={(event) => updateSettings({ model: event.target.value })}
             placeholder="gpt-4o-mini"
             value={settings.model}
+          />
+        </label>
+        <label>
+          Default system prompt
+          <textarea
+            onChange={(event) => updateSettings({ systemPrompt: event.target.value })}
+            placeholder="Optional instructions for every answer"
+            rows={3}
+            value={settings.systemPrompt}
+          />
+        </label>
+        <label>
+          Title model
+          <input
+            onChange={(event) => updateSettings({ titleModel: event.target.value })}
+            placeholder="gpt-4o-mini"
+            value={settings.titleModel}
+          />
+        </label>
+        <label>
+          Title prompt
+          <textarea
+            onChange={(event) => updateSettings({ titlePrompt: event.target.value })}
+            placeholder="Optional instructions for automatic conversation titles"
+            rows={2}
+            value={settings.titlePrompt}
           />
         </label>
         <label className="toggle">

@@ -247,11 +247,16 @@ export const App = () => {
         body: {
           sessionId: conversationId,
           temporary,
+          system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
           config: {
-            provider: "openai",
+            provider: settings.provider,
             apiKey: settings.apiKey,
             ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
             model: settings.model,
+          },
+          title: {
+            ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
+            ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
           },
         },
       });
@@ -279,6 +284,9 @@ export const App = () => {
         <label>API key<input autoComplete="off" onChange={(event) => setSettings((current) => ({ ...current, apiKey: event.target.value }))} placeholder="sk-..." type="password" value={settings.apiKey} /></label>
         <label>Provider base URL<input onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.openai.com/v1" value={settings.baseUrl} /></label>
         <label>Default model<input onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))} placeholder="gpt-4o-mini" value={settings.model} /></label>
+        <label>Default system prompt<textarea onChange={(event) => setSettings((current) => ({ ...current, systemPrompt: event.target.value }))} placeholder="Optional instructions for every answer" rows={3} value={settings.systemPrompt} /></label>
+        <label>Title model<input onChange={(event) => setSettings((current) => ({ ...current, titleModel: event.target.value }))} placeholder="gpt-4o-mini" value={settings.titleModel} /></label>
+        <label>Title prompt<textarea onChange={(event) => setSettings((current) => ({ ...current, titlePrompt: event.target.value }))} placeholder="Optional instructions for automatic conversation titles" rows={2} value={settings.titlePrompt} /></label>
         <label className="toggle"><input checked={temporary} onChange={(event) => { setTemporary(event.target.checked); startFresh(); }} type="checkbox" />Temporary chat</label>
         <p className="muted metadata">{temporary ? "Not saved" : conversationId ?? "New conversation"}</p>
       </aside>
@@ -300,20 +308,24 @@ export const webAppCss = (): string =>
 
 export const webChatSettings = (): string => `import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { defaultGenericChatSettings, GenericChatSettingsSchema, type GenericChatSettings } from "@emi/core/chat/settings";
 
-const SettingsSchema = Schema.Struct({ apiKey: Schema.String, baseUrl: Schema.String, model: Schema.String });
+export type ChatSettings = GenericChatSettings;
 
-export type ChatSettings = { apiKey: string; baseUrl: string; model: string };
-
-export const defaultChatSettings: ChatSettings = { apiKey: "", baseUrl: "", model: "gpt-4o-mini" };
+export const defaultChatSettings = defaultGenericChatSettings;
 
 export const readChatSettings = ({ storageKey }: { storageKey: string }): ChatSettings => {
   const stored = localStorage.getItem(storageKey);
   if (stored === null) return defaultChatSettings;
   try {
-    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(SettingsSchema))(stored);
+    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(GenericChatSettingsSchema))(stored);
     if (Option.isNone(decoded)) return defaultChatSettings;
-    return decoded.value.model === "" ? { ...decoded.value, model: defaultChatSettings.model } : decoded.value;
+    return {
+      ...defaultChatSettings,
+      ...decoded.value,
+      model: decoded.value.model || defaultChatSettings.model,
+      titleModel: decoded.value.titleModel || defaultChatSettings.titleModel,
+    };
   } catch {
     return defaultChatSettings;
   }
