@@ -8,12 +8,12 @@ const run = ({ command, args, cwd }) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, stdio: "inherit" });
     child.once("error", reject);
-    child.once("exit", (code) => {
+    child.once("exit", (code, signal) => {
       if (code === 0) {
         resolve();
         return;
       }
-      reject(new Error(`${command} exited with code ${code ?? "unknown"}.`));
+      reject(new Error(`${command} exited with ${signal ?? `code ${code ?? "unknown"}`}.`));
     });
   });
 
