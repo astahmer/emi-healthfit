@@ -2,6 +2,14 @@ import { DefaultChatTransport, readUIMessageStream, type UIMessage } from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
+import {
+  cloneConversation,
+  deleteConversation,
+  listConversations,
+  loadConversation,
+  updateConversation,
+  type Conversation,
+} from "./conversation-client.ts";
 
 const settingsStorageKey = "emi-core-chat-settings";
 
@@ -26,12 +34,26 @@ export const App = () => {
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState<string>();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationSearch, setConversationSearch] = useState("");
   const [temporary, setTemporary] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => setSettings(readChatSettings({ storageKey: settingsStorageKey })), []);
   useEffect(() => localStorage.setItem(settingsStorageKey, JSON.stringify(settings)), [settings]);
+
+  const refreshConversations = async ({ search }: { search: string }) => {
+    try {
+      setConversations(await listConversations({ search }));
+    } catch {
+      setConversations([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshConversations({ search: "" });
+  }, []);
 
   const updateSettings = (patch: Partial<ChatSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
@@ -45,6 +67,35 @@ export const App = () => {
     setDraft("");
     setError(undefined);
     setStreaming(false);
+  };
+
+  const openConversation = async ({ id }: { id: string }) => {
+    try {
+      const loaded = await loadConversation({ conversationId: id });
+      setConversationId(loaded.conversation.id);
+      setMessages(loaded.messages);
+      setTemporary(false);
+      setError(undefined);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load this conversation.");
+    }
+  };
+
+  const updateConversationAction = async ({
+    id,
+    patch,
+  }: {
+    id: string;
+    patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
+  }) => {
+    try {
+      const updated = await updateConversation({ conversationId: id, patch });
+      setConversations((current) =>
+        current.map((conversation) => (conversation.id === updated.id ? updated : conversation)),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update this conversation.");
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -75,7 +126,10 @@ export const App = () => {
         fetch: async (input, init) => {
           const response = await fetch(input, init);
           const returnedConversationId = response.headers.get("x-conversation-id");
-          if (returnedConversationId !== null) setConversationId(returnedConversationId);
+          if (returnedConversationId !== null) {
+            setConversationId(returnedConversationId);
+            void refreshConversations({ search: conversationSearch });
+          }
           return response;
         },
       });
@@ -129,6 +183,103 @@ export const App = () => {
         <button className="secondary-button" onClick={startFresh} type="button">
           New chat
         </button>
+        <label>
+          Search conversations
+          <input
+            onChange={(event) => {
+              const search = event.target.value;
+              setConversationSearch(search);
+              void refreshConversations({ search });
+            }}
+            placeholder="Search chats"
+            value={conversationSearch}
+          />
+        </label>
+        <div className="conversation-list">
+          {conversations.map((conversation) => (
+            <article
+              className={
+                conversation.id === conversationId ? "conversation active" : "conversation"
+              }
+              key={conversation.id}
+            >
+              <button onClick={() => void openConversation({ id: conversation.id })} type="button">
+                {conversation.title || "New chat"}
+              </button>
+              <div className="conversation-actions">
+                <button
+                  aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"}
+                  onClick={() =>
+                    void updateConversationAction({
+                      id: conversation.id,
+                      patch: { pinned: !conversation.pinned },
+                    })
+                  }
+                  type="button"
+                >
+                  {conversation.pinned ? "Unpin" : "Pin"}
+                </button>
+                <button
+                  aria-label="Rename conversation"
+                  onClick={() => {
+                    const title = window.prompt("Conversation name", conversation.title ?? "");
+                    if (title === null || title.trim() === "") return;
+                    void updateConversationAction({
+                      id: conversation.id,
+                      patch: { title: title.trim() },
+                    });
+                  }}
+                  type="button"
+                >
+                  Rename
+                </button>
+                <button
+                  aria-label="Clone conversation"
+                  onClick={() => {
+                    void cloneConversation({ conversationId: conversation.id })
+                      .then((cloned) => {
+                        setConversations((current) => [cloned, ...current]);
+                        void openConversation({ id: cloned.id });
+                      })
+                      .catch(() => setError("Unable to clone this conversation."));
+                  }}
+                  type="button"
+                >
+                  Clone
+                </button>
+                <button
+                  aria-label="Archive conversation"
+                  onClick={() =>
+                    void updateConversationAction({
+                      id: conversation.id,
+                      patch: { status: conversation.status === "regular" ? "archived" : "regular" },
+                    })
+                  }
+                  type="button"
+                >
+                  {conversation.status === "regular" ? "Archive" : "Restore"}
+                </button>
+                <button
+                  aria-label="Delete conversation"
+                  onClick={() => {
+                    if (!window.confirm("Delete this conversation permanently?")) return;
+                    void deleteConversation({ conversationId: conversation.id })
+                      .then(() => {
+                        setConversations((current) =>
+                          current.filter((item) => item.id !== conversation.id),
+                        );
+                        if (conversation.id === conversationId) startFresh();
+                      })
+                      .catch(() => setError("Unable to delete this conversation."));
+                  }}
+                  type="button"
+                >
+                  Delete
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
         <label>
           API key
           <input

@@ -156,7 +156,8 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       const id = yield* store.create();
       return yield* HttpServerResponse.json({ id }, { status: 201 });
     }
-    const values = yield* store.list();
+    const search = new URL(request.url).searchParams.get("search") ?? undefined;
+    const values = yield* store.list(search);
     return yield* HttpServerResponse.json({ conversations: values.map(conversationResponse) });
   });
 
