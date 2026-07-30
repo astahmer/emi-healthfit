@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 import { buildGeneratedFiles, DEFAULT_CORE_VERSION } from "../src/generate.ts";
@@ -20,6 +21,7 @@ describe("buildGeneratedFiles", () => {
       "README.md",
       "web/index.html",
       "web/package.json",
+      "web/src/app-config.ts",
       "web/src/app.css",
       "web/src/app.tsx",
       "web/src/chat-settings.ts",
@@ -32,8 +34,9 @@ describe("buildGeneratedFiles", () => {
       "worker/drizzle.config.ts",
       "worker/migrations/.gitkeep",
       "worker/package.json",
-      "worker/src/app.worker.ts",
+      "worker/src/app-config.ts",
       "worker/src/db/schema.ts",
+      "worker/src/generic.worker.ts",
       "worker/tsconfig.json",
     ]);
   });
@@ -87,14 +90,44 @@ describe("buildGeneratedFiles", () => {
 
   it("generates the core streaming and replay worker routes", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
-    const worker = findFile(files, "worker/src/app.worker.ts").contents;
+    const worker = findFile(files, "worker/src/generic.worker.ts").contents;
 
     assert.match(worker, /makeGenericChatRoutes/);
     assert.match(worker, /"POST", "\/api\/chat"/);
     assert.match(worker, /"GET", "\/api\/chat\/:conversationId\/stream"/);
     assert.match(worker, /"PATCH", "\/api\/conversations\/:conversationId"/);
     assert.match(worker, /"POST", "\/api\/conversations\/:conversationId\/threads"/);
-    assert.match(worker, /"PATCH", "\/api\/conversations\/:conversationId\/threads\/:threadId"/);
+    assert.match(worker, /"PATCH",\s+"\/api\/conversations\/:conversationId\/threads\/:threadId"/);
+  });
+
+  it("copies canonical generic source and renders only app configuration", async () => {
+    const files = buildGeneratedFiles({ appName: "Acme Chat" });
+    const sourceFiles = [
+      { generatedPath: "web/src/app.tsx", sourcePath: "../../../apps/generic-web/src/app.tsx" },
+      { generatedPath: "web/src/app.css", sourcePath: "../../../apps/generic-web/src/app.css" },
+      {
+        generatedPath: "web/src/conversation-client.ts",
+        sourcePath: "../../../apps/generic-web/src/conversation-client.ts",
+      },
+      {
+        generatedPath: "worker/src/generic.worker.ts",
+        sourcePath: "../../../apps/generic-worker/src/generic.worker.ts",
+      },
+      {
+        generatedPath: "worker/src/db/schema.ts",
+        sourcePath: "../../../apps/generic-worker/src/db/schema.ts",
+      },
+    ];
+    const sourceContents = await Promise.all(
+      sourceFiles.map(async ({ sourcePath }) =>
+        readFile(new URL(sourcePath, import.meta.url), "utf8"),
+      ),
+    );
+    for (const [index, { generatedPath }] of sourceFiles.entries()) {
+      assert.equal(findFile(files, generatedPath).contents, sourceContents[index], generatedPath);
+    }
+    assert.match(findFile(files, "web/src/app-config.ts").contents, /Acme Chat/);
+    assert.match(findFile(files, "worker/src/app-config.ts").contents, /Acme Chat/);
   });
 
   it("never points @emi/* dependencies at a local src copy (relative path or file: protocol)", () => {

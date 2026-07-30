@@ -1,5 +1,5 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { toSlug } from "./slug.ts";
@@ -35,9 +35,13 @@ const toContext = (options: BuildFilesOptions): TemplateContext => ({
   coreVersion: options.coreVersion ?? DEFAULT_CORE_VERSION,
 });
 
+const genericSourceFile = (path: string): string =>
+  readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8");
+
 /**
- * Pure file-set builder. No filesystem access, so callers can assert on
- * exact output (path list, package.json contents) without touching disk.
+ * Builds a generated app from the canonical generic fixtures. Only the small
+ * app configuration and package metadata are rendered here; chat behavior is
+ * copied verbatim from the fixture source.
  */
 export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[] => {
   const context = toContext(options);
@@ -47,20 +51,46 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     { path: ".gitignore", contents: templates.gitignore() },
     { path: "web/package.json", contents: templates.webPackageJson(context) },
     { path: "web/index.html", contents: templates.webIndexHtml(context) },
-    { path: "web/vite-env.d.ts", contents: templates.webViteEnvDts() },
-    { path: "web/vite.config.ts", contents: templates.webViteConfig() },
-    { path: "web/tsconfig.json", contents: templates.webTsconfig() },
-    { path: "web/src/app.css", contents: templates.webAppCss() },
-    { path: "web/src/app.tsx", contents: templates.webAppTsx(context) },
-    { path: "web/src/chat-settings.ts", contents: templates.webChatSettings() },
-    { path: "web/src/conversation-client.ts", contents: templates.webConversationClient() },
-    { path: "web/src/main.tsx", contents: templates.webMainTsx() },
+    {
+      path: "web/vite-env.d.ts",
+      contents: genericSourceFile("apps/generic-web/vite-env.d.ts"),
+    },
+    { path: "web/vite.config.ts", contents: genericSourceFile("apps/generic-web/vite.config.ts") },
+    { path: "web/tsconfig.json", contents: genericSourceFile("apps/generic-web/tsconfig.json") },
+    { path: "web/src/app-config.ts", contents: templates.webAppConfig(context) },
+    { path: "web/src/app.css", contents: genericSourceFile("apps/generic-web/src/app.css") },
+    { path: "web/src/app.tsx", contents: genericSourceFile("apps/generic-web/src/app.tsx") },
+    {
+      path: "web/src/chat-settings.ts",
+      contents: genericSourceFile("apps/generic-web/src/chat-settings.ts"),
+    },
+    {
+      path: "web/src/conversation-client.ts",
+      contents: genericSourceFile("apps/generic-web/src/conversation-client.ts"),
+    },
+    { path: "web/src/main.tsx", contents: genericSourceFile("apps/generic-web/src/main.tsx") },
     { path: "worker/package.json", contents: templates.workerPackageJson(context) },
-    { path: "worker/alchemy.run.ts", contents: templates.workerAlchemyRun(context) },
-    { path: "worker/drizzle.config.ts", contents: templates.workerDrizzleConfig() },
-    { path: "worker/tsconfig.json", contents: templates.workerTsconfig() },
-    { path: "worker/src/db/schema.ts", contents: templates.workerSchema() },
-    { path: "worker/src/app.worker.ts", contents: templates.workerAppWorker(context) },
+    {
+      path: "worker/alchemy.run.ts",
+      contents: genericSourceFile("apps/generic-worker/alchemy.run.ts"),
+    },
+    {
+      path: "worker/drizzle.config.ts",
+      contents: genericSourceFile("apps/generic-worker/drizzle.config.ts"),
+    },
+    {
+      path: "worker/tsconfig.json",
+      contents: genericSourceFile("apps/generic-worker/tsconfig.json"),
+    },
+    { path: "worker/src/app-config.ts", contents: templates.workerAppConfig(context) },
+    {
+      path: "worker/src/db/schema.ts",
+      contents: genericSourceFile("apps/generic-worker/src/db/schema.ts"),
+    },
+    {
+      path: "worker/src/generic.worker.ts",
+      contents: genericSourceFile("apps/generic-worker/src/generic.worker.ts"),
+    },
     { path: "worker/migrations/.gitkeep", contents: "" },
   ];
 };

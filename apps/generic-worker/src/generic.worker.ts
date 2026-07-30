@@ -17,8 +17,9 @@ import {
   type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
 } from "@emi/core/server";
+import { genericWorkerAppConfig } from "./app-config.ts";
 
-const DB = Cloudflare.D1.Database("GenericData");
+const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName);
 
 type GenericDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema;
 
@@ -31,7 +32,9 @@ export default GenericWorker.make(
     env: {
       BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
       BETTER_AUTH_URL: Config.redacted("BETTER_AUTH_URL"),
-      AUTH_APP_NAME: Config.string("AUTH_APP_NAME").pipe(Config.withDefault("Core Chat")),
+      AUTH_APP_NAME: Config.string("AUTH_APP_NAME").pipe(
+        Config.withDefault(genericWorkerAppConfig.name),
+      ),
       ALLOW_DEMO_USER_HEADER: Config.string("ALLOW_DEMO_USER_HEADER").pipe(Config.withDefault("0")),
     },
     observability: { enabled: true },
@@ -45,7 +48,9 @@ export default GenericWorker.make(
       db: db as unknown as CloudflareQueryDatabaseClient<ConversationDatabaseSchema>,
     });
     yield* Effect.gen(function* () {
-      yield* router.add("GET", "/api/health", () => HttpServerResponse.json({ name: "Core Chat" }));
+      yield* router.add("GET", "/api/health", () =>
+        HttpServerResponse.json({ name: genericWorkerAppConfig.name }),
+      );
       yield* router.add("GET", "/api/conversations", routes.conversations);
       yield* router.add("POST", "/api/conversations", routes.conversations);
       yield* router.add("GET", "/api/conversations/:conversationId", routes.conversation);

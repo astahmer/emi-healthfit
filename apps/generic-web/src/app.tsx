@@ -7,6 +7,7 @@ import {
 } from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
+import { genericChatAppConfig } from "./app-config.ts";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 import {
   cloneConversation,
@@ -16,8 +17,6 @@ import {
   updateConversation,
   type Conversation,
 } from "./conversation-client.ts";
-
-const settingsStorageKey = "emi-core-chat-settings";
 
 const messageText = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
@@ -52,8 +51,14 @@ export const App = () => {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string>();
 
-  useEffect(() => setSettings(readChatSettings({ storageKey: settingsStorageKey })), []);
-  useEffect(() => localStorage.setItem(settingsStorageKey, JSON.stringify(settings)), [settings]);
+  useEffect(
+    () => setSettings(readChatSettings({ storageKey: genericChatAppConfig.settingsStorageKey })),
+    [],
+  );
+  useEffect(
+    () => localStorage.setItem(genericChatAppConfig.settingsStorageKey, JSON.stringify(settings)),
+    [settings],
+  );
 
   const refreshConversations = async ({ search }: { search: string }) => {
     try {
@@ -243,7 +248,7 @@ export const App = () => {
       <aside className="settings-panel">
         <div>
           <p className="eyebrow">EMI CORE</p>
-          <h1>Core Chat</h1>
+          <h1>{genericChatAppConfig.name}</h1>
           <p className="muted">
             Generic streaming chat starter. Your provider key stays in this browser.
           </p>
@@ -424,7 +429,7 @@ export const App = () => {
         <header>
           <div>
             <p className="eyebrow">{temporary ? "TEMPORARY" : "CONVERSATION"}</p>
-            <h2>{messages.length === 0 ? "How can I help?" : "Core Chat"}</h2>
+            <h2>{messages.length === 0 ? "How can I help?" : genericChatAppConfig.name}</h2>
           </div>
           {streaming && (
             <button
@@ -496,7 +501,7 @@ export const App = () => {
           <textarea
             aria-label="Message"
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Message Core Chat"
+            placeholder={`Message ${genericChatAppConfig.name}`}
             value={draft}
           />
           <button disabled={draft.trim() === "" && files.length === 0} type="submit">
