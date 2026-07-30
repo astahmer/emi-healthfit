@@ -11,3 +11,4 @@ export * from "./chat-runtime/generic-chat-app-machine.ts";
 export * from "./chat-runtime/conversation-client.ts";
 export * from "./chat-runtime/conversation-store-actor.ts";
 export * from "./chat-runtime/settings-actor.ts";
+export * from "./chat-runtime/browser-state-actor.ts";
