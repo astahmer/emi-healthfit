@@ -50,6 +50,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     { path: "web/vite-env.d.ts", contents: templates.webViteEnvDts() },
     { path: "web/vite.config.ts", contents: templates.webViteConfig() },
     { path: "web/tsconfig.json", contents: templates.webTsconfig() },
+    { path: "web/src/app.css", contents: templates.webAppCss() },
     { path: "web/src/app.tsx", contents: templates.webAppTsx(context) },
     { path: "web/src/main.tsx", contents: templates.webMainTsx() },
     { path: "worker/package.json", contents: templates.workerPackageJson(context) },

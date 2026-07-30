@@ -96,6 +96,7 @@ export const webPackageJson = (context: TemplateContext): string =>
   },
   "dependencies": {
     "@emi/core": "${context.coreVersion}",
+    "ai": "catalog:",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -165,31 +166,159 @@ export const webTsconfig = (): string =>
 `;
 
 export const webAppTsx = (context: TemplateContext): string =>
-  `import { ChatShell, CoreWebProvider, type CoreWebContributions } from "@emi/core/web";
+  `import { DefaultChatTransport, readUIMessageStream, type UIMessage } from "ai";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import "./app.css";
 
-/**
- * Empty contributions prove \`@emi/core/web\` renders a usable shell with no
- * product flavor registered. A real flavor adds nav, pages, and tool
- * renderers through this same \`CoreWebContributions\` shape.
- */
-const contributions: CoreWebContributions = {
-  nav: [{ id: "home", label: "Home", href: "/" }],
+const appName = ${JSON.stringify(context.appName)};
+const settingsStorageKey = "chat-settings";
+const defaultSettings = { apiKey: "", baseUrl: "", model: "gpt-4o-mini" };
+
+type ChatSettings = typeof defaultSettings;
+
+const readSettings = (): ChatSettings => {
+  const stored = localStorage.getItem(settingsStorageKey);
+  if (stored === null) return defaultSettings;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (parsed === null || typeof parsed !== "object") return defaultSettings;
+    const valueOf = (key: keyof ChatSettings): string => {
+      const value = Reflect.get(parsed, key);
+      return typeof value === "string" ? value : "";
+    };
+    return {
+      apiKey: valueOf("apiKey"),
+      baseUrl: valueOf("baseUrl"),
+      model: valueOf("model") || defaultSettings.model,
+    };
+  } catch {
+    return defaultSettings;
+  }
 };
 
-export const App = () => (
-  <CoreWebProvider contributions={contributions}>
-    <ChatShell title="${context.appName}">
-      <main style={{ padding: "2rem" }}>
-        <h1>${context.appName}</h1>
-        <p>
-          This composition root depends only on <code>@emi/core/web</code> and{" "}
-          <code>@emi/core/contract</code> — no copied core source.
-        </p>
-      </main>
-    </ChatShell>
-  </CoreWebProvider>
-);
+const textFrom = (message: UIMessage): string =>
+  message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\\n");
+
+const replaceMessage = (messages: UIMessage[], message: UIMessage): UIMessage[] => {
+  const index = messages.findIndex((candidate) => candidate.id === message.id);
+  if (index < 0) return [...messages, message];
+  return [...messages.slice(0, index), message, ...messages.slice(index + 1)];
+};
+
+export const App = () => {
+  const abortController = useRef<AbortController | undefined>(undefined);
+  const [settings, setSettings] = useState<ChatSettings>(defaultSettings);
+  const [messages, setMessages] = useState<UIMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [conversationId, setConversationId] = useState<string>();
+  const [temporary, setTemporary] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => setSettings(readSettings()), []);
+  useEffect(() => localStorage.setItem(settingsStorageKey, JSON.stringify(settings)), [settings]);
+
+  const startFresh = () => {
+    abortController.current?.abort();
+    abortController.current = undefined;
+    setConversationId(undefined);
+    setMessages([]);
+    setDraft("");
+    setError(undefined);
+    setStreaming(false);
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = draft.trim();
+    if (text === "" || streaming) return;
+    if (settings.apiKey.trim() === "") {
+      setError("Add an API key in settings before sending a message.");
+      return;
+    }
+
+    const userMessage: UIMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", text }],
+    };
+    const nextMessages = [...messages, userMessage];
+    const controller = new AbortController();
+    abortController.current = controller;
+    setMessages(nextMessages);
+    setDraft("");
+    setError(undefined);
+    setStreaming(true);
+
+    try {
+      const transport = new DefaultChatTransport<UIMessage>({
+        api: \`\${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat\`,
+        fetch: async (input, init) => {
+          const response = await fetch(input, init);
+          const returnedConversationId = response.headers.get("x-conversation-id");
+          if (returnedConversationId !== null) setConversationId(returnedConversationId);
+          return response;
+        },
+      });
+      const stream = await transport.sendMessages({
+        trigger: "submit-message",
+        chatId: conversationId ?? userMessage.id,
+        messageId: userMessage.id,
+        messages: nextMessages,
+        abortSignal: controller.signal,
+        body: {
+          sessionId: conversationId,
+          temporary,
+          config: {
+            provider: "openai",
+            apiKey: settings.apiKey,
+            ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
+            model: settings.model,
+          },
+        },
+      });
+      for await (const streamedMessage of readUIMessageStream({ stream, terminateOnError: true })) {
+        setMessages((current) => replaceMessage(current, streamedMessage));
+      }
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      setError(cause instanceof Error ? cause.message : "Unable to complete this chat request.");
+    } finally {
+      if (abortController.current === controller) abortController.current = undefined;
+      setStreaming(false);
+    }
+  };
+
+  return (
+    <main className="chat-app">
+      <aside className="settings-panel">
+        <div>
+          <p className="eyebrow">CHAT STARTER</p>
+          <h1>{appName}</h1>
+          <p className="muted">Your provider key stays in this browser.</p>
+        </div>
+        <button className="secondary-button" onClick={startFresh} type="button">New chat</button>
+        <label>API key<input autoComplete="off" onChange={(event) => setSettings((current) => ({ ...current, apiKey: event.target.value }))} placeholder="sk-..." type="password" value={settings.apiKey} /></label>
+        <label>Provider base URL<input onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} placeholder="https://api.openai.com/v1" value={settings.baseUrl} /></label>
+        <label>Default model<input onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))} placeholder="gpt-4o-mini" value={settings.model} /></label>
+        <label className="toggle"><input checked={temporary} onChange={(event) => { setTemporary(event.target.checked); startFresh(); }} type="checkbox" />Temporary chat</label>
+        <p className="muted metadata">{temporary ? "Not saved" : conversationId ?? "New conversation"}</p>
+      </aside>
+      <section className="chat-panel">
+        <header><div><p className="eyebrow">{temporary ? "TEMPORARY" : "CONVERSATION"}</p><h2>{messages.length === 0 ? "How can I help?" : appName}</h2></div>{streaming && <button className="secondary-button" onClick={() => abortController.current?.abort()} type="button">Stop</button>}</header>
+        <div aria-live="polite" className="messages">
+          {messages.length === 0 ? <div className="empty-state"><p>Ask anything. Configure a GPT-compatible provider in settings.</p></div> : messages.map((message) => <article className={"message message-" + message.role} key={message.id}><p className="message-role">{message.role}</p><div>{textFrom(message) || (message.role === "assistant" && streaming ? "Thinking…" : "")}</div></article>)}
+        </div>
+        {error !== undefined && <p className="error-message">{error}</p>}
+        <form className="composer" onSubmit={submit}><textarea aria-label="Message" disabled={streaming} onChange={(event) => setDraft(event.target.value)} placeholder="Message…" rows={3} value={draft} /><button disabled={draft.trim() === "" || streaming || settings.apiKey.trim() === ""} type="submit">Send</button></form>
+      </section>
+    </main>
+  );
+};
 `;
+
+export const webAppCss = (): string =>
+  `:root { color: #e8eef6; background: #0b1020; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } * { box-sizing: border-box; } body { margin: 0; min-width: 320px; } button, input, textarea { font: inherit; } button { cursor: pointer; } .chat-app { display: grid; grid-template-columns: 18rem minmax(0, 1fr); min-height: 100vh; } .settings-panel { display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; background: #111a31; border-right: 1px solid #273556; } .settings-panel h1, .chat-panel h2 { margin: 0; } label { display: grid; gap: .4rem; color: #bcc8dc; font-size: .85rem; } input, textarea { width: 100%; border: 1px solid #405174; border-radius: .55rem; padding: .65rem .75rem; color: #edf3ff; background: #0c1428; } .eyebrow { margin: 0 0 .35rem; color: #78a6ff; font-size: .72rem; font-weight: 700; letter-spacing: .11em; } .muted { color: #9dadc6; font-size: .9rem; } .metadata { overflow-wrap: anywhere; } .toggle { display: flex; align-items: center; gap: .55rem; } .toggle input { width: auto; } .chat-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 100vh; padding: 1.5rem clamp(1rem, 4vw, 4rem); background: radial-gradient(circle at 75% 0, #18274a, #0b1020 45%); } .chat-panel header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #273556; } .messages { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; padding: 2rem 0; } .message { max-width: 52rem; padding: 1rem 1.15rem; border-radius: .75rem; line-height: 1.5; white-space: pre-wrap; } .message-user { align-self: flex-end; background: #2451a4; } .message-assistant { background: #17213a; } .message-role { margin: 0 0 .4rem; color: #a9c6ff; font-size: .72rem; font-weight: 700; text-transform: uppercase; } .empty-state { display: grid; place-items: center; flex: 1; color: #a8b7d0; text-align: center; } .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; padding-top: 1rem; border-top: 1px solid #273556; } .composer textarea { resize: vertical; } .composer button, .secondary-button { border: 0; border-radius: .55rem; padding: .65rem 1rem; color: white; background: #3e78ef; } .secondary-button { background: #263858; } button:disabled { cursor: not-allowed; opacity: .5; } .error-message { margin: 0; color: #ffb4bd; } @media (max-width: 760px) { .chat-app { grid-template-columns: 1fr; } .settings-panel { border-right: 0; border-bottom: 1px solid #273556; } .chat-panel { min-height: 65vh; } }\n`;
 
 export const webMainTsx = (): string =>
   `import { StrictMode } from "react";

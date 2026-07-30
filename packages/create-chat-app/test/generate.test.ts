@@ -20,6 +20,7 @@ describe("buildGeneratedFiles", () => {
       "README.md",
       "web/index.html",
       "web/package.json",
+      "web/src/app.css",
       "web/src/app.tsx",
       "web/src/main.tsx",
       "web/tsconfig.json",
@@ -60,6 +61,19 @@ describe("buildGeneratedFiles", () => {
     assert.match(schema, /chatGenerations/);
     assert.match(schema, /chatGenerationChunks/);
     assert.match(schema, /chatEvents/);
+  });
+
+  it("generates a usable streaming web chat instead of a smoke page", () => {
+    const files = buildGeneratedFiles({ appName: "Acme Chat" });
+    const app = findFile(files, "web/src/app.tsx").contents;
+    const packageJson = JSON.parse(findFile(files, "web/package.json").contents) as {
+      dependencies: Record<string, string>;
+    };
+
+    assert.match(app, /DefaultChatTransport/);
+    assert.match(app, /\/api\/chat/);
+    assert.match(app, /Temporary chat/);
+    assert.equal(packageJson.dependencies.ai, "catalog:");
   });
 
   it("never points @emi/* dependencies at a local src copy (relative path or file: protocol)", () => {
