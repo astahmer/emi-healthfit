@@ -5,7 +5,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 ## P0 — misleading scaffold
 
 - `apps/generic-web/src/app.tsx` renders a smoke message instead of a chat.
-- `apps/generic-worker/src/generic.worker.ts` only creates/lists conversations; it has no chat generation, messages, branches, settings, or deployable web asset path.
+- `apps/generic-worker/src/generic.worker.ts` now streams and resumes generic chat, but still needs the extracted core route factory, branch/action endpoints, settings APIs, and web asset deployment path.
 - `packages/create-chat-app/src/templates.ts` describes and generates a full core chat while its generated web template is only a shell. Do not market it as ready-to-deploy until the acceptance fixture proves it.
 - Existing generator guardrails forbid copied core source, which conflicts with the requested shadcn-like, user-owned default. Replace this with a versioned owned-source manifest and an explicit workspace-import mode.
 

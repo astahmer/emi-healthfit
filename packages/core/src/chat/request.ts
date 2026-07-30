@@ -1,0 +1,65 @@
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+
+export const ChatStreamRequestSchema = Schema.Struct({
+  messages: Schema.mutable(Schema.Array(Schema.Unknown)),
+  system: Schema.optional(Schema.String),
+  config: Schema.Struct({
+    provider: Schema.Literal("openai"),
+    baseUrl: Schema.optional(Schema.String),
+    apiKey: Schema.String.check(Schema.isMinLength(1)),
+    model: Schema.String.check(Schema.isMinLength(1)),
+    system: Schema.optional(Schema.String),
+  }),
+  temporary: Schema.optional(Schema.Boolean),
+  sessionId: Schema.optional(Schema.String),
+  requestId: Schema.optional(Schema.String.check(Schema.isUUID())),
+});
+
+const TextPart = Schema.Struct({ type: Schema.Literal("text"), text: Schema.String });
+const AttachmentPart = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("file"),
+    data: Schema.optional(Schema.String),
+    url: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({ type: Schema.Literal("image"), image: Schema.optional(Schema.String) }),
+]);
+const maxAttachmentBytes = 5 * 1024 * 1024;
+const maxAttachmentsPerMessage = 10;
+
+export const firstUserText = (
+  messages: Array<{ role: string; parts: unknown[] }>,
+): string | undefined => {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    for (const part of message.parts) {
+      const textPart = Schema.decodeUnknownOption(TextPart)(part);
+      if (Option.isSome(textPart)) return textPart.value.text.trim();
+    }
+  }
+  return undefined;
+};
+
+const attachmentSize = (part: typeof AttachmentPart.Type): number => {
+  if (part.type === "file") return part.data?.length ?? part.url?.length ?? 0;
+  return part.image?.length ?? 0;
+};
+
+export const validateChatAttachments = (
+  messages: Array<{ parts: unknown[] }>,
+): string | undefined => {
+  for (const message of messages) {
+    const attachments = message.parts.flatMap((part) => {
+      const attachment = Schema.decodeUnknownOption(AttachmentPart)(part);
+      return Option.isSome(attachment) ? [attachment.value] : [];
+    });
+    if (attachments.length > maxAttachmentsPerMessage) {
+      return `Too many attachments. Maximum ${maxAttachmentsPerMessage} per message.`;
+    }
+    if (attachments.some((attachment) => attachmentSize(attachment) > maxAttachmentBytes * 2)) {
+      return "One attachment is too large. Maximum size is 5 MB.";
+    }
+  }
+  return undefined;
+};
