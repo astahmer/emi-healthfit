@@ -1,4 +1,10 @@
-import { DefaultChatTransport, readUIMessageStream, type UIMessage } from "ai";
+import {
+  convertFileListToFileUIParts,
+  DefaultChatTransport,
+  readUIMessageStream,
+  type FileUIPart,
+  type UIMessage,
+} from "ai";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import "./app.css";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
@@ -30,12 +36,18 @@ const replaceMessage = ({
 
 export const App = () => {
   const abortController = useRef<AbortController | undefined>(undefined);
+  const composerForm = useRef<HTMLFormElement | null>(null);
+  const streamOperation = useRef(0);
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationId, setConversationId] = useState<string>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationSearch, setConversationSearch] = useState("");
+  const [queuedFollowUps, setQueuedFollowUps] = useState<
+    Array<{ id: string; text: string; files: FileUIPart[] }>
+  >([]);
+  const [files, setFiles] = useState<FileUIPart[]>([]);
   const [temporary, setTemporary] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string>();
@@ -60,6 +72,7 @@ export const App = () => {
   };
 
   const startFresh = () => {
+    streamOperation.current += 1;
     abortController.current?.abort();
     abortController.current = undefined;
     setConversationId(undefined);
@@ -67,6 +80,43 @@ export const App = () => {
     setDraft("");
     setError(undefined);
     setStreaming(false);
+    setQueuedFollowUps([]);
+    setFiles([]);
+  };
+
+  const consumeStream = async ({
+    operation,
+    stream,
+  }: {
+    operation: number;
+    stream: ReadableStream<
+      Parameters<typeof readUIMessageStream>[0]["stream"] extends ReadableStream<infer Chunk>
+        ? Chunk
+        : never
+    >;
+  }) => {
+    for await (const streamedMessage of readUIMessageStream({ stream, terminateOnError: true })) {
+      if (operation !== streamOperation.current) return;
+      setMessages((current) => replaceMessage({ messages: current, message: streamedMessage }));
+    }
+  };
+
+  const resumeConversation = async ({ id }: { id: string }) => {
+    const operation = streamOperation.current + 1;
+    streamOperation.current = operation;
+    setStreaming(true);
+    try {
+      const transport = new DefaultChatTransport<UIMessage>({
+        api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
+      });
+      const stream = await transport.reconnectToStream({ chatId: id });
+      if (stream === null) return;
+      await consumeStream({ operation, stream });
+    } catch {
+      if (operation === streamOperation.current) setError("Unable to resume this conversation.");
+    } finally {
+      if (operation === streamOperation.current) setStreaming(false);
+    }
   };
 
   const openConversation = async ({ id }: { id: string }) => {
@@ -76,6 +126,7 @@ export const App = () => {
       setMessages(loaded.messages);
       setTemporary(false);
       setError(undefined);
+      void resumeConversation({ id });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load this conversation.");
     }
@@ -101,7 +152,13 @@ export const App = () => {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
-    if (text === "" || streaming) return;
+    if (text === "" && files.length === 0) return;
+    if (streaming) {
+      setQueuedFollowUps((current) => [...current, { id: crypto.randomUUID(), text, files }]);
+      setDraft("");
+      setFiles([]);
+      return;
+    }
     if (settings.apiKey.trim() === "") {
       setError("Add an API key in settings before sending a message.");
       return;
@@ -110,13 +167,16 @@ export const App = () => {
     const userMessage: UIMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      parts: [{ type: "text", text }],
+      parts: [{ type: "text", text }, ...files],
     };
     const nextMessages = [...messages, userMessage];
     const controller = new AbortController();
+    const operation = streamOperation.current + 1;
+    streamOperation.current = operation;
     abortController.current = controller;
     setMessages(nextMessages);
     setDraft("");
+    setFiles([]);
     setError(undefined);
     setStreaming(true);
 
@@ -155,19 +215,27 @@ export const App = () => {
           },
         },
       });
-      for await (const streamedMessage of readUIMessageStream({
-        stream,
-        terminateOnError: true,
-      })) {
-        setMessages((current) => replaceMessage({ messages: current, message: streamedMessage }));
-      }
+      await consumeStream({ operation, stream });
     } catch (cause) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || operation !== streamOperation.current) return;
       setError(cause instanceof Error ? cause.message : "Unable to complete this chat request.");
     } finally {
       if (abortController.current === controller) abortController.current = undefined;
-      setStreaming(false);
+      if (operation === streamOperation.current) setStreaming(false);
     }
+  };
+
+  const forceSendQueued = async ({ id }: { id: string }) => {
+    const queued = queuedFollowUps.find((item) => item.id === id);
+    if (queued === undefined) return;
+    streamOperation.current += 1;
+    abortController.current?.abort();
+    abortController.current = undefined;
+    setQueuedFollowUps((current) => current.filter((item) => item.id !== id));
+    setDraft(queued.text);
+    setFiles(queued.files);
+    setStreaming(false);
+    setTimeout(() => composerForm.current?.requestSubmit());
   };
 
   return (
@@ -388,18 +456,68 @@ export const App = () => {
         </div>
 
         {error !== undefined && <p className="error-message">{error}</p>}
-        <form className="composer" onSubmit={submit}>
+        {queuedFollowUps.length > 0 && (
+          <section className="follow-up-queue">
+            <p>Queued follow-ups</p>
+            {queuedFollowUps.map((queued) => (
+              <div key={queued.id}>
+                <span>{queued.text || `${queued.files.length} attachment(s)`}</span>
+                <button onClick={() => void forceSendQueued({ id: queued.id })} type="button">
+                  Force send
+                </button>
+                <button
+                  aria-label="Remove queued follow-up"
+                  onClick={() =>
+                    setQueuedFollowUps((current) => current.filter((item) => item.id !== queued.id))
+                  }
+                  type="button"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
+        <form className="composer" onSubmit={submit} ref={composerForm}>
+          <label className="attachment-button">
+            Attach
+            <input
+              aria-label="Add attachments"
+              multiple
+              onChange={(event) => {
+                void convertFileListToFileUIParts(event.target.files ?? undefined)
+                  .then((nextFiles) => setFiles((current) => [...current, ...nextFiles]))
+                  .catch(() => setError("Unable to prepare one or more attachments."));
+                event.target.value = "";
+              }}
+              type="file"
+            />
+          </label>
           <textarea
             aria-label="Message"
-            disabled={streaming}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Message Core Chat"
             value={draft}
           />
-          <button disabled={streaming || draft.trim() === ""} type="submit">
-            Send
+          <button disabled={draft.trim() === "" && files.length === 0} type="submit">
+            {streaming ? "Queue" : "Send"}
           </button>
         </form>
+        {files.length > 0 && (
+          <div className="attachment-list">
+            {files.map((file) => (
+              <button
+                key={file.url}
+                onClick={() =>
+                  setFiles((current) => current.filter((item) => item.url !== file.url))
+                }
+                type="button"
+              >
+                {file.filename ?? "Attachment"} ×
+              </button>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

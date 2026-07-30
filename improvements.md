@@ -4,14 +4,14 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 ## P0 — misleading scaffold
 
-- `apps/generic-worker/src/generic.worker.ts` now uses the public core streaming/replay route factory, but still needs branch/action endpoints, settings APIs, and a web asset deployment path.
+- `apps/generic-worker/src/generic.worker.ts` now uses public core streaming/replay and conversation-action route factories, but still needs branch endpoints, settings APIs, and a web asset deployment path.
 - `packages/create-chat-app/src/templates.ts` now produces a working workspace-mode streaming chat, but the fixture must still prove a deployable Worker plus web build as one acceptance flow.
 - Existing generator guardrails forbid copied core source, which conflicts with the requested shadcn-like, user-owned default. Replace this with a versioned owned-source manifest and an explicit workspace-import mode.
 
 ## P0 — core extraction boundaries
 
 - Generic chat lifecycle and memory/title/suggestion orchestration still live under `apps/api/src/core`. Provider streaming, durable generation storage/replay, and protocol helpers now live behind public core exports; move the remaining server services next.
-- Generic browser runtime, state machines, transport, conversation controller, sidebar actions, composer, thread renderer, minimap, and settings still live under `apps/chat`. Extract them before adding new generic UI behavior.
+- Generic browser runtime, state machines, transport, conversation controller, composer, thread renderer, minimap, and settings still live under `apps/chat`. Extract them before adding new generic UI behavior.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
 ## P1 — product contracts and persistence
@@ -25,7 +25,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 - Promote the existing HealthFit conversation features into a core feature matrix with baseline vs optional status; users cannot currently tell what generic chat receives.
 - Make summarization, memory extraction, and provider credentials configurable per app, with safe defaults and clear local/server storage behavior. Generic title generation now accepts optional model and prompt overrides.
-- Define one accessible responsive implementation for sidebar, minimap, message actions, queued follow-ups, and scroll controls rather than leaving them app-local.
+- Extract generic sidebar, queue, attachments, minimap, message actions, and scroll controls into reusable `@emi/core/web` primitives rather than leaving the current generic fixture app-local.
 - Treat PWA offline behavior as a declared capability matrix: cache shell/history/drafts when supported, but show reconnect state for streaming/generation.
 
 ## P2 — developer experience and distribution

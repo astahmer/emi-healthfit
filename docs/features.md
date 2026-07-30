@@ -8,19 +8,19 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 
 The target is a full generic default chat app produced by `create-chat-app`, with source owned by the generated project, plus optional direct `@emi/core` composition. See the plan for scope and delivery phases.
 
-| Capability                          |        HealthFit today |                           Reusable core today |     Generic scaffold target |
-| ----------------------------------- | ---------------------: | --------------------------------------------: | --------------------------: |
-| Composer, attachments, model choice |                    Yes |           Text composer + local model setting |               Core baseline |
-| Streaming, durable chunks, resume   |                    Yes |                     Engine and generic Worker |               Core baseline |
-| Conversations, search, actions      |                    Yes |              Durable create/save + list store |               Core baseline |
-| Branches, compact, start fresh      |                    Yes |                         Contract/tree helpers |               Core baseline |
-| Queue and force-send                |                    Yes |                                            No |               Core baseline |
-| Suggestions and auto title/summary  |                    Yes | Generic auto-title, configurable prompt/model |               Core baseline |
-| Memory extraction and management    |                    Yes |                             Storage/contracts |               Core baseline |
-| Dynamic component foundation        | Yes, HealthFit widgets |                         Contribution registry | Core baseline, generic only |
-| Settings, theme, releases           |                    Yes |                                            No |               Core baseline |
-| PWA/offline                         |                Partial |                                            No |     Progressive enhancement |
-| Health/Hevy data and coaching       |                    Yes |                                            No |                 Flavor-only |
+| Capability                          |        HealthFit today |                                          Reusable core today |     Generic scaffold target |
+| ----------------------------------- | ---------------------: | -----------------------------------------------------------: | --------------------------: |
+| Composer, attachments, model choice |                    Yes |         Generic composer, local settings, inline attachments |               Core baseline |
+| Streaming, durable chunks, resume   |                    Yes |                                    Engine and generic Worker |               Core baseline |
+| Conversations, search, actions      |                    Yes | Generic history, search, rename, pin, archive, clone, delete |               Core baseline |
+| Branches, compact, start fresh      |                    Yes |                                        Contract/tree helpers |               Core baseline |
+| Queue and force-send                |                    Yes |                             Generic web queue and force-send |               Core baseline |
+| Suggestions and auto title/summary  |                    Yes |                Generic auto-title, configurable prompt/model |               Core baseline |
+| Memory extraction and management    |                    Yes |                                            Storage/contracts |               Core baseline |
+| Dynamic component foundation        | Yes, HealthFit widgets |                                        Contribution registry | Core baseline, generic only |
+| Settings, theme, releases           |                    Yes |                                                           No |               Core baseline |
+| PWA/offline                         |                Partial |                                                           No |     Progressive enhancement |
+| Health/Hevy data and coaching       |                    Yes |                                                           No |                 Flavor-only |
 
 ## Chat
 
