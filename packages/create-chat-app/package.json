@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
     "test:file": "node --test --experimental-strip-types",
+    "test:generated": "node --experimental-strip-types scripts/verify-generated-app.mjs",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
     "lint": "oxlint && oxfmt --check",

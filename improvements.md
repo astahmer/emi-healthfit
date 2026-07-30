@@ -5,8 +5,8 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 ## P0 — misleading scaffold
 
 - `apps/generic-worker/src/generic.worker.ts` now uses public core streaming/replay, conversation-action, and branch route factories, but still needs settings APIs and a web asset deployment path.
-- `packages/create-chat-app` now materializes canonical generic fixtures rather than maintaining a second string-template implementation, but the fixture must still prove a deployable Worker plus web build as one acceptance flow.
-- Existing generator guardrails forbid copied core source, which conflicts with the requested shadcn-like, user-owned default. Replace this with a versioned owned-source manifest and an explicit workspace-import mode.
+- `packages/create-chat-app` now emits an owned `core/` workspace by default and retains dependency mode for external core. It still needs a versioned generated-source manifest plus an upgrade command that preserves local edits.
+- `pnpm --dir packages/create-chat-app test:generated` now proves install, typecheck, migration generation/check, and web build. Add local Worker smoke, browser chat smoke, and an Alchemy dry run without requiring production credentials.
 
 ## P0 — core extraction boundaries
 
