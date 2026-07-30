@@ -112,6 +112,8 @@ export const webIndexHtml = (context: TemplateContext): string =>
     "  <head>",
     '    <meta charset="UTF-8" />',
     '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+    '    <meta name="theme-color" content="#23201d" />',
+    '    <link rel="manifest" href="/manifest.webmanifest" />',
     "    <title>" + context.appName + "</title>",
     "  </head>",
     "  <body>",
@@ -120,6 +122,21 @@ export const webIndexHtml = (context: TemplateContext): string =>
     "  </body>",
     "</html>",
   ]);
+
+export const webManifest = (context: TemplateContext): string =>
+  JSON.stringify(
+    {
+      name: context.appName,
+      short_name: context.appName,
+      start_url: "/",
+      display: "standalone",
+      background_color: "#f6f3ed",
+      theme_color: "#23201d",
+      icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
+    },
+    undefined,
+    2,
+  ) + "\n";
 
 export const webAppConfig = (context: TemplateContext): string =>
   lines([

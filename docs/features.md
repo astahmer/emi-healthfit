@@ -19,7 +19,7 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 | Memory extraction and management    |                    Yes | Auto-extraction, compact summary context, searchable manager |               Core baseline |
 | Dynamic component foundation        | Yes, HealthFit widgets |                                        Contribution registry | Core baseline, generic only |
 | Settings, theme, releases           |                    Yes |         Generic persisted theme and configured release notes |               Core baseline |
-| PWA/offline                         |                Partial |                                                           No |     Progressive enhancement |
+| PWA/offline                         |                Partial |                  Installable shell, offline fallback, local drafts | Progressive enhancement |
 | Health/Hevy data and coaching       |                    Yes |                                                           No |                 Flavor-only |
 
 ## Chat
@@ -29,6 +29,7 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 - Conversation history: create, rename, pin, archive, clone, delete, search.
 - Compact a durable conversation into a fresh chat seeded with its model-generated summary.
 - Optional long-term memory: automatically extract durable details from saved replies, summarize them for later context, and search, add, or delete them in the sidebar.
+- Progressive web app shell caches static UI only; APIs are never cached, and drafts survive offline periods locally.
 - Branches / side threads from any persisted message; fork, focus, summarize, discard, restore.
 - Message minimap: user-message previews jump to their turns; top, previous, and bottom controls navigate long chats.
 - Edit and regenerate user turns; stop mid-stream.

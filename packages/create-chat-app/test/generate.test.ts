@@ -21,6 +21,9 @@ describe("buildGeneratedFiles", () => {
       "README.md",
       "web/index.html",
       "web/package.json",
+      "web/public/icon.svg",
+      "web/public/manifest.webmanifest",
+      "web/public/service-worker.js",
       "web/src/app-config.ts",
       "web/src/app.css",
       "web/src/app.tsx",
@@ -83,6 +86,7 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /reconnectToStream/);
     assert.match(app, /Add attachments/);
     assert.match(app, /Search conversations/);
+    assert.match(app, /draft is saved locally/);
     const conversationClient = findFile(files, "web/src/conversation-client.ts").contents;
     assert.match(conversationClient, /validateStoredUIMessages/);
     assert.match(conversationClient, /\/clone/);
@@ -99,6 +103,8 @@ describe("buildGeneratedFiles", () => {
     assert.match(worker, /"PATCH", "\/api\/conversations\/:conversationId"/);
     assert.match(worker, /"POST", "\/api\/conversations\/:conversationId\/threads"/);
     assert.match(worker, /"PATCH",\s+"\/api\/conversations\/:conversationId\/threads\/:threadId"/);
+    assert.match(worker, /"GET", "\/api\/memories"/);
+    assert.match(findFile(files, "web/public/service-worker.js").contents, /cacheName/);
   });
 
   it("copies canonical generic source and renders only app configuration", async () => {

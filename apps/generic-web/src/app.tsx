@@ -44,6 +44,7 @@ export const App = () => {
   const [conversationSearch, setConversationSearch] = useState("");
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryDraft, setMemoryDraft] = useState("");
+  const [online, setOnline] = useState(navigator.onLine);
   const {
     conversationId,
     draft,
@@ -64,6 +65,27 @@ export const App = () => {
     () => localStorage.setItem(genericChatAppConfig.settingsStorageKey, JSON.stringify(settings)),
     [settings],
   );
+  useEffect(() => {
+    const savedDraft = localStorage.getItem(`${genericChatAppConfig.settingsStorageKey}:draft`);
+    if (savedDraft !== null) dispatchSession({ type: "draft-changed", draft: savedDraft });
+  }, []);
+  useEffect(() => {
+    const updateOnlineState = () => setOnline(navigator.onLine);
+    window.addEventListener("online", updateOnlineState);
+    window.addEventListener("offline", updateOnlineState);
+    return () => {
+      window.removeEventListener("online", updateOnlineState);
+      window.removeEventListener("offline", updateOnlineState);
+    };
+  }, []);
+  useEffect(() => {
+    const storageKey = `${genericChatAppConfig.settingsStorageKey}:draft`;
+    if (draft === "") {
+      localStorage.removeItem(storageKey);
+      return;
+    }
+    localStorage.setItem(storageKey, draft);
+  }, [draft]);
 
   const refreshConversations = async ({ search }: { search: string }) => {
     try {
@@ -293,6 +315,13 @@ export const App = () => {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!online) {
+      dispatchSession({
+        type: "error-reported",
+        error: "You are offline. Your draft is saved locally until you reconnect.",
+      });
+      return;
+    }
     const text = draft.trim();
     if (text === "" && files.length === 0) return;
     if (streaming) {
@@ -660,6 +689,9 @@ export const App = () => {
             : conversationId === undefined
               ? "New conversation"
               : conversationId}
+        </p>
+        <p className="muted connection-status">
+          {online ? "Online" : "Offline · draft saved locally"}
         </p>
         <details className="release-notes">
           <summary>Release notes · v{genericChatAppConfig.version}</summary>

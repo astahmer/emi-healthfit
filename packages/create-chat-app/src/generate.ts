@@ -51,6 +51,15 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     { path: ".gitignore", contents: templates.gitignore() },
     { path: "web/package.json", contents: templates.webPackageJson(context) },
     { path: "web/index.html", contents: templates.webIndexHtml(context) },
+    { path: "web/public/manifest.webmanifest", contents: templates.webManifest(context) },
+    {
+      path: "web/public/service-worker.js",
+      contents: genericSourceFile("apps/generic-web/public/service-worker.js"),
+    },
+    {
+      path: "web/public/icon.svg",
+      contents: genericSourceFile("apps/generic-web/public/icon.svg"),
+    },
     {
       path: "web/vite-env.d.ts",
       contents: genericSourceFile("apps/generic-web/vite-env.d.ts"),

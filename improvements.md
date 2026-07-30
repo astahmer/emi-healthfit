@@ -26,7 +26,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 - Promote the existing HealthFit conversation features into a core feature matrix with baseline vs optional status; users cannot currently tell what generic chat receives.
 - Make summarization and provider credentials configurable per app, with safe defaults and clear local/server storage behavior. Generic title generation accepts optional model and prompt overrides; compaction uses the selected chat model, while memory extraction has its own local model setting.
 - Extract generic sidebar, queue, attachments, minimap, message actions, and scroll controls into reusable `@emi/core/web` primitives rather than leaving the current generic fixture app-local.
-- Treat PWA offline behavior as a declared capability matrix: cache shell/history/drafts when supported, but show reconnect state for streaming/generation.
+- Expand PWA behavior from its safe installable shell and local drafts: opt-in encrypted history cache, background sync for safe non-streaming actions, and explicit resume state for interrupted generations.
 
 ## P2 — developer experience and distribution
 
