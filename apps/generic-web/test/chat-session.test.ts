@@ -55,4 +55,20 @@ describe("generic chat session", () => {
     expect(forced.streaming).toBe(false);
     expect(forced.queuedFollowUps).toEqual([]);
   });
+
+  it("switches to a branch without losing its conversation identity", () => {
+    const conversation = reduceChatSession(initialChatSession, {
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message],
+    });
+    const branch = reduceChatSession(conversation, {
+      type: "thread-opened",
+      threadId: "thread-1",
+      messages: [message],
+    });
+
+    expect(branch.conversationId).toBe("conversation-1");
+    expect(branch.threadId).toBe("thread-1");
+  });
 });

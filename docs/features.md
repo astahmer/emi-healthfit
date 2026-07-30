@@ -13,7 +13,7 @@ This repository has a substantial ChatGPT-like product implementation, but it is
 | Composer, attachments, model choice |                    Yes |         Generic composer, local settings, inline attachments |               Core baseline |
 | Streaming, durable chunks, resume   |                    Yes |                     Generic web/Worker and generated starter |               Core baseline |
 | Conversations, search, actions      |                    Yes | Generic history, search, rename, pin, archive, clone, delete |               Core baseline |
-| Branches, compact, start fresh      |                    Yes |              Generic branch routes and contract/tree helpers |               Core baseline |
+| Branches, compact, start fresh      |                    Yes |      Generic branch creation, navigation, stream persistence |               Core baseline |
 | Queue and force-send                |                    Yes |                             Generic web queue and force-send |               Core baseline |
 | Suggestions and auto title/summary  |                    Yes |                Generic auto-title, configurable prompt/model |               Core baseline |
 | Memory extraction and management    |                    Yes |                                            Storage/contracts |               Core baseline |

@@ -24,6 +24,16 @@ describe("chat request", () => {
     assert.equal(decoded.title?.prompt, "Give this chat a compact project name.");
   });
 
+  it("accepts an optional branch thread identifier", () => {
+    const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+      messages: [],
+      config: { provider: "openai", apiKey: "key", model: "chat-model" },
+      threadId: "thread-1",
+    });
+
+    assert.equal(decoded.threadId, "thread-1");
+  });
+
   it("rejects more than ten attachments in one message", () => {
     assert.match(
       validateChatAttachments([

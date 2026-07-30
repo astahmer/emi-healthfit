@@ -14,6 +14,7 @@ import {
 import {
   CurrentUser,
   appendGenerationChunk,
+  addThreadMessage,
   createConversation,
   createGeneration,
   createGenerationReplayStream,
@@ -317,7 +318,24 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
     }
     if (request.method === "GET") {
-      const messages = yield* getThreadMessages(conversationDb, user.id, threadId);
+      const [conversationMessages, branchMessages] = yield* Effect.all([
+        getConversationMessages(conversationDb, user.id, conversationId),
+        getThreadMessages(conversationDb, user.id, threadId),
+      ]);
+      const anchor = conversationMessages.find(
+        (message) => message.id === existing.anchor_message_id,
+      );
+      const contextMessages =
+        anchor === undefined
+          ? []
+          : conversationMessages.filter(
+              (message) => message.parent_id === null && message.created_at <= anchor.created_at,
+            );
+      const messages = [
+        ...new Map(
+          [...contextMessages, ...branchMessages].map((message) => [message.id, message]),
+        ).values(),
+      ].toSorted((left, right) => left.created_at.localeCompare(right.created_at));
       return yield* HttpServerResponse.json({
         thread: threadResponse(existing),
         messages: messages.map(messageResponse),
@@ -404,12 +422,40 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       }
     }
 
+    const thread =
+      temporary || decoded.value.threadId === undefined
+        ? null
+        : yield* getThread(conversationDb, user.id, decoded.value.threadId);
+    if (
+      decoded.value.threadId !== undefined &&
+      (thread === null || thread.conversation_id !== conversationId || thread.status !== "regular")
+    ) {
+      return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
+    }
+
+    const threadMessages =
+      thread === null ? [] : yield* getThreadMessages(conversationDb, user.id, thread.id);
+    const threadParentId = threadMessages.at(-1)?.id ?? thread?.anchor_message_id ?? null;
+
     const lastMessage = messages.at(-1);
     const titleSource = firstUserText(messages);
+    let assistantParentId = threadParentId;
     if (!temporary && lastMessage?.role === "user") {
-      yield* saveConversationMessages(conversationDb, user.id, conversationId, null, [
-        { role: "user", parts: lastMessage.parts },
-      ]);
+      const savedUserIds = yield* saveConversationMessages(
+        conversationDb,
+        user.id,
+        conversationId,
+        threadParentId,
+        [{ role: "user", parts: lastMessage.parts }],
+      );
+      assistantParentId = savedUserIds.at(-1) ?? threadParentId;
+      if (thread !== null) {
+        yield* Effect.forEach(
+          savedUserIds,
+          (messageId) => addThreadMessage(conversationDb, user.id, thread.id, messageId),
+          { discard: true },
+        );
+      }
     }
 
     const generationId = crypto.randomUUID();
@@ -440,8 +486,8 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
             if (temporary) return;
             const parts = buildAssistantParts(event.response?.messages ?? []);
             const assistantParts = parts.length > 0 ? parts : [{ type: "text", text: event.text }];
-            await Effect.runPromiseWith(services)(
-              saveConversationMessages(conversationDb, user.id, conversationId, null, [
+            const savedAssistantIds = await Effect.runPromiseWith(services)(
+              saveConversationMessages(conversationDb, user.id, conversationId, assistantParentId, [
                 {
                   role: "assistant",
                   parts: assistantParts,
@@ -454,6 +500,15 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
                 },
               ]),
             );
+            if (thread !== null) {
+              await Effect.runPromiseWith(services)(
+                Effect.forEach(
+                  savedAssistantIds,
+                  (messageId) => addThreadMessage(conversationDb, user.id, thread.id, messageId),
+                  { discard: true },
+                ),
+              );
+            }
             if (titleSource === undefined) return;
             const conversation = await Effect.runPromiseWith(services)(
               getConversation(conversationDb, user.id, conversationId),

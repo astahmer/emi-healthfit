@@ -8,6 +8,7 @@ export interface QueuedFollowUp {
 
 export interface ChatSession {
   conversationId: string | undefined;
+  threadId: string | undefined;
   messages: UIMessage[];
   draft: string;
   files: FileUIPart[];
@@ -24,6 +25,7 @@ export type ChatSessionAction =
   | { type: "temporary-changed"; temporary: boolean }
   | { type: "fresh-started" }
   | { type: "conversation-opened"; conversationId: string; messages: UIMessage[] }
+  | { type: "thread-opened"; threadId: string; messages: UIMessage[] }
   | { type: "conversation-identified"; conversationId: string }
   | { type: "stream-started"; messages: UIMessage[] }
   | { type: "stream-resumed" }
@@ -36,6 +38,7 @@ export type ChatSessionAction =
 
 export const initialChatSession: ChatSession = {
   conversationId: undefined,
+  threadId: undefined,
   messages: [],
   draft: "",
   files: [],
@@ -73,6 +76,13 @@ export const reduceChatSession = (session: ChatSession, action: ChatSessionActio
       return {
         ...initialChatSession,
         conversationId: action.conversationId,
+        messages: action.messages,
+      };
+    case "thread-opened":
+      return {
+        ...initialChatSession,
+        conversationId: session.conversationId,
+        threadId: action.threadId,
         messages: action.messages,
       };
     case "conversation-identified":

@@ -79,6 +79,31 @@ button {
   background: #1a2946;
   font-size: 0.7rem;
 }
+
+.thread-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.thread-list p {
+  margin: 0;
+  color: #bdb5ab;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.thread-list button {
+  border: 1px solid #405174;
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  color: #dce9ff;
+  background: #1a2946;
+  text-align: left;
+}
+
+.thread-list button.active {
+  border-color: #78a6ff;
+}
 .settings-panel h1,
 .chat-panel h2 {
   margin: 0;
@@ -167,6 +192,16 @@ button {
   letter-spacing: 0.1em;
   margin: 0 0 0.45rem;
   text-transform: uppercase;
+}
+
+.message-branch-button {
+  margin-top: 0.7rem;
+  border: 0;
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  color: #76513b;
+  background: #f0dfd2;
+  font-size: 0.75rem;
 }
 .empty-state {
   color: #766d65;

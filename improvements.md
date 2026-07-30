@@ -11,7 +11,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 ## P0 — core extraction boundaries
 
 - Generic chat lifecycle and memory/title/suggestion orchestration still live under `apps/api/src/core`. Provider streaming, durable generation storage/replay, and protocol helpers now live behind public core exports; move the remaining server services next.
-- Generic browser runtime, state machines, transport, conversation controller, composer, thread renderer, minimap, and settings still live under `apps/chat`. Extract them before adding new generic UI behavior.
+- Generic browser runtime, transport, composer, thread renderer, minimap, and settings still live under `apps/chat`. Generic fixture now has a focused session reducer and basic branch navigation; extract reusable UI primitives before adding more generic behavior.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
 ## P1 — product contracts and persistence

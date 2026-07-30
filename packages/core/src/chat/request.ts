@@ -19,6 +19,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
   ),
   temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
+  threadId: Schema.optional(Schema.String),
   requestId: Schema.optional(Schema.String.check(Schema.isUUID())),
 });
 

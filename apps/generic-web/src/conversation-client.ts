@@ -24,8 +24,24 @@ const ConversationDetailSchema = Schema.Struct({
   conversation: ConversationSchema,
   messages: Schema.Array(ConversationMessageSchema),
 });
+const ThreadSchema = Schema.Struct({
+  id: Schema.String,
+  conversationId: Schema.String,
+  anchorMessageId: Schema.String,
+  title: Schema.NullOr(Schema.String),
+  status: Schema.Literals(["regular", "discarded", "merged"]),
+  pinned: Schema.Boolean,
+  createdAt: Schema.String,
+  updatedAt: Schema.String,
+});
+const ThreadListSchema = Schema.Struct({ threads: Schema.Array(ThreadSchema) });
+const ThreadDetailSchema = Schema.Struct({
+  thread: ThreadSchema,
+  messages: Schema.Array(ConversationMessageSchema),
+});
 
 export type Conversation = typeof ConversationSchema.Type;
+export type ConversationThread = typeof ThreadSchema.Type;
 
 const apiUrl = (path: string): string => `${import.meta.env.VITE_API_ORIGIN ?? ""}${path}`;
 
@@ -38,6 +54,29 @@ const readResponse = async ({ response }: { response: Response }): Promise<unkno
     );
   }
   return payload;
+};
+
+const decodeMessages = async (
+  values: ReadonlyArray<typeof ConversationMessageSchema.Type>,
+): Promise<UIMessage[]> => {
+  const validated = await Promise.all(
+    values.map(async (message) => {
+      if (message.role !== "user" && message.role !== "assistant" && message.role !== "system")
+        return [];
+      const parts = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(
+        message.parts,
+      );
+      if (Option.isNone(parts)) return [];
+      try {
+        return await validateStoredUIMessages([
+          { id: message.id, role: message.role, parts: parts.value },
+        ]);
+      } catch {
+        return [];
+      }
+    }),
+  );
+  return validated.flat();
 };
 
 export const listConversations = async ({
@@ -60,24 +99,7 @@ export const loadConversation = async ({
   const response = await fetch(apiUrl(`/api/conversations/${conversationId}`));
   const payload = await readResponse({ response });
   const decoded = Schema.decodeUnknownSync(ConversationDetailSchema)(payload);
-  const validated = await Promise.all(
-    decoded.messages.map(async (message) => {
-      if (message.role !== "user" && message.role !== "assistant" && message.role !== "system")
-        return [];
-      const parts = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(
-        message.parts,
-      );
-      if (Option.isNone(parts)) return [];
-      try {
-        return await validateStoredUIMessages([
-          { id: message.id, role: message.role, parts: parts.value },
-        ]);
-      } catch {
-        return [];
-      }
-    }),
-  );
-  const messages = validated.flat();
+  const messages = await decodeMessages(decoded.messages);
   return { conversation: decoded.conversation, messages };
 };
 
@@ -125,4 +147,43 @@ export const cloneConversation = async ({
     payload,
   );
   return decoded.conversation;
+};
+
+export const listThreads = async ({
+  conversationId,
+}: {
+  conversationId: string;
+}): Promise<ConversationThread[]> => {
+  const response = await fetch(apiUrl(`/api/conversations/${conversationId}/threads`));
+  const payload = await readResponse({ response });
+  return [...Schema.decodeUnknownSync(ThreadListSchema)(payload).threads];
+};
+
+export const createThread = async ({
+  conversationId,
+  anchorMessageId,
+}: {
+  conversationId: string;
+  anchorMessageId: string;
+}): Promise<ConversationThread> => {
+  const response = await fetch(apiUrl(`/api/conversations/${conversationId}/threads`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ anchorMessageId }),
+  });
+  const payload = await readResponse({ response });
+  return Schema.decodeUnknownSync(Schema.Struct({ thread: ThreadSchema }))(payload).thread;
+};
+
+export const loadThread = async ({
+  conversationId,
+  threadId,
+}: {
+  conversationId: string;
+  threadId: string;
+}): Promise<{ thread: ConversationThread; messages: UIMessage[] }> => {
+  const response = await fetch(apiUrl(`/api/conversations/${conversationId}/threads/${threadId}`));
+  const payload = await readResponse({ response });
+  const decoded = Schema.decodeUnknownSync(ThreadDetailSchema)(payload);
+  return { thread: decoded.thread, messages: await decodeMessages(decoded.messages) };
 };

@@ -11,11 +11,15 @@ import { initialChatSession, reduceChatSession } from "./chat-session.ts";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 import {
   cloneConversation,
+  createThread,
   deleteConversation,
   listConversations,
+  listThreads,
   loadConversation,
+  loadThread,
   updateConversation,
   type Conversation,
+  type ConversationThread,
 } from "./conversation-client.ts";
 
 const messageText = (message: UIMessage): string =>
@@ -28,9 +32,19 @@ export const App = () => {
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
   const [session, dispatchSession] = useReducer(reduceChatSession, initialChatSession);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [conversationSearch, setConversationSearch] = useState("");
-  const { conversationId, draft, error, files, messages, queuedFollowUps, streaming, temporary } =
-    session;
+  const {
+    conversationId,
+    draft,
+    error,
+    files,
+    messages,
+    queuedFollowUps,
+    streaming,
+    temporary,
+    threadId,
+  } = session;
 
   useEffect(
     () => setSettings(readChatSettings({ storageKey: genericChatAppConfig.settingsStorageKey })),
@@ -49,6 +63,14 @@ export const App = () => {
     }
   };
 
+  const refreshThreads = async ({ conversationId }: { conversationId: string }) => {
+    try {
+      setThreads(await listThreads({ conversationId }));
+    } catch {
+      setThreads([]);
+    }
+  };
+
   useEffect(() => {
     void refreshConversations({ search: "" });
   }, []);
@@ -62,6 +84,7 @@ export const App = () => {
     abortController.current?.abort();
     abortController.current = undefined;
     dispatchSession({ type: "fresh-started" });
+    setThreads([]);
   };
 
   const consumeStream = async ({
@@ -109,11 +132,43 @@ export const App = () => {
         conversationId: loaded.conversation.id,
         messages: loaded.messages,
       });
+      void refreshThreads({ conversationId: loaded.conversation.id });
       void resumeConversation({ id });
     } catch (cause) {
       dispatchSession({
         type: "error-reported",
         error: cause instanceof Error ? cause.message : "Unable to load this conversation.",
+      });
+    }
+  };
+
+  const openThread = async ({ id }: { id: string }) => {
+    if (conversationId === undefined) return;
+    try {
+      const loaded = await loadThread({ conversationId, threadId: id });
+      dispatchSession({
+        type: "thread-opened",
+        threadId: loaded.thread.id,
+        messages: loaded.messages,
+      });
+    } catch (cause) {
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to load this branch.",
+      });
+    }
+  };
+
+  const branchFromMessage = async ({ messageId }: { messageId: string }) => {
+    if (conversationId === undefined || temporary) return;
+    try {
+      const thread = await createThread({ conversationId, anchorMessageId: messageId });
+      await refreshThreads({ conversationId });
+      await openThread({ id: thread.id });
+    } catch (cause) {
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to create this branch.",
       });
     }
   };
@@ -193,6 +248,7 @@ export const App = () => {
         abortSignal: controller.signal,
         body: {
           sessionId: conversationId,
+          ...(threadId === undefined ? {} : { threadId }),
           temporary,
           system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
           config: {
@@ -349,6 +405,21 @@ export const App = () => {
             </article>
           ))}
         </div>
+        {conversationId !== undefined && threads.length > 0 && (
+          <section className="thread-list">
+            <p>Branches</p>
+            {threads.map((thread) => (
+              <button
+                className={thread.id === threadId ? "active" : undefined}
+                key={thread.id}
+                onClick={() => void openThread({ id: thread.id })}
+                type="button"
+              >
+                {thread.title || "Branch"}
+              </button>
+            ))}
+          </section>
+        )}
         <label>
           API key
           <input
@@ -425,7 +496,13 @@ export const App = () => {
         <header>
           <div>
             <p className="eyebrow">{temporary ? "TEMPORARY" : "CONVERSATION"}</p>
-            <h2>{messages.length === 0 ? "How can I help?" : genericChatAppConfig.name}</h2>
+            <h2>
+              {messages.length === 0
+                ? "How can I help?"
+                : threadId === undefined
+                  ? genericChatAppConfig.name
+                  : "Branch"}
+            </h2>
           </div>
           {streaming && (
             <button
@@ -451,6 +528,15 @@ export const App = () => {
                   {messageText(message) ||
                     (message.role === "assistant" && streaming ? "Thinking…" : "")}
                 </div>
+                {conversationId !== undefined && !temporary && (
+                  <button
+                    className="message-branch-button"
+                    onClick={() => void branchFromMessage({ messageId: message.id })}
+                    type="button"
+                  >
+                    Branch here
+                  </button>
+                )}
               </article>
             ))
           )}
