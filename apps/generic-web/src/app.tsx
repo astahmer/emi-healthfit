@@ -2,12 +2,12 @@ import {
   convertFileListToFileUIParts,
   DefaultChatTransport,
   readUIMessageStream,
-  type FileUIPart,
   type UIMessage,
 } from "ai";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useReducer, useRef, useState } from "react";
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
+import { initialChatSession, reduceChatSession } from "./chat-session.ts";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 import {
   cloneConversation,
@@ -21,35 +21,16 @@ import {
 const messageText = (message: UIMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
-const replaceMessage = ({
-  messages,
-  message,
-}: {
-  messages: UIMessage[];
-  message: UIMessage;
-}): UIMessage[] => {
-  const index = messages.findIndex((candidate) => candidate.id === message.id);
-  if (index < 0) return [...messages, message];
-  return [...messages.slice(0, index), message, ...messages.slice(index + 1)];
-};
-
 export const App = () => {
   const abortController = useRef<AbortController | undefined>(undefined);
   const composerForm = useRef<HTMLFormElement | null>(null);
   const streamOperation = useRef(0);
   const [settings, setSettings] = useState<ChatSettings>(defaultChatSettings);
-  const [messages, setMessages] = useState<UIMessage[]>([]);
-  const [draft, setDraft] = useState("");
-  const [conversationId, setConversationId] = useState<string>();
+  const [session, dispatchSession] = useReducer(reduceChatSession, initialChatSession);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationSearch, setConversationSearch] = useState("");
-  const [queuedFollowUps, setQueuedFollowUps] = useState<
-    Array<{ id: string; text: string; files: FileUIPart[] }>
-  >([]);
-  const [files, setFiles] = useState<FileUIPart[]>([]);
-  const [temporary, setTemporary] = useState(false);
-  const [streaming, setStreaming] = useState(false);
-  const [error, setError] = useState<string>();
+  const { conversationId, draft, error, files, messages, queuedFollowUps, streaming, temporary } =
+    session;
 
   useEffect(
     () => setSettings(readChatSettings({ storageKey: genericChatAppConfig.settingsStorageKey })),
@@ -80,13 +61,7 @@ export const App = () => {
     streamOperation.current += 1;
     abortController.current?.abort();
     abortController.current = undefined;
-    setConversationId(undefined);
-    setMessages([]);
-    setDraft("");
-    setError(undefined);
-    setStreaming(false);
-    setQueuedFollowUps([]);
-    setFiles([]);
+    dispatchSession({ type: "fresh-started" });
   };
 
   const consumeStream = async ({
@@ -102,14 +77,14 @@ export const App = () => {
   }) => {
     for await (const streamedMessage of readUIMessageStream({ stream, terminateOnError: true })) {
       if (operation !== streamOperation.current) return;
-      setMessages((current) => replaceMessage({ messages: current, message: streamedMessage }));
+      dispatchSession({ type: "stream-message", message: streamedMessage });
     }
   };
 
   const resumeConversation = async ({ id }: { id: string }) => {
     const operation = streamOperation.current + 1;
     streamOperation.current = operation;
-    setStreaming(true);
+    dispatchSession({ type: "stream-resumed" });
     try {
       const transport = new DefaultChatTransport<UIMessage>({
         api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
@@ -118,22 +93,28 @@ export const App = () => {
       if (stream === null) return;
       await consumeStream({ operation, stream });
     } catch {
-      if (operation === streamOperation.current) setError("Unable to resume this conversation.");
+      if (operation === streamOperation.current) {
+        dispatchSession({ type: "error-reported", error: "Unable to resume this conversation." });
+      }
     } finally {
-      if (operation === streamOperation.current) setStreaming(false);
+      if (operation === streamOperation.current) dispatchSession({ type: "stream-finished" });
     }
   };
 
   const openConversation = async ({ id }: { id: string }) => {
     try {
       const loaded = await loadConversation({ conversationId: id });
-      setConversationId(loaded.conversation.id);
-      setMessages(loaded.messages);
-      setTemporary(false);
-      setError(undefined);
+      dispatchSession({
+        type: "conversation-opened",
+        conversationId: loaded.conversation.id,
+        messages: loaded.messages,
+      });
       void resumeConversation({ id });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load this conversation.");
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to load this conversation.",
+      });
     }
   };
 
@@ -150,7 +131,10 @@ export const App = () => {
         current.map((conversation) => (conversation.id === updated.id ? updated : conversation)),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to update this conversation.");
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to update this conversation.",
+      });
     }
   };
 
@@ -159,13 +143,17 @@ export const App = () => {
     const text = draft.trim();
     if (text === "" && files.length === 0) return;
     if (streaming) {
-      setQueuedFollowUps((current) => [...current, { id: crypto.randomUUID(), text, files }]);
-      setDraft("");
-      setFiles([]);
+      dispatchSession({
+        type: "follow-up-queued",
+        followUp: { id: crypto.randomUUID(), text, files },
+      });
       return;
     }
     if (settings.apiKey.trim() === "") {
-      setError("Add an API key in settings before sending a message.");
+      dispatchSession({
+        type: "error-reported",
+        error: "Add an API key in settings before sending a message.",
+      });
       return;
     }
 
@@ -179,11 +167,7 @@ export const App = () => {
     const operation = streamOperation.current + 1;
     streamOperation.current = operation;
     abortController.current = controller;
-    setMessages(nextMessages);
-    setDraft("");
-    setFiles([]);
-    setError(undefined);
-    setStreaming(true);
+    dispatchSession({ type: "stream-started", messages: nextMessages });
 
     try {
       const transport = new DefaultChatTransport<UIMessage>({
@@ -192,7 +176,10 @@ export const App = () => {
           const response = await fetch(input, init);
           const returnedConversationId = response.headers.get("x-conversation-id");
           if (returnedConversationId !== null) {
-            setConversationId(returnedConversationId);
+            dispatchSession({
+              type: "conversation-identified",
+              conversationId: returnedConversationId,
+            });
             void refreshConversations({ search: conversationSearch });
           }
           return response;
@@ -223,23 +210,22 @@ export const App = () => {
       await consumeStream({ operation, stream });
     } catch (cause) {
       if (controller.signal.aborted || operation !== streamOperation.current) return;
-      setError(cause instanceof Error ? cause.message : "Unable to complete this chat request.");
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to complete this chat request.",
+      });
     } finally {
       if (abortController.current === controller) abortController.current = undefined;
-      if (operation === streamOperation.current) setStreaming(false);
+      if (operation === streamOperation.current) dispatchSession({ type: "stream-finished" });
     }
   };
 
-  const forceSendQueued = async ({ id }: { id: string }) => {
-    const queued = queuedFollowUps.find((item) => item.id === id);
-    if (queued === undefined) return;
+  const forceSendQueued = ({ id }: { id: string }) => {
+    if (!queuedFollowUps.some((item) => item.id === id)) return;
     streamOperation.current += 1;
     abortController.current?.abort();
     abortController.current = undefined;
-    setQueuedFollowUps((current) => current.filter((item) => item.id !== id));
-    setDraft(queued.text);
-    setFiles(queued.files);
-    setStreaming(false);
+    dispatchSession({ type: "queued-follow-up-forced", id });
     setTimeout(() => composerForm.current?.requestSubmit());
   };
 
@@ -314,7 +300,12 @@ export const App = () => {
                         setConversations((current) => [cloned, ...current]);
                         void openConversation({ id: cloned.id });
                       })
-                      .catch(() => setError("Unable to clone this conversation."));
+                      .catch(() =>
+                        dispatchSession({
+                          type: "error-reported",
+                          error: "Unable to clone this conversation.",
+                        }),
+                      );
                   }}
                   type="button"
                 >
@@ -343,7 +334,12 @@ export const App = () => {
                         );
                         if (conversation.id === conversationId) startFresh();
                       })
-                      .catch(() => setError("Unable to delete this conversation."));
+                      .catch(() =>
+                        dispatchSession({
+                          type: "error-reported",
+                          error: "Unable to delete this conversation.",
+                        }),
+                      );
                   }}
                   type="button"
                 >
@@ -409,7 +405,7 @@ export const App = () => {
           <input
             checked={temporary}
             onChange={(event) => {
-              setTemporary(event.target.checked);
+              dispatchSession({ type: "temporary-changed", temporary: event.target.checked });
               startFresh();
             }}
             type="checkbox"
@@ -473,7 +469,7 @@ export const App = () => {
                 <button
                   aria-label="Remove queued follow-up"
                   onClick={() =>
-                    setQueuedFollowUps((current) => current.filter((item) => item.id !== queued.id))
+                    dispatchSession({ type: "queued-follow-up-removed", id: queued.id })
                   }
                   type="button"
                 >
@@ -491,8 +487,13 @@ export const App = () => {
               multiple
               onChange={(event) => {
                 void convertFileListToFileUIParts(event.target.files ?? undefined)
-                  .then((nextFiles) => setFiles((current) => [...current, ...nextFiles]))
-                  .catch(() => setError("Unable to prepare one or more attachments."));
+                  .then((nextFiles) => dispatchSession({ type: "files-added", files: nextFiles }))
+                  .catch(() =>
+                    dispatchSession({
+                      type: "error-reported",
+                      error: "Unable to prepare one or more attachments.",
+                    }),
+                  );
                 event.target.value = "";
               }}
               type="file"
@@ -500,7 +501,9 @@ export const App = () => {
           </label>
           <textarea
             aria-label="Message"
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) =>
+              dispatchSession({ type: "draft-changed", draft: event.target.value })
+            }
             placeholder={`Message ${genericChatAppConfig.name}`}
             value={draft}
           />
@@ -514,7 +517,10 @@ export const App = () => {
               <button
                 key={file.url}
                 onClick={() =>
-                  setFiles((current) => current.filter((item) => item.url !== file.url))
+                  dispatchSession({
+                    type: "files-changed",
+                    files: files.filter((item) => item.url !== file.url),
+                  })
                 }
                 type="button"
               >

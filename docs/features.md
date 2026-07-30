@@ -6,7 +6,7 @@ What Emi HealthFit offers today, plus status of reusable chat-platform work. How
 
 This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, provider streaming, durable generation/replay, generic Cloudflare route factories, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. `apps/generic-web` and `create-chat-app` now provide interactive BYOK chat with durable history/actions, stream reconnection, queued follow-ups, and attachments; most advanced chat behavior remains in the HealthFit web and API applications.
 
-The target is a full generic default chat app produced by `create-chat-app`, with source owned by the generated project, plus optional direct `@emi/core` composition. See the plan for scope and delivery phases.
+`create-chat-app` materializes the canonical `apps/generic-web` and `apps/generic-worker` source files, then generates only app configuration and package metadata. Generated projects own those copied fixture files while importing reusable primitives from `@emi/core`. See the plan for scope and delivery phases.
 
 | Capability                          |        HealthFit today |                                          Reusable core today |     Generic scaffold target |
 | ----------------------------------- | ---------------------: | -----------------------------------------------------------: | --------------------------: |

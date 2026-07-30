@@ -24,6 +24,7 @@ describe("buildGeneratedFiles", () => {
       "web/src/app-config.ts",
       "web/src/app.css",
       "web/src/app.tsx",
+      "web/src/chat-session.ts",
       "web/src/chat-settings.ts",
       "web/src/conversation-client.ts",
       "web/src/main.tsx",
@@ -105,6 +106,10 @@ describe("buildGeneratedFiles", () => {
     const sourceFiles = [
       { generatedPath: "web/src/app.tsx", sourcePath: "../../../apps/generic-web/src/app.tsx" },
       { generatedPath: "web/src/app.css", sourcePath: "../../../apps/generic-web/src/app.css" },
+      {
+        generatedPath: "web/src/chat-session.ts",
+        sourcePath: "../../../apps/generic-web/src/chat-session.ts",
+      },
       {
         generatedPath: "web/src/conversation-client.ts",
         sourcePath: "../../../apps/generic-web/src/conversation-client.ts",
