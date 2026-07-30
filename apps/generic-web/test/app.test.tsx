@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { App } from "../src/app.tsx";
 
 describe("App", () => {
-  it("renders the generic core chat shell smoke page", () => {
+  it("renders a usable generic chat composer and local provider settings", () => {
     render(<App />);
-    expect(screen.getByRole("heading", { name: "Generic Core Chat" })).toBeInTheDocument();
-    expect(screen.getByTestId("smoke-note")).toHaveTextContent(
-      "Generic core chat shell is running.",
-    );
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("heading", { name: "Core Chat" })).toBeInTheDocument();
+    expect(screen.getByLabelText("API key")).toBeInTheDocument();
+    expect(screen.getByLabelText("Default model")).toHaveValue("gpt-4o-mini");
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 });
