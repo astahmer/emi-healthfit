@@ -22,5 +22,7 @@ describe("generic-worker session auth", () => {
     assert.match(source, /AuthDatabaseSchema/);
     assert.match(source, /chatGenerations/);
     assert.match(source, /chatGenerationChunks/);
+    assert.match(source, /memories/);
+    assert.match(source, /memorySummaries/);
   });
 });

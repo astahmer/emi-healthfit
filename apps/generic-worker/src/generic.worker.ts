@@ -16,12 +16,13 @@ import {
   isGenericProtectedPath,
   type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
+  type MemoryDatabaseSchema,
 } from "@emi/core/server";
 import { genericWorkerAppConfig } from "./app-config.ts";
 
 const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName);
 
-type GenericDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema;
+type GenericDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema & MemoryDatabaseSchema;
 
 export class GenericWorker extends Cloudflare.Worker<GenericWorker, {}>()("GenericWorker") {}
 
@@ -45,7 +46,9 @@ export default GenericWorker.make(
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const router = yield* HttpRouter.make;
     const routes = makeGenericChatRoutes({
-      db: db as unknown as CloudflareQueryDatabaseClient<ConversationDatabaseSchema>,
+      db: db as unknown as CloudflareQueryDatabaseClient<
+        ConversationDatabaseSchema & MemoryDatabaseSchema
+      >,
     });
     yield* Effect.gen(function* () {
       yield* router.add("GET", "/api/health", () =>
@@ -58,6 +61,9 @@ export default GenericWorker.make(
       yield* router.add("DELETE", "/api/conversations/:conversationId", routes.conversation);
       yield* router.add("POST", "/api/conversations/:conversationId/clone", routes.clone);
       yield* router.add("POST", "/api/conversations/:conversationId/compact", routes.compact);
+      yield* router.add("GET", "/api/memories", routes.memories);
+      yield* router.add("POST", "/api/memories", routes.memories);
+      yield* router.add("DELETE", "/api/memories/:memoryId", routes.memory);
       yield* router.add("GET", "/api/conversations/:conversationId/threads", routes.threads);
       yield* router.add("POST", "/api/conversations/:conversationId/threads", routes.threads);
       yield* router.add(

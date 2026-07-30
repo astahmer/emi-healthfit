@@ -38,6 +38,17 @@ describe("chat request", () => {
     assert.equal(decoded.threadId, "thread-1");
   });
 
+  it("accepts memory controls with an optional extraction model", () => {
+    const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+      messages: [],
+      config: { provider: "openai", apiKey: "key", model: "chat-model" },
+      memory: { enabled: true, model: "memory-model" },
+    });
+
+    assert.equal(decoded.memory?.enabled, true);
+    assert.equal(decoded.memory?.model, "memory-model");
+  });
+
   it("shares the configured model shape with conversation compaction", () => {
     const decoded = Schema.decodeUnknownSync(CompactConversationRequestSchema)({
       config: {

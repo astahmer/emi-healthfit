@@ -13,6 +13,11 @@ export const CompactConversationRequestSchema = Schema.Struct({
   config: ChatModelConfigurationSchema,
 });
 
+export const ChatMemoryRequestSchema = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+});
+
 export const ChatStreamRequestSchema = Schema.Struct({
   messages: Schema.mutable(Schema.Array(Schema.Unknown)),
   system: Schema.optional(Schema.String),
@@ -23,6 +28,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
       prompt: Schema.optional(Schema.String),
     }),
   ),
+  memory: Schema.optional(ChatMemoryRequestSchema),
   temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
   threadId: Schema.optional(Schema.String),

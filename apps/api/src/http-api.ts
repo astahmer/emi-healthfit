@@ -72,7 +72,7 @@ const notesHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const memoriesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  const notesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
   return HttpApiBuilder.group(EmiApi, "notes", (handlers) =>
     handlers
       .handle(
@@ -82,8 +82,8 @@ const notesHandlers = ({
           const limit = query.limit ?? 100;
           const notes =
             query.search === undefined
-              ? yield* getNotes(memoriesDb, user.id, limit)
-              : yield* searchNotes(memoriesDb, user.id, query.search, limit);
+              ? yield* getNotes(notesDb, user.id, limit)
+              : yield* searchNotes(notesDb, user.id, query.search, limit);
           return { notes: notes.map(toApiNote) };
         }, Effect.provide(runtimeContext)),
       )
@@ -91,7 +91,7 @@ const notesHandlers = ({
         "create",
         Effect.fn("httpApi.notes.create")(function* ({ payload }) {
           const user = yield* CurrentUser;
-          const id = yield* insertNote(memoriesDb, user.id, payload.content);
+          const id = yield* insertNote(notesDb, user.id, payload.content);
           return { id: requireIdentifier(id) };
         }, Effect.provide(runtimeContext)),
       )
@@ -99,7 +99,7 @@ const notesHandlers = ({
         "update",
         Effect.fn("httpApi.notes.update")(function* ({ params, payload }) {
           const user = yield* CurrentUser;
-          yield* updateNote(memoriesDb, user.id, params.id, payload.content);
+          yield* updateNote(notesDb, user.id, params.id, payload.content);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       )
@@ -107,7 +107,7 @@ const notesHandlers = ({
         "remove",
         Effect.fn("httpApi.notes.remove")(function* ({ params }) {
           const user = yield* CurrentUser;
-          yield* deleteNote(memoriesDb, user.id, params.id);
+          yield* deleteNote(notesDb, user.id, params.id);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
       ),

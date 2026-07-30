@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import { runTransaction, type QueryDatabaseClient } from "./query-database.ts";
 import type { MemoryDatabaseSchema } from "./schema.ts";
 
-type MemoriesDb = QueryDatabaseClient<MemoryDatabaseSchema>;
+type MemoriesDb<Environment = never> = QueryDatabaseClient<MemoryDatabaseSchema, Environment>;
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -21,7 +21,11 @@ export interface MemoryInput {
 const persistedSource = ({ source, messageId }: MemoryInput): string | null =>
   messageId === undefined ? (source ?? null) : `${source ?? "manual"}:${messageId}`;
 
-export const insertMemories = (db: MemoriesDb, userId: string, inputs: MemoryInput[]) =>
+export const insertMemories = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  inputs: MemoryInput[],
+) =>
   Effect.gen(function* () {
     const unique = new Map<string, MemoryInput>();
     for (const input of inputs) {
@@ -57,8 +61,8 @@ export const insertMemories = (db: MemoriesDb, userId: string, inputs: MemoryInp
     return inserted.map((memory) => memory.id);
   });
 
-export const insertMemory = (
-  db: MemoriesDb,
+export const insertMemory = <Environment>(
+  db: MemoriesDb<Environment>,
   userId: string,
   content: string,
   source?: string,
@@ -95,8 +99,8 @@ const toMemorySearchResult = (row: MemorySearchRow): MemorySearchResult => ({
   rank: row.rank ?? 0,
 });
 
-export const searchMemories = (
-  db: MemoriesDb,
+export const searchMemories = <Environment>(
+  db: MemoriesDb<Environment>,
   userId: string,
   query: string,
   options: { limit?: number } = {},
@@ -157,7 +161,11 @@ export const searchMemories = (
     return result.map(toMemorySearchResult);
   });
 
-export const getMemories = (db: MemoriesDb, userId: string, options: { limit?: number } = {}) =>
+export const getMemories = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  options: { limit?: number } = {},
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     return yield* Effect.promise(() =>
@@ -171,7 +179,7 @@ export const getMemories = (db: MemoriesDb, userId: string, options: { limit?: n
     );
   });
 
-export const getMemorySummary = (db: MemoriesDb, userId: string) =>
+export const getMemorySummary = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     return yield* Effect.promise(() =>
@@ -183,8 +191,8 @@ export const getMemorySummary = (db: MemoriesDb, userId: string) =>
     );
   });
 
-export const upsertMemorySummary = (
-  db: MemoriesDb,
+export const upsertMemorySummary = <Environment>(
+  db: MemoriesDb<Environment>,
   userId: string,
   content: string,
   memoryCount: number,
@@ -212,7 +220,11 @@ export const upsertMemorySummary = (
     );
   });
 
-export const listMemoryIdsForMessage = (db: MemoriesDb, userId: string, messageId: string) =>
+export const listMemoryIdsForMessage = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  messageId: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -226,7 +238,11 @@ export const listMemoryIdsForMessage = (db: MemoriesDb, userId: string, messageI
     return result.map((row) => row.id);
   });
 
-export const deleteMemory = (db: MemoriesDb, userId: string, id: string) =>
+export const deleteMemory = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  id: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* runTransaction(db, [
@@ -235,7 +251,11 @@ export const deleteMemory = (db: MemoriesDb, userId: string, id: string) =>
     ]);
   });
 
-export const deleteMemoriesByMessage = (db: MemoriesDb, userId: string, messageId: string) =>
+export const deleteMemoriesByMessage = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  messageId: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* runTransaction(db, [
@@ -247,7 +267,11 @@ export const deleteMemoriesByMessage = (db: MemoriesDb, userId: string, messageI
     ]);
   });
 
-export const insertNote = (db: MemoriesDb, userId: string, content: string) =>
+export const insertNote = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  content: string,
+) =>
   Effect.gen(function* () {
     const trimmed = content.trim();
     if (trimmed === "") return null;
@@ -271,7 +295,12 @@ export const insertNote = (db: MemoriesDb, userId: string, content: string) =>
     return id;
   });
 
-export const updateNote = (db: MemoriesDb, userId: string, id: string, content: string) =>
+export const updateNote = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  id: string,
+  content: string,
+) =>
   Effect.gen(function* () {
     const trimmed = content.trim();
     if (trimmed === "") return;
@@ -287,7 +316,7 @@ export const updateNote = (db: MemoriesDb, userId: string, id: string, content: 
     );
   });
 
-export const deleteNote = (db: MemoriesDb, userId: string, id: string) =>
+export const deleteNote = <Environment>(db: MemoriesDb<Environment>, userId: string, id: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* Effect.promise(() =>
@@ -295,7 +324,7 @@ export const deleteNote = (db: MemoriesDb, userId: string, id: string) =>
     );
   });
 
-export const getNotes = (db: MemoriesDb, userId: string, limit = 100) =>
+export const getNotes = <Environment>(db: MemoriesDb<Environment>, userId: string, limit = 100) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     return yield* Effect.promise(() =>
@@ -309,7 +338,12 @@ export const getNotes = (db: MemoriesDb, userId: string, limit = 100) =>
     );
   });
 
-export const searchNotes = (db: MemoriesDb, userId: string, query: string, limit = 10) =>
+export const searchNotes = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  query: string,
+  limit = 10,
+) =>
   Effect.gen(function* () {
     const term = query.trim();
     if (term === "") return yield* getNotes(db, userId, limit);

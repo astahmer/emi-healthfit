@@ -12,15 +12,19 @@ import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat
 import {
   cloneConversation,
   compactConversation,
+  createMemory,
   createThread,
   deleteConversation,
+  deleteMemory,
   listConversations,
+  listMemories,
   listThreads,
   loadConversation,
   loadThread,
   updateConversation,
   type Conversation,
   type ConversationThread,
+  type Memory,
 } from "./conversation-client.ts";
 
 const messageText = (message: UIMessage): string =>
@@ -36,7 +40,10 @@ export const App = () => {
   const [session, dispatchSession] = useReducer(reduceChatSession, initialChatSession);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [threads, setThreads] = useState<ConversationThread[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
   const [conversationSearch, setConversationSearch] = useState("");
+  const [memorySearch, setMemorySearch] = useState("");
+  const [memoryDraft, setMemoryDraft] = useState("");
   const {
     conversationId,
     draft,
@@ -74,8 +81,19 @@ export const App = () => {
     }
   };
 
+  const refreshMemories = async ({ search }: { search: string }) => {
+    try {
+      setMemories(await listMemories({ search }));
+    } catch {
+      setMemories([]);
+    }
+  };
+
   useEffect(() => {
     void refreshConversations({ search: "" });
+  }, []);
+  useEffect(() => {
+    void refreshMemories({ search: "" });
   }, []);
 
   const updateSettings = (patch: Partial<ChatSettings>) => {
@@ -246,6 +264,33 @@ export const App = () => {
     }
   };
 
+  const createMemoryAction = async () => {
+    const content = memoryDraft.trim();
+    if (content === "") return;
+    try {
+      await createMemory({ content });
+      setMemoryDraft("");
+      await refreshMemories({ search: memorySearch });
+    } catch (cause) {
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to save this memory.",
+      });
+    }
+  };
+
+  const deleteMemoryAction = async ({ id }: { id: string }) => {
+    try {
+      await deleteMemory({ memoryId: id });
+      setMemories((current) => current.filter((memory) => memory.id !== id));
+    } catch (cause) {
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to delete this memory.",
+      });
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
@@ -309,6 +354,10 @@ export const App = () => {
             apiKey: settings.apiKey,
             ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
             model: settings.model,
+          },
+          memory: {
+            enabled: settings.memoryEnabled,
+            ...(settings.memoryModel === "" ? {} : { model: settings.memoryModel }),
           },
           title: {
             ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
@@ -480,6 +529,40 @@ export const App = () => {
             ))}
           </section>
         )}
+        <details className="memory-panel">
+          <summary>Memories</summary>
+          <label>
+            Search memories
+            <input
+              onChange={(event) => {
+                const search = event.target.value;
+                setMemorySearch(search);
+                void refreshMemories({ search });
+              }}
+              placeholder="Search saved details"
+              value={memorySearch}
+            />
+          </label>
+          <textarea
+            onChange={(event) => setMemoryDraft(event.target.value)}
+            placeholder="Save a detail for future chats"
+            rows={2}
+            value={memoryDraft}
+          />
+          <button disabled={memoryDraft.trim() === ""} onClick={createMemoryAction} type="button">
+            Save memory
+          </button>
+          <div className="memory-list">
+            {memories.map((memory) => (
+              <div key={memory.id}>
+                <span>{memory.content}</span>
+                <button onClick={() => void deleteMemoryAction({ id: memory.id })} type="button">
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </details>
         <label>
           Theme
           <select
@@ -542,6 +625,22 @@ export const App = () => {
             placeholder="Optional instructions for automatic conversation titles"
             rows={2}
             value={settings.titlePrompt}
+          />
+        </label>
+        <label className="toggle">
+          <input
+            checked={settings.memoryEnabled}
+            onChange={(event) => updateSettings({ memoryEnabled: event.target.checked })}
+            type="checkbox"
+          />
+          Remember useful details from replies
+        </label>
+        <label>
+          Memory model
+          <input
+            onChange={(event) => updateSettings({ memoryModel: event.target.value })}
+            placeholder="gpt-4o-mini"
+            value={settings.memoryModel}
           />
         </label>
         <label className="toggle">

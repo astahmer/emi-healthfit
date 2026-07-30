@@ -132,6 +132,53 @@ button {
 .thread-list button.active {
   border-color: #78a6ff;
 }
+
+.memory-panel {
+  display: grid;
+  gap: 0.6rem;
+  color: #d9d2c9;
+  font-size: 0.8rem;
+}
+
+.memory-panel > label {
+  display: grid;
+}
+
+.memory-panel textarea {
+  border: 1px solid #625a50;
+  border-radius: 0.5rem;
+  padding: 0.55rem;
+  color: inherit;
+  background: #322e29;
+  resize: vertical;
+}
+
+.memory-panel > button,
+.memory-list button {
+  border: 0;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  color: #dce9ff;
+  background: #1a2946;
+}
+
+.memory-list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.memory-list div {
+  display: flex;
+  align-items: start;
+  gap: 0.4rem;
+}
+
+.memory-list span {
+  flex: 1;
+}
+
 .settings-panel h1,
 .chat-panel h2 {
   margin: 0;
