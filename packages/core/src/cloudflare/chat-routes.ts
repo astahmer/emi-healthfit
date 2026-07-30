@@ -2,10 +2,12 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import {
   ChatStreamRequestSchema,
+  CompactConversationRequestSchema,
   buildAssistantParts,
   createChatStream,
   createChatStreamResponse,
   firstUserText,
+  generateConversationSummary,
   generateConversationTitle,
   toUiMessageStream,
   validateChatAttachments,
@@ -121,6 +123,22 @@ const threadResponse = (thread: {
   createdAt: thread.created_at,
   updatedAt: thread.updated_at,
 });
+
+const storedMessageText = ({ parts }: { parts: string }): string => {
+  const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(
+    parts,
+  );
+  if (Option.isNone(decoded)) return "";
+  return decoded.value
+    .flatMap((part) => {
+      const text = Schema.decodeUnknownOption(
+        Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }),
+      )(part);
+      return Option.isSome(text) ? [text.value.text] : [];
+    })
+    .join("\n")
+    .trim();
+};
 
 const persistGeneration = async ({
   db,
@@ -265,6 +283,78 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     }
     return yield* HttpServerResponse.json(
       { conversation: conversationResponse(cloned) },
+      { status: 201 },
+    );
+  });
+
+  const compact = Effect.fn("core.chat.conversation.compact")(function* (
+    request: HttpServerRequest,
+  ) {
+    const user = yield* CurrentUser;
+    const params = yield* HttpRouter.params;
+    const conversationId = params.conversationId;
+    if (conversationId === undefined) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    const conversation = yield* getConversation(conversationDb, user.id, conversationId);
+    if (conversation === null) {
+      return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+    const decoded = Schema.decodeUnknownOption(CompactConversationRequestSchema)(
+      yield* request.json,
+    );
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json(
+        { error: "Invalid compaction request" },
+        { status: 400 },
+      );
+    }
+    const messages = (yield* getConversationMessages(conversationDb, user.id, conversationId))
+      .filter((message) => message.role !== "summary")
+      .map((message) => ({ role: message.role, text: storedMessageText({ parts: message.parts }) }))
+      .filter((message) => message.text !== "");
+    if (messages.length === 0) {
+      return yield* HttpServerResponse.json(
+        { error: "Conversation has no text to compact" },
+        { status: 400 },
+      );
+    }
+    const summary = yield* Effect.tryPromise({
+      try: () =>
+        generateConversationSummary({
+          configuration: decoded.value.config,
+          messages,
+        }),
+      catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
+    });
+    if (summary === "") {
+      return yield* HttpServerResponse.json(
+        { error: "Unable to compact conversation" },
+        { status: 502 },
+      );
+    }
+    const title = conversation.title?.trim() || "New chat";
+    const compactedId = yield* createConversation(conversationDb, user.id, `${title} (compacted)`);
+    yield* saveConversationMessages(conversationDb, user.id, compactedId, null, [
+      {
+        role: "system",
+        parts: [
+          {
+            type: "text",
+            text: `Use this compacted summary of the previous conversation as context:\n\n${summary}`,
+          },
+        ],
+      },
+    ]);
+    const compacted = yield* getConversation(conversationDb, user.id, compactedId);
+    if (compacted === null) {
+      return yield* HttpServerResponse.json(
+        { error: "Compacted conversation not found" },
+        { status: 404 },
+      );
+    }
+    return yield* HttpServerResponse.json(
+      { conversation: conversationResponse(compacted) },
       { status: 201 },
     );
   });
@@ -602,5 +692,5 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       );
     });
 
-  return { conversations, conversation, clone, threads, thread, chat, resume };
+  return { conversations, conversation, clone, compact, threads, thread, chat, resume };
 };

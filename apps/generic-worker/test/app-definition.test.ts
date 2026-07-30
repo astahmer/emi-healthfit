@@ -15,6 +15,7 @@ describe("generic-worker chat composition", () => {
     assert.match(source, /"GET", "\/api\/chat\/:conversationId\/stream"/);
     assert.match(source, /"PATCH", "\/api\/conversations\/:conversationId"/);
     assert.match(source, /"POST", "\/api\/conversations\/:conversationId\/clone"/);
+    assert.match(source, /"POST", "\/api\/conversations\/:conversationId\/compact"/);
     assert.match(source, /makeGenericChatRoutes/);
   });
 

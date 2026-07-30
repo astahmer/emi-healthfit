@@ -149,6 +149,23 @@ export const cloneConversation = async ({
   return decoded.conversation;
 };
 
+export const compactConversation = async ({
+  conversationId,
+  config,
+}: {
+  conversationId: string;
+  config: { provider: "openai"; apiKey: string; baseUrl?: string; model: string };
+}): Promise<Conversation> => {
+  const response = await fetch(apiUrl(`/api/conversations/${conversationId}/compact`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ config }),
+  });
+  const payload = await readResponse({ response });
+  return Schema.decodeUnknownSync(Schema.Struct({ conversation: ConversationSchema }))(payload)
+    .conversation;
+};
+
 export const listThreads = async ({
   conversationId,
 }: {

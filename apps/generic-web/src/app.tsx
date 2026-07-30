@@ -11,6 +11,7 @@ import { initialChatSession, reduceChatSession } from "./chat-session.ts";
 import { defaultChatSettings, readChatSettings, type ChatSettings } from "./chat-settings.ts";
 import {
   cloneConversation,
+  compactConversation,
   createThread,
   deleteConversation,
   listConversations,
@@ -217,6 +218,34 @@ export const App = () => {
     }
   };
 
+  const compactConversationAction = async ({ id }: { id: string }) => {
+    if (settings.apiKey.trim() === "") {
+      dispatchSession({
+        type: "error-reported",
+        error: "Add an API key in settings before compacting a conversation.",
+      });
+      return;
+    }
+    try {
+      const compacted = await compactConversation({
+        conversationId: id,
+        config: {
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
+          model: settings.model,
+        },
+      });
+      setConversations((current) => [compacted, ...current]);
+      await openConversation({ id: compacted.id });
+    } catch (cause) {
+      dispatchSession({
+        type: "error-reported",
+        error: cause instanceof Error ? cause.message : "Unable to compact this conversation.",
+      });
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
@@ -390,6 +419,13 @@ export const App = () => {
                   type="button"
                 >
                   Clone
+                </button>
+                <button
+                  aria-label="Compact conversation"
+                  onClick={() => void compactConversationAction({ id: conversation.id })}
+                  type="button"
+                >
+                  Compact
                 </button>
                 <button
                   aria-label="Archive conversation"

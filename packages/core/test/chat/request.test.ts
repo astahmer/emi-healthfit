@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Schema from "effect/Schema";
-import { ChatStreamRequestSchema, validateChatAttachments } from "../../src/chat/index.ts";
+import {
+  ChatStreamRequestSchema,
+  CompactConversationRequestSchema,
+  validateChatAttachments,
+} from "../../src/chat/index.ts";
 
 describe("chat request", () => {
   it("requires a configured provider key and model", () => {
@@ -32,6 +36,19 @@ describe("chat request", () => {
     });
 
     assert.equal(decoded.threadId, "thread-1");
+  });
+
+  it("shares the configured model shape with conversation compaction", () => {
+    const decoded = Schema.decodeUnknownSync(CompactConversationRequestSchema)({
+      config: {
+        provider: "openai",
+        apiKey: "key",
+        baseUrl: "https://example.com/v1",
+        model: "summary-model",
+      },
+    });
+
+    assert.equal(decoded.config.model, "summary-model");
   });
 
   it("rejects more than ten attachments in one message", () => {

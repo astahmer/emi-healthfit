@@ -1,16 +1,22 @@
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+export const ChatModelConfigurationSchema = Schema.Struct({
+  provider: Schema.Literal("openai"),
+  baseUrl: Schema.optional(Schema.String),
+  apiKey: Schema.String.check(Schema.isMinLength(1)),
+  model: Schema.String.check(Schema.isMinLength(1)),
+  system: Schema.optional(Schema.String),
+});
+
+export const CompactConversationRequestSchema = Schema.Struct({
+  config: ChatModelConfigurationSchema,
+});
+
 export const ChatStreamRequestSchema = Schema.Struct({
   messages: Schema.mutable(Schema.Array(Schema.Unknown)),
   system: Schema.optional(Schema.String),
-  config: Schema.Struct({
-    provider: Schema.Literal("openai"),
-    baseUrl: Schema.optional(Schema.String),
-    apiKey: Schema.String.check(Schema.isMinLength(1)),
-    model: Schema.String.check(Schema.isMinLength(1)),
-    system: Schema.optional(Schema.String),
-  }),
+  config: ChatModelConfigurationSchema,
   title: Schema.optional(
     Schema.Struct({
       model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
