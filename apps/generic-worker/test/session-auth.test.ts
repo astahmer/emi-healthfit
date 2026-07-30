@@ -16,9 +16,11 @@ describe("generic-worker session auth", () => {
     assert.doesNotMatch(source, /x-demo-user-id/);
   });
 
-  it("includes auth tables in the drizzle schema", async () => {
+  it("includes auth and resumable-generation tables in the drizzle schema", async () => {
     const source = await readFile(join(appRoot, "src/db/schema.ts"), "utf8");
     assert.match(source, /authUser/);
     assert.match(source, /AuthDatabaseSchema/);
+    assert.match(source, /chatGenerations/);
+    assert.match(source, /chatGenerationChunks/);
   });
 });

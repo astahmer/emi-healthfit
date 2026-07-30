@@ -235,6 +235,9 @@ export interface ConversationDatabaseSchema {
   threads: Kyselify<typeof threads>;
   thread_messages: Kyselify<typeof threadMessages>;
   suggestions: Kyselify<typeof suggestions>;
+  chat_generations: Kyselify<typeof chatGenerations>;
+  chat_generation_chunks: Kyselify<typeof chatGenerationChunks>;
+  chat_events: Kyselify<typeof chatEvents>;
 }
 
 export interface MemoryDatabaseSchema {

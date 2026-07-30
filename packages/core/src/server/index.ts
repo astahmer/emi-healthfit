@@ -10,5 +10,7 @@ export * from "./db/discord-links.ts";
 export * from "./db/conversation-revision.ts";
 export * from "./db/conversations.ts";
 export * from "./db/memories.ts";
+export * from "./db/generations.ts";
+export * from "./generation-replay.ts";
 export * from "./ports/conversation-store.ts";
 export * from "./make-conversation-store.ts";

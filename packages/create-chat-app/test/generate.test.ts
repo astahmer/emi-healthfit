@@ -53,6 +53,15 @@ describe("buildGeneratedFiles", () => {
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
   });
 
+  it("includes durable generation tables in the generated worker schema", () => {
+    const files = buildGeneratedFiles({ appName: "Acme Chat" });
+    const schema = findFile(files, "worker/src/db/schema.ts").contents;
+
+    assert.match(schema, /chatGenerations/);
+    assert.match(schema, /chatGenerationChunks/);
+    assert.match(schema, /chatEvents/);
+  });
+
   it("never points @emi/* dependencies at a local src copy (relative path or file: protocol)", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     for (const path of ["web/package.json", "worker/package.json"]) {
