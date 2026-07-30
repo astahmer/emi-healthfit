@@ -56,28 +56,28 @@ flowchart LR
 
 ### Operations / behavior
 
-| Area | Required behavior |
-|---|---|
-| New conversation | Persist on first non-temporary send; temporary conversations never reach D1. |
-| Streaming | Persist generation identity/chunks; reconnect resumes exactly one active generation; stale generation is recoverable. |
-| Queue | Draft while streaming creates a queue item; force-send stops current generation and sends selected item immediately. |
-| Branching | Editing or forking creates an explicit branch with an anchor; search and navigation retain branch context. |
-| Compact/start fresh | Compact saves a summary and preserves auditability; start fresh opens a new conversation with configurable carry-over. |
-| Settings | Secret API key stays local by default; provider config is validated and never accidentally exposed through public APIs. |
-| Memory | Extraction is opt-in/configurable, deduplicated, attributable to message/thread, inspectable, and deletable. |
-| Dynamic components | Only registered schema-validated components render; unregistered or invalid payloads show a safe structured fallback. |
+| Area                | Required behavior                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| New conversation    | Persist on first non-temporary send; temporary conversations never reach D1.                                            |
+| Streaming           | Persist generation identity/chunks; reconnect resumes exactly one active generation; stale generation is recoverable.   |
+| Queue               | Draft while streaming creates a queue item; force-send stops current generation and sends selected item immediately.    |
+| Branching           | Editing or forking creates an explicit branch with an anchor; search and navigation retain branch context.              |
+| Compact/start fresh | Compact saves a summary and preserves auditability; start fresh opens a new conversation with configurable carry-over.  |
+| Settings            | Secret API key stays local by default; provider config is validated and never accidentally exposed through public APIs. |
+| Memory              | Extraction is opt-in/configurable, deduplicated, attributable to message/thread, inspectable, and deletable.            |
+| Dynamic components  | Only registered schema-validated components render; unregistered or invalid payloads show a safe structured fallback.   |
 
 ### Tech choices
 
-| Choice | Decision | Rationale |
-|---|---|---|
-| Distribution | Owned CLI scaffold by default; package composition optional | Meets standalone, no-hidden-stack requirement without forcing npm publishing. |
-| Source boundaries | `contract`, `server`, `web`, `cloudflare`, plus a generic `chat` surface where needed | Prevents browser/server/platform/flavor leakage. |
-| State | Extract existing XState runtime behind public controller/provider APIs | Existing runtime already handles stream, queue, draft, and session races. |
-| Streaming | Keep Vercel AI SDK protocol plus persisted D1 replay chunks | Proven client interoperability and resumable Worker streaming. |
-| Persistence | Drizzle schema source of truth; generate migrations only through worker package scripts | Retains existing deployment and migration discipline. |
-| Styling | Ship generic primitives/tokens with the scaffold, no HealthFit UI imports | Generated app renders correctly without private aliases or copied app components. |
-| PWA | Progressive enhancement with an explicit offline capability matrix | Offline draft/cache is useful; pretending streams work offline is not. |
+| Choice            | Decision                                                                                | Rationale                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Distribution      | Owned CLI scaffold by default; package composition optional                             | Meets standalone, no-hidden-stack requirement without forcing npm publishing.     |
+| Source boundaries | `contract`, `server`, `web`, `cloudflare`, plus a generic `chat` surface where needed   | Prevents browser/server/platform/flavor leakage.                                  |
+| State             | Extract existing XState runtime behind public controller/provider APIs                  | Existing runtime already handles stream, queue, draft, and session races.         |
+| Streaming         | Keep Vercel AI SDK protocol plus persisted D1 replay chunks                             | Proven client interoperability and resumable Worker streaming.                    |
+| Persistence       | Drizzle schema source of truth; generate migrations only through worker package scripts | Retains existing deployment and migration discipline.                             |
+| Styling           | Ship generic primitives/tokens with the scaffold, no HealthFit UI imports               | Generated app renders correctly without private aliases or copied app components. |
+| PWA               | Progressive enhancement with an explicit offline capability matrix                      | Offline draft/cache is useful; pretending streams work offline is not.            |
 
 ### Architecture
 
@@ -136,14 +136,14 @@ flowchart TB
 
 ### Common interactions
 
-| Action | Result |
-|---|---|
-| Send during streaming | Adds queued follow-up; user may edit, remove, or force send. |
-| Edit a sent message | Revises message and creates/focuses the resulting branch. |
-| Click minimap item | Scrolls to the corresponding user message and highlights it briefly. |
-| Select temporary | Uses in-memory runtime only and visibly marks chat as temporary. |
-| Change default model | Persists locally; new chats select it unless an explicit per-chat model overrides it. |
-| Open a release | Shows shipped version, date, changes, and compatibility notes. |
+| Action                | Result                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| Send during streaming | Adds queued follow-up; user may edit, remove, or force send.                          |
+| Edit a sent message   | Revises message and creates/focuses the resulting branch.                             |
+| Click minimap item    | Scrolls to the corresponding user message and highlights it briefly.                  |
+| Select temporary      | Uses in-memory runtime only and visibly marks chat as temporary.                      |
+| Change default model  | Persists locally; new chats select it unless an explicit per-chat model overrides it. |
+| Open a release        | Shows shipped version, date, changes, and compatibility notes.                        |
 
 ## Data model
 
@@ -212,6 +212,22 @@ The core must add explicit schemas for app settings, release metadata, component
 9. Migrate HealthFit incrementally, deleting duplicated generic source only after contract, SQLite integration, and browser-flow tests prove parity.
 10. Publish maintained feature matrix, architecture, extension guide, configuration reference, and generated-app deployment guide.
 
+## Current status and remaining migration slices (2026-07-30)
+
+| Area                                                                             | Status      | Remaining next step                                                                                                                                                          |
+| -------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core contracts, provider streaming, generation persistence/replay, Worker routes | Partial     | Move remaining generic API services out of `apps/api/src/core`; tighten persisted settings/release/component schemas.                                                        |
+| Generic web state                                                                | In progress | XState session machine is exported from `@emi/core/web`; compose transport, repository, settings, browser, and UI actors per [plan 002](./002-xstate-actor-architecture.md). |
+| Generic web UI                                                                   | In progress | Extract sidebar, composer, viewport/minimap, queue, and settings into core presentational primitives.                                                                        |
+| Generic Worker                                                                   | Partial     | Add settings/release APIs, local Worker smoke, browser chat smoke, and credential-free Alchemy dry run.                                                                      |
+| Owned generator                                                                  | In progress | Default owned `core/` workspace and install/typecheck/migration/web-build acceptance exist; add a generated-source manifest and non-destructive upgrade command.             |
+| User features                                                                    | Partial     | Preserve and test branches, minimap controls, memories, theme/releases, temporary chats, PWA draft/offline behavior, and every conversation action through core APIs.        |
+| HealthFit migration                                                              | Pending     | Replace duplicated generic runtime/transport with core actors while retaining HealthFit-only contributions.                                                                  |
+| Documentation                                                                    | Partial     | Add extension/configuration/upgrade/deployment guides and keep the feature matrix synchronized with generated-app behavior.                                                  |
+
+-> Move the reusable chat session machine, composer, message actions, sidebar/history, branch/minimap controls into core exports; keep generic-web as a thin owned app wiring config, styles, and routes.
+After that: add Worker/browser smoke plus Alchemy dry-run to generated-app acceptance.
+
 ## Open questions
 
 1. Should generated apps default to anonymous session auth, or expose `--auth anonymous|none|better-auth` with anonymous as the starter? This decides Worker bootstrap and schema contents.
@@ -233,9 +249,9 @@ The core must add explicit schemas for app settings, release metadata, component
 
 ## Decisions log
 
-| Date | Decision | Rationale |
-|---|---|---|
-| 2026-07-30 | Treat generic chat as a product slice, not a shell component | A shell cannot satisfy a standalone deployable chat application. |
+| Date       | Decision                                                            | Rationale                                                                             |
+| ---------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 2026-07-30 | Treat generic chat as a product slice, not a shell component        | A shell cannot satisfy a standalone deployable chat application.                      |
 | 2026-07-30 | Default CLI output is owned source; package imports remain optional | Matches the requested transparency while preserving a reusable monorepo library path. |
-| 2026-07-30 | Keep generic dynamic components declarative and registry-backed | Allows rich model output without executing model-supplied code. |
-| 2026-07-30 | Keep PWA capability progressive and honest | Cached UI/drafts are valuable; AI streaming requires a network connection. |
+| 2026-07-30 | Keep generic dynamic components declarative and registry-backed     | Allows rich model output without executing model-supplied code.                       |
+| 2026-07-30 | Keep PWA capability progressive and honest                          | Cached UI/drafts are valuable; AI streaming requires a network connection.            |
