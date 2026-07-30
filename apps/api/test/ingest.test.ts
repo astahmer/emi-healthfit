@@ -32,6 +32,19 @@ describe("HealthExportKit parser", () => {
     assert.match(firstSleep.end, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   });
 
+  it("parses exports without a sleep section", async () => {
+    const text = await readFile(
+      new URL("./fixtures/ingest/health-export-without-sleep.json", import.meta.url),
+      "utf8",
+    );
+    const result = await Effect.runPromise(parseHealthExport(text, 2026));
+
+    assert.strictEqual(result.daily.length, 1);
+    assert.strictEqual(result.workouts.length, 1);
+    assert.strictEqual(result.sleep.length, 0);
+    assert.strictEqual(result.body.length, 0);
+  });
+
   it("assigns years to chronologically ordered timestamps without explicit year", () => {
     const timestamps = ["01-01 10:00:00", "12-31 23:00:00", "01-01 10:00:00", "06-15 12:00:00"];
     const dates = assignYears(timestamps, 2022);

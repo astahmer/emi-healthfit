@@ -1,0 +1,16 @@
+{
+  "activity": {
+    "daily": [
+      {
+        "date": "2026-07-01",
+        "steps": 1000
+      }
+    ],
+    "workouts": [
+      {
+        "type": "Walking",
+        "start": "07-01 08:00:00"
+      }
+    ]
+  }
+}

@@ -53,9 +53,11 @@ const HealthExport = Schema.Struct({
     daily: Schema.Array(HealthDailyActivity),
     workouts: Schema.Array(HealthWorkout),
   }),
-  sleep: Schema.Struct({
-    sessions: Schema.Array(SleepSession),
-  }),
+  sleep: Schema.OptionFromOptional(
+    Schema.Struct({
+      sessions: Schema.Array(SleepSession),
+    }),
+  ),
   additional: Schema.OptionFromOptional(
     Schema.Struct({
       body: Schema.Struct({
@@ -180,28 +182,33 @@ export const parseHealthExport = (
       raw_json: JSON.stringify(workout),
     }));
 
-    const sleepDates = assignYears(
-      parsed.sleep.sessions.map((s) => s.start),
-      startYear,
-    );
+    const sleep: SleepSessionRow[] = Option.match(parsed.sleep, {
+      onNone: () => [],
+      onSome: (sleepExport) => {
+        const sleepDates = assignYears(
+          sleepExport.sessions.map((session) => session.start),
+          startYear,
+        );
 
-    const sleep: SleepSessionRow[] = parsed.sleep.sessions.map((session, index) => {
-      const startDate = sleepDates[index];
-      const endDate = parseSessionEnd(session, startDate);
-      const inBed = Option.getOrNull(session.inBedSec);
-      const asleep = Option.getOrNull(session.asleepSec);
-      const awake = Option.getOrNull(session.awakeSec);
-      const duration = Option.getOrNull(session.durationSec);
+        return sleepExport.sessions.map((session, index) => {
+          const startDate = sleepDates[index];
+          const endDate = parseSessionEnd(session, startDate);
+          const inBed = Option.getOrNull(session.inBedSec);
+          const asleep = Option.getOrNull(session.asleepSec);
+          const awake = Option.getOrNull(session.awakeSec);
+          const duration = Option.getOrNull(session.durationSec);
 
-      return {
-        date: toIsoLocal(startDate),
-        start: toDateTimeLocal(startDate),
-        end: toDateTimeLocal(endDate),
-        in_bed_min: inBed ?? duration ?? null,
-        asleep_min: asleep,
-        awake_min: awake,
-        source: Option.getOrNull(session.source),
-      };
+          return {
+            date: toIsoLocal(startDate),
+            start: toDateTimeLocal(startDate),
+            end: toDateTimeLocal(endDate),
+            in_bed_min: inBed ?? duration ?? null,
+            asleep_min: asleep,
+            awake_min: awake,
+            source: Option.getOrNull(session.source),
+          };
+        });
+      },
     });
 
     const body: BodyMetricRow[] = Option.match(parsed.additional, {
