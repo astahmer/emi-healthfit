@@ -11,6 +11,7 @@ describe("chatUiActor", () => {
     actor.send({ type: "memory-search-changed", search: "preferences" });
     actor.send({ type: "memory-draft-changed", draft: "Likes short answers." });
     actor.send({ type: "memory-panel-changed", open: true });
+    actor.send({ type: "sidebar-open-changed", open: false });
     actor.send({ type: "memory-draft-cleared" });
 
     expect(actor.getSnapshot().context).toEqual({
@@ -18,6 +19,7 @@ describe("chatUiActor", () => {
       memorySearch: "preferences",
       memoryDraft: "",
       memoryPanelOpen: true,
+      sidebarOpen: false,
     });
     actor.stop();
   });

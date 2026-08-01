@@ -1,4 +1,4 @@
-import { convertFileListToFileUIParts, type UIMessage } from "ai";
+import { convertFileListToFileUIParts } from "ai";
 import { useActorRef, useSelector } from "@xstate/react";
 import {
   genericChatAppMachine,
@@ -8,21 +8,30 @@ import {
   type ConversationStoreActorEvent,
   type SettingsActorEvent,
   type ChatUiActorEvent,
+  type QueuedFollowUp,
 } from "@emi/core/web";
-import { type FormEvent, useCallback, useMemo, useRef } from "react";
+import {
+  ChatComposer,
+  ChatHeader,
+  ChatSidebar,
+  ConversationList,
+  FollowUpQueue,
+  MemoryPanel,
+  MessageViewport,
+  SettingsPanel,
+} from "@emi/core/web/styled";
+import { useCallback, useMemo, useRef } from "react";
+
 import "./app.css";
+import "@emi/core/web/styled/styles.css";
 import { genericChatAppConfig } from "./app-config.ts";
-const messageText = (message: UIMessage): string =>
-  message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
 export const App = () => {
+  const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
+  const fetcher = useMemo(() => window.fetch.bind(window), []);
   const conversationClient = useMemo(
-    () =>
-      createConversationClient({
-        apiOrigin: import.meta.env.VITE_API_ORIGIN ?? "",
-        fetch: window.fetch.bind(window),
-      }),
-    [],
+    () => createConversationClient({ apiOrigin, fetch: fetcher }),
+    [apiOrigin, fetcher],
   );
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
@@ -45,8 +54,8 @@ export const App = () => {
   );
   const chatAppActor = useActorRef(genericChatAppMachine, {
     input: {
-      api: `${import.meta.env.VITE_API_ORIGIN ?? ""}/api/chat`,
-      fetch: window.fetch.bind(window),
+      api: `${apiOrigin}/api/chat`,
+      fetch: fetcher,
       createId: () => crypto.randomUUID(),
       client: conversationClient,
       storage: settingsStorage,
@@ -97,7 +106,8 @@ export const App = () => {
   const { conversations, memories, threads } = conversationStoreState.context;
   const { settings } = settingsState.context;
   const { online } = browserState.context;
-  const { conversationSearch, memoryDraft, memoryPanelOpen, memorySearch } = chatUiState.context;
+  const { conversationSearch, memoryDraft, memoryPanelOpen, memorySearch, sidebarOpen } =
+    chatUiState.context;
   const streaming = sessionState.matches("streaming");
 
   const updateSettings = (patch: Partial<typeof settings>) =>
@@ -121,7 +131,7 @@ export const App = () => {
     },
   });
 
-  const scrollToMessage = ({ id }: { id: string }) => {
+  const scrollToMessage = (id: string) => {
     messageElements.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
@@ -140,7 +150,7 @@ export const App = () => {
       const element = messageElements.current.get(message.id);
       return element !== undefined && element.offsetTop < container.scrollTop - 8;
     });
-    if (previous !== undefined) scrollToMessage({ id: previous.id });
+    if (previous !== undefined) scrollToMessage(previous.id);
   };
 
   const startFresh = () => {
@@ -149,10 +159,10 @@ export const App = () => {
     dispatchConversationStore({ type: "threads-cleared" });
   };
 
-  const openConversation = ({ id }: { id: string }) =>
+  const openConversation = (id: string) =>
     dispatchConversationStore({ type: "conversation-load-requested", conversationId: id });
 
-  const openThread = ({ id }: { id: string }) => {
+  const openThread = (id: string) => {
     if (conversationId === undefined) return;
     dispatchConversationStore({
       type: "thread-load-requested",
@@ -161,7 +171,7 @@ export const App = () => {
     });
   };
 
-  const branchFromMessage = ({ messageId }: { messageId: string }) => {
+  const branchFromMessage = (messageId: string) => {
     if (conversationId === undefined || temporary) return;
     dispatchConversationStore({
       type: "thread-create-requested",
@@ -170,17 +180,43 @@ export const App = () => {
     });
   };
 
-  const updateConversationAction = ({
-    id,
+  const updateConversation = ({
+    conversationId: id,
     patch,
   }: {
-    id: string;
+    conversationId: string;
     patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
-  }) => {
+  }) =>
     dispatchConversationStore({ type: "conversation-update-requested", conversationId: id, patch });
+
+  const renameConversation = ({
+    conversationId: id,
+    currentTitle,
+  }: {
+    conversationId: string;
+    currentTitle: string | null;
+  }) => {
+    const title = window.prompt("Conversation name", currentTitle ?? "");
+    if (title === null || title.trim() === "") return;
+    updateConversation({ conversationId: id, patch: { title: title.trim() } });
   };
 
-  const compactConversationAction = async ({ id }: { id: string }) => {
+  const deleteConversation = ({
+    conversationId: id,
+    resetSession,
+  }: {
+    conversationId: string;
+    resetSession: boolean;
+  }) => {
+    if (!window.confirm("Delete this conversation permanently?")) return;
+    dispatchConversationStore({
+      type: "conversation-delete-requested",
+      conversationId: id,
+      resetSession,
+    });
+  };
+
+  const compactConversation = (id: string) => {
     if (settings.apiKey.trim() === "") {
       dispatchSession({
         type: "error-reported",
@@ -200,18 +236,14 @@ export const App = () => {
     });
   };
 
-  const createMemoryAction = async () => {
+  const createMemory = () => {
     const content = memoryDraft.trim();
     if (content === "") return;
     dispatchConversationStore({ type: "memory-create-requested", content, search: memorySearch });
     dispatchChatUi({ type: "memory-draft-cleared" });
   };
 
-  const deleteMemoryAction = ({ id }: { id: string }) =>
-    dispatchConversationStore({ type: "memory-delete-requested", memoryId: id });
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submit = () => {
     if (!online) {
       dispatchSession({
         type: "error-reported",
@@ -235,7 +267,6 @@ export const App = () => {
       });
       return;
     }
-
     dispatchTransport({
       type: "stream-send-requested",
       request: {
@@ -250,9 +281,7 @@ export const App = () => {
     });
   };
 
-  const forceSendQueued = ({ id }: { id: string }) => {
-    const followUp = queuedFollowUps.find((item) => item.id === id);
-    if (followUp === undefined) return;
+  const forceSendQueued = (followUp: QueuedFollowUp) =>
     dispatchTransport({
       type: "queued-follow-up-force-requested",
       followUp,
@@ -264,11 +293,26 @@ export const App = () => {
         body: chatRequestBody(),
       },
     });
+
+  const addFiles = (fileList: FileList | undefined) => {
+    void convertFileListToFileUIParts(fileList)
+      .then((nextFiles) => dispatchSession({ type: "files-added", files: nextFiles }))
+      .catch(() =>
+        dispatchSession({
+          type: "error-reported",
+          error: "Unable to prepare one or more attachments.",
+        }),
+      );
   };
 
   return (
-    <main className="chat-app" data-theme={settings.theme}>
-      <aside className="settings-panel">
+    <main className="chat-app" data-sidebar-open={sidebarOpen} data-theme={settings.theme}>
+      <ChatSidebar
+        description="Conversation history, memories, and provider settings."
+        onOpenChange={(open) => dispatchChatUi({ type: "sidebar-open-changed", open })}
+        open={sidebarOpen}
+        title={genericChatAppConfig.name}
+      >
         <div>
           <p className="eyebrow">EMI CORE</p>
           <h1>{genericChatAppConfig.name}</h1>
@@ -279,440 +323,114 @@ export const App = () => {
         <button className="secondary-button" onClick={startFresh} type="button">
           New chat
         </button>
-        <label>
-          Search conversations
-          <input
-            onChange={(event) => {
-              const search = event.target.value;
-              dispatchChatUi({ type: "conversation-search-changed", search });
-              dispatchConversationStore({ type: "conversations-load-requested", search });
-            }}
-            placeholder="Search chats"
-            value={conversationSearch}
-          />
-        </label>
-        <div className="conversation-list">
-          {conversations.map((conversation) => (
-            <article
-              className={
-                conversation.id === conversationId ? "conversation active" : "conversation"
-              }
-              key={conversation.id}
-            >
-              <button onClick={() => openConversation({ id: conversation.id })} type="button">
-                {conversation.title || "New chat"}
-              </button>
-              <div className="conversation-actions">
-                <button
-                  aria-label={conversation.pinned ? "Unpin conversation" : "Pin conversation"}
-                  onClick={() =>
-                    void updateConversationAction({
-                      id: conversation.id,
-                      patch: { pinned: !conversation.pinned },
-                    })
-                  }
-                  type="button"
-                >
-                  {conversation.pinned ? "Unpin" : "Pin"}
-                </button>
-                <button
-                  aria-label="Rename conversation"
-                  onClick={() => {
-                    const title = window.prompt("Conversation name", conversation.title ?? "");
-                    if (title === null || title.trim() === "") return;
-                    void updateConversationAction({
-                      id: conversation.id,
-                      patch: { title: title.trim() },
-                    });
-                  }}
-                  type="button"
-                >
-                  Rename
-                </button>
-                <button
-                  aria-label="Clone conversation"
-                  onClick={() =>
-                    dispatchConversationStore({
-                      type: "conversation-clone-requested",
-                      conversationId: conversation.id,
-                    })
-                  }
-                  type="button"
-                >
-                  Clone
-                </button>
-                <button
-                  aria-label="Compact conversation"
-                  onClick={() => void compactConversationAction({ id: conversation.id })}
-                  type="button"
-                >
-                  Compact
-                </button>
-                <button
-                  aria-label="Archive conversation"
-                  onClick={() =>
-                    void updateConversationAction({
-                      id: conversation.id,
-                      patch: { status: conversation.status === "regular" ? "archived" : "regular" },
-                    })
-                  }
-                  type="button"
-                >
-                  {conversation.status === "regular" ? "Archive" : "Restore"}
-                </button>
-                <button
-                  aria-label="Delete conversation"
-                  onClick={() => {
-                    if (!window.confirm("Delete this conversation permanently?")) return;
-                    dispatchConversationStore({
-                      type: "conversation-delete-requested",
-                      conversationId: conversation.id,
-                      resetSession: conversation.id === conversationId,
-                    });
-                  }}
-                  type="button"
-                >
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-        {conversationId !== undefined && threads.length > 0 && (
-          <section className="thread-list">
-            <p>Branches</p>
-            {threads.map((thread) => (
-              <button
-                className={thread.id === threadId ? "active" : undefined}
-                key={thread.id}
-                onClick={() => openThread({ id: thread.id })}
-                type="button"
-              >
-                {thread.title || "Branch"}
-              </button>
-            ))}
-          </section>
-        )}
-        <details
-          className="memory-panel"
-          onToggle={(event) =>
-            dispatchChatUi({ type: "memory-panel-changed", open: event.currentTarget.open })
+        <ConversationList
+          conversationId={conversationId}
+          conversations={conversations}
+          onCloneConversation={(id) =>
+            dispatchConversationStore({
+              type: "conversation-clone-requested",
+              conversationId: id,
+            })
           }
+          onCompactConversation={compactConversation}
+          onDeleteConversation={deleteConversation}
+          onOpenConversation={openConversation}
+          onOpenThread={openThread}
+          onRenameConversation={renameConversation}
+          onSearchChange={(search) => {
+            dispatchChatUi({ type: "conversation-search-changed", search });
+            dispatchConversationStore({ type: "conversations-load-requested", search });
+          }}
+          onUpdateConversation={updateConversation}
+          search={conversationSearch}
+          threadId={threadId}
+          threads={threads}
+        />
+        <MemoryPanel
+          draft={memoryDraft}
+          memories={memories}
+          onCreate={createMemory}
+          onDelete={(id) =>
+            dispatchConversationStore({ type: "memory-delete-requested", memoryId: id })
+          }
+          onDraftChange={(draftValue) =>
+            dispatchChatUi({ type: "memory-draft-changed", draft: draftValue })
+          }
+          onOpenChange={(open) => dispatchChatUi({ type: "memory-panel-changed", open })}
+          onSearchChange={(search) => {
+            dispatchChatUi({ type: "memory-search-changed", search });
+            dispatchConversationStore({ type: "memory-load-requested", search });
+          }}
           open={memoryPanelOpen}
-        >
-          <summary>Memories</summary>
-          <label>
-            Search memories
-            <input
-              onChange={(event) => {
-                const search = event.target.value;
-                dispatchChatUi({ type: "memory-search-changed", search });
-                dispatchConversationStore({ type: "memory-load-requested", search });
-              }}
-              placeholder="Search saved details"
-              value={memorySearch}
-            />
-          </label>
-          <textarea
-            onChange={(event) =>
-              dispatchChatUi({ type: "memory-draft-changed", draft: event.target.value })
-            }
-            placeholder="Save a detail for future chats"
-            rows={2}
-            value={memoryDraft}
-          />
-          <button disabled={memoryDraft.trim() === ""} onClick={createMemoryAction} type="button">
-            Save memory
-          </button>
-          <div className="memory-list">
-            {memories.map((memory) => (
-              <div key={memory.id}>
-                <span>{memory.content}</span>
-                <button onClick={() => deleteMemoryAction({ id: memory.id })} type="button">
-                  Delete
-                </button>
-              </div>
-            ))}
-          </div>
-        </details>
-        <label>
-          Theme
-          <select
-            onChange={(event) =>
-              updateSettings({ theme: event.target.value === "dark" ? "dark" : "light" })
-            }
-            value={settings.theme}
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        <label>
-          API key
-          <input
-            autoComplete="off"
-            onChange={(event) => updateSettings({ apiKey: event.target.value })}
-            placeholder="sk-..."
-            type="password"
-            value={settings.apiKey}
-          />
-        </label>
-        <label>
-          Provider base URL
-          <input
-            onChange={(event) => updateSettings({ baseUrl: event.target.value })}
-            placeholder="https://api.openai.com/v1"
-            value={settings.baseUrl}
-          />
-        </label>
-        <label>
-          Default model
-          <input
-            onChange={(event) => updateSettings({ model: event.target.value })}
-            placeholder="gpt-4o-mini"
-            value={settings.model}
-          />
-        </label>
-        <label>
-          Default system prompt
-          <textarea
-            onChange={(event) => updateSettings({ systemPrompt: event.target.value })}
-            placeholder="Optional instructions for every answer"
-            rows={3}
-            value={settings.systemPrompt}
-          />
-        </label>
-        <label>
-          Title model
-          <input
-            onChange={(event) => updateSettings({ titleModel: event.target.value })}
-            placeholder="gpt-4o-mini"
-            value={settings.titleModel}
-          />
-        </label>
-        <label>
-          Title prompt
-          <textarea
-            onChange={(event) => updateSettings({ titlePrompt: event.target.value })}
-            placeholder="Optional instructions for automatic conversation titles"
-            rows={2}
-            value={settings.titlePrompt}
-          />
-        </label>
-        <label className="toggle">
-          <input
-            checked={settings.memoryEnabled}
-            onChange={(event) => updateSettings({ memoryEnabled: event.target.checked })}
-            type="checkbox"
-          />
-          Remember useful details from replies
-        </label>
-        <label>
-          Memory model
-          <input
-            onChange={(event) => updateSettings({ memoryModel: event.target.value })}
-            placeholder="gpt-4o-mini"
-            value={settings.memoryModel}
-          />
-        </label>
-        <label className="toggle">
-          <input
-            checked={temporary}
-            onChange={(event) => {
-              dispatchSession({ type: "temporary-changed", temporary: event.target.checked });
-              startFresh();
-            }}
-            type="checkbox"
-          />
-          Temporary chat
-        </label>
-        <p className="muted metadata">
-          {temporary
-            ? "Not saved"
-            : conversationId === undefined
-              ? "New conversation"
-              : conversationId}
-        </p>
-        <p className="muted connection-status">
-          {online ? "Online" : "Offline · draft saved locally"}
-        </p>
-        <details className="release-notes">
-          <summary>Release notes · v{genericChatAppConfig.version}</summary>
-          <ul>
-            {genericChatAppConfig.releaseNotes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </details>
-      </aside>
-
+          search={memorySearch}
+        />
+        <SettingsPanel
+          metadata={
+            temporary
+              ? "Not saved"
+              : conversationId === undefined
+                ? "New conversation"
+                : conversationId
+          }
+          onSettingsChange={updateSettings}
+          onTemporaryChange={(value) => {
+            dispatchSession({ type: "temporary-changed", temporary: value });
+            startFresh();
+          }}
+          online={online}
+          releaseNotes={genericChatAppConfig.releaseNotes}
+          settings={settings}
+          temporary={temporary}
+          version={genericChatAppConfig.version}
+        />
+      </ChatSidebar>
       <section className="chat-panel">
-        <header>
-          <div>
-            <p className="eyebrow">{temporary ? "TEMPORARY" : "CONVERSATION"}</p>
-            <h2>
-              {messages.length === 0
-                ? "How can I help?"
-                : threadId === undefined
-                  ? genericChatAppConfig.name
-                  : "Branch"}
-            </h2>
-          </div>
-          <div className="message-navigation">
-            <button onClick={() => scrollMessages({ target: "top" })} type="button">
-              Top
-            </button>
-            <button onClick={() => scrollMessages({ target: "previous" })} type="button">
-              Previous
-            </button>
-            <button onClick={() => scrollMessages({ target: "bottom" })} type="button">
-              Bottom
-            </button>
-          </div>
-          {streaming && (
-            <button
-              className="secondary-button"
-              onClick={() => dispatchTransport({ type: "stream-cancelled" })}
-              type="button"
-            >
-              Stop
-            </button>
-          )}
-        </header>
-
-        <div className="message-content">
-          <aside aria-label="User message minimap" className="message-minimap">
-            {messages
-              .filter((message) => message.role === "user")
-              .map((message) => {
-                const preview = messageText(message) || "Attachment";
-                return (
-                  <button
-                    aria-label={`Scroll to ${preview}`}
-                    key={message.id}
-                    onClick={() => scrollToMessage({ id: message.id })}
-                    title={preview}
-                    type="button"
-                  >
-                    <span />
-                    {preview}
-                  </button>
-                );
-              })}
-          </aside>
-          <div
-            aria-live="polite"
-            className="messages"
-            data-testid="messages"
-            ref={messageContainer}
-          >
-            {messages.length === 0 ? (
-              <div className="empty-state">
-                <p>Ask anything. Configure a GPT-compatible provider in the settings panel.</p>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <article
-                  className={`message message-${message.role}`}
-                  key={message.id}
-                  ref={(element) => {
-                    if (element === null) messageElements.current.delete(message.id);
-                    else messageElements.current.set(message.id, element);
-                  }}
-                >
-                  <p className="message-role">{message.role}</p>
-                  <div>
-                    {messageText(message) ||
-                      (message.role === "assistant" && streaming ? "Thinking…" : "")}
-                  </div>
-                  {conversationId !== undefined && !temporary && (
-                    <button
-                      className="message-branch-button"
-                      onClick={() => branchFromMessage({ messageId: message.id })}
-                      type="button"
-                    >
-                      Branch here
-                    </button>
-                  )}
-                </article>
-              ))
-            )}
-          </div>
-        </div>
-
+        <ChatHeader
+          appName={genericChatAppConfig.name}
+          messageCount={messages.length}
+          onScroll={(target) => scrollMessages({ target })}
+          onStop={() => dispatchTransport({ type: "stream-cancelled" })}
+          onToggleSidebar={() =>
+            dispatchChatUi({ type: "sidebar-open-changed", open: !sidebarOpen })
+          }
+          sidebarOpen={sidebarOpen}
+          streaming={streaming}
+          temporary={temporary}
+          threadId={threadId}
+        />
+        <MessageViewport
+          conversationId={conversationId}
+          messageContainer={messageContainer}
+          messageElements={messageElements.current}
+          messages={messages}
+          onBranchMessage={branchFromMessage}
+          onSelectMinimapMessage={scrollToMessage}
+          streaming={streaming}
+          temporary={temporary}
+        />
         {error !== undefined && <p className="error-message">{error}</p>}
-        {queuedFollowUps.length > 0 && (
-          <section className="follow-up-queue">
-            <p>Queued follow-ups</p>
-            {queuedFollowUps.map((queued) => (
-              <div key={queued.id}>
-                <span>{queued.text || `${queued.files.length} attachment(s)`}</span>
-                <button onClick={() => void forceSendQueued({ id: queued.id })} type="button">
-                  Force send
-                </button>
-                <button
-                  aria-label="Remove queued follow-up"
-                  onClick={() =>
-                    dispatchSession({ type: "queued-follow-up-removed", id: queued.id })
-                  }
-                  type="button"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </section>
-        )}
-        <form className="composer" onSubmit={submit}>
-          <label className="attachment-button">
-            Attach
-            <input
-              aria-label="Add attachments"
-              multiple
-              onChange={(event) => {
-                void convertFileListToFileUIParts(event.target.files ?? undefined)
-                  .then((nextFiles) => dispatchSession({ type: "files-added", files: nextFiles }))
-                  .catch(() =>
-                    dispatchSession({
-                      type: "error-reported",
-                      error: "Unable to prepare one or more attachments.",
-                    }),
-                  );
-                event.target.value = "";
-              }}
-              type="file"
-            />
-          </label>
-          <textarea
-            aria-label="Message"
-            onChange={(event) =>
-              dispatchSession({ type: "draft-changed", draft: event.target.value })
-            }
-            placeholder={`Message ${genericChatAppConfig.name}`}
-            value={draft}
-          />
-          <button disabled={draft.trim() === "" && files.length === 0} type="submit">
-            {streaming ? "Queue" : "Send"}
-          </button>
-        </form>
-        {files.length > 0 && (
-          <div className="attachment-list">
-            {files.map((file) => (
-              <button
-                key={file.url}
-                onClick={() =>
-                  dispatchSession({
-                    type: "files-changed",
-                    files: files.filter((item) => item.url !== file.url),
-                  })
-                }
-                type="button"
-              >
-                {file.filename ?? "Attachment"} ×
-              </button>
-            ))}
-          </div>
-        )}
+        <FollowUpQueue
+          followUps={queuedFollowUps}
+          onForceSend={forceSendQueued}
+          onRemove={(id) => dispatchSession({ type: "queued-follow-up-removed", id })}
+        />
+        <ChatComposer
+          draft={draft}
+          files={files}
+          onDraftChange={(draftValue) =>
+            dispatchSession({ type: "draft-changed", draft: draftValue })
+          }
+          onFilesSelected={addFiles}
+          onRemoveFile={(file) =>
+            dispatchSession({
+              type: "files-changed",
+              files: files.filter((item) => item.url !== file.url),
+            })
+          }
+          onSubmit={submit}
+          placeholder={`Message ${genericChatAppConfig.name}`}
+          streaming={streaming}
+        />
       </section>
     </main>
   );

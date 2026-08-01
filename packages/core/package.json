@@ -16,6 +16,8 @@
     "./server": "./src/server/index.ts",
     "./web": "./src/web/index.ts",
     "./web/contributions": "./src/web/contributions.tsx",
+    "./web/styled": "./src/web/styled/index.ts",
+    "./web/styled/styles.css": "./src/web/styled/styles.css",
     "./cloudflare": "./src/cloudflare/index.ts",
     "./discord": "./src/discord/index.ts"
   },
@@ -54,18 +56,28 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
+    "lucide-react": "^1.21.0",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "radix-ui": "^1.6.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "catalog:",
     "vitest": "^4.1.10"
   },
   "peerDependencies": {
+    "lucide-react": "^1.21.0",
+    "radix-ui": "^1.6.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "peerDependenciesMeta": {
+    "lucide-react": {
+      "optional": true
+    },
+    "radix-ui": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },

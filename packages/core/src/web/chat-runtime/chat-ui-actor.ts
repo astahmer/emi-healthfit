@@ -5,6 +5,7 @@ export interface ChatUiContext {
   memorySearch: string;
   memoryDraft: string;
   memoryPanelOpen: boolean;
+  sidebarOpen: boolean;
 }
 
 export type ChatUiActorEvent =
@@ -12,7 +13,8 @@ export type ChatUiActorEvent =
   | { type: "memory-search-changed"; search: string }
   | { type: "memory-draft-changed"; draft: string }
   | { type: "memory-draft-cleared" }
-  | { type: "memory-panel-changed"; open: boolean };
+  | { type: "memory-panel-changed"; open: boolean }
+  | { type: "sidebar-open-changed"; open: boolean };
 
 export const chatUiActor = setup({
   types: {
@@ -35,6 +37,9 @@ export const chatUiActor = setup({
     changeMemoryPanel: assign(({ event }) =>
       event.type === "memory-panel-changed" ? { memoryPanelOpen: event.open } : {},
     ),
+    changeSidebar: assign(({ event }) =>
+      event.type === "sidebar-open-changed" ? { sidebarOpen: event.open } : {},
+    ),
   },
 }).createMachine({
   id: "chatUi",
@@ -44,6 +49,7 @@ export const chatUiActor = setup({
     memorySearch: "",
     memoryDraft: "",
     memoryPanelOpen: false,
+    sidebarOpen: true,
   },
   states: {
     ready: {
@@ -53,6 +59,7 @@ export const chatUiActor = setup({
         "memory-draft-changed": { actions: "changeMemoryDraft" },
         "memory-draft-cleared": { actions: "clearMemoryDraft" },
         "memory-panel-changed": { actions: "changeMemoryPanel" },
+        "sidebar-open-changed": { actions: "changeSidebar" },
       },
     },
   },

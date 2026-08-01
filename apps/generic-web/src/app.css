@@ -203,13 +203,29 @@ button {
   gap: 0.45rem;
   letter-spacing: 0.02em;
 }
-.settings-panel input {
+.settings-panel input,
+.settings-panel select,
+.settings-panel textarea {
   background: #322e29;
   border: 1px solid #625a50;
   border-radius: 0.5rem;
   color: inherit;
+  color-scheme: dark;
   min-width: 0;
   padding: 0.65rem;
+}
+
+.settings-panel textarea {
+  resize: vertical;
+}
+
+.settings-panel input:focus-visible,
+.settings-panel select:focus-visible,
+.settings-panel textarea:focus-visible,
+.composer textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid #e49364;
+  outline-offset: 2px;
 }
 .eyebrow {
   color: #ad7353;
@@ -481,12 +497,6 @@ button {
   .settings-panel {
     gap: 0.75rem;
     padding: 1rem;
-  }
-  .settings-panel label {
-    display: none !important;
-  }
-  .settings-panel .toggle {
-    display: flex !important;
   }
   .metadata {
     margin-top: 0;
