@@ -79,6 +79,13 @@ const stopServer = async (server) => {
 
 const packageDirectory = fileURLToPath(new URL("..", import.meta.url));
 const targetDirectory = await mkdtemp(join(tmpdir(), "create-chat-app-"));
+const alchemyStage = `generated-acceptance-${process.pid}`;
+const workerEnvironment = {
+  ALCHEMY_STAGE: alchemyStage,
+  AUTH_APP_NAME: "Acceptance Chat",
+  BETTER_AUTH_SECRET: "generated-app-acceptance-secret-1234567890",
+  BETTER_AUTH_URL: "http://127.0.0.1:3233",
+};
 
 try {
   await run({
@@ -103,13 +110,9 @@ try {
   try {
     worker = startServer({
       command: "pnpm",
-      args: ["--dir", "worker", "dev"],
+      args: ["--dir", "worker", "dev", "--stage", alchemyStage],
       cwd: targetDirectory,
-      env: {
-        BETTER_AUTH_SECRET: "generated-app-acceptance-secret-1234567890",
-        BETTER_AUTH_URL: "http://127.0.0.1:8787",
-        AUTH_APP_NAME: "Acceptance Chat",
-      },
+      env: workerEnvironment,
     });
     web = startServer({
       command: "pnpm",
@@ -130,7 +133,15 @@ try {
     });
   } finally {
     if (web) await stopServer(web);
-    if (worker) await stopServer(worker);
+    if (worker) {
+      await stopServer(worker);
+      await run({
+        command: "pnpm",
+        args: ["--dir", "worker", "destroy", "--stage", alchemyStage, "--yes"],
+        cwd: targetDirectory,
+        env: workerEnvironment,
+      });
+    }
   }
 } finally {
   await rm(targetDirectory, { recursive: true, force: true });

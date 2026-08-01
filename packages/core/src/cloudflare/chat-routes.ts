@@ -299,7 +299,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       const id = yield* store.create();
       return yield* HttpServerResponse.json({ id }, { status: 201 });
     }
-    const search = new URL(request.url).searchParams.get("search") ?? undefined;
+    const search = new URL(request.url, "http://localhost").searchParams.get("search") ?? undefined;
     const values = yield* store.list(search);
     return yield* HttpServerResponse.json({ conversations: values.map(conversationResponse) });
   });
@@ -457,7 +457,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       }
       return yield* HttpServerResponse.json({ id }, { status: 201 });
     }
-    const search = new URL(request.url).searchParams.get("search") ?? "";
+    const search = new URL(request.url, "http://localhost").searchParams.get("search") ?? "";
     const values =
       search === ""
         ? yield* getMemories(memoryDb, user.id)

@@ -20,7 +20,9 @@ import {
 } from "@emi/core/server";
 import { genericWorkerAppConfig } from "./app-config.ts";
 
-const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName);
+const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
+  migrationsDir: "./migrations",
+});
 
 type GenericDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema & MemoryDatabaseSchema;
 

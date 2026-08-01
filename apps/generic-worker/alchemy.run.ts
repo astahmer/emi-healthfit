@@ -1,6 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
+import { fileURLToPath } from "node:url";
 
 import { genericWorkerAppConfig } from "./src/app-config.ts";
 import GenericWorkerLive, { GenericWorker } from "./src/generic.worker.ts";
@@ -13,7 +14,7 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
-      migrationsDir: "./migrations",
+      migrationsDir: fileURLToPath(new URL("./migrations", import.meta.url)),
     });
 
     const worker = yield* GenericWorker;

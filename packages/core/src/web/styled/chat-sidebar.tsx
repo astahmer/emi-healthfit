@@ -1,4 +1,14 @@
-import { ChevronRightIcon, PanelLeftIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  Minimize2Icon,
+  PanelLeftIcon,
+  PencilIcon,
+  PinIcon,
+  Trash2Icon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { GenericChatSettings } from "../../chat/settings.ts";
@@ -156,7 +166,7 @@ export const ConversationList = ({
                 })
               }
             >
-              {conversation.pinned ? "Unpin" : "Pin"}
+              <PinIcon />
             </Button>
             <Button
               aria-label="Rename conversation"
@@ -169,7 +179,7 @@ export const ConversationList = ({
                 })
               }
             >
-              Rename
+              <PencilIcon />
             </Button>
             <Button
               aria-label="Clone conversation"
@@ -177,7 +187,7 @@ export const ConversationList = ({
               variant="ghost"
               onClick={() => onCloneConversation(conversation.id)}
             >
-              Clone
+              <CopyIcon />
             </Button>
             <Button
               aria-label="Compact conversation"
@@ -185,10 +195,12 @@ export const ConversationList = ({
               variant="ghost"
               onClick={() => onCompactConversation(conversation.id)}
             >
-              Compact
+              <Minimize2Icon />
             </Button>
             <Button
-              aria-label="Archive conversation"
+              aria-label={
+                conversation.status === "regular" ? "Archive conversation" : "Restore conversation"
+              }
               size="icon-xs"
               variant="ghost"
               onClick={() =>
@@ -198,7 +210,7 @@ export const ConversationList = ({
                 })
               }
             >
-              {conversation.status === "regular" ? "Archive" : "Restore"}
+              {conversation.status === "regular" ? <ArchiveIcon /> : <ArchiveRestoreIcon />}
             </Button>
             <Button
               aria-label="Delete conversation"
@@ -211,7 +223,7 @@ export const ConversationList = ({
                 })
               }
             >
-              Delete
+              <Trash2Icon />
             </Button>
           </div>
         </article>

@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("keeps desktop page contained while messages own scrolling", async ({ page }) => {
+import { createGenericE2eApi } from "./mock-api.ts";
+
+test("keeps desktop page contained while messages own scrolling", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 720 });
+  await createGenericE2eApi().install(page);
   await page.goto("/");
 
   const metrics = await page.evaluate(() => {
@@ -16,10 +19,12 @@ test("keeps desktop page contained while messages own scrolling", async ({ page 
   expect(metrics.documentHeight).toBe(metrics.viewportHeight);
   expect(metrics.messagesOverflow).toBe("auto");
   await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("generic-desktop.png"), fullPage: false });
 });
 
-test("uses a keyboard-accessible mobile sidebar drawer", async ({ page }) => {
+test("uses a keyboard-accessible mobile sidebar drawer", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await createGenericE2eApi().install(page);
   await page.goto("/");
 
   const closeSidebar = page.getByRole("button", { name: "Close chat sidebar" });
@@ -37,4 +42,5 @@ test("uses a keyboard-accessible mobile sidebar drawer", async ({ page }) => {
     viewportHeight: document.documentElement.clientHeight,
   }));
   expect(metrics.documentHeight).toBe(metrics.viewportHeight);
+  await page.screenshot({ path: testInfo.outputPath("generic-mobile.png"), fullPage: false });
 });
