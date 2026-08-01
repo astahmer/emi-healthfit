@@ -1,0 +1,4 @@
+interface:
+  display_name: "XState Actor Design"
+  short_description: "Design actor-owned XState application state."
+  default_prompt: "Use $xstate-actor-design to decide whether this feature belongs in an XState machine or actor."
