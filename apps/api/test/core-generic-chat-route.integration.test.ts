@@ -184,7 +184,9 @@ describe("generic core chat route", () => {
       const messages = await run(
         getConversationMessages(conversationDatabase, user.id, conversationId),
       );
-      assert.equal(messages.filter((message) => message.role === "user").length, 1);
+      const userMessages = messages.filter((message) => message.role === "user");
+      assert.equal(userMessages.length, 1);
+      assert.equal(userMessages[0]?.id, "message-11111111-1111-4111-8111-111111111111");
     } finally {
       globalThis.fetch = previousFetch;
     }
