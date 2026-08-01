@@ -26,6 +26,33 @@ describe("core thread shell", () => {
     expect(screen.getByText("[image: shot]")).toBeInTheDocument();
   });
 
+  it("blocks unsafe citation and attachment URLs", () => {
+    render(
+      <CoreWebProvider contributions={{}}>
+        <ToolResultContent
+          toolName="web_search"
+          result={{
+            results: [{ title: "Unsafe citation", url: "javascript:alert(1)" }],
+          }}
+        />
+        <MessagePart
+          part={{
+            type: "file",
+            url: "javascript:alert(1)",
+            mediaType: "image/png",
+            filename: "unsafe.png",
+          }}
+          isStreaming={false}
+        />
+      </CoreWebProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Unsafe citation" })).toBeNull();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("Unsafe citation")).toBeInTheDocument();
+    expect(screen.getByText("[attachment blocked]")).toBeInTheDocument();
+  });
+
   it("uses registered tool renderers from contributions", () => {
     const Renderer = ({ result }: { result: unknown }) => (
       <div data-testid="custom-tool">{String(result)}</div>

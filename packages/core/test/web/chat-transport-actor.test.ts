@@ -102,6 +102,44 @@ describe("chatTransportActor", () => {
     actor.stop();
   });
 
+  it("keeps transport-owned body fields protected from custom body collisions", async () => {
+    let requestBody: unknown;
+    const { input, sessionEvents } = createInput({
+      fetch: async (_, init) => {
+        requestBody = JSON.parse(String(init?.body));
+        return streamResponse({ chunks: assistantChunks({ text: "Protected" }) });
+      },
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({
+      type: "stream-send-requested",
+      request: {
+        ...request,
+        conversationId: "conversation-1",
+        threadId: "thread-1",
+        body: {
+          sessionId: "attacker-conversation",
+          threadId: "attacker-thread",
+          temporary: true,
+          custom: "kept",
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
+    });
+
+    expect(requestBody).toMatchObject({
+      sessionId: "conversation-1",
+      threadId: "thread-1",
+      temporary: false,
+      custom: "kept",
+    });
+    actor.stop();
+  });
+
   it("drops chunks from a superseded stream operation", async () => {
     const first = pendingResponse();
     let requests = 0;

@@ -74,6 +74,14 @@ const createStore = ({ client = createClient() }: { client?: ConversationClient 
   return { actor, sessionEvents };
 };
 
+const deferred = <Value>() => {
+  let resolve: (value: Value) => void = () => undefined;
+  const promise = new Promise<Value>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+};
+
 describe("conversationStoreActor", () => {
   it("loads conversations and memories when started", async () => {
     const { actor } = createStore();
@@ -109,6 +117,64 @@ describe("conversationStoreActor", () => {
 
     expect(sessionEvents).toContainEqual({ type: "error-reported", error: "Denied." });
     expect(actor.getSnapshot().context.loading.mutation).toBe(false);
+    actor.stop();
+  });
+
+  it("emits one typed success event for a successful conversation deletion", async () => {
+    let deleteCalls = 0;
+    const { actor, sessionEvents } = createStore({
+      client: createClient({
+        deleteConversation: async () => {
+          deleteCalls += 1;
+        },
+      }),
+    });
+
+    await vi.waitFor(() => expect(actor.getSnapshot().context.conversations).toEqual([conversation]));
+    actor.send({
+      type: "conversation-delete-requested",
+      conversationId: conversation.id,
+      resetSession: true,
+    });
+
+    await vi.waitFor(() => {
+      expect(actor.getSnapshot().context.conversations).toEqual([]);
+      expect(actor.getSnapshot().context.loading.mutation).toBe(false);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(deleteCalls).toBe(1);
+    expect(sessionEvents).toContainEqual({ type: "fresh-started" });
+    actor.stop();
+  });
+
+  it("keeps the newest conversation search result when responses finish out of order", async () => {
+    const oldResult = deferred<Conversation[]>();
+    const newResult = deferred<Conversation[]>();
+    const oldConversation = { ...conversation, id: "old-conversation" };
+    const newConversation = { ...conversation, id: "new-conversation" };
+    const { actor } = createStore({
+      client: createClient({
+        listConversations: async ({ search }) => {
+          if (search === "old") return oldResult.promise;
+          if (search === "new") return newResult.promise;
+          return [];
+        },
+      }),
+    });
+
+    actor.send({ type: "conversations-load-requested", search: "old" });
+    actor.send({ type: "conversations-load-requested", search: "new" });
+    newResult.resolve([newConversation]);
+
+    await vi.waitFor(() => {
+      expect(actor.getSnapshot().context.conversations).toEqual([newConversation]);
+    });
+
+    oldResult.resolve([oldConversation]);
+    await vi.waitFor(() => {
+      expect(actor.getSnapshot().context.conversations).toEqual([newConversation]);
+    });
     actor.stop();
   });
 

@@ -59,4 +59,31 @@ describe("browserStateActor", () => {
     expect(writes).toEqual(["Keep this", "removed"]);
     actor.stop();
   });
+
+  it("reports draft persistence failures through actor state", async () => {
+    const actor = createActor(browserStateActor, {
+      input: {
+        draftStorageKey: "draft",
+        sendSession: () => undefined,
+        browser: {
+          online: () => true,
+          subscribeOnline: () => () => undefined,
+          storage: {
+            getItem: () => null,
+            setItem: () => {
+              throw new Error("Quota exceeded.");
+            },
+            removeItem: () => undefined,
+          },
+        },
+      },
+    }).start();
+
+    actor.send({ type: "draft-persist-requested", draft: "Keep this" });
+
+    await vi.waitFor(() => {
+      expect(actor.getSnapshot().context.error).toBe("Quota exceeded.");
+    });
+    actor.stop();
+  });
 });
