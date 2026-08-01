@@ -731,7 +731,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
           user.id,
           conversationId,
           threadParentId,
-          [{ role: "user", parts: lastMessage.parts }],
+          [{ id: lastMessage.id, role: "user", parts: lastMessage.parts }],
         );
         assistantParentId = savedUserIds.at(-1) ?? threadParentId;
         if (existingThread !== null) {
