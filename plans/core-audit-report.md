@@ -57,6 +57,7 @@ The behavioral findings are now covered by focused revisions:
 - `test(core): cover generation admission ordering` adds a real SQLite/D1-compatible concurrent route test.
 - `fix(core): admit generations before turn persistence` admits the active generation before saving the user turn, marks admitted generations failed when setup fails, and returns a structured 409 conflict.
 - `fix(core): preserve generic message identity` passes the validated client message ID through generic persistence so retry/edit/branch operations can address the stored turn.
+- `fix(core): expose generic contract composition` adds a generic `CoreApi` composition, keeps `EmiApi` as the HealthFit composition, and exports the explicit `HealthFitApi` alias.
 
 The remaining findings below are package contract, DTO, coverage, and registry-distribution work; they are not reasons to split the intentionally mixed-layer package.
 
@@ -158,7 +159,7 @@ Implementation: generic persistence now passes `lastMessage.id` to the server st
 SQLite route regression asserts that the stored user turn keeps the client-generated ID. This
 also follows the repository anti-slop rule requiring client message IDs to survive persistence.
 
-### CORE-006 — Medium: generic and HealthFit contract composition is not explicit
+### CORE-006 — Fixed medium: generic and HealthFit contract composition was not explicit
 
 Locations:
 
@@ -168,18 +169,11 @@ Locations:
 
 This is not a mixed-layer violation. The package can intentionally ship generic chat contracts and HealthFit contracts together. The issue is that the current naming and composition do not tell a consumer which contract is the generic baseline and which groups are HealthFit-specific: importing @emi/core/contract exposes the domain groups, and EmiApi adds them by default.
 
-There are two valid product decisions:
+The defect was the implicit composition, not the presence of multiple contract layers.
 
-- If this is intentionally a HealthFit-first go-to package, keep the groups but document and name that composition clearly so consumers know the default API is product-specific.
-- If generic chat/agent applications are first-class external consumers, expose a clearly generic CoreApi and make the HealthFit groups an explicit extension/composition subpath.
-
-The defect is the implicit contract, not the presence of multiple contract layers.
-
-Required follow-up:
-
-- Choose and document the intended default contract composition.
-- If generic consumers are first-class, define a generic CoreApi and make the HealthFit groups an explicit extension entrypoint.
-- Add contract tests that prove the documented composition and prevent accidental domain groups from appearing in an unintended baseline.
+Implementation: `CoreApi` now contains the generic chat, memory, notes, suggestions, and
+Discord groups; the existing `EmiApi` remains the HealthFit-inclusive composition, with an
+explicit `HealthFitApi` alias. Contract tests assert both group sets.
 
 ### CORE-007 — High: external distribution is not a supported package mode yet
 

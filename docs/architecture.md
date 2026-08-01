@@ -49,7 +49,7 @@ Consumers choose the smallest supported subpath for their runtime:
 - `@emi/core/web` — headless actors, selectors, clients, and web primitives.
 - `@emi/core/web/styled` — optional shadcn/Radix-style components and CSS.
 - `@emi/core/server` and `@emi/core/cloudflare` — persistence ports and platform wiring.
-- `@emi/core/contract` — generic contracts plus explicitly named domain compositions.
+- `@emi/core/contract` — generic contracts and `CoreApi`; the HealthFit-inclusive composition is explicit as `EmiApi`/`HealthFitApi`.
 
 The package supports two consumption modes. Dependency mode imports these subpaths from a
 workspace or registry package and supplies fetch, storage, browser, database, and execution

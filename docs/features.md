@@ -20,6 +20,8 @@ subpaths without a fork. Source mode, the default for `create-chat-app`, copies 
 and tests into an editable workspace in a shadcn-like ownership model so an app can fork and
 customize the implementation. Registry mode is intentionally not called publishable yet; its
 built-artifact and packed clean-consumer checks are tracked in `packages/core/PUBLISH.md`.
+Generic HTTP API consumers use the explicit `CoreApi` composition; the HealthFit product uses
+the `EmiApi`/`HealthFitApi` composition with fitness groups added.
 
 | Capability                          |        HealthFit today |                                          Reusable core today |     Generic scaffold target |
 | ----------------------------------- | ---------------------: | -----------------------------------------------------------: | --------------------------: |
