@@ -18,7 +18,7 @@ import {
 import { DiscordApi } from "./discord.ts";
 import { MemoriesApi, NotesApi } from "./notes-and-memories.ts";
 
-export class EmiApi extends HttpApi.make("emi-api")
+const CoreApiBase = HttpApi.make("emi-core-api")
   .add(NotesApi)
   .add(MemoriesApi)
   .add(ConversationsApi)
@@ -26,9 +26,14 @@ export class EmiApi extends HttpApi.make("emi-api")
   .add(MessagesApi)
   .add(SuggestionsApi)
   .add(MemoriesExtraApi)
-  .add(AnalyticsApi)
+  .add(DiscordApi);
+
+export class CoreApi extends CoreApiBase {}
+
+export class EmiApi extends CoreApiBase.add(AnalyticsApi)
   .add(DataApi)
   .add(PrivacyApi)
   .add(WorkoutsApi)
-  .add(HevyIntegrationApi)
-  .add(DiscordApi) {}
+  .add(HevyIntegrationApi) {}
+
+export const HealthFitApi = EmiApi;
