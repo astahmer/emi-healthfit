@@ -23,7 +23,30 @@ const providerChunk = ({ content, finishReason }: { content?: string; finishReas
   });
 
 const startProvider = async (): Promise<{ baseUrl: string; server: Server }> => {
-  const server = createServer((_request, response) => {
+  const server = createServer(async (request, response) => {
+    let requestBody = "";
+    for await (const chunk of request) requestBody += chunk;
+    const streaming = /"stream"\s*:\s*true/.test(requestBody);
+    if (!streaming) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          id: "generic-provider-test",
+          object: "chat.completion",
+          created: 1,
+          model: "test-model",
+          choices: [
+            {
+              index: 0,
+              message: { content: "generic provider reply", role: "assistant" },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 3, total_tokens: 4 },
+        }),
+      );
+      return;
+    }
     response.writeHead(200, {
       "cache-control": "no-cache, no-transform",
       "content-type": "text/event-stream",
@@ -266,7 +289,13 @@ describe("generic web and worker local API topology", () => {
       const cookie = setCookie?.split(";", 1)[0];
       expect(cookie).toBeTruthy();
 
-      const response = await fetch(`${apiOrigin}/api/chat`, {
+      const authenticated = (path: string, init: RequestInit = {}) => {
+        const headers = new Headers(init.headers);
+        headers.set("cookie", cookie ?? "");
+        return fetch(`${apiOrigin}${path}`, { ...init, headers });
+      };
+
+      const response = await authenticated("/api/chat", {
         body: JSON.stringify({
           config: {
             apiKey: "generic-provider-key",
@@ -300,6 +329,133 @@ describe("generic web and worker local API topology", () => {
           cookie: cookie ?? "",
         }),
       ).toBe(true);
+
+      const conversationResponse = await authenticated(`/api/conversations/${conversationId}`);
+      const conversation = Schema.decodeUnknownSync(
+        Schema.Struct({ messages: Schema.Array(Schema.Struct({ id: Schema.String })) }),
+      )(await conversationResponse.json());
+      const anchorMessageId = conversation.messages.at(-1)?.id;
+      expect(anchorMessageId).toBeTruthy();
+
+      const invalidAnchorResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads`,
+        {
+          body: JSON.stringify({ anchorMessageId: "missing-anchor" }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
+      expect(invalidAnchorResponse.status).toBe(404);
+      expect(await invalidAnchorResponse.json()).toEqual({ error: "Anchor message not found" });
+
+      const createdThreadResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads`,
+        {
+          body: JSON.stringify({ anchorMessageId, title: "Provider branch" }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        },
+      );
+      expect(createdThreadResponse.status).toBe(201);
+      const createdThread = Schema.decodeUnknownSync(
+        Schema.Struct({ thread: Schema.Struct({ id: Schema.String }) }),
+      )(await createdThreadResponse.json()).thread;
+
+      const listedThreadsResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads`,
+      );
+      const listedThreads = Schema.decodeUnknownSync(
+        Schema.Struct({ threads: Schema.Array(Schema.Struct({ id: Schema.String })) }),
+      )(await listedThreadsResponse.json());
+      expect(listedThreads.threads.map((thread) => thread.id)).toContain(createdThread.id);
+
+      const threadResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads/${createdThread.id}`,
+      );
+      const thread = Schema.decodeUnknownSync(
+        Schema.Struct({
+          thread: Schema.Struct({ id: Schema.String, title: Schema.NullOr(Schema.String) }),
+          messages: Schema.Array(Schema.Struct({ id: Schema.String })),
+        }),
+      )(await threadResponse.json());
+      expect(thread.thread.title).toBe("Provider branch");
+      expect(thread.messages.map((message) => message.id)).toContain(anchorMessageId);
+
+      const updatedThreadResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads/${createdThread.id}`,
+        {
+          body: JSON.stringify({ pinned: true, title: "Pinned branch" }),
+          headers: { "content-type": "application/json" },
+          method: "PATCH",
+        },
+      );
+      const updatedThread = Schema.decodeUnknownSync(
+        Schema.Struct({
+          thread: Schema.Struct({ pinned: Schema.Boolean, title: Schema.NullOr(Schema.String) }),
+        }),
+      )(await updatedThreadResponse.json()).thread;
+      expect(updatedThread).toEqual({ pinned: true, title: "Pinned branch" });
+
+      const resumeResponse = await authenticated(`/api/chat/${conversationId}/stream`);
+      expect(resumeResponse.status).toBe(204);
+
+      const compactResponse = await authenticated(`/api/conversations/${conversationId}/compact`, {
+        body: JSON.stringify({
+          config: {
+            apiKey: "generic-provider-key",
+            baseUrl: provider.baseUrl,
+            model: "test-model",
+            provider: "openai",
+          },
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(compactResponse.status).toBe(201);
+      const compacted = Schema.decodeUnknownSync(
+        Schema.Struct({ conversation: Schema.Struct({ title: Schema.NullOr(Schema.String) }) }),
+      )(await compactResponse.json()).conversation;
+      expect(compacted.title).toContain("compacted");
+
+      const temporaryResponse = await authenticated("/api/chat", {
+        body: JSON.stringify({
+          config: {
+            apiKey: "generic-provider-key",
+            baseUrl: provider.baseUrl,
+            model: "test-model",
+            provider: "openai",
+          },
+          memory: { enabled: false },
+          messages: [
+            {
+              id: "temporary-user-message",
+              parts: [{ text: "Temporary generic chat", type: "text" }],
+              role: "user",
+            },
+          ],
+          temporary: true,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(temporaryResponse.status).toBe(200);
+      expect(temporaryResponse.headers.get("x-conversation-id")).toMatch(/^temp_/);
+      await temporaryResponse.text();
+
+      const deletedThreadResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads/${createdThread.id}`,
+        { method: "DELETE" },
+      );
+      expect(await deletedThreadResponse.json()).toEqual({ deleted: true });
+
+      const missingDeletedThreadResponse = await authenticated(
+        `/api/conversations/${conversationId}/threads/${createdThread.id}`,
+      );
+      expect(missingDeletedThreadResponse.status).toBe(200);
+      const discardedThread = Schema.decodeUnknownSync(
+        Schema.Struct({ thread: Schema.Struct({ status: Schema.Literals(["discarded"]) }) }),
+      )(await missingDeletedThreadResponse.json());
+      expect(discardedThread.thread.status).toBe("discarded");
     } finally {
       await new Promise<void>((resolve, reject) =>
         provider.server.close((error) => (error === undefined ? resolve() : reject(error))),
