@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
-import { Conversation, Memory, Note } from "../../src/contract/index.ts";
+import { Conversation, CoreApi, EmiApi, Memory, Note } from "../../src/contract/index.ts";
 
 describe("@emi/core/contract", () => {
   it("encodes and decodes core wire DTOs", () => {
@@ -34,6 +34,34 @@ describe("@emi/core/contract", () => {
       created_at: "2026-07-21T00:00:00.000Z",
     });
     assert.equal(memory.content, "memory");
+  });
+
+  it("exposes generic and HealthFit API compositions explicitly", () => {
+    assert.deepEqual(Object.keys(CoreApi.groups).sort(), [
+      "conversations",
+      "discord",
+      "memoryExtraction",
+      "memories",
+      "messages",
+      "notes",
+      "suggestions",
+      "threads",
+    ]);
+    assert.deepEqual(Object.keys(EmiApi.groups).sort(), [
+      "analytics",
+      "conversations",
+      "data",
+      "discord",
+      "hevy",
+      "memoryExtraction",
+      "memories",
+      "messages",
+      "notes",
+      "privacy",
+      "suggestions",
+      "threads",
+      "workouts",
+    ]);
   });
 
   it("does not import Cloudflare or Worker platform packages", async () => {
