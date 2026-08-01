@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 import { createConversationClient } from "@emi/core/web";
 
-const apiOrigin = process.env.GENERIC_API_SMOKE_ORIGIN ?? "http://127.0.0.1:3233";
+const apiOrigin = process.env.GENERIC_API_ORIGIN ?? "http://127.0.0.1:3233";
 const expectedWorkerName = process.env.GENERIC_EXPECTED_APP_NAME ?? "Core Chat";
 
 describe("generic web and worker local API topology", () => {
@@ -48,15 +48,33 @@ describe("generic web and worker local API topology", () => {
     expect(created.id).toBeTruthy();
 
     const updatedResponse = await authenticated(`/api/conversations/${created.id}`, {
-      body: JSON.stringify({ title: "Worker lifecycle" }),
+      body: JSON.stringify({ pinned: true, status: "archived", title: "Worker lifecycle" }),
       headers: { "content-type": "application/json" },
       method: "PATCH",
     });
     expect(updatedResponse.status).toBe(200);
     const updated = Schema.decodeUnknownSync(
-      Schema.Struct({ conversation: Schema.Struct({ title: Schema.NullOr(Schema.String) }) }),
+      Schema.Struct({
+        conversation: Schema.Struct({
+          pinned: Schema.Boolean,
+          status: Schema.Literals(["regular", "archived"]),
+          title: Schema.NullOr(Schema.String),
+        }),
+      }),
     )(await updatedResponse.json());
-    expect(updated.conversation.title).toBe("Worker lifecycle");
+    expect(updated.conversation).toEqual({
+      pinned: true,
+      status: "archived",
+      title: "Worker lifecycle",
+    });
+
+    const searchResponse = await authenticated("/api/conversations?search=lifecycle");
+    const searched = Schema.decodeUnknownSync(
+      Schema.Struct({
+        conversations: Schema.Array(Schema.Struct({ id: Schema.String })),
+      }),
+    )(await searchResponse.json());
+    expect(searched.conversations.map((conversation) => conversation.id)).toContain(created.id);
 
     const memoryResponse = await authenticated("/api/memories", {
       body: JSON.stringify({ content: "Worker memory" }),
@@ -67,7 +85,7 @@ describe("generic web and worker local API topology", () => {
     const memory = Schema.decodeUnknownSync(Schema.Struct({ id: Schema.String }))(
       await memoryResponse.json(),
     );
-    const memoriesResponse = await authenticated("/api/memories");
+    const memoriesResponse = await authenticated("/api/memories?search=worker");
     const memories = Schema.decodeUnknownSync(
       Schema.Struct({ memories: Schema.Array(Schema.Struct({ content: Schema.String })) }),
     )(await memoriesResponse.json());

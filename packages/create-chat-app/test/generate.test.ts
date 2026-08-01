@@ -29,8 +29,9 @@ describe("buildGeneratedFiles", () => {
       "core/tsconfig.json",
       "web/src/app.tsx",
       "web/postcss.config.mjs",
-      "web/test/api-smoke.integration.test.ts",
+      "web/test/api.integration.test.ts",
       "web/test/e2e/generic-chat.spec.ts",
+      "web/test/e2e/features/guest.feature",
       "web/test/e2e/mock-api.ts",
       "web/test/e2e/layout.spec.ts",
       "worker/src/generic.worker.ts",
@@ -113,15 +114,13 @@ describe("buildGeneratedFiles", () => {
     assert.equal(packageJson.devDependencies["@playwright/test"], "catalog:");
     assert.equal(packageJson.devDependencies.tailwindcss, "catalog:");
     assert.equal(packageJson.devDependencies.vitest, "catalog:");
-    assert.equal(
-      packageJson.scripts.test,
-      "vitest run --exclude test/api-smoke.integration.test.ts",
-    );
+    assert.equal(packageJson.scripts.test, "vitest run --exclude test/api.integration.test.ts");
     assert.equal(
       packageJson.scripts["test:api"],
       "vitest run --config vitest.integration.config.ts",
     );
-    assert.equal(packageJson.scripts["test:e2e"], "playwright test");
+    assert.equal(packageJson.scripts["test:e2e"], "bddgen && playwright test");
+    assert.equal(packageJson.scripts["test:e2e:bddgen"], "bddgen");
   });
 
   it("generates the core streaming and replay worker routes", () => {
@@ -152,8 +151,8 @@ describe("buildGeneratedFiles", () => {
         sourcePath: "../../../apps/generic-web/vitest.integration.config.ts",
       },
       {
-        generatedPath: "web/test/api-smoke.integration.test.ts",
-        sourcePath: "../../../apps/generic-web/test/api-smoke.integration.test.ts",
+        generatedPath: "web/test/api.integration.test.ts",
+        sourcePath: "../../../apps/generic-web/test/api.integration.test.ts",
       },
       {
         generatedPath: "web/test/e2e/layout.spec.ts",

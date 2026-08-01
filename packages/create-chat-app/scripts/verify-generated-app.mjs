@@ -127,7 +127,7 @@ try {
       args: ["--dir", "web", "test:api"],
       cwd: targetDirectory,
       env: {
-        GENERIC_API_SMOKE_ORIGIN: "http://127.0.0.1:3233",
+        GENERIC_API_ORIGIN: "http://127.0.0.1:3233",
         GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
       },
     });

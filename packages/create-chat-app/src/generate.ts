@@ -138,8 +138,8 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     { path: "web/src/app.tsx", contents: genericSourceFile("apps/generic-web/src/app.tsx") },
     { path: "web/src/main.tsx", contents: genericSourceFile("apps/generic-web/src/main.tsx") },
     {
-      path: "web/test/api-smoke.integration.test.ts",
-      contents: genericSourceFile("apps/generic-web/test/api-smoke.integration.test.ts"),
+      path: "web/test/api.integration.test.ts",
+      contents: genericSourceFile("apps/generic-web/test/api.integration.test.ts"),
     },
     ...genericWebDirectoryFiles({
       sourcePath: "apps/generic-web/test/e2e",

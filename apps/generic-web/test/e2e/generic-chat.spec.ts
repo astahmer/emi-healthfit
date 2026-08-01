@@ -34,6 +34,18 @@ test("sends a generic stream and surfaces the persisted conversation", async ({ 
   expect(api.conversations[0]?.id).toBe("conversation-1");
 });
 
+test("opens a reusable branch from a persisted message", async ({ page }) => {
+  await openGenericChat(page);
+
+  await page.getByLabel("API key").fill("sk-test");
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Branch this chat");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Branch here", exact: true }).last().click();
+  await expect(page.getByRole("heading", { name: "Branch", exact: true })).toBeVisible();
+});
+
 test("queues and removes a follow-up while the generic stream is active", async ({ page }) => {
   const api = await openGenericChat(page);
   api.holdStream();
@@ -107,6 +119,31 @@ test("keeps attachment controls and supports file-only generic sends", async ({ 
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
   expect(api.chatCalls()).toBe(1);
+  expect(api.lastChatBody()).toMatchObject({
+    messages: [
+      expect.objectContaining({
+        parts: expect.arrayContaining([
+          expect.objectContaining({
+            filename: "recovery.txt",
+            mediaType: "text/plain",
+            type: "file",
+          }),
+        ]),
+      }),
+    ],
+  });
+});
+
+test("rejects unsupported image attachments before sending", async ({ page }) => {
+  const api = await openGenericChat(page);
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "unsupported.bmp",
+    mimeType: "image/bmp",
+    buffer: Buffer.from("not a real bitmap"),
+  });
+  await expect(page.getByText(/unsupported image format/i)).toBeVisible();
+  expect(api.chatCalls()).toBe(0);
 });
 
 test("switches theme and temporary chat from actor-backed settings", async ({ page }) => {

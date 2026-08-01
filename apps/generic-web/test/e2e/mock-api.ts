@@ -17,6 +17,17 @@ type StoredMessage = {
   createdAt: string;
 };
 
+type Thread = {
+  id: string;
+  conversationId: string;
+  anchorMessageId: string;
+  title: string | null;
+  status: "regular" | "discarded" | "merged";
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type Memory = {
   id: string;
   content: string;
@@ -74,9 +85,12 @@ const conversationResponse = ({
 export const createGenericE2eApi = () => {
   const conversations: Conversation[] = [];
   const messages = new Map<string, StoredMessage[]>();
+  const threads = new Map<string, Thread[]>();
   const memories: Memory[] = [];
   let anonymousSessionCalls = 0;
   let chatCalls = 0;
+  let nextThreadId = 1;
+  let lastChatRequestBody: Record<string, unknown> | undefined;
   let holdStream = false;
   let releaseStream: (() => void) | undefined;
   let streamPromise: Promise<void> | undefined;
@@ -102,6 +116,7 @@ export const createGenericE2eApi = () => {
     const conversation = createConversation({ id });
     conversations.unshift(conversation);
     messages.set(id, []);
+    threads.set(id, []);
     return conversation;
   };
 
@@ -171,6 +186,7 @@ export const createGenericE2eApi = () => {
         const index = conversations.findIndex((item) => item.id === id);
         if (index >= 0) conversations.splice(index, 1);
         messages.delete(id);
+        threads.delete(id);
         await json({ route, body: { deleted: true } });
         return;
       }
@@ -195,30 +211,60 @@ export const createGenericE2eApi = () => {
 
     const threadsMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/threads(?:\/([^/]+))?$/);
     if (threadsMatch !== null) {
+      const conversationId = threadsMatch[1] ?? "";
+      const conversationThreads = threads.get(conversationId) ?? [];
       if (threadsMatch[2] === undefined) {
         if (request.method() === "GET") {
-          await json({ route, body: { threads: [] } });
+          await json({ route, body: { threads: conversationThreads } });
           return;
         }
         if (request.method() === "POST") {
+          const body = requestBody(route);
+          const thread = {
+            id: `thread-${nextThreadId++}`,
+            conversationId,
+            anchorMessageId:
+              typeof body.anchorMessageId === "string" ? body.anchorMessageId : "message-1",
+            title: typeof body.title === "string" ? body.title : "Branch",
+            status: "regular",
+            pinned: false,
+            createdAt: now,
+            updatedAt: now,
+          } satisfies Thread;
+          conversationThreads.unshift(thread);
+          threads.set(conversationId, conversationThreads);
           await json({
             route,
-            body: {
-              thread: {
-                id: "thread-1",
-                conversationId: threadsMatch[1] ?? "",
-                anchorMessageId: "message-1",
-                title: "Branch",
-                status: "regular",
-                pinned: false,
-                createdAt: now,
-                updatedAt: now,
-              },
-            },
+            body: { thread },
             status: 201,
           });
           return;
         }
+      }
+      const thread = conversationThreads.find((item) => item.id === threadsMatch[2]);
+      if (thread === undefined) {
+        await json({ route, body: { error: "Not found" }, status: 404 });
+        return;
+      }
+      if (request.method() === "GET") {
+        await json({
+          route,
+          body: { thread, messages: messages.get(conversationId) ?? [] },
+        });
+        return;
+      }
+      if (request.method() === "PATCH") {
+        const body = requestBody(route);
+        if (typeof body.title === "string") thread.title = body.title;
+        if (typeof body.pinned === "boolean") thread.pinned = body.pinned;
+        if (body.status === "regular" || body.status === "discarded") thread.status = body.status;
+        await json({ route, body: { thread } });
+        return;
+      }
+      if (request.method() === "DELETE") {
+        thread.status = "discarded";
+        await json({ route, body: { deleted: true } });
+        return;
       }
       await json({ route, body: { error: "Not found" }, status: 404 });
       return;
@@ -264,6 +310,7 @@ export const createGenericE2eApi = () => {
       const id = "conversation-1";
       const conversation = ensureConversation(id);
       const body = requestBody(route);
+      lastChatRequestBody = body;
       const requestMessages = Array.isArray(body.messages) ? body.messages : [];
       const userMessage = requestMessages.at(-1);
       const userText =
@@ -327,6 +374,7 @@ export const createGenericE2eApi = () => {
     anonymousSessionCalls: () => anonymousSessionCalls,
     chatCalls: () => chatCalls,
     conversations,
+    lastChatBody: () => lastChatRequestBody,
     holdStream: () => {
       holdStream = true;
     },

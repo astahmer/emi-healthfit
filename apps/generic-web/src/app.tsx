@@ -306,10 +306,10 @@ export const App = () => {
     if (fileList === undefined) return;
     void prepareAttachmentParts({ files: fileList, existingCount: files.length })
       .then((nextFiles) => dispatchSession({ type: "files-added", files: nextFiles }))
-      .catch((error) =>
+      .catch((cause) =>
         dispatchSession({
           type: "error-reported",
-          error: error instanceof Error ? error.message : "Unable to prepare attachments.",
+          error: cause instanceof Error ? cause.message : "Unable to prepare attachments.",
         }),
       );
   };
