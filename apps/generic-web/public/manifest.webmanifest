@@ -3,8 +3,8 @@
   "short_name": "Core Chat",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6f3ed",
-  "theme_color": "#23201d",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "/icon.svg",

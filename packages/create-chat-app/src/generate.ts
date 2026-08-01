@@ -60,6 +60,23 @@ const corePackageFiles = ({
     },
   );
 
+const genericWebDirectoryFiles = ({
+  sourcePath,
+  targetPath,
+}: {
+  sourcePath: string;
+  targetPath: string;
+}): GeneratedFile[] =>
+  readdirSync(new URL(`../../../${sourcePath}`, import.meta.url), { withFileTypes: true }).flatMap(
+    (entry) => {
+      const nextSourcePath = `${sourcePath}/${entry.name}`;
+      const nextTargetPath = `${targetPath}/${entry.name}`;
+      if (entry.isDirectory())
+        return genericWebDirectoryFiles({ sourcePath: nextSourcePath, targetPath: nextTargetPath });
+      return [{ path: nextTargetPath, contents: genericSourceFile(nextSourcePath) }];
+    },
+  );
+
 /**
  * Builds a generated app from the canonical generic fixtures. Only the small
  * app configuration and package metadata are rendered here; chat behavior is
@@ -104,6 +121,10 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     },
     { path: "web/vite.config.ts", contents: genericSourceFile("apps/generic-web/vite.config.ts") },
     {
+      path: "web/postcss.config.mjs",
+      contents: genericSourceFile("apps/generic-web/postcss.config.mjs"),
+    },
+    {
       path: "web/playwright.config.ts",
       contents: genericSourceFile("apps/generic-web/playwright.config.ts"),
     },
@@ -120,10 +141,10 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
       path: "web/test/api-smoke.integration.test.ts",
       contents: genericSourceFile("apps/generic-web/test/api-smoke.integration.test.ts"),
     },
-    {
-      path: "web/test/e2e/layout.spec.ts",
-      contents: genericSourceFile("apps/generic-web/test/e2e/layout.spec.ts"),
-    },
+    ...genericWebDirectoryFiles({
+      sourcePath: "apps/generic-web/test/e2e",
+      targetPath: "web/test/e2e",
+    }),
     { path: "worker/package.json", contents: templates.workerPackageJson(context) },
     {
       path: "worker/alchemy.run.ts",

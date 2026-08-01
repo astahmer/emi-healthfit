@@ -20,21 +20,21 @@
   },
   "dependencies": {
     "@emi/core": "workspace:*",
-    "alchemy": "2.0.0-beta.59",
-    "drizzle-orm": "0.45.2",
+    "alchemy": "catalog:",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
-    "kysely": "0.29.3",
-    "kysely-d1": "0.4.0"
+    "kysely": "catalog:",
+    "kysely-d1": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20250805.0",
-    "@effect/platform-node": "4.0.0-beta.88",
-    "@types/node": "^26.0.0",
-    "drizzle-kit": "0.31.10",
-    "miniflare": "4.20260710.0",
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "miniflare": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:",
-    "wrangler": "^4.111.0"
+    "wrangler": "catalog:"
   }
 }

@@ -28,7 +28,7 @@
     "lint:fix": "oxlint --fix && oxfmt"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:"

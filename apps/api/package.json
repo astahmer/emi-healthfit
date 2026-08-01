@@ -31,25 +31,25 @@
     "@emi/core": "workspace:*",
     "@emi/flavor-healthfit": "workspace:*",
     "ai": "catalog:",
-    "alchemy": "2.0.0-beta.59",
+    "alchemy": "catalog:",
     "better-auth": "catalog:",
-    "drizzle-orm": "0.45.2",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
-    "kysely": "0.29.3",
-    "kysely-d1": "0.4.0",
+    "kysely": "catalog:",
+    "kysely-d1": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20250805.0",
-    "@effect/platform-node": "4.0.0-beta.88",
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@types/json-schema": "catalog:",
-    "@types/node": "^26.0.0",
-    "drizzle-kit": "0.31.10",
-    "miniflare": "4.20260710.0",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "miniflare": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "typed-openapi": "^2.2.7",
+    "typed-openapi": "2.2.7",
     "typescript": "catalog:",
-    "wrangler": "^4.111.0"
+    "wrangler": "catalog:"
   }
 }

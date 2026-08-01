@@ -23,16 +23,16 @@
   "dependencies": {
     "@emi/core": "workspace:*",
     "@emi/flavor-healthfit": "workspace:*",
-    "alchemy": "2.0.0-beta.59",
+    "alchemy": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20250805.0",
-    "@types/node": "^26.0.0",
-    "miniflare": "4.20260710.0",
+    "@cloudflare/workers-types": "catalog:",
+    "@types/node": "catalog:",
+    "miniflare": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:",
-    "wrangler": "^4.111.0"
+    "wrangler": "catalog:"
   }
 }

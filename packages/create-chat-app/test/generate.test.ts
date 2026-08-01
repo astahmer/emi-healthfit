@@ -28,7 +28,10 @@ describe("buildGeneratedFiles", () => {
       "core/test/chat/request.test.ts",
       "core/tsconfig.json",
       "web/src/app.tsx",
+      "web/postcss.config.mjs",
       "web/test/api-smoke.integration.test.ts",
+      "web/test/e2e/generic-chat.spec.ts",
+      "web/test/e2e/mock-api.ts",
       "web/test/e2e/layout.spec.ts",
       "worker/src/generic.worker.ts",
     ]) {
@@ -54,7 +57,7 @@ describe("buildGeneratedFiles", () => {
 
     assert.equal(workerPackageJson.name, "acme-chat-worker");
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
-    assert.equal(workerPackageJson.devDependencies["@effect/platform-node"], "4.0.0-beta.88");
+    assert.equal(workerPackageJson.devDependencies["@effect/platform-node"], "catalog:");
   });
 
   it("supports dependency mode for an existing @emi/core package", () => {
@@ -104,10 +107,12 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /draft is saved locally/);
     assert.match(app, /createConversationClient/);
     assert.equal(packageJson.dependencies.ai, "catalog:");
-    assert.equal(packageJson.dependencies["lucide-react"], "^1.21.0");
-    assert.equal(packageJson.dependencies["radix-ui"], "^1.6.0");
-    assert.equal(packageJson.devDependencies["@playwright/test"], "^1.61.1");
-    assert.equal(packageJson.devDependencies.vitest, "^4.1.10");
+    assert.equal(packageJson.dependencies["class-variance-authority"], "catalog:");
+    assert.equal(packageJson.dependencies["lucide-react"], "catalog:");
+    assert.equal(packageJson.dependencies["radix-ui"], "catalog:");
+    assert.equal(packageJson.devDependencies["@playwright/test"], "catalog:");
+    assert.equal(packageJson.devDependencies.tailwindcss, "catalog:");
+    assert.equal(packageJson.devDependencies.vitest, "catalog:");
     assert.equal(
       packageJson.scripts.test,
       "vitest run --exclude test/api-smoke.integration.test.ts",
