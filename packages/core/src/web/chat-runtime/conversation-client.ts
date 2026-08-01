@@ -66,6 +66,29 @@ const htmlResponseError =
 const invalidJsonResponseError =
   "API endpoint returned invalid JSON. Check the Vite proxy and VITE_API_ORIGIN.";
 
+const decodeMessages = async (
+  values: ReadonlyArray<typeof ConversationMessageSchema.Type>,
+): Promise<UIMessage[]> => {
+  const validated = await Promise.all(
+    values.map(async (message) => {
+      if (message.role !== "user" && message.role !== "assistant" && message.role !== "system")
+        return [];
+      const parts = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(
+        message.parts,
+      );
+      if (Option.isNone(parts)) return [];
+      try {
+        return await validateStoredUIMessages([
+          { id: message.id, role: message.role, parts: parts.value },
+        ]);
+      } catch {
+        return [];
+      }
+    }),
+  );
+  return validated.flat();
+};
+
 export const createConversationClient = ({
   apiOrigin,
   fetch,
@@ -103,29 +126,6 @@ export const createConversationClient = ({
       );
     }
     return payload.value;
-  };
-
-  const decodeMessages = async (
-    values: ReadonlyArray<typeof ConversationMessageSchema.Type>,
-  ): Promise<UIMessage[]> => {
-    const validated = await Promise.all(
-      values.map(async (message) => {
-        if (message.role !== "user" && message.role !== "assistant" && message.role !== "system")
-          return [];
-        const parts = Schema.decodeUnknownOption(
-          Schema.fromJsonString(Schema.Array(Schema.Unknown)),
-        )(message.parts);
-        if (Option.isNone(parts)) return [];
-        try {
-          return await validateStoredUIMessages([
-            { id: message.id, role: message.role, parts: parts.value },
-          ]);
-        } catch {
-          return [];
-        }
-      }),
-    );
-    return validated.flat();
   };
 
   const listConversations = async ({ search }: { search: string }): Promise<Conversation[]> => {

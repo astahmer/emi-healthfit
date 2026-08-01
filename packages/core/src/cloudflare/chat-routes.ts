@@ -250,17 +250,59 @@ const persistGeneration = async ({
   let sawFinish = false;
   try {
     await run(markGenerationStreaming({ db, userId, generationId }));
-    while (true) {
+    const persistChunks = async ({
+      sequence: currentSequence,
+      error: currentError,
+      finishReason: currentFinishReason,
+      sawFinish: hasFinish,
+    }: {
+      sequence: number;
+      error: string | undefined;
+      finishReason: string | undefined;
+      sawFinish: boolean;
+    }): Promise<{
+      sequence: number;
+      error: string | undefined;
+      finishReason: string | undefined;
+      sawFinish: boolean;
+    }> => {
       const next = await reader.read();
-      if (next.done) break;
-      await run(appendGenerationChunk({ db, userId, generationId, sequence, chunk: next.value }));
-      sequence += 1;
-      if (next.value.type === "error") error = next.value.errorText;
-      if (next.value.type === "finish") {
-        sawFinish = true;
-        finishReason = "finishReason" in next.value ? next.value.finishReason : undefined;
+      if (next.done) {
+        return {
+          sequence: currentSequence,
+          error: currentError,
+          finishReason: currentFinishReason,
+          sawFinish: hasFinish,
+        };
       }
-    }
+      await run(
+        appendGenerationChunk({
+          db,
+          userId,
+          generationId,
+          sequence: currentSequence,
+          chunk: next.value,
+        }),
+      );
+      return persistChunks({
+        sequence: currentSequence + 1,
+        error: next.value.type === "error" ? next.value.errorText : currentError,
+        finishReason:
+          next.value.type === "finish"
+            ? "finishReason" in next.value
+              ? next.value.finishReason
+              : undefined
+            : currentFinishReason,
+        sawFinish: hasFinish || next.value.type === "finish",
+      });
+    };
+
+    ({ sequence, error, finishReason, sawFinish } = await persistChunks({
+      sequence,
+      error,
+      finishReason,
+      sawFinish,
+    }));
     await run(
       finishGeneration({
         db,
@@ -381,8 +423,8 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
-    const conversation = yield* getConversation(conversationDb, user.id, conversationId);
-    if (conversation === null) {
+    const existingConversation = yield* getConversation(conversationDb, user.id, conversationId);
+    if (existingConversation === null) {
       return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
     const decoded = Schema.decodeUnknownOption(CompactConversationRequestSchema)(
@@ -418,7 +460,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
         { status: 502 },
       );
     }
-    const title = conversation.title?.trim() || "New chat";
+    const title = existingConversation.title?.trim() || "New chat";
     const compactedId = yield* createConversation(conversationDb, user.id, `${title} (compacted)`);
     yield* saveConversationMessages(conversationDb, user.id, compactedId, null, [
       {
@@ -483,8 +525,8 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     if (conversationId === undefined) {
       return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
-    const conversation = yield* getConversation(conversationDb, user.id, conversationId);
-    if (conversation === null) {
+    const existingConversation = yield* getConversation(conversationDb, user.id, conversationId);
+    if (existingConversation === null) {
       return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
     if (request.method === "GET") {
@@ -619,8 +661,8 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       : (decoded.value.sessionId ?? (yield* createConversation(conversationDb, user.id)));
 
     if (!temporary) {
-      const conversation = yield* getConversation(conversationDb, user.id, conversationId);
-      if (conversation === null) {
+      const existingConversation = yield* getConversation(conversationDb, user.id, conversationId);
+      if (existingConversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
       const existingGeneration = yield* getGenerationByRequestId({
@@ -637,20 +679,24 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       }
     }
 
-    const thread =
+    const existingThread =
       temporary || decoded.value.threadId === undefined
         ? null
         : yield* getThread(conversationDb, user.id, decoded.value.threadId);
     if (
       decoded.value.threadId !== undefined &&
-      (thread === null || thread.conversation_id !== conversationId || thread.status !== "regular")
+      (existingThread === null ||
+        existingThread.conversation_id !== conversationId ||
+        existingThread.status !== "regular")
     ) {
       return yield* HttpServerResponse.json({ error: "Thread not found" }, { status: 404 });
     }
 
     const threadMessages =
-      thread === null ? [] : yield* getThreadMessages(conversationDb, user.id, thread.id);
-    const threadParentId = threadMessages.at(-1)?.id ?? thread?.anchor_message_id ?? null;
+      existingThread === null
+        ? []
+        : yield* getThreadMessages(conversationDb, user.id, existingThread.id);
+    const threadParentId = threadMessages.at(-1)?.id ?? existingThread?.anchor_message_id ?? null;
 
     const lastMessage = messages.at(-1);
     const titleSource = firstUserText(messages);
@@ -664,10 +710,10 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
         [{ role: "user", parts: lastMessage.parts }],
       );
       assistantParentId = savedUserIds.at(-1) ?? threadParentId;
-      if (thread !== null) {
+      if (existingThread !== null) {
         yield* Effect.forEach(
           savedUserIds,
-          (messageId) => addThreadMessage(conversationDb, user.id, thread.id, messageId),
+          (messageId) => addThreadMessage(conversationDb, user.id, existingThread.id, messageId),
           { discard: true },
         );
       }
@@ -723,11 +769,12 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
                 },
               ]),
             );
-            if (thread !== null) {
+            if (existingThread !== null) {
               await Effect.runPromiseWith(services)(
                 Effect.forEach(
                   savedAssistantIds,
-                  (messageId) => addThreadMessage(conversationDb, user.id, thread.id, messageId),
+                  (messageId) =>
+                    addThreadMessage(conversationDb, user.id, existingThread.id, messageId),
                   { discard: true },
                 ),
               );
@@ -743,7 +790,9 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
                       extractMemories({
                         configuration: memoryConfiguration,
                         text: event.text,
-                        existingMemories: existingMemories.map((memory) => memory.content),
+                        existingMemories: existingMemories.map(
+                          (memoryRecord) => memoryRecord.content,
+                        ),
                       }),
                     catch: (cause) =>
                       new Error(cause instanceof Error ? cause.message : String(cause)),
@@ -754,7 +803,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
                     snippets.map((content) => ({
                       content,
                       source: "auto",
-                      threadId: thread?.id,
+                      threadId: existingThread?.id,
                       messageId: savedAssistantIds.at(-1),
                     })),
                   );
@@ -768,10 +817,10 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
               );
             }
             if (titleSource !== undefined) {
-              const conversation = await Effect.runPromiseWith(services)(
+              const storedConversation = await Effect.runPromiseWith(services)(
                 getConversation(conversationDb, user.id, conversationId),
               );
-              if (conversation?.title === null) {
+              if (storedConversation?.title === null) {
                 const title = await generateConversationTitle({
                   configuration: {
                     apiKey: decoded.value.config.apiKey,
