@@ -57,6 +57,34 @@ const startProvider = async (): Promise<{ baseUrl: string; server: Server }> => 
   return { baseUrl: `http://127.0.0.1:${address.port}/v1`, server };
 };
 
+const hasPersistedProviderReply = async ({
+  apiOrigin,
+  cookie,
+  conversationId,
+  attempts,
+}: {
+  apiOrigin: string;
+  cookie: string;
+  conversationId: string;
+  attempts: number;
+}): Promise<boolean> => {
+  const persistedResponse = await fetch(`${apiOrigin}/api/conversations/${conversationId}`, {
+    headers: { cookie },
+  });
+  if (persistedResponse.ok) {
+    const persisted = Schema.decodeUnknownSync(
+      Schema.Struct({
+        messages: Schema.Array(Schema.Struct({ role: Schema.String, parts: Schema.String })),
+      }),
+    )(await persistedResponse.json());
+    if (persisted.messages.some((message) => message.parts.includes("generic provider reply")))
+      return true;
+  }
+  if (attempts <= 1) return false;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  return hasPersistedProviderReply({ apiOrigin, attempts: attempts - 1, conversationId, cookie });
+};
+
 describe("generic web and worker local API topology", () => {
   it("fetches health and structured conversation auth errors through the Vite path", async () => {
     const healthResponse = await fetch(`${apiOrigin}/api/health`);
@@ -264,26 +292,13 @@ describe("generic web and worker local API topology", () => {
       expect(conversationId).toBeTruthy();
       expect(await response.text()).toContain("generic provider reply");
 
-      let persistedMessages: ReadonlyArray<{ role: string; parts: string }> = [];
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        const persistedResponse = await fetch(
-          `${apiOrigin}/api/conversations/${conversationId ?? ""}`,
-          { headers: { cookie: cookie ?? "" } },
-        );
-        if (persistedResponse.ok) {
-          const persisted = Schema.decodeUnknownSync(
-            Schema.Struct({
-              messages: Schema.Array(Schema.Struct({ role: Schema.String, parts: Schema.String })),
-            }),
-          )(await persistedResponse.json());
-          persistedMessages = persisted.messages;
-          if (persistedMessages.some((message) => message.parts.includes("generic provider reply")))
-            break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
       expect(
-        persistedMessages.some((message) => message.parts.includes("generic provider reply")),
+        await hasPersistedProviderReply({
+          apiOrigin,
+          attempts: 20,
+          conversationId: conversationId ?? "",
+          cookie: cookie ?? "",
+        }),
       ).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) =>
