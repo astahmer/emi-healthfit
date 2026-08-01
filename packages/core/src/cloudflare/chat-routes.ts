@@ -17,6 +17,7 @@ import {
 } from "@emi/core/chat";
 import {
   CurrentUser,
+  GenerationAlreadyActiveError,
   appendGenerationChunk,
   addThreadMessage,
   createConversation,
@@ -617,7 +618,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     return yield* HttpServerResponse.json({ thread: threadResponse(updated) });
   });
 
-  const chat = Effect.fn("core.chat.stream")(function* (request: HttpServerRequest) {
+  const chatEffect = Effect.fn("core.chat.stream")(function* (request: HttpServerRequest) {
     const user = yield* CurrentUser;
     const decoded = Schema.decodeUnknownOption(ChatStreamRequestSchema)(yield* request.json);
     if (Option.isNone(decoded)) {
@@ -698,37 +699,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
         : yield* getThreadMessages(conversationDb, user.id, existingThread.id);
     const threadParentId = threadMessages.at(-1)?.id ?? existingThread?.anchor_message_id ?? null;
 
-    const lastMessage = messages.at(-1);
-    const titleSource = firstUserText(messages);
-    let assistantParentId = threadParentId;
-    if (!temporary && lastMessage?.role === "user") {
-      const savedUserIds = yield* saveConversationMessages(
-        conversationDb,
-        user.id,
-        conversationId,
-        threadParentId,
-        [{ role: "user", parts: lastMessage.parts }],
-      );
-      assistantParentId = savedUserIds.at(-1) ?? threadParentId;
-      if (existingThread !== null) {
-        yield* Effect.forEach(
-          savedUserIds,
-          (messageId) => addThreadMessage(conversationDb, user.id, existingThread.id, messageId),
-          { discard: true },
-        );
-      }
-    }
-
     const generationId = crypto.randomUUID();
-    const services = yield* Effect.context<RuntimeContext>();
-    const memorySummary =
-      temporary || !memoryEnabled
-        ? undefined
-        : yield* loadMemorySummary({
-            db: memoryDb,
-            userId: user.id,
-            configuration: memoryConfiguration,
-          }).pipe(Effect.catch(() => Effect.succeed(undefined)));
     if (!temporary) {
       yield* createGeneration({
         db: conversationDb,
@@ -740,6 +711,48 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       });
     }
 
+    const lastMessage = messages.at(-1);
+    const titleSource = firstUserText(messages);
+    let assistantParentId = threadParentId;
+    const markGenerationFailed = (cause: unknown) =>
+      temporary
+        ? Effect.void
+        : finishGeneration({
+            db: conversationDb,
+            userId: user.id,
+            generationId,
+            status: "failed",
+            error: cause instanceof Error ? cause.message : String(cause),
+          }).pipe(Effect.catch(() => Effect.void));
+    if (!temporary && lastMessage?.role === "user") {
+      yield* Effect.gen(function* () {
+        const savedUserIds = yield* saveConversationMessages(
+          conversationDb,
+          user.id,
+          conversationId,
+          threadParentId,
+          [{ role: "user", parts: lastMessage.parts }],
+        );
+        assistantParentId = savedUserIds.at(-1) ?? threadParentId;
+        if (existingThread !== null) {
+          yield* Effect.forEach(
+            savedUserIds,
+            (messageId) => addThreadMessage(conversationDb, user.id, existingThread.id, messageId),
+            { discard: true },
+          );
+        }
+      }).pipe(Effect.tapError(markGenerationFailed));
+    }
+
+    const services = yield* Effect.context<RuntimeContext>();
+    const memorySummary =
+      temporary || !memoryEnabled
+        ? undefined
+        : yield* loadMemorySummary({
+            db: memoryDb,
+            userId: user.id,
+            configuration: memoryConfiguration,
+          }).pipe(Effect.catch(() => Effect.succeed(undefined)));
     const result = yield* Effect.tryPromise({
       try: () =>
         createChatStream({
@@ -840,7 +853,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
           },
         }),
       catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
-    });
+    }).pipe(Effect.tapError(markGenerationFailed));
     const stream = toUiMessageStream({ result });
     if (!temporary) {
       const streams = stream.tee();
@@ -873,6 +886,19 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       }),
     );
   });
+
+  const chat = (request: HttpServerRequest) =>
+    chatEffect(request).pipe(
+      Effect.catchIf(
+        (error): error is GenerationAlreadyActiveError =>
+          error instanceof GenerationAlreadyActiveError,
+        (error) =>
+          HttpServerResponse.json(
+            { error: "A generation is already running", generationId: error.generationId },
+            { status: 409 },
+          ),
+      ),
+    );
 
   const resume = ({ conversationId }: { conversationId: string }) =>
     Effect.fn("core.chat.resume")(function* () {
