@@ -3,6 +3,14 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      "/api": {
+        target: process.env.VITE_WORKER_ORIGIN ?? "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: "dist",
   },

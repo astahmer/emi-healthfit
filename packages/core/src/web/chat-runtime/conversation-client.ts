@@ -53,6 +53,19 @@ export type Conversation = typeof ConversationSchema.Type;
 export type ConversationThread = typeof ThreadSchema.Type;
 export type Memory = typeof MemorySchema.Type;
 
+const isJsonContentType = ({ response }: { response: Response }): boolean => {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  return (
+    contentType === "" || contentType.includes("application/json") || contentType.includes("+json")
+  );
+};
+
+const htmlResponseError =
+  "API endpoint returned HTML instead of JSON. Check the Vite proxy and VITE_API_ORIGIN.";
+
+const invalidJsonResponseError =
+  "API endpoint returned invalid JSON. Check the Vite proxy and VITE_API_ORIGIN.";
+
 export const createConversationClient = ({
   apiOrigin,
   fetch,
@@ -60,10 +73,27 @@ export const createConversationClient = ({
   apiOrigin: string;
   fetch: typeof globalThis.fetch;
 }) => {
-  const apiUrl = (path: string): string => `${apiOrigin}${path}`;
+  const normalizedApiOrigin = apiOrigin.endsWith("/") ? apiOrigin.slice(0, -1) : apiOrigin;
+  const apiUrl = (path: string): string => `${normalizedApiOrigin}${path}`;
 
   const readResponse = async ({ response }: { response: Response }): Promise<unknown> => {
-    const payload: unknown = await response.json();
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (contentType.includes("text/html")) throw new Error(htmlResponseError);
+    if (!isJsonContentType({ response })) {
+      throw new Error(`API endpoint returned unexpected content type ${contentType || "unknown"}.`);
+    }
+
+    const body = await response.text();
+    let payload: unknown;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      throw new Error(
+        body.trimStart().toLowerCase().startsWith("<!doctype")
+          ? htmlResponseError
+          : invalidJsonResponseError,
+      );
+    }
     if (!response.ok) {
       const error = Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String }))(payload);
       throw new Error(
