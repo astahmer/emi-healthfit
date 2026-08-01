@@ -26,7 +26,7 @@ describe("anonymous web session adapter", () => {
   it("shares one guest bootstrap across concurrent protected requests", async () => {
     const requests: string[] = [];
     let authCalls = 0;
-    const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetch = async (input: RequestInfo | URL) => {
       const url = String(input);
       requests.push(url);
       if (url.endsWith(anonymousSignInPath)) {
