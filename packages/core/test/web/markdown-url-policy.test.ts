@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 import {
+  isSafeAttachmentUrl,
   isSafeMarkdownHref,
   shouldRenderMarkdownImage,
 } from "../../src/web/thread/markdown-url-policy.ts";
@@ -31,5 +32,40 @@ describe("markdown URL policy", () => {
     assert.equal(shouldRenderMarkdownImage("http://insecure.example/a.png"), false);
     assert.equal(shouldRenderMarkdownImage("javascript:alert(1)"), false);
     assert.equal(shouldRenderMarkdownImage(undefined), false);
+  });
+
+  it("allows declared attachment data and rejects executable or mismatched data", () => {
+    assert.equal(
+      isSafeAttachmentUrl({ href: "/attachments/report.txt", mediaType: "text/plain" }),
+      true,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "https://cdn.example/report.txt", mediaType: "text/plain" }),
+      true,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "data:text/plain;base64,abc", mediaType: "text/plain" }),
+      true,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "data:image/png;base64,abc", mediaType: "image/png" }),
+      true,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "data:text/html;base64,abc", mediaType: "text/html" }),
+      false,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "data:image/svg+xml;base64,abc", mediaType: "image/svg+xml" }),
+      false,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "data:text/plain;base64,abc", mediaType: "image/png" }),
+      false,
+    );
+    assert.equal(
+      isSafeAttachmentUrl({ href: "javascript:alert(1)", mediaType: "text/plain" }),
+      false,
+    );
   });
 });
