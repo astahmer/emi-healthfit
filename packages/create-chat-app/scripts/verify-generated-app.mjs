@@ -128,6 +128,7 @@ try {
       cwd: targetDirectory,
       env: {
         GENERIC_API_ORIGIN: "http://127.0.0.1:3233",
+        GENERIC_AUTH_ORIGIN: "http://127.0.0.1:3233",
         GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
       },
     });
