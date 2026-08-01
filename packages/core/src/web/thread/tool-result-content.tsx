@@ -5,6 +5,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { useToolRenderer } from "../contributions.tsx";
 import { cn } from "../cn.ts";
+import { isSafeMarkdownHref } from "./markdown-url-policy.ts";
 
 interface Citation {
   readonly title?: string;
@@ -49,7 +50,7 @@ const WebSearchCitations: FC<{ citations: ReadonlyArray<Citation> }> = ({ citati
       >
         {citation.title !== undefined && (
           <p className="font-medium text-sm">
-            {citation.url !== undefined ? (
+            {citation.url !== undefined && isSafeMarkdownHref(citation.url) ? (
               <a
                 href={citation.url}
                 target="_blank"

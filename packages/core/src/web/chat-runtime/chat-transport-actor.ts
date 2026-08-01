@@ -96,10 +96,10 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
           messages,
           abortSignal: controller.signal,
           body: {
-            sessionId: request.conversationId,
-            ...(request.threadId === undefined ? {} : { threadId: request.threadId }),
-            temporary: request.temporary,
             ...request.body,
+            sessionId: request.conversationId,
+            threadId: request.threadId,
+            temporary: request.temporary,
           },
         });
         await consumeStream({ activeOperation, stream });

@@ -1,4 +1,4 @@
-import { assign, fromCallback, setup } from "xstate";
+import { assign, fromCallback, sendTo, setup } from "xstate";
 
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
 import type { SettingsStorage } from "./settings-actor.ts";
@@ -88,6 +88,7 @@ export const browserStateActor = setup({
     reportFailure: assign(({ event }) =>
       event.type === "browser-state-failed" ? { error: event.error } : {},
     ),
+    forwardDraftPersistence: sendTo("operations", ({ event }) => event),
   },
 }).createMachine({
   id: "browserState",
@@ -100,7 +101,7 @@ export const browserStateActor = setup({
   invoke: { id: "operations", src: "operations", input: ({ context }) => context },
   on: {
     "online-changed": { actions: "changeOnline" },
-    "draft-persist-requested": { actions: "persistDraft" },
+    "draft-persist-requested": { actions: "forwardDraftPersistence" },
     "draft-restored": { actions: "restoreDraft" },
     "draft-hydrated": { actions: "markDraftHydrated" },
     "browser-state-failed": { actions: "reportFailure" },

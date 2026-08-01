@@ -23,6 +23,10 @@ import {
   type SettingsActorInput,
 } from "./settings-actor.ts";
 
+const invalidForwardingEvent = (): never => {
+  throw new Error("Generic chat app received an invalid forwarding event.");
+};
+
 export interface GenericChatAppInput
   extends
     Pick<ChatTransportActorInput, "api" | "createId" | "fetch">,
@@ -57,48 +61,49 @@ export const genericChatAppMachine = setup({
     chatUi: chatUiActor,
   },
   actions: {
-    forwardSessionEvent: sendTo("session", ({ event }) =>
-      event.type === "session-event" ? event.event : { type: "fresh-started" },
-    ),
-    forwardSessionToBrowserState: sendTo("browserState", ({ event }) =>
-      event.type === "session-event" && event.event.type === "draft-changed"
-        ? { type: "draft-persist-requested", draft: event.event.draft }
-        : { type: "browser-noop" },
-    ),
-    forwardTransportEvent: sendTo("transport", ({ event }) =>
-      event.type === "transport-event" ? event.event : { type: "stream-cancelled" },
-    ),
-    forwardConversationStoreEvent: sendTo("conversationStore", ({ event }) =>
-      event.type === "conversation-store-event" ? event.event : { type: "threads-cleared" },
-    ),
-    forwardConversationStoreTransportEvent: sendTo("transport", ({ event }) =>
-      event.type === "conversation-store-transport-event"
-        ? event.event
-        : { type: "stream-cancelled" },
-    ),
-    forwardSettingsEvent: sendTo("settings", ({ event }) =>
-      event.type === "settings-event"
-        ? event.event
-        : { type: "settings-patch-requested", patch: {} },
-    ),
-    forwardBrowserStateEvent: sendTo("browserState", ({ event }) =>
-      event.type === "browser-state-event"
-        ? event.event
-        : { type: "draft-persist-requested", draft: "" },
-    ),
-    forwardChatUiEvent: sendTo("chatUi", ({ event }) =>
-      event.type === "chat-ui-event" ? event.event : { type: "memory-draft-cleared" },
-    ),
+    forwardSessionEvent: sendTo("session", ({ event }) => {
+      if (event.type === "session-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardSessionToBrowserState: sendTo("browserState", ({ event }) => {
+      if (event.type === "session-event" && event.event.type === "draft-changed")
+        return { type: "draft-persist-requested", draft: event.event.draft };
+      return invalidForwardingEvent();
+    }),
+    forwardTransportEvent: sendTo("transport", ({ event }) => {
+      if (event.type === "transport-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardConversationStoreEvent: sendTo("conversationStore", ({ event }) => {
+      if (event.type === "conversation-store-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardConversationStoreTransportEvent: sendTo("transport", ({ event }) => {
+      if (event.type === "conversation-store-transport-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardSettingsEvent: sendTo("settings", ({ event }) => {
+      if (event.type === "settings-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardBrowserStateEvent: sendTo("browserState", ({ event }) => {
+      if (event.type === "browser-state-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardChatUiEvent: sendTo("chatUi", ({ event }) => {
+      if (event.type === "chat-ui-event") return event.event;
+      return invalidForwardingEvent();
+    }),
     forwardChildSessionEvent: sendTo("session", ({ event }) => {
       if (event.type === "transport-session-event") return event.event;
       if (event.type === "conversation-store-session-event") return event.event;
-      return { type: "fresh-started" };
+      return invalidForwardingEvent();
     }),
-    forwardSessionToConversationStore: sendTo("conversationStore", ({ event }) =>
-      event.type === "transport-session-event"
-        ? { type: "session-event", event: event.event }
-        : { type: "threads-cleared" },
-    ),
+    forwardSessionToConversationStore: sendTo("conversationStore", ({ event }) => {
+      if (event.type === "transport-session-event")
+        return { type: "session-event", event: event.event };
+      return invalidForwardingEvent();
+    }),
   },
 }).createMachine({
   id: "genericChatApp",

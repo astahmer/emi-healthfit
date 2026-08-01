@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { MarkdownText } from "./markdown-text.tsx";
+import { isSafeAttachmentUrl } from "./markdown-url-policy.ts";
 import { ToolPart, type MessagePartValue } from "./tool-part.tsx";
 
 export const MessagePart = ({
@@ -20,6 +21,9 @@ export const MessagePart = ({
   }
   if (part.type === "file" && typeof part.url === "string") {
     const mediaType = typeof part.mediaType === "string" ? part.mediaType : "";
+    if (!isSafeAttachmentUrl({ href: part.url, mediaType })) {
+      return <span className="text-muted-foreground">[attachment blocked]</span>;
+    }
     if (mediaType.startsWith("image/")) {
       return (
         <img

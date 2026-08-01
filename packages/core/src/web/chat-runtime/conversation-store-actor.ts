@@ -37,6 +37,7 @@ export interface ConversationStoreActorInput {
 }
 
 type ConversationStoreOperation = keyof ConversationStoreLoading;
+type ConversationStoreQuery = Exclude<ConversationStoreOperation, "mutation">;
 
 export type ConversationStoreActorEvent =
   | { type: "conversations-load-requested"; search: string }
@@ -105,13 +106,32 @@ const conversationStoreOperations = fromCallback<
     sendBack({ type: "operation-failed", operation, error: errorMessage({ cause, fallback }) });
   };
 
+  let nextQueryId = 0;
+  const activeQueries = new Map<ConversationStoreQuery, number>();
+  const beginQuery = ({ operation }: { operation: ConversationStoreQuery }): number => {
+    nextQueryId += 1;
+    activeQueries.set(operation, nextQueryId);
+    return nextQueryId;
+  };
+  const isCurrentQuery = ({
+    operation,
+    queryId,
+  }: {
+    operation: ConversationStoreQuery;
+    queryId: number;
+  }): boolean => activeQueries.get(operation) === queryId;
+
   const loadConversations = async ({ search }: { search: string }) => {
+    const queryId = beginQuery({ operation: "conversations" });
     try {
+      const conversations = await input.client.listConversations({ search });
+      if (!isCurrentQuery({ operation: "conversations", queryId })) return;
       sendBack({
         type: "conversations-loaded",
-        conversations: await input.client.listConversations({ search }),
+        conversations,
       });
     } catch (cause) {
+      if (!isCurrentQuery({ operation: "conversations", queryId })) return;
       reportFailure({
         cause,
         operation: "conversations",
@@ -121,8 +141,10 @@ const conversationStoreOperations = fromCallback<
   };
 
   const loadConversation = async ({ conversationId }: { conversationId: string }) => {
+    const queryId = beginQuery({ operation: "conversation" });
     try {
       const loaded = await input.client.loadConversation({ conversationId });
+      if (!isCurrentQuery({ operation: "conversation", queryId })) return;
       sendBack({ type: "conversation-loaded", ...loaded });
       input.sendTransport({
         type: "stream-resume-requested",
@@ -130,6 +152,7 @@ const conversationStoreOperations = fromCallback<
       });
       void loadThreads({ conversationId: loaded.conversation.id });
     } catch (cause) {
+      if (!isCurrentQuery({ operation: "conversation", queryId })) return;
       reportFailure({
         cause,
         operation: "conversation",
@@ -139,12 +162,16 @@ const conversationStoreOperations = fromCallback<
   };
 
   const loadThreads = async ({ conversationId }: { conversationId: string }) => {
+    const queryId = beginQuery({ operation: "threads" });
     try {
+      const threads = await input.client.listThreads({ conversationId });
+      if (!isCurrentQuery({ operation: "threads", queryId })) return;
       sendBack({
         type: "threads-loaded",
-        threads: await input.client.listThreads({ conversationId }),
+        threads,
       });
     } catch (cause) {
+      if (!isCurrentQuery({ operation: "threads", queryId })) return;
       reportFailure({
         cause,
         operation: "threads",
@@ -160,20 +187,28 @@ const conversationStoreOperations = fromCallback<
     conversationId: string;
     threadId: string;
   }) => {
+    const queryId = beginQuery({ operation: "thread" });
     try {
+      const loaded = await input.client.loadThread({ conversationId, threadId });
+      if (!isCurrentQuery({ operation: "thread", queryId })) return;
       sendBack({
         type: "thread-loaded",
-        ...(await input.client.loadThread({ conversationId, threadId })),
+        ...loaded,
       });
     } catch (cause) {
+      if (!isCurrentQuery({ operation: "thread", queryId })) return;
       reportFailure({ cause, operation: "thread", fallback: "Unable to load this branch." });
     }
   };
 
   const loadMemories = async ({ search }: { search: string }) => {
+    const queryId = beginQuery({ operation: "memories" });
     try {
-      sendBack({ type: "memories-loaded", memories: await input.client.listMemories({ search }) });
+      const memories = await input.client.listMemories({ search });
+      if (!isCurrentQuery({ operation: "memories", queryId })) return;
+      sendBack({ type: "memories-loaded", memories });
     } catch (cause) {
+      if (!isCurrentQuery({ operation: "memories", queryId })) return;
       reportFailure({ cause, operation: "memories", fallback: "Unable to load memories." });
     }
   };
@@ -206,7 +241,12 @@ const conversationStoreOperations = fromCallback<
     }
     if (event.type === "conversation-delete-requested") {
       void input.client.deleteConversation({ conversationId: event.conversationId }).then(
-        () => sendBack(event),
+        () =>
+          sendBack({
+            type: "conversation-deleted",
+            conversationId: event.conversationId,
+            resetSession: event.resetSession,
+          }),
         (cause: unknown) =>
           reportFailure({
             cause,
