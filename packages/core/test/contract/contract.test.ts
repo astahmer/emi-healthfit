@@ -6,6 +6,19 @@ import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
 import { Conversation, CoreApi, EmiApi, Memory, Note } from "../../src/contract/index.ts";
 
+const walk = async (directory: string): Promise<string[]> => {
+  const entries = await readdir(directory, { withFileTypes: true });
+  return (
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) return walk(path);
+        return entry.name.endsWith(".ts") ? [path] : [];
+      }),
+    )
+  ).flat();
+};
+
 describe("@emi/core/contract", () => {
   it("encodes and decodes core wire DTOs", () => {
     const conversation = Schema.decodeUnknownSync(Conversation)({
@@ -66,24 +79,17 @@ describe("@emi/core/contract", () => {
 
   it("does not import Cloudflare or Worker platform packages", async () => {
     const srcRoot = join(fileURLToPath(new URL("../../src/contract", import.meta.url)));
-    const walk = async (directory: string): Promise<string[]> => {
-      const entries = await readdir(directory, { withFileTypes: true });
-      const files: string[] = [];
-      for (const entry of entries) {
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) files.push(...(await walk(path)));
-        else if (entry.name.endsWith(".ts")) files.push(path);
-      }
-      return files;
-    };
     const banned = ["alchemy/", "cloudflare:", "kysely-d1", "drizzle-orm", "wrangler"];
-    const violations: string[] = [];
-    for (const file of await walk(srcRoot)) {
-      const source = await readFile(file, "utf8");
-      for (const token of banned) {
-        if (source.includes(token)) violations.push(`${file}:${token}`);
-      }
-    }
+    const violations = (
+      await Promise.all(
+        (
+          await walk(srcRoot)
+        ).map(async (file) => {
+          const source = await readFile(file, "utf8");
+          return banned.flatMap((token) => (source.includes(token) ? [`${file}:${token}`] : []));
+        }),
+      )
+    ).flat();
     assert.deepEqual(violations, []);
   });
 });
