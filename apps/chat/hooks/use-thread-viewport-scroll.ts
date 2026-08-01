@@ -3,6 +3,7 @@ import { readChatThreadScrollY } from "@/lib/chat-thread-scroll";
 
 const NEAR_BOTTOM_PX = 160;
 const PREV_USER_MARGIN_PX = 24;
+const emptyUserMessageIds: readonly string[] = [];
 
 export const scrollToMessage = ({ messageId }: { messageId: string }) => {
   document.getElementById(`message-${messageId}`)?.scrollIntoView({
@@ -38,7 +39,7 @@ export const findPreviousUserMessageId = ({
 export const useThreadViewportScroll = ({
   sessionId,
   messageCount,
-  userMessageIds = [],
+  userMessageIds = emptyUserMessageIds,
 }: {
   sessionId: string | undefined;
   messageCount: number;
@@ -47,13 +48,16 @@ export const useThreadViewportScroll = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const positionedForSessionRef = useRef<string | null>(null);
   const userMessageIdsRef = useRef(userMessageIds);
-  userMessageIdsRef.current = userMessageIds;
   const userMessageIdsKey = userMessageIds.join("\0");
   const [isAwayFromTop, setIsAwayFromTop] = useState(false);
   const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
   const [canScrollToPreviousUserMessage, setCanScrollToPreviousUserMessage] = useState(false);
 
   const sessionKey = sessionId ?? "new";
+
+  useLayoutEffect(() => {
+    userMessageIdsRef.current = userMessageIds;
+  }, [userMessageIds]);
 
   const updateScrollFlags = useCallback(() => {
     const viewport = viewportRef.current;
