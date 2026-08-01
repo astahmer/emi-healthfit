@@ -1,4 +1,5 @@
-import { BadRequest, EmiApi } from "@emi/core/contract";
+import { BadRequest } from "@emi/core/contract";
+import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -50,7 +51,7 @@ export const hevyHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const hevyDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "hevy", (handlers) =>
+  return HttpApiBuilder.group(HealthFitApi, "hevy", (handlers) =>
     handlers
       .handle(
         "status",

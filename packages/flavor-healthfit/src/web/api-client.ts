@@ -1,4 +1,4 @@
-import { EmiApi } from "@emi/core/contract";
+import { HealthFitApi } from "../contract/index.ts";
 import * as Effect from "effect/Effect";
 import { FetchHttpClient } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";
@@ -6,11 +6,11 @@ import { HttpApiClient } from "effect/unstable/httpapi";
 const apiBase = () => (typeof window === "undefined" ? "" : window.location.origin);
 
 export const runApi = <A, E>(
-  useClient: (client: HttpApiClient.ForApi<typeof EmiApi>) => Effect.Effect<A, E, never>,
+  useClient: (client: HttpApiClient.ForApi<typeof HealthFitApi>) => Effect.Effect<A, E, never>,
   options?: { readonly signal?: AbortSignal },
 ): Promise<A> =>
   Effect.runPromise(
-    Effect.flatMap(HttpApiClient.make(EmiApi, { baseUrl: apiBase() }), useClient).pipe(
+    Effect.flatMap(HttpApiClient.make(HealthFitApi, { baseUrl: apiBase() }), useClient).pipe(
       Effect.provide(FetchHttpClient.layer),
       Effect.provideService(FetchHttpClient.Fetch, globalThis.fetch),
     ),

@@ -1,6 +1,6 @@
 import {
   BadRequest,
-  EmiApi,
+  CoreApi,
   NotFound,
   type Conversation as ApiConversation,
   type Message as ApiMessage,
@@ -123,7 +123,7 @@ export const conversationsHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "conversations", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "conversations", (handlers) =>
     handlers
       .handle(
         "list",
@@ -480,7 +480,7 @@ export const threadsHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "threads", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "threads", (handlers) =>
     handlers
       .handle(
         "read",
@@ -532,7 +532,7 @@ export const messagesHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "messages", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "messages", (handlers) =>
     handlers.handle(
       "read",
       Effect.fn("httpApi.messages.read")(
@@ -559,7 +559,7 @@ export const memoryExtractionHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const memoryDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "memoryExtraction", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "memoryExtraction", (handlers) =>
     handlers.handle(
       "extract",
       Effect.fn("httpApi.memoryExtraction.extract")(

@@ -6,15 +6,7 @@ export * from "./notes-and-memories.ts";
 
 import { HttpApi } from "effect/unstable/httpapi";
 import { ConversationsApi, MessagesApi, ThreadsApi } from "./conversations.ts";
-import {
-  AnalyticsApi,
-  DataApi,
-  HevyIntegrationApi,
-  MemoriesExtraApi,
-  PrivacyApi,
-  SuggestionsApi,
-  WorkoutsApi,
-} from "./data.ts";
+import { MemoriesExtraApi, SuggestionsApi } from "./data.ts";
 import { DiscordApi } from "./discord.ts";
 import { MemoriesApi, NotesApi } from "./notes-and-memories.ts";
 
@@ -29,11 +21,3 @@ const CoreApiBase = HttpApi.make("emi-core-api")
   .add(DiscordApi);
 
 export class CoreApi extends CoreApiBase {}
-
-export class EmiApi extends CoreApiBase.add(AnalyticsApi)
-  .add(DataApi)
-  .add(PrivacyApi)
-  .add(WorkoutsApi)
-  .add(HevyIntegrationApi) {}
-
-export const HealthFitApi = EmiApi;

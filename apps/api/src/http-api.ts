@@ -1,4 +1,5 @@
-import { EmiApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
+import { CoreApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
+import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -73,7 +74,7 @@ const notesHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const notesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "notes", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "notes", (handlers) =>
     handlers
       .handle(
         "list",
@@ -122,7 +123,7 @@ const memoriesHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const memoriesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "memories", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "memories", (handlers) =>
     handlers
       .handle(
         "list",
@@ -199,7 +200,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
       discordHandlers({ db, runtimeContext }),
     ),
   ).pipe(Effect.scoped);
-  const routes = Object.values(EmiApi.groups).flatMap((group) => {
+  const routes = Object.values(HealthFitApi.groups).flatMap((group) => {
     const service = handlerContext.mapUnsafe.get(group.key);
     if (service === undefined) throw new Error(`Missing handlers for ${group.identifier}`);
     const handler = Schema.decodeUnknownOption(HttpApiHandler)(service);
@@ -210,6 +211,6 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   yield* router.add(
     "GET",
     "/api/openapi.json",
-    Effect.succeed(HttpServerResponse.jsonUnsafe(OpenApi.fromApi(EmiApi))),
+    Effect.succeed(HttpServerResponse.jsonUnsafe(OpenApi.fromApi(HealthFitApi))),
   );
 });

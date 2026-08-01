@@ -9,7 +9,6 @@
   "type": "module",
   "exports": {
     "./contract": "./src/contract/index.ts",
-    "./contract/healthfit": "./src/contract/healthfit.ts",
     "./chat": "./src/chat/index.ts",
     "./chat/settings": "./src/chat/settings.ts",
     "./chat/ui-messages": "./src/chat/ui-messages.ts",

@@ -1,4 +1,4 @@
-import { BadRequest, EmiApi, NotFound } from "@emi/core/contract";
+import { BadRequest, CoreApi, NotFound } from "@emi/core/contract";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
@@ -21,7 +21,7 @@ export const discordHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const discordDb = narrowQueryDatabaseClient<DiscordDatabaseSchema>(db);
-  return HttpApiBuilder.group(EmiApi, "discord", (handlers) =>
+  return HttpApiBuilder.group(CoreApi, "discord", (handlers) =>
     handlers
       .handle(
         "list",

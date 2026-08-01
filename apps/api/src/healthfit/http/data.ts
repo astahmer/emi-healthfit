@@ -1,4 +1,4 @@
-import { EmiApi } from "@emi/core/contract";
+import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import { generateSuggestions, normalizeGeneratedStrings } from "@emi/core/chat";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
@@ -56,7 +56,7 @@ export const suggestionsHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) =>
-  HttpApiBuilder.group(EmiApi, "suggestions", (handlers) =>
+  HttpApiBuilder.group(HealthFitApi, "suggestions", (handlers) =>
     handlers.handle(
       "generate",
       Effect.fn("httpApi.suggestions.generate")(
@@ -94,7 +94,7 @@ export const analyticsHandlers = ({
   environment: Record<string, unknown>;
   runtimeContext: Context.Context<never>;
 }) =>
-  HttpApiBuilder.group(EmiApi, "analytics", (handlers) =>
+  HttpApiBuilder.group(HealthFitApi, "analytics", (handlers) =>
     handlers.handle(
       "overview",
       Effect.fn("httpApi.analytics.overview")(
@@ -124,7 +124,7 @@ export const dataHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) =>
-  HttpApiBuilder.group(EmiApi, "data", (handlers) =>
+  HttpApiBuilder.group(HealthFitApi, "data", (handlers) =>
     handlers.handle(
       "exportSummary",
       Effect.fn("httpApi.data.exportSummary")(
@@ -151,7 +151,7 @@ export const privacyHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) =>
-  HttpApiBuilder.group(EmiApi, "privacy", (handlers) =>
+  HttpApiBuilder.group(HealthFitApi, "privacy", (handlers) =>
     handlers
       .handle(
         "read",
@@ -216,7 +216,7 @@ export const workoutsHandlers = ({
   environment: Record<string, unknown>;
   runtimeContext: Context.Context<never>;
 }) =>
-  HttpApiBuilder.group(EmiApi, "workouts", (handlers) =>
+  HttpApiBuilder.group(HealthFitApi, "workouts", (handlers) =>
     handlers.handle(
       "list",
       Effect.fn("httpApi.workouts.list")(
