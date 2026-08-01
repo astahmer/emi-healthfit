@@ -8,7 +8,7 @@ Mode: review only; no source changes made
 
 @emi/core has a solid architectural spine. The actor composition is real, adapter injection is respected, the generic app is now a React projection of actors, the headless/styled split exists, and the package has meaningful boundary and actor tests.
 
-It is not yet a high-standard standalone package or a safe distribution primitive. Five issues are release blockers for a reusable core:
+It is not yet a high-standard standalone package or a safe external distribution contract. Five issues are release blockers for a reusable core:
 
 1. Untrusted citation and file URLs bypass the existing URL safety policy.
 2. Successful conversation deletion feeds the request event back into the actor, causing repeated deletion attempts.
@@ -16,9 +16,23 @@ It is not yet a high-standard standalone package or a safe distribution primitiv
 4. The generic Worker route persists a user message before generation admission, so the one-active-generation race can leave durable orphan messages.
 5. Conversation, thread, and memory loads have no request identity or latest-wins rule, so stale responses can overwrite newer UI state.
 
-The package boundary also contradicts the stated core/flavor and distribution goals: the base contract still contains HealthFit APIs, the same resources have competing DTO shapes, the package is private and source-only, and public-package/coverage checks are not enforced. These are not cosmetic concerns. They make independent reuse and fork maintenance harder and make it impossible to claim a stable external package contract.
+The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The remaining package-level gaps are different: generic and HealthFit API composition is not explicit, the same resources have competing DTO shapes, the package is private and source-only, and public-package/coverage checks are not enforced. These are contract and distribution concerns, not an objection to having multiple capability layers.
 
 The report is intentionally selective. Mechanical slop checks pass, and most React Doctor findings are small-array optimization suggestions or intentional shadcn-style exports. They should not become churn without evidence.
+
+## Design interpretation
+
+The target package is intentionally broad. The right quality bar is not layer purity or splitting every capability into a separate package:
+
+| Capability layer | Valid role in one package |
+| --- | --- |
+| Actors and machines | Reusable conversation, transport, persistence, browser, and UI logic. |
+| Headless web | Selectors, event contracts, shells, message primitives, and adapter-facing client behavior. |
+| Styled web | Optional shadcn/Radix-style components and CSS consumers can opt into through a subpath. |
+| Server and platform adapters | Durable storage, request context, Cloudflare/D1 wiring, replay, and route factories. |
+| Contract and integrations | Generic chat/agent contracts plus explicitly named domain extensions. |
+
+Review decisions below therefore distinguish intentional breadth from accidental coupling. Keep the one-package/subpath model if it is the desired developer experience. Enforce each subpath’s dependency, export, and runtime assumptions instead of treating the presence of multiple layers as slop.
 
 ## Evidence collected
 
@@ -115,7 +129,7 @@ Required follow-up:
 - Debounce high-frequency search at the view boundary or actor boundary, with one clearly owned policy.
 - Add delayed-promise actor tests for out-of-order conversation and memory searches, plus conversation/thread selection changes. Assert that the newest request wins and loading flags do not get cleared by stale work.
 
-### CORE-006 — High: the base contract still embeds HealthFit domain APIs
+### CORE-006 — Medium: generic and HealthFit contract composition is not explicit
 
 Locations:
 
@@ -123,13 +137,20 @@ Locations:
 - [contract/index.ts:1-34](../packages/core/src/contract/index.ts) exports them from the base contract and adds them to EmiApi.
 - [contract/healthfit.ts:1-2](../packages/core/src/contract/healthfit.ts) only re-exports the domain groups; it does not remove them from the base entrypoint.
 
-This contradicts the repository’s stated core/flavor direction. A generic consumer importing @emi/core/contract receives HealthFit-specific API groups and the base EmiApi requires them as part of its composition. That makes the package less reusable, makes generated/forked contracts carry irrelevant domain surface, and makes generic core plus flavor impossible to enforce by imports alone.
+This is not a mixed-layer violation. The package can intentionally ship generic chat contracts and HealthFit contracts together. The issue is that the current naming and composition do not tell a consumer which contract is the generic baseline and which groups are HealthFit-specific: importing @emi/core/contract exposes the domain groups, and EmiApi adds them by default.
+
+There are two valid product decisions:
+
+- If this is intentionally a HealthFit-first go-to package, keep the groups but document and name that composition clearly so consumers know the default API is product-specific.
+- If generic chat/agent applications are first-class external consumers, expose a clearly generic CoreApi and make the HealthFit groups an explicit extension/composition subpath.
+
+The defect is the implicit contract, not the presence of multiple contract layers.
 
 Required follow-up:
 
-- Define a genuinely generic CoreApi containing conversations, threads, messages, notes, memories, suggestions, and generic chat operations.
-- Move analytics/data/privacy/workouts/Hevy groups into a HealthFit extension entrypoint and compose them in the HealthFit application boundary.
-- Keep generic contract tests free of HealthFit names and add a composition test proving the HealthFit API is an extension rather than a base dependency.
+- Choose and document the intended default contract composition.
+- If generic consumers are first-class, define a generic CoreApi and make the HealthFit groups an explicit extension entrypoint.
+- Add contract tests that prove the documented composition and prevent accidental domain groups from appearing in an unintended baseline.
 
 ### CORE-007 — High: external distribution is not a supported package mode yet
 
@@ -142,14 +163,14 @@ Evidence:
 - npm pack --dry-run --json contains 92 source files and no built JavaScript or declaration output.
 - [knip.json:1-20](../knip.json) does not configure packages/core, so unused core exports and dependencies are not part of the repository’s dead-code audit.
 
-The source-copy mode is a reasonable shadcn-like fork strategy, but it is currently undocumented as a versioned distribution contract. The registry/import mode is not ready. Simply flipping private to false would publish a source tree whose consumers still need the workspace toolchain and every platform dependency.
+The mixed-layer package is not the problem. A single package can intentionally provide all these capabilities through subpaths. The source-copy mode is a reasonable shadcn-like fork strategy, but it is currently undocumented as a versioned distribution contract. The registry/import mode is not ready. Simply flipping private to false would publish a source tree whose consumers still need the workspace toolchain and every platform dependency.
 
 Required follow-up:
 
 - Make the two intended modes explicit:
   - Source mode: copied source and tests, a clear ownership boundary, a manifest/version marker, and an upgrade/diff procedure for forks.
   - Registry mode: built ESM/CJS policy as appropriate, .d.ts, curated conditional exports, package-level peer/optional dependency strategy, README/license metadata, and a packed-install smoke test from a clean consumer.
-- Split or otherwise isolate contract/chat/headless-web/styled/server/Cloudflare/Discord dependency surfaces so a headless consumer does not install unrelated platform stacks.
+- Keep one package if that is the intended experience, but make subpath dependency isolation deliberate: optional/peer dependencies or an equivalent strategy for styled and platform-only consumers, and clean-install tests for each supported subpath.
 - Add CI checks for pack, public subpath imports, and the generated source-copy path.
 - Add packages/core to dead-export/dependency analysis once the public API is curated.
 
@@ -185,7 +206,7 @@ Required follow-up:
 - Keep internal unit tests, but add public-subpath tests and a packed clean-consumer smoke test.
 - Make security and concurrency regression tests mandatory in the package test command.
 
-### CORE-010 — Medium: the public API is too broad and implementation-shaped
+### CORE-010 — Medium: stable subpath contracts are not explicit enough
 
 Locations:
 
@@ -193,11 +214,11 @@ Locations:
 - [server/index.ts:1-16](../packages/core/src/server/index.ts) wildcard-exports database schemas and low-level persistence functions.
 - [contract/index.ts:1-5](../packages/core/src/contract/index.ts) wildcard-exports every contract module.
 
-This is convenient inside one monorepo but weak for independent consumers and forks. It makes implementation details look stable, expands the compatibility promise, and makes dead exports difficult to detect. It also blurs the distinction between supported extension point and internal building block.
+The broad API is not itself a problem for a go-to library, and exporting actors, clients, contribution registries, and styled primitives through subpaths is intentional. The maintenance risk is that wildcard barrels make it unclear which symbols are stable contracts versus advanced implementation hooks. That ambiguity makes independent consumers and forks harder to upgrade safely.
 
 Required follow-up:
 
-- Curate stable public exports explicitly. Keep low-level implementation modules reachable through intentionally named internal or advanced subpaths only when there is a real use case.
+- Curate and document stable symbols per subpath. Keep low-level implementation modules reachable through intentionally named advanced subpaths when there is a real use case.
 - Document the stable contract for actor inputs/events, client adapters, contribution registries, and styled components.
 - Use export-surface tests to prevent accidental additions and removals.
 
@@ -262,11 +283,10 @@ No changes are made in this report. When implementation starts, use focused JJ r
 1. Fix and cover CORE-001, CORE-002, and CORE-003. These are direct security/correctness failures.
 2. Make generation admission atomic and add the real concurrent persistence test for CORE-004.
 3. Add latest-wins/cancellation semantics and delayed-response actor tests for CORE-005.
-4. Split the generic contract from the HealthFit extension and remove DTO duplication for CORE-006 and CORE-008.
-5. Decide and implement the two distribution modes in CORE-007; add pack/import/generated-source acceptance before calling the package publishable.
+4. Make generic and HealthFit contract composition explicit, if both are supported, and remove DTO duplication for CORE-006 and CORE-008.
+5. Keep the intentional one-package/subpath model, then implement the two distribution modes in CORE-007 with pack/import/generated-source acceptance before calling the package publishable.
 6. Establish coverage thresholds, public export checks, and dead-code analysis for CORE-009 and CORE-010.
 7. Remove the duplicate browser persistence path and fabricated forwarding fallbacks (CORE-011 and CORE-012).
 8. Re-run React Doctor and only take the small-array/performance suggestions that are justified by profiling or touched code.
 
 The release bar should be: focused actor/security/integration tests pass, packed public imports pass from a clean consumer, generated source mode passes, pnpm slop:check passes, and the final repository release check passes immediately before handoff.
-
