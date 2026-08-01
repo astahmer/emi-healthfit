@@ -36,6 +36,7 @@ test("uses a keyboard-accessible mobile sidebar drawer", async ({ page }, testIn
   expect(await openSidebar.count()).toBe(1);
   await openSidebar.click();
   await expect(closeSidebar).toBeVisible();
+  await expect(page.locator("[data-slot='sheet-content']")).toHaveCSS("transform", "none");
 
   const metrics = await page.evaluate(() => ({
     documentHeight: document.documentElement.scrollHeight,
