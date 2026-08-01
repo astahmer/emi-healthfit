@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
-import { Conversation, CoreApi, EmiApi, Memory, Note } from "../../src/contract/index.ts";
+import { Conversation, CoreApi, Memory, Note } from "../../src/contract/index.ts";
 
 const walk = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -49,7 +49,7 @@ describe("@emi/core/contract", () => {
     assert.equal(memory.content, "memory");
   });
 
-  it("exposes generic and HealthFit API compositions explicitly", () => {
+  it("exposes only generic API groups", () => {
     assert.deepEqual(Object.keys(CoreApi.groups).toSorted(), [
       "conversations",
       "discord",
@@ -60,21 +60,21 @@ describe("@emi/core/contract", () => {
       "suggestions",
       "threads",
     ]);
-    assert.deepEqual(Object.keys(EmiApi.groups).toSorted(), [
-      "analytics",
-      "conversations",
-      "data",
-      "discord",
-      "hevy",
-      "memories",
-      "memoryExtraction",
-      "messages",
-      "notes",
-      "privacy",
-      "suggestions",
-      "threads",
-      "workouts",
-    ]);
+  });
+
+  it("does not expose HealthFit product contract APIs", async () => {
+    const contract = await import("../../src/contract/index.ts");
+    const healthFitExports = [
+      "AnalyticsApi",
+      "DataApi",
+      "HevyIntegrationApi",
+      "PrivacyApi",
+      "WorkoutsApi",
+    ];
+    assert.deepEqual(
+      healthFitExports.filter((exportName) => exportName in contract),
+      [],
+    );
   });
 
   it("does not import Cloudflare or Worker platform packages", async () => {
