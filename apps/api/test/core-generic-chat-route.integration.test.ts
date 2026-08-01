@@ -4,10 +4,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
-import {
-  makeGenericChatRoutes,
-  type CloudflareQueryDatabaseClient,
-} from "@emi/core/cloudflare";
+import { makeGenericChatRoutes, type CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
 import {
   createConversation,
   CurrentUser,
@@ -70,13 +67,7 @@ const providerResponse = async (_input: RequestInfo | URL, init?: RequestInit) =
   );
 };
 
-const chatBody = ({
-  conversationId,
-  requestId,
-}: {
-  conversationId: string;
-  requestId: string;
-}) =>
+const chatBody = ({ conversationId, requestId }: { conversationId: string; requestId: string }) =>
   JSON.stringify({
     config: {
       apiKey: "test-key",
@@ -96,13 +87,7 @@ const chatBody = ({
     sessionId: conversationId,
   });
 
-const requestFor = ({
-  conversationId,
-  requestId,
-}: {
-  conversationId: string;
-  requestId: string;
-}) =>
+const requestFor = ({ conversationId, requestId }: { conversationId: string; requestId: string }) =>
   fromWeb(
     new Request("https://core.example.com/api/chat", {
       body: chatBody({ conversationId, requestId }),
@@ -183,8 +168,15 @@ describe("generic core chat route", () => {
           conversationId,
           requestId: "22222222-2222-4222-8222-222222222222",
         }),
-      ).finally(() => releaseFirstMessage?.());
-      await Promise.allSettled([firstRequest, secondRequest]);
+      );
+      const outcomes = await Promise.allSettled([
+        firstRequest,
+        secondRequest.finally(() => releaseFirstMessage?.()),
+      ]);
+      assert.equal(outcomes[0]?.status, "fulfilled");
+      assert.equal(outcomes[1]?.status, "fulfilled");
+      if (outcomes[0]?.status === "fulfilled") assert.equal(outcomes[0].value.status, 200);
+      if (outcomes[1]?.status === "fulfilled") assert.equal(outcomes[1].value.status, 409);
       await Promise.allSettled(pendingTasks);
 
       const messages = await run(getConversationMessages(database, user.id, conversationId));
