@@ -23,8 +23,10 @@
     "build": "pnpm -r build",
     "setup:google": "pnpm --filter api setup:google",
     "chat:dev": "pnpm --filter chat dev",
+    "chat:dev:portless": "portless emi-chat pnpm --dir apps/chat exec vite --host 127.0.0.1",
     "chat:build": "pnpm --filter chat build",
     "generic:dev": "node scripts/run-generic-dev.mjs",
+    "generic:dev:portless": "node scripts/run-generic-portless-dev.mjs",
     "generic:worker:dev": "pnpm --filter @emi/generic-worker dev",
     "generic:web:dev": "pnpm --filter @emi/generic-web dev",
     "fixture:chat-app": "node --experimental-strip-types scripts/generate-chat-app-fixture.mjs",
@@ -36,13 +38,15 @@
     "discord:setup:check": "pnpm --filter @emi/discord-bot test:file test/setup-check.test.ts",
     "slop:check": "node scripts/run-ast-grep.mjs scan",
     "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
-    "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"
+    "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts",
+    "portless:doctor": "portless doctor"
   },
   "devDependencies": {
     "@ast-grep/cli": "0.44.1",
     "knip": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "portless": "catalog:",
     "typescript": "catalog:"
   }
 }

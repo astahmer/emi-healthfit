@@ -81,7 +81,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 3232,
+      host: "127.0.0.1",
+      port: Number(process.env.PORT ?? "3232"),
       proxy: {
         "/api": apiBaseUrl,
         "/ingest": apiBaseUrl,

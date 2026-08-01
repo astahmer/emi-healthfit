@@ -1,0 +1,8 @@
+{
+  "apps": {
+    "apps/chat": { "name": "emi-chat" },
+    "apps/generic-web": { "name": "generic-chat" },
+    "apps/generic-worker": { "name": "generic-worker" }
+  },
+  "turbo": false
+}

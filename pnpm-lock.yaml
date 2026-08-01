@@ -120,6 +120,9 @@ catalogs:
     playwright-bdd:
       specifier: 9.2.0
       version: 9.2.0
+    portless:
+      specifier: 0.15.5
+      version: 0.15.5
     radix-ui:
       specifier: 1.6.2
       version: 1.6.2
@@ -191,6 +194,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.73.0
+      portless:
+        specifier: 'catalog:'
+        version: 0.15.5
       typescript:
         specifier: 'catalog:'
         version: 7.0.1-rc
@@ -5745,6 +5751,12 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  portless@0.15.5:
+    resolution: {integrity: sha512-zmJu4Q8/fY54oVUT/5NnmF4Ih8wTdCvCf6JCN783dRYl9mXkJBzXSckX2lztGCLIbM70varDjCudAbGKT73XPg==}
+    engines: {node: '>=24'}
+    os: [darwin, linux, win32]
+    hasBin: true
+
   postcss@8.5.17:
     resolution: {integrity: sha512-J7EF+8X+CzRPaJPOv9Ck2wNWJvGnnl3PcNPAdGg6GTLjyVpyQ0yATMSXRFRV01BviT/9Gwuc3rjEyJbDJG9a4w==}
     engines: {node: ^10 || ^12 || >=14}
@@ -11138,6 +11150,8 @@ snapshots:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  portless@0.15.5: {}
 
   postcss@8.5.17:
     dependencies:

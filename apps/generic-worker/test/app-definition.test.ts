@@ -11,7 +11,10 @@ describe("generic-worker chat composition", () => {
   it("registers persistent stream and resume endpoints through the core route factory", async () => {
     const source = await readFile(join(appRoot, "src/generic.worker.ts"), "utf8");
 
-    assert.match(source, /dev: \{ host: "127\.0\.0\.1", port: 8787, strictPort: true \}/);
+    assert.match(
+      source,
+      /dev: \{ host: "127\.0\.0\.1", port: Number\(process\.env\.PORT \?\? "8787"\), strictPort: true \}/,
+    );
     assert.match(source, /migrationsDir: "\.\/migrations"/);
     const stackSource = await readFile(join(appRoot, "alchemy.run.ts"), "utf8");
     assert.match(stackSource, /fileURLToPath\(new URL\("\.\/migrations", import\.meta\.url\)\)/);

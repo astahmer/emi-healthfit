@@ -32,7 +32,7 @@ export default GenericWorker.make(
   Stack.useSync(() => ({
     main: import.meta.url,
     compatibility: { flags: ["nodejs_compat"] },
-    dev: { host: "127.0.0.1", port: 8787, strictPort: true },
+    dev: { host: "127.0.0.1", port: Number(process.env.PORT ?? "8787"), strictPort: true },
     env: {
       BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
       BETTER_AUTH_URL: Config.redacted("BETTER_AUTH_URL"),

@@ -26,3 +26,18 @@ Vite proxies `/api/*` from `http://127.0.0.1:3233` to `http://127.0.0.1:8787`. T
 For a deployed or separately hosted Worker, set `VITE_API_ORIGIN` before building the web app. It
 must be the API origin, without a trailing slash, and the Worker must trust the browser origin
 used by `BETTER_AUTH_URL`.
+
+## Portless URLs
+
+Portless is available for named local HTTPS URLs:
+
+```sh
+pnpm generic:dev:portless
+pnpm chat:dev:portless
+pnpm portless:doctor
+```
+
+The generic stack is available at `https://generic-chat.localhost` and its Worker is routed as
+`https://generic-worker.localhost`. Portless creates and trusts its local certificate on first
+use. The fixed-port commands remain the deterministic choice for Playwright and generated-app
+acceptance.
