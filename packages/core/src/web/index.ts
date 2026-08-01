@@ -13,3 +13,4 @@ export * from "./chat-runtime/conversation-store-actor.ts";
 export * from "./chat-runtime/settings-actor.ts";
 export * from "./chat-runtime/browser-state-actor.ts";
 export * from "./chat-runtime/chat-ui-actor.ts";
+export * from "./auth/anonymous-session.ts";

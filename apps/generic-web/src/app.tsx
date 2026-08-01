@@ -2,6 +2,7 @@ import { convertFileListToFileUIParts } from "ai";
 import { useActorRef, useSelector } from "@xstate/react";
 import {
   genericChatAppMachine,
+  createAnonymousSessionFetch,
   createConversationClient,
   type ChatSessionEvent,
   type ChatTransportActorEvent,
@@ -11,6 +12,7 @@ import {
   type QueuedFollowUp,
 } from "@emi/core/web";
 import {
+  Button,
   ChatComposer,
   ChatHeader,
   ChatSidebar,
@@ -23,12 +25,18 @@ import {
 import { useCallback, useMemo, useRef } from "react";
 
 import "./app.css";
-import "@emi/core/web/styled/styles.css";
 import { genericChatAppConfig } from "./app-config.ts";
 
 export const App = () => {
   const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
-  const fetcher = useMemo(() => window.fetch.bind(window), []);
+  const fetcher = useMemo(
+    () =>
+      createAnonymousSessionFetch({
+        apiOrigin,
+        fetch: window.fetch.bind(window),
+      }),
+    [apiOrigin],
+  );
   const conversationClient = useMemo(
     () => createConversationClient({ apiOrigin, fetch: fetcher }),
     [apiOrigin, fetcher],
@@ -306,23 +314,29 @@ export const App = () => {
   };
 
   return (
-    <main className="chat-app" data-sidebar-open={sidebarOpen} data-theme={settings.theme}>
+    <main
+      className={`flex h-dvh min-h-0 overflow-hidden bg-background text-foreground ${settings.theme === "dark" ? "dark" : ""}`}
+      data-sidebar-open={sidebarOpen}
+      data-theme={settings.theme}
+    >
       <ChatSidebar
         description="Conversation history, memories, and provider settings."
         onOpenChange={(open) => dispatchChatUi({ type: "sidebar-open-changed", open })}
         open={sidebarOpen}
         title={genericChatAppConfig.name}
       >
-        <div>
-          <p className="eyebrow">EMI CORE</p>
-          <h1>{genericChatAppConfig.name}</h1>
-          <p className="muted">
+        <div className="space-y-1 px-2 pt-1">
+          <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
+            EMI CORE
+          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{genericChatAppConfig.name}</h1>
+          <p className="text-sm leading-6 text-muted-foreground">
             Generic streaming chat starter. Your provider key stays in this browser.
           </p>
         </div>
-        <button className="secondary-button" onClick={startFresh} type="button">
+        <Button className="w-full" onClick={startFresh} variant="outline">
           New chat
-        </button>
+        </Button>
         <ConversationList
           conversationId={conversationId}
           conversations={conversations}
@@ -384,7 +398,7 @@ export const App = () => {
           version={genericChatAppConfig.version}
         />
       </ChatSidebar>
-      <section className="chat-panel">
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <ChatHeader
           appName={genericChatAppConfig.name}
           messageCount={messages.length}
@@ -408,7 +422,11 @@ export const App = () => {
           streaming={streaming}
           temporary={temporary}
         />
-        {error !== undefined && <p className="error-message">{error}</p>}
+        {error !== undefined && (
+          <p className="mx-auto mb-3 w-full max-w-3xl rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
         <FollowUpQueue
           followUps={queuedFollowUps}
           onForceSend={forceSendQueued}

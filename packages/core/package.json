@@ -44,6 +44,8 @@
     "kysely-d1": "0.4.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tailwindcss": "catalog:",
+    "tw-animate-css": "catalog:",
     "xstate": "^5.32.4"
   },
   "devDependencies": {
@@ -51,27 +53,39 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/json-schema": "catalog:",
-    "@types/node": "^26.0.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
-    "jsdom": "^29.1.1",
-    "lucide-react": "^1.21.0",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "jsdom": "catalog:",
+    "lucide-react": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "radix-ui": "^1.6.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "radix-ui": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwind-merge": "catalog:",
     "typescript": "catalog:",
     "vitest": "^4.1.10"
   },
   "peerDependencies": {
-    "lucide-react": "^1.21.0",
-    "radix-ui": "^1.6.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "lucide-react": "catalog:",
+    "radix-ui": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwind-merge": "catalog:"
   },
   "peerDependenciesMeta": {
+    "class-variance-authority": {
+      "optional": true
+    },
+    "clsx": {
+      "optional": true
+    },
     "lucide-react": {
       "optional": true
     },
@@ -82,6 +96,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "tailwind-merge": {
       "optional": true
     }
   }
