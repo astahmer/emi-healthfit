@@ -197,6 +197,11 @@ Required follow-up:
 - Add CI checks for pack, public subpath imports, and the generated source-copy path.
 - Add packages/core to dead-export/dependency analysis once the public API is curated.
 
+Implementation: source-copy and dependency-mode expectations are now documented in the
+architecture, feature, handoff, and `PUBLISH.md` docs. Public subpath import smoke tests now
+exercise the package exports. Built registry artifacts, coverage thresholds, and clean packed
+consumer checks remain intentionally gated work rather than an undocumented promise.
+
 ### CORE-008 — High: competing DTO schemas make the transport boundary drift-prone
 
 Locations:
@@ -232,6 +237,10 @@ Required follow-up:
 - Set branch-aware coverage thresholds for actor transitions, boundary/security helpers, codecs, and public entrypoints; avoid using one blind line threshold for every layer.
 - Keep internal unit tests, but add public-subpath tests and a packed clean-consumer smoke test.
 - Make security and concurrency regression tests mandatory in the package test command.
+
+Implementation: contract, actor/security, SQLite concurrency, and public subpath regressions are
+now part of the package/app test paths. The remaining gap is enforcing quantitative coverage and
+a clean packed-install test once registry artifacts exist.
 
 ### CORE-010 — Medium: stable subpath contracts are not explicit enough
 
