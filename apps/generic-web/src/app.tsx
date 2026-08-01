@@ -1,9 +1,9 @@
-import { convertFileListToFileUIParts } from "ai";
 import { useActorRef, useSelector } from "@xstate/react";
 import {
   genericChatAppMachine,
   createAnonymousSessionFetch,
   createConversationClient,
+  prepareAttachmentParts,
   type ChatSessionEvent,
   type ChatTransportActorEvent,
   type ConversationStoreActorEvent,
@@ -303,12 +303,13 @@ export const App = () => {
     });
 
   const addFiles = (fileList: FileList | undefined) => {
-    void convertFileListToFileUIParts(fileList)
+    if (fileList === undefined) return;
+    void prepareAttachmentParts({ files: fileList, existingCount: files.length })
       .then((nextFiles) => dispatchSession({ type: "files-added", files: nextFiles }))
-      .catch(() =>
+      .catch((error) =>
         dispatchSession({
           type: "error-reported",
-          error: "Unable to prepare one or more attachments.",
+          error: error instanceof Error ? error.message : "Unable to prepare attachments.",
         }),
       );
   };

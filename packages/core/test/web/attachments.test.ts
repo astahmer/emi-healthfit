@@ -18,4 +18,12 @@ describe("attachment validation", () => {
       /PNG, JPEG, WebP, or GIF/,
     );
   });
+
+  it("matches the Worker payload limit before encoding files as data URLs", () => {
+    const files = [
+      new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.txt", { type: "text/plain" }),
+    ];
+
+    expect(() => validateAttachments({ files, existingCount: 0 })).toThrow(/5 MB/);
+  });
 });

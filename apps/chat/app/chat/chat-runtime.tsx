@@ -1,11 +1,10 @@
 "use client";
 
 import { useMachine } from "@xstate/react";
-import { convertFileListToFileUIParts } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNotes } from "../notes-context";
 import { useSettings } from "../settings-store";
-import { prepareAttachments } from "./attachments";
+import { prepareAttachmentParts } from "./attachments";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import {
   ChatRuntimeContext,
@@ -186,11 +185,10 @@ export const ChatRuntimeProvider = ({
         setAttachmentError(null);
         setIsPreparingAttachments(true);
         try {
-          const prepared = await prepareAttachments({
+          const additions = await prepareAttachmentParts({
             files,
             existingCount: stateRef.current.context.files.length,
           });
-          const additions = await convertFileListToFileUIParts(prepared);
           send({
             type: "files.changed",
             files: [...stateRef.current.context.files, ...additions],

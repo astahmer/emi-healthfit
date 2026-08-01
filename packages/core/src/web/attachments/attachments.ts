@@ -1,5 +1,7 @@
+import { convertFileListToFileUIParts, type FileUIPart } from "ai";
+
 const maximumAttachments = 10;
-const maximumFileBytes = 12 * 1024 * 1024;
+const maximumFileBytes = 5 * 1024 * 1024;
 const compressionThresholdBytes = 1_500_000;
 const maximumImageDimension = 2048;
 const compressibleImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -19,7 +21,7 @@ export const validateAttachments = ({
   }
   const oversized = files.find((file) => file.size > maximumFileBytes);
   if (oversized !== undefined) {
-    throw new AttachmentValidationError(`${oversized.name} is larger than 12 MB.`);
+    throw new AttachmentValidationError(`${oversized.name} is larger than 5 MB.`);
   }
   const unsupportedImage = files.find(
     (file) => file.type.startsWith("image/") && !supportedImageTypes.has(file.type),
@@ -69,4 +71,15 @@ export const prepareAttachments = async ({
   const transfer = new DataTransfer();
   for (const file of prepared) transfer.items.add(file);
   return transfer.files;
+};
+
+export const prepareAttachmentParts = async ({
+  files,
+  existingCount,
+}: {
+  files: FileList;
+  existingCount: number;
+}): Promise<FileUIPart[]> => {
+  const prepared = await prepareAttachments({ files, existingCount });
+  return convertFileListToFileUIParts(prepared);
 };
