@@ -7,6 +7,7 @@ import {
   DEFAULT_CORE_VERSION,
   DEFAULT_DISTRIBUTION_MODE,
 } from "../src/generate.ts";
+import { workspaceConfig } from "../src/templates.ts";
 
 const findFile = (files: { path: string; contents: string }[], path: string) => {
   const file = files.find((candidate) => candidate.path === path);
@@ -59,6 +60,40 @@ describe("buildGeneratedFiles", () => {
     assert.equal(workerPackageJson.name, "acme-chat-worker");
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
     assert.equal(workerPackageJson.devDependencies["@effect/platform-node"], "catalog:");
+  });
+
+  it("keeps the standalone catalog limited to generated project dependencies", () => {
+    const config = workspaceConfig();
+
+    for (const dependency of [
+      "@ai-sdk/openai",
+      "@playwright/test",
+      "@xstate/react",
+      "alchemy",
+      "better-auth",
+      "playwright-bdd",
+      "react",
+      "wrangler",
+    ]) {
+      assert.ok(
+        config.includes(`  "${dependency}":`) || config.includes(`  ${dependency}:`),
+        dependency,
+      );
+    }
+    for (const unrelatedDependency of [
+      "@tanstack/react-query",
+      "@tanstack/react-router",
+      "@serwist/vite",
+      "recharts",
+      "zustand",
+    ]) {
+      assert.equal(
+        config.includes(`  "${unrelatedDependency}":`) ||
+          config.includes(`  ${unrelatedDependency}:`),
+        false,
+        unrelatedDependency,
+      );
+    }
   });
 
   it("supports dependency mode for an existing @emi/core package", () => {
