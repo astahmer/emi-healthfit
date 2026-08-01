@@ -94,6 +94,12 @@ describe("@emi/core entry isolation", () => {
     });
   });
 
+  it("headless web entry does not pull the optional styled bundle", async () => {
+    const source = await readFile(join(packageRoot, "src", "web", "index.ts"), "utf8");
+
+    assert.doesNotMatch(source, /styled|lucide-react|radix-ui/);
+  });
+
   it("discord never imports web, flavor, or react", async () => {
     await assertNoMatches({
       entry: "discord",

@@ -13,6 +13,7 @@ apps/chat/public/sw*.js
 apps/chat/public/swe-worker*.js
 apps/chat/playwright-report
 apps/chat/test-results
+apps/generic-web/test-results
 apps/chat/e2e/.features-gen
 .cachebro
 .direnv/

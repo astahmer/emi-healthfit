@@ -80,7 +80,9 @@ export const createConversationClient = ({
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (contentType.includes("text/html")) throw new Error(htmlResponseError);
     if (!isJsonContentType({ response })) {
-      throw new Error(`API endpoint returned unexpected content type ${contentType || "unknown"}.`);
+      throw new Error(
+        `API endpoint returned unexpected content type ${contentType || "unknown"}. Check the Vite proxy and VITE_API_ORIGIN.`,
+      );
     }
 
     const body = await response.text();
