@@ -25,7 +25,9 @@ Consumers can reuse the package without a fork through the exported subpaths, fo
 `@emi/core/chat`, `@emi/core/web`, `@emi/core/web/styled`, `@emi/core/server`, and
 `@emi/core/cloudflare`. Runtime dependencies are supplied through explicit adapters. Styled
 and platform-specific consumers must not require those subpaths merely to use the headless
-or chat layers.
+or chat layers. Product domains belong in separate flavor packages; `@emi/core/contract`
+exports only generic contracts, while a product flavor may publish its own composition over
+`CoreApi`.
 
 ## Registry readiness
 

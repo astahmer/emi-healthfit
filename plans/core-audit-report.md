@@ -18,7 +18,7 @@ The initial review found five release-blocking behavioral defects. The focused i
 
 The fixes are deliberately narrow and test-first: regression tests were added before the source fixes, the pre-fix route test observed two persisted user turns, and the post-fix test observes one turn plus a structured 409 for the losing request.
 
-The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The remaining package-level gaps are different: generic and HealthFit API composition is not explicit, the same resources have competing DTO shapes, the package is private and source-only, and public-package/coverage checks are not enforced. These are contract and distribution concerns, not an objection to having multiple capability layers.
+The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The initial review also found that HealthFit API contracts leaked into the generic core; that boundary is now fixed by moving the product composition into `@emi/flavor-healthfit/contract`. The remaining package-level gaps are the same resources having competing DTO shapes, the package being private and source-only, and public-package/coverage checks not being enforced. These are contract and distribution concerns, not an objection to having multiple capability layers.
 
 The report is intentionally selective. Mechanical slop checks pass, and most React Doctor findings are small-array optimization suggestions or intentional shadcn-style exports. They should not become churn without evidence.
 
@@ -57,7 +57,8 @@ The behavioral findings are now covered by focused revisions:
 - `test(core): cover generation admission ordering` adds a real SQLite/D1-compatible concurrent route test.
 - `fix(core): admit generations before turn persistence` admits the active generation before saving the user turn, marks admitted generations failed when setup fails, and returns a structured 409 conflict.
 - `fix(core): preserve generic message identity` passes the validated client message ID through generic persistence so retry/edit/branch operations can address the stored turn.
-- `fix(core): expose generic contract composition` adds a generic `CoreApi` composition, keeps `EmiApi` as the HealthFit composition, and exports the explicit `HealthFitApi` alias.
+- `fix(core): expose generic contract composition` establishes `CoreApi` as the generic contract composition.
+- `fix(core): move HealthFit contracts into the flavor` removes product API groups from `@emi/core/contract`, adds `@emi/flavor-healthfit/contract`, and updates the product route/client compositions to import `HealthFitApi` from the flavor.
 
 The remaining findings below are package contract, DTO, coverage, and registry-distribution work; they are not reasons to split the intentionally mixed-layer package.
 
@@ -159,21 +160,27 @@ Implementation: generic persistence now passes `lastMessage.id` to the server st
 SQLite route regression asserts that the stored user turn keeps the client-generated ID. This
 also follows the repository anti-slop rule requiring client message IDs to survive persistence.
 
-### CORE-006 — Fixed medium: generic and HealthFit contract composition was not explicit
+### CORE-006 — Fixed high: HealthFit-specific API contracts leaked into generic core
 
 Locations:
 
-- [contract/data.ts:45-262](../packages/core/src/contract/data.ts) defines analytics, export, privacy, workouts, and Hevy integration groups alongside generic suggestions and memory extraction.
-- [contract/index.ts:1-34](../packages/core/src/contract/index.ts) exports them from the base contract and adds them to EmiApi.
-- [contract/healthfit.ts:1-2](../packages/core/src/contract/healthfit.ts) only re-exports the domain groups; it does not remove them from the base entrypoint.
+- [packages/core/src/contract/data.ts](../packages/core/src/contract/data.ts) defined analytics, export, privacy, workouts, and Hevy integration groups alongside generic suggestions and memory extraction.
+- [packages/core/src/contract/index.ts](../packages/core/src/contract/index.ts) exported those domain groups from the generic contract entrypoint.
+- [packages/flavor-healthfit/src/contract/index.ts](../packages/flavor-healthfit/src/contract/index.ts) now owns the HealthFit composition over `CoreApi`.
 
-This is not a mixed-layer violation. The package can intentionally ship generic chat contracts and HealthFit contracts together. The issue is that the current naming and composition do not tell a consumer which contract is the generic baseline and which groups are HealthFit-specific: importing @emi/core/contract exposes the domain groups, and EmiApi adds them by default.
+This is a real core-boundary violation under the intended direction. `@emi/core` provides the
+foundations that make HealthFit or another chat/agent product possible; it must not contain or
+export HealthFit-specific APIs. Leaving analytics, fitness data, privacy, workouts, and Hevy
+groups in the core contract made the generic package product-aware and forced generic consumers
+to depend on a domain contract they did not opt into. The mixed-layer package shape remains
+intentional; the product-domain ownership boundary is not.
 
-The defect was the implicit composition, not the presence of multiple contract layers.
-
-Implementation: `CoreApi` now contains the generic chat, memory, notes, suggestions, and
-Discord groups; the existing `EmiApi` remains the HealthFit-inclusive composition, with an
-explicit `HealthFitApi` alias. Contract tests assert both group sets.
+Tests were written before the move. The core regression first failed because all five HealthFit
+API exports were present, and the flavor regression failed because its public contract entry did
+not exist. Implementation now leaves only generic groups in `@emi/core/contract`, removes the
+core `contract/healthfit` export, and publishes `HealthFitApi` from
+`@emi/flavor-healthfit/contract` as an explicit extension over `CoreApi`. Core and flavor tests
+assert the separation and the composed group set.
 
 ### CORE-007 — High: external distribution is not a supported package mode yet
 
@@ -321,7 +328,7 @@ The non-failing Oxlint warnings are concentrated in tests (no-await-in-loop, con
 The first three behavioral slices and the browser/forwarding cleanup are complete in focused
 JJ revisions. Remaining work should proceed in this order:
 
-1. Make generic and HealthFit contract composition explicit, if both are supported, and remove DTO duplication for CORE-006 and CORE-008.
+1. Keep the generic-core/product-flavor contract boundary enforced, then remove DTO duplication for CORE-008.
 2. Keep the intentional one-package/subpath model, then implement the two distribution modes in CORE-007 with pack/import/generated-source acceptance before calling the package publishable.
 3. Establish coverage thresholds, public export checks, and dead-code analysis for CORE-009 and CORE-010.
 4. Re-run React Doctor and only take the small-array/performance suggestions that are justified by profiling or touched code.

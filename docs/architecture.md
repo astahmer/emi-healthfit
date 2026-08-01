@@ -29,7 +29,7 @@ A personal gym assistant: Apple Health + Hevy data on Cloudflare, with a chat UI
 | `apps/api` | Cloudflare Worker: auth, chat, ingest, fitness APIs, Hevy sync, tools |
 | `apps/chat` | Vite SPA: chat shell, data pages, settings; built assets served by the Worker |
 | `packages/core` | Reusable layer via subpaths: `/contract`, `/server`, `/web`, `/cloudflare`, `/discord` |
-| `packages/flavor-healthfit` | Fitness schemas, tools, prompt, analytics, and UI contributions |
+| `packages/flavor-healthfit` | Fitness schemas, tools, prompt, analytics, contracts, and UI contributions |
 | `packages/create-chat-app` | Scaffolder for thin composition roots |
 | `plans/` | Active product plans (not shipped docs) |
 | `docs/` | Product and architecture documentation |
@@ -49,7 +49,8 @@ Consumers choose the smallest supported subpath for their runtime:
 - `@emi/core/web` — headless actors, selectors, clients, and web primitives.
 - `@emi/core/web/styled` — optional shadcn/Radix-style components and CSS.
 - `@emi/core/server` and `@emi/core/cloudflare` — persistence ports and platform wiring.
-- `@emi/core/contract` — generic contracts and `CoreApi`; the HealthFit-inclusive composition is explicit as `EmiApi`/`HealthFitApi`.
+- `@emi/core/contract` — generic contracts and `CoreApi`; it contains no HealthFit product APIs.
+- `@emi/flavor-healthfit/contract` — the HealthFit product composition, extending `CoreApi` with fitness and Hevy groups.
 
 The package supports two consumption modes. Dependency mode imports these subpaths from a
 workspace or registry package and supplies fetch, storage, browser, database, and execution
@@ -92,9 +93,9 @@ Raw Health and Hevy uploads land in R2 under a user-id prefix. Normalized rows i
 
 ## Extension direction (core vs flavor)
 
-HealthFit is one explicit product composition of the same reusable package: it adds schemas,
-ingest, tools, prompts, fitness screens, and domain contracts to the generic chat baseline.
-The package may ship both compositions because the subpath and composition contracts are the
-real boundaries. Discord and Google Calendar are planned transports/integrations on that same
-ownership model — not separate data silos. Keep domain additions named and opt-in for generic
-consumers; do not make the generic runtime import HealthFit code.
+HealthFit is one explicit product composition over the reusable core: the flavor package adds
+schemas, ingest, tools, prompts, fitness screens, and domain contracts to the generic chat
+baseline. Keep domain additions in named flavor packages and opt-in for product consumers;
+the generic runtime and `@emi/core/contract` must not import or export HealthFit code.
+Discord and Google Calendar are planned transports/integrations on that same ownership model,
+not separate data silos.
