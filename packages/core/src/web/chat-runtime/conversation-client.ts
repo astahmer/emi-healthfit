@@ -86,10 +86,8 @@ export const createConversationClient = ({
     }
 
     const body = await response.text();
-    let payload: unknown;
-    try {
-      payload = JSON.parse(body);
-    } catch {
+    const payload = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))(body);
+    if (Option.isNone(payload)) {
       throw new Error(
         body.trimStart().toLowerCase().startsWith("<!doctype")
           ? htmlResponseError
@@ -97,12 +95,14 @@ export const createConversationClient = ({
       );
     }
     if (!response.ok) {
-      const error = Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String }))(payload);
+      const error = Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String }))(
+        payload.value,
+      );
       throw new Error(
         Option.isSome(error) ? error.value.error : `Request failed (${response.status}).`,
       );
     }
-    return payload;
+    return payload.value;
   };
 
   const decodeMessages = async (
