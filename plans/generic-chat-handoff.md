@@ -68,7 +68,7 @@ Do not merely hide this error. Make local generic web + worker wiring explicit a
 - Add browser tests for no document-level vertical overflow, scrollable message region, and mobile sidebar/drawer behavior.
 - Fix the API-origin/proxy error before styling work obscures behavioral failures.
 
-### 2. Extract two explicit core presentation surfaces
+### 2. Keep two explicit core presentation subpaths
 
 Keep a stable headless path and add a separately exported styled path:
 
@@ -76,6 +76,11 @@ Keep a stable headless path and add a separately exported styled path:
 @emi/core/web                 headless contracts, actors, primitives with semantic/class hooks
 @emi/core/web/styled          optional shadcn/Radix-based visual components and styles
 ```
+
+These are capability boundaries inside the intentionally single `@emi/core` package. A
+consumer may import the dependency directly, or `create-chat-app` may copy the same source
+and tests into an owned workspace for shadcn-style customization; neither path should require
+an `apps/chat` or HealthFit fork.
 
 - Do **not** import `apps/chat` source from core or generic web.
 - Re-home shared shadcn/Radix components and their dependencies deliberately into core's styled subpath (or an explicitly owned core style package), with licenses/dependency declarations and entry-isolation tests.

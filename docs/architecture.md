@@ -35,6 +35,30 @@ A personal gym assistant: Apple Health + Hevy data on Cloudflare, with a chat UI
 | `docs/` | Product and architecture documentation |
 | `ADR/` | Accepted design decisions |
 
+## Core package and distribution model
+
+`@emi/core` is intentionally one broad, go-to library for chat and agent applications. Its
+mixed layers are a feature: actor and machine logic, contracts, headless web primitives,
+optional styled components, persistence/server logic, and platform adapters live together
+behind capability subpaths. Layer purity is not the boundary; imports from an app or a
+product flavor are.
+
+Consumers choose the smallest supported subpath for their runtime:
+
+- `@emi/core/chat` — provider-neutral chat schemas, streaming, and message protocols.
+- `@emi/core/web` — headless actors, selectors, clients, and web primitives.
+- `@emi/core/web/styled` — optional shadcn/Radix-style components and CSS.
+- `@emi/core/server` and `@emi/core/cloudflare` — persistence ports and platform wiring.
+- `@emi/core/contract` — generic contracts plus explicitly named domain compositions.
+
+The package supports two consumption modes. Dependency mode imports these subpaths from a
+workspace or registry package and supplies fetch, storage, browser, database, and execution
+adapters explicitly. Source mode, used by `create-chat-app`, copies the package source and
+tests into an editable app workspace in the spirit of shadcn; the copied source is then the
+consumer's ownership boundary and can be forked without changing core's public contracts.
+Registry distribution remains gated on a built packed-install consumer check; source mode is
+the current fork-friendly path.
+
 ## Runtime composition
 
 - **Alchemy** provisions and deploys stage-isolated Workers, D1, R2, and secrets. Alchemy is the deployment authority; Wrangler is for ops/diagnostics only.
@@ -68,4 +92,9 @@ Raw Health and Hevy uploads land in R2 under a user-id prefix. Normalized rows i
 
 ## Extension direction (core vs flavor)
 
-The long-term split (see `plans/core-flavor-architecture.md`) keeps a reusable chat core (conversations, branches, generation, memory, notes, auth, settings UI) and registers HealthFit as a compile-time flavor (schemas, ingest, tools, prompts, fitness screens). Discord and Google Calendar are planned transports/integrations on that same ownership model — not separate data silos.
+HealthFit is one explicit product composition of the same reusable package: it adds schemas,
+ingest, tools, prompts, fitness screens, and domain contracts to the generic chat baseline.
+The package may ship both compositions because the subpath and composition contracts are the
+real boundaries. Discord and Google Calendar are planned transports/integrations on that same
+ownership model — not separate data silos. Keep domain additions named and opt-in for generic
+consumers; do not make the generic runtime import HealthFit code.

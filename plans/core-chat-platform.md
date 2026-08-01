@@ -9,7 +9,10 @@
 
 ## Goal
 
-Make one source-of-truth generic chat platform that can either be composed through `@emi/core` inside this monorepo or emitted by `create-chat-app` as an independently deployable, user-owned full stack. A generated app must start as a real ChatGPT-like chat application, not a demo shell.
+Make one source-of-truth generic chat platform that can either be composed through the single
+`@emi/core` package inside or outside this monorepo, or emitted by `create-chat-app` as an
+independently deployable, user-owned full stack. A generated app must start as a real
+ChatGPT-like chat application, not a demo shell.
 
 ## What
 
@@ -33,10 +36,11 @@ There is a large working chat application, but its value is trapped in one produ
 
 ### Conceptual model
 
-`@emi/core` becomes a public source catalog with explicit, stable layers. The CLI builds from those layers in one of two modes:
+`@emi/core` is one intentionally broad package with explicit, stable capability subpaths. The
+CLI builds from those subpaths in one of two modes:
 
 - `owned` (default) copies documented public source modules and configuration into the generated app. The generated project owns every line it deploys and can change it freely.
-- `workspace` emits thin composition roots importing `@emi/core`; this is for this monorepo or a consumer that deliberately vendors/links the package.
+- `workspace` emits thin composition roots importing `@emi/core`; this is for this monorepo or any consumer that wants dependency-mode reuse without a fork.
 
 Neither mode imports `apps/chat`, `apps/api`, or `flavor-healthfit`.
 
@@ -71,7 +75,7 @@ flowchart LR
 
 | Choice            | Decision                                                                                | Rationale                                                                         |
 | ----------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Distribution      | Owned CLI scaffold by default; package composition optional                             | Meets standalone, no-hidden-stack requirement without forcing npm publishing.     |
+| Distribution      | One `@emi/core` package with subpath imports plus owned CLI source-copy by default       | Supports no-fork reuse and shadcn-like ownership without splitting intentional layers. |
 | Source boundaries | `contract`, `server`, `web`, `cloudflare`, plus a generic `chat` surface where needed   | Prevents browser/server/platform/flavor leakage.                                  |
 | State             | Extract existing XState runtime behind public controller/provider APIs                  | Existing runtime already handles stream, queue, draft, and session races.         |
 | Streaming         | Keep Vercel AI SDK protocol plus persisted D1 replay chunks                             | Proven client interoperability and resumable Worker streaming.                    |

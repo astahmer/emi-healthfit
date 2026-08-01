@@ -4,9 +4,22 @@ What Emi HealthFit offers today, plus status of reusable chat-platform work. How
 
 ## Core chat platform status
 
-This repository has a substantial ChatGPT-like product implementation, but it is not yet a complete reusable core. Today, `@emi/core` supplies contracts, provider streaming, durable generation/replay, generic Cloudflare route factories, conversation persistence primitives, markdown/attachment helpers, a basic shell, and extension contracts. `apps/generic-web` and `create-chat-app` now provide interactive BYOK chat with durable history/actions, stream reconnection, queued follow-ups, and attachments; most advanced chat behavior remains in the HealthFit web and API applications.
+`@emi/core` is the repository's go-to reusable chat/agent library. It intentionally contains
+the actor runtime, contracts, provider streaming, durable generation/replay, generic
+Cloudflare route factories, conversation persistence primitives, markdown/attachment helpers,
+headless web primitives, and optional styled web components. These mixed layers are kept in
+one package and selected through subpath exports; the reusable boundary is explicit adapters
+and imports, not a forced package split.
 
-`create-chat-app` materializes the canonical `apps/generic-web` and `apps/generic-worker` source files, then generates only app configuration and package metadata. Its default mode also copies the full `@emi/core` source and tests into an editable workspace; dependency mode is available when another workspace or a registry supplies core. See the plan for scope and delivery phases.
+`apps/generic-web` and `create-chat-app` provide interactive BYOK chat with durable
+history/actions, stream reconnection, queued follow-ups, and attachments. HealthFit remains a
+domain composition with fitness-specific tools, prompts, screens, and contracts.
+
+There are two supported development shapes. Dependency mode reuses `@emi/core` through its
+subpaths without a fork. Source mode, the default for `create-chat-app`, copies core source
+and tests into an editable workspace in a shadcn-like ownership model so an app can fork and
+customize the implementation. Registry mode is intentionally not called publishable yet; its
+built-artifact and packed clean-consumer checks are tracked in `packages/core/PUBLISH.md`.
 
 | Capability                          |        HealthFit today |                                          Reusable core today |     Generic scaffold target |
 | ----------------------------------- | ---------------------: | -----------------------------------------------------------: | --------------------------: |

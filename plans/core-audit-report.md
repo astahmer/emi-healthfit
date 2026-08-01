@@ -2,19 +2,21 @@
 
 Date: 2026-08-02  
 Scope: packages/core, its public entrypoints, core tests, and the canonical generic-web integration  
-Mode: review only; no source changes made
+Mode: initial review followed by a focused implementation pass; remaining package/distribution work is still tracked below
 
 ## Executive verdict
 
 @emi/core has a solid architectural spine. The actor composition is real, adapter injection is respected, the generic app is now a React projection of actors, the headless/styled split exists, and the package has meaningful boundary and actor tests.
 
-It is not yet a high-standard standalone package or a safe external distribution contract. Five issues are release blockers for a reusable core:
+The initial review found five release-blocking behavioral defects. The focused implementation pass now fixes and covers all five:
 
-1. Untrusted citation and file URLs bypass the existing URL safety policy.
-2. Successful conversation deletion feeds the request event back into the actor, causing repeated deletion attempts.
-3. Caller-provided transport body fields can overwrite protected sessionId, threadId, and temporary values.
-4. The generic Worker route persists a user message before generation admission, so the one-active-generation race can leave durable orphan messages.
-5. Conversation, thread, and memory loads have no request identity or latest-wins rule, so stale responses can overwrite newer UI state.
+1. Untrusted citation and file URLs bypassed the existing URL safety policy.
+2. Successful conversation deletion fed the request event back into the actor, causing repeated deletion attempts.
+3. Caller-provided transport body fields could overwrite protected sessionId, threadId, and temporary values.
+4. The generic Worker route persisted a user message before generation admission, so the one-active-generation race could leave durable orphan messages.
+5. Conversation, thread, and memory loads had no request identity or latest-wins rule, so stale responses could overwrite newer UI state.
+
+The fixes are deliberately narrow and test-first: regression tests were added before the source fixes, the pre-fix route test observed two persisted user turns, and the post-fix test observes one turn plus a structured 409 for the losing request.
 
 The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The remaining package-level gaps are different: generic and HealthFit API composition is not explicit, the same resources have competing DTO shapes, the package is private and source-only, and public-package/coverage checks are not enforced. These are contract and distribution concerns, not an objection to having multiple capability layers.
 
@@ -40,15 +42,26 @@ Review decisions below therefore distinguish intentional breadth from accidental
 | --- | --- | --- |
 | pnpm --dir packages/core typecheck | Pass | Strict core types currently compile. |
 | pnpm --dir packages/core lint | Pass | No production lint failure. Oxlint reports only non-blocking test-hygiene warnings. |
-| pnpm --dir packages/core test | Pass: 62 Node tests and 60 Vitest tests | Existing coverage is useful but does not cover the failures below. |
+| pnpm --dir packages/core test | Initial pass: 62 Node tests and 60 Vitest tests | The initial suite was green before the regression tests were added. |
 | pnpm slop:check | Pass | Current AST slop rules match nothing; this does not detect behavioral slop. |
 | React Doctor JSON scan | 10 warnings | One warning is a real boundary bug; the others are triaged below. |
 | npm pack --dry-run --json from packages/core | Pass, 92 source files | The package contains TypeScript source, not built JavaScript or declarations. package.json remains private. |
 | Real createActor deletion repro | Failed behaviorally | A successful delete was called three times before the test client rejected it. |
 
+## Implementation follow-up
+
+The behavioral findings are now covered by focused revisions:
+
+- `test(core): cover audit regressions` covers URL sinks, protected transport fields, deletion success, stale store responses, and browser persistence errors.
+- `fix(core): harden web actors and URL sinks` applies the URL allow-list, reserves transport-owned fields, adds latest-wins query identity, removes fabricated forwarding fallbacks, and routes draft persistence through the operations actor.
+- `test(core): cover generation admission ordering` adds a real SQLite/D1-compatible concurrent route test.
+- `fix(core): admit generations before turn persistence` admits the active generation before saving the user turn, marks admitted generations failed when setup fails, and returns a structured 409 conflict.
+
+The remaining findings below are package contract, DTO, coverage, and registry-distribution work; they are not reasons to split the intentionally mixed-layer package.
+
 ## Findings
 
-### CORE-001 — Blocker: non-Markdown URL sinks bypass the safety policy
+### CORE-001 — Fixed blocker: non-Markdown URL sinks bypassed the safety policy
 
 Locations:
 
@@ -66,7 +79,9 @@ Required follow-up:
 - Apply them at every non-Markdown sink; render blocked values as text or an explicit blocked attachment state.
 - Add component-level tests for javascript:, data:text/html, protocol-relative URLs, allowed HTTPS URLs, and the intended attachment cases. Testing only the helper is insufficient because the current bug is a missing call site.
 
-### CORE-002 — Blocker: successful conversation deletion loops back into the request path
+Implementation: `isSafeMarkdownHref` now guards citations, and `isSafeAttachmentUrl` guards file links and image sources. Unsafe values render as text or `[attachment blocked]`; the thread-shell regression tests exercise the actual sinks.
+
+### CORE-002 — Fixed blocker: successful conversation deletion looped back into the request path
 
 Locations:
 
@@ -81,7 +96,9 @@ Required follow-up:
 - Add a real createActor test that resolves deletion and asserts one client call, the conversation is removed, mutation loading ends, and resetSession is honored.
 - Add a rejected-delete test so the failure path remains distinct from the success path.
 
-### CORE-003 — Blocker: transport request-body mass assignment overrides protected fields
+Implementation: the callback now emits `conversation-deleted`, and the real `createActor` test asserts one client call, removal, loading cleanup, and session reset.
+
+### CORE-003 — Fixed blocker: transport request-body mass assignment overrode protected fields
 
 Locations:
 
@@ -96,7 +113,9 @@ Required follow-up:
 - Add an actor test that sends malicious collisions and inspects the actual fetch request JSON. The assertion must cover all three protected fields and both defined/undefined thread IDs.
 - Document which body keys are extension-owned and which are transport-owned.
 
-### CORE-004 — High: generation admission occurs after durable user-message persistence
+Implementation: extension fields are spread first and transport-owned `sessionId`, `threadId`, and `temporary` fields are assigned last. The actor test inspects serialized request JSON, including an explicitly cleared thread id.
+
+### CORE-004 — Fixed high: generation admission occurred after durable user-message persistence
 
 Locations:
 
@@ -107,13 +126,9 @@ Locations:
 
 Two different request IDs can pass the application-level check concurrently. Both can persist a user message; one then loses the partial unique-index race in createGeneration. The route has already mutated conversation history when generation admission fails, leaving an orphan user turn and an error response. The separate API route has explicit GenerationAlreadyActiveError handling, but the generic Cloudflare route does not establish the same atomicity around message persistence.
 
-Required follow-up:
+Implementation: the generic Cloudflare route admits the generation before persisting the incoming user turn, marks the admitted generation failed if setup fails, and maps `GenerationAlreadyActiveError` to a structured 409. The SQLite/D1-compatible integration test runs two concurrent requests and asserts one persisted user turn plus a 409 for the losing request.
 
-- Decide the invariant explicitly: generation admission must either precede message persistence or the message/generation transition must be one rollback-safe transaction.
-- Preserve idempotency for repeated request IDs while returning a structured conflict for a different active generation.
-- Add a real SQLite/D1-compatible concurrency test with two requests and assert no unpaired user message remains after the losing request.
-
-### CORE-005 — High: async store responses have no latest-wins or cancellation semantics
+### CORE-005 — Fixed high: async store responses had no latest-wins or cancellation semantics
 
 Locations:
 
@@ -128,6 +143,8 @@ Required follow-up:
 - Give each independently replaceable query an operation identity and ignore stale completions, or cancel the prior request with an injected AbortSignal.
 - Debounce high-frequency search at the view boundary or actor boundary, with one clearly owned policy.
 - Add delayed-promise actor tests for out-of-order conversation and memory searches, plus conversation/thread selection changes. Assert that the newest request wins and loading flags do not get cleared by stale work.
+
+Implementation: each replaceable store query now has an actor-local identity; stale success and failure events are ignored. The conversation-store actor tests cover out-of-order conversation search and selection loads.
 
 ### CORE-006 — Medium: generic and HealthFit contract composition is not explicit
 
@@ -222,7 +239,7 @@ Required follow-up:
 - Document the stable contract for actor inputs/events, client adapters, contribution registries, and styled components.
 - Use export-surface tests to prevent accidental additions and removals.
 
-### CORE-011 — Medium: browser draft persistence has two competing implementations
+### CORE-011 — Fixed medium: browser draft persistence had two competing implementations
 
 Locations:
 
@@ -237,7 +254,9 @@ Required follow-up:
 - Keep exactly one persistence path and one error-reporting path.
 - Make the test assert the chosen path, including a storage exception, rather than only asserting the final write list.
 
-### CORE-012 — Low: typed forwarding actions contain unreachable sentinel fallbacks
+Implementation: draft persistence now has one operations-actor path, and the browser actor test asserts storage failures reach actor context.
+
+### CORE-012 — Fixed low: typed forwarding actions contained unreachable sentinel fallbacks
 
 Location: [generic-chat-app-machine.ts:60-100](../packages/core/src/web/chat-runtime/generic-chat-app-machine.ts).
 
@@ -247,6 +266,8 @@ Required follow-up:
 
 - Replace the fallback pattern with typed forwarding helpers or event-specific actions that cannot emit a fabricated event.
 - Add a parent-routing test that checks the intended event reaches each child and no sentinel event is emitted.
+
+Implementation: valid forwarding actions route their typed event directly; invalid forwarding events throw instead of fabricating unrelated child events.
 
 ## React Doctor triage
 
@@ -278,15 +299,12 @@ The non-failing Oxlint warnings are concentrated in tests (no-await-in-loop, con
 
 ## Recommended execution order
 
-No changes are made in this report. When implementation starts, use focused JJ revisions in this order:
+The first three behavioral slices and the browser/forwarding cleanup are complete in focused
+JJ revisions. Remaining work should proceed in this order:
 
-1. Fix and cover CORE-001, CORE-002, and CORE-003. These are direct security/correctness failures.
-2. Make generation admission atomic and add the real concurrent persistence test for CORE-004.
-3. Add latest-wins/cancellation semantics and delayed-response actor tests for CORE-005.
-4. Make generic and HealthFit contract composition explicit, if both are supported, and remove DTO duplication for CORE-006 and CORE-008.
-5. Keep the intentional one-package/subpath model, then implement the two distribution modes in CORE-007 with pack/import/generated-source acceptance before calling the package publishable.
-6. Establish coverage thresholds, public export checks, and dead-code analysis for CORE-009 and CORE-010.
-7. Remove the duplicate browser persistence path and fabricated forwarding fallbacks (CORE-011 and CORE-012).
-8. Re-run React Doctor and only take the small-array/performance suggestions that are justified by profiling or touched code.
+1. Make generic and HealthFit contract composition explicit, if both are supported, and remove DTO duplication for CORE-006 and CORE-008.
+2. Keep the intentional one-package/subpath model, then implement the two distribution modes in CORE-007 with pack/import/generated-source acceptance before calling the package publishable.
+3. Establish coverage thresholds, public export checks, and dead-code analysis for CORE-009 and CORE-010.
+4. Re-run React Doctor and only take the small-array/performance suggestions that are justified by profiling or touched code.
 
 The release bar should be: focused actor/security/integration tests pass, packed public imports pass from a clean consumer, generated source mode passes, pnpm slop:check passes, and the final repository release check passes immediately before handoff.
