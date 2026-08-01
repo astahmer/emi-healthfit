@@ -53,15 +53,15 @@ genericChatAppMachine
 
 ## State ownership rules
 
-| State | Owner | Reason |
-| --- | --- | --- |
-| Session, messages, queue, error, active branch | `chatSessionMachine` | One legal transition model. |
-| Stream operation, abort, resume/retry | `chatTransportActor` | Async cancellation must outlive a render and reject stale chunks. |
-| Conversations, threads, memories, remote mutations | `conversationStoreActor` | Request lifecycle, refresh, and failure are application behavior. |
-| Settings and draft persistence | `settingsActor` / `browserStateActor` | Storage IO and hydration are external effects. |
-| Online/offline status | `browserStateActor` | Browser events are external state. |
-| Sidebar query, memory draft, open panels | `chatUiActor` | Explicit reset and actor composition without remote effects. |
-| DOM elements and scroll handles | React refs | Imperative, non-serializable view handles. |
+| State                                              | Owner                                 | Reason                                                            |
+| -------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| Session, messages, queue, error, active branch     | `chatSessionMachine`                  | One legal transition model.                                       |
+| Stream operation, abort, resume/retry              | `chatTransportActor`                  | Async cancellation must outlive a render and reject stale chunks. |
+| Conversations, threads, memories, remote mutations | `conversationStoreActor`              | Request lifecycle, refresh, and failure are application behavior. |
+| Settings and draft persistence                     | `settingsActor` / `browserStateActor` | Storage IO and hydration are external effects.                    |
+| Online/offline status                              | `browserStateActor`                   | Browser events are external state.                                |
+| Sidebar query, memory draft, open panels           | `chatUiActor`                         | Explicit reset and actor composition without remote effects.      |
+| DOM elements and scroll handles                    | React refs                            | Imperative, non-serializable view handles.                        |
 
 ## Steps
 
@@ -70,10 +70,10 @@ genericChatAppMachine
 3. Move the Effect Schema HTTP DTO client from `apps/generic-web/src/conversation-client.ts` into core. `conversationStoreActor` owns conversation/thread/memory list, load, and mutation operations. Inject API origin and fetch; core never reads Vite environment.
 4. Move local-storage settings hydration/persistence to `settingsActor`, and the online/offline subscription plus local draft lifecycle to `browserStateActor` using `fromCallback`. This clears the direct React browser subscription diagnostic.
 5. Add `chatUiActor` for search queries, memory draft, and selected sidebar panels. It has no HTTP calls; parent routes query events to `conversationStoreActor`. Do not put scroll coordinates or DOM elements in an actor.
-6. Extract `ChatSidebar`, `ChatHeader`, `MessageViewport`, `FollowUpQueue`, and `ChatComposer` into `@emi/core/web` presentational primitives. They receive selected view data and send typed actor events; no component fetches or writes storage.
-7. Add `createActor` tests for parent/child routing, cancellation and stale chunks, rejected mutations, offline draft restore, branch open, and queue force-send. Retain browser tests for visibility and accessibility.
+6. Complete — extract `ChatSidebar`, `ConversationList`, `MemoryPanel`, `SettingsPanel`, `ChatHeader`, `MessageViewport`, `MessageMinimap`, `FollowUpQueue`, and `ChatComposer` into the optional `@emi/core/web/styled` entry. They receive selected view data and named callbacks; no component fetches or writes storage.
+7. Complete — createActor coverage covers parent/child routing, cancellation, stale chunks, rejected mutations, branch open, and queue force-send; Playwright covers viewport containment and mobile drawer accessibility; generated-app acceptance runs a real Worker-through-Vite API smoke.
 8. Migrate HealthFit incrementally: preserve `conversationMachine` and its HealthFit-only fields (`viewMode`, sidebar width, markdown export, domain callbacks); replace only shared generic runtime/transport with core actors.
-9. Remove app-local aliases only after generic and HealthFit share the protocol, then add core entry-isolation and generated-app actor integration tests.
+9. In progress — core entry-isolation and generated-app source/acceptance tests now cover the public boundary; remove app-local aliases only after generic and HealthFit share the protocol.
 
 ## Boundaries
 

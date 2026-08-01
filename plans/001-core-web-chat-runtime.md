@@ -24,7 +24,7 @@ The scanner flags this component as `react-doctor/no-giant-component` at `apps/g
 
 ## Target
 
-Make `generic-web` a configuration and composition root. Export a reusable runtime hook and presentational primitives from `@emi/core/web`.
+Make `generic-web` a configuration and composition root. Export headless contracts from `@emi/core/web` and optional styled presentational primitives from `@emi/core/web/styled`.
 
     // apps/generic-web/src/app.tsx — target shape
     export const App = () => {
@@ -48,11 +48,11 @@ The runtime owns all legal chat transitions. It uses one reducer for durable int
 2. Move generic API DTO schemas and the conversation/memory/thread HTTP client from `apps/generic-web/src/conversation-client.ts` to `packages/core/src/web/chat-runtime/client.ts`. Parameterize the API origin rather than reading `import.meta.env` in core.
 3. Add `useChatRuntime` in `packages/core/src/web/chat-runtime/use-chat-runtime.ts`. It owns stream operation IDs, abort controller lifecycle, resume, send, queue force-send, conversation actions, branch operations, memory operations, online state, and draft/settings persistence. Its inputs are explicit adapters: `client`, `transportFactory`, `settingsStorage`, `settingsStorageKey`, and configuration defaults. Do not expose `setState` functions; expose state plus named commands.
 4. Keep the stream operation counter and abort controller inside the runtime, with the cancellation invariant: only the active operation may update session state or clear streaming. Preserve current resume and forced-send behavior from `apps/generic-web/src/app.tsx:135-343`.
-5. Split generic UI into core primitives with small, explicit props: `ChatSidebar`, `ConversationList`, `MemoryPanel`, `MessageViewport`, `MessageMinimap`, `ScrollControls`, `FollowUpQueue`, and `ChatComposer`. Put them under `packages/core/src/web/chat-ui/`. They receive runtime state and commands; they make no HTTP calls or direct storage reads.
-6. Move generic chat styles alongside the generic app only if they remain intentionally customizable. Keep component semantics and class hooks stable during the extraction; do not add a styling framework.
-7. Reduce `apps/generic-web/src/app.tsx` to config construction and primitive composition. Keep `genericChatAppConfig`, Vite environment access, and the browser-specific transport factory there.
-8. Export only the intended runtime types, hook, client factory, and UI primitives from `packages/core/src/web/index.ts`. Add a core entry-isolation test proving these exports do not import the HealthFit flavor or either application.
-9. Add focused core tests for reducer/runtime behavior and generic-web integration tests for: sending, cancelling, queued force-send, opening a conversation, opening a branch, and restoring an offline draft.
+5. Complete — split generic UI into core primitives with small, explicit props: `ChatSidebar`, `ConversationList`, `MemoryPanel`, `MessageViewport`, `MessageMinimap`, `ChatHeader`, `FollowUpQueue`, and `ChatComposer`. They live under the optional styled entry and make no HTTP calls or direct storage reads.
+6. Complete — generic fixture opts into core-owned Radix/Lucide styling through `@emi/core/web/styled` and its CSS entry; headless consumers do not import the styled entry.
+7. Complete — reduce `apps/generic-web/src/app.tsx` to config construction, actor selectors, DOM refs, event wiring, and primitive composition. Keep `genericChatAppConfig`, Vite environment access, and browser adapters there.
+8. Complete — export the runtime actors, client factory, headless web entry, optional styled primitives, and CSS entry. Entry-isolation tests keep styled dependencies out of the headless public entry.
+9. In progress — generic-web now has real API-topology smoke and viewport/mobile browser coverage; add the remaining send, cancellation, branch, memory, settings, and offline-draft browser flows.
 
 ## Boundaries
 
@@ -65,6 +65,6 @@ The runtime owns all legal chat transitions. It uses one reducer for durable int
 ## Verification
 
 - **Mechanical**: run `npx react-doctor@latest --scope changed`; the giant-component diagnostic for `apps/generic-web/src/app.tsx` must clear and the score must not regress. Run `pnpm --dir packages/core typecheck`, `pnpm --dir apps/generic-web typecheck`, focused core/generic-web tests, then `pnpm release:check`.
-- **Behavior check**: in generic web, configure BYOK, send a message, stop a stream, queue and force-send a follow-up, open an existing conversation, open a branch, compact a conversation, and reload while offline with a draft. All visible behavior remains unchanged.
+- **Behavior check**: in generic web, configure BYOK, send a message, stop a stream, queue and force-send a follow-up, open an existing conversation, open a branch, compact a conversation, and reload while offline with a draft. All visible behavior remains unchanged. Playwright covers desktop viewport containment and mobile drawer behavior.
 - **Performance check**: use React DevTools Profiler and Highlight Updates while typing a draft. Confirm sidebar/history and message viewport do not redraw for a draft-only update.
 - **Done when**: generic app is a thin composition root, core exposes the documented runtime/UI API, focused tests pass, and the Scanner diagnostic is gone.

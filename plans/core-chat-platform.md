@@ -214,19 +214,19 @@ The core must add explicit schemas for app settings, release metadata, component
 
 ## Current status and remaining migration slices (2026-07-30)
 
-| Area                                                                             | Status      | Remaining next step                                                                                                                                                          |
-| -------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core contracts, provider streaming, generation persistence/replay, Worker routes | Partial     | Move remaining generic API services out of `apps/api/src/core`; tighten persisted settings/release/component schemas.                                                        |
-| Generic web state                                                                | In progress | Session, transport, conversation-store, settings, browser-state, and UI actors compose under `@emi/core/web`; next extract presentational primitives per [plan 002](./002-xstate-actor-architecture.md). |
-| Generic web UI                                                                   | In progress | Extract sidebar, composer, viewport/minimap, queue, and settings into core presentational primitives.                                                                        |
-| Generic Worker                                                                   | Partial     | Add settings/release APIs, local Worker smoke, browser chat smoke, and credential-free Alchemy dry run.                                                                      |
-| Owned generator                                                                  | In progress | Default owned `core/` workspace and install/typecheck/migration/web-build acceptance exist; add a generated-source manifest and non-destructive upgrade command.             |
-| User features                                                                    | Partial     | Preserve and test branches, minimap controls, memories, theme/releases, temporary chats, PWA draft/offline behavior, and every conversation action through core APIs.        |
-| HealthFit migration                                                              | Pending     | Replace duplicated generic runtime/transport with core actors while retaining HealthFit-only contributions.                                                                  |
-| Documentation                                                                    | Partial     | Add extension/configuration/upgrade/deployment guides and keep the feature matrix synchronized with generated-app behavior.                                                  |
+| Area                                                                             | Status      | Remaining next step                                                                                                                                                   |
+| -------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core contracts, provider streaming, generation persistence/replay, Worker routes | Partial     | Move remaining generic API services out of `apps/api/src/core`; tighten persisted settings/release/component schemas.                                                 |
+| Generic web state                                                                | In progress | Session, transport, conversation-store, settings, browser-state, and UI actors compose under `@emi/core/web`; Worker-through-Vite API smoke is covered, with full chat flows next. |
+| Generic web UI                                                                   | In progress | Core styled sidebar, composer, viewport/minimap, queue, header, memory, and settings primitives are extracted; expand behavioral flow coverage next.                  |
+| Generic Worker                                                                   | Partial     | Local Worker smoke now runs through the documented Vite proxy; add settings/release APIs, browser chat smoke, and credential-free Alchemy dry run.                    |
+| Owned generator                                                                  | In progress | Default owned `core/` workspace and install/typecheck/migration/web-build plus Worker/Vite API smoke acceptance exist; add a generated-source manifest and upgrade command. |
+| User features                                                                    | Partial     | Preserve and test branches, minimap controls, memories, theme/releases, temporary chats, PWA draft/offline behavior, and every conversation action through core APIs. |
+| HealthFit migration                                                              | Pending     | Replace duplicated generic runtime/transport with core actors while retaining HealthFit-only contributions.                                                           |
+| Documentation                                                                    | Partial     | Add extension/configuration/upgrade/deployment guides and keep the feature matrix synchronized with generated-app behavior.                                           |
 
 -> Move the reusable chat session machine, composer, message actions, sidebar/history, branch/minimap controls into core exports; keep generic-web as a thin owned app wiring config, styles, and routes.
-After that: add Worker/browser smoke plus Alchemy dry-run to generated-app acceptance.
+After that: expand the Worker/Vite smoke into browser chat flows and add the credential-free Alchemy dry-run to generated-app acceptance.
 
 ## Open questions
 

@@ -103,11 +103,27 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
       contents: genericSourceFile("apps/generic-web/vite-env.d.ts"),
     },
     { path: "web/vite.config.ts", contents: genericSourceFile("apps/generic-web/vite.config.ts") },
+    {
+      path: "web/playwright.config.ts",
+      contents: genericSourceFile("apps/generic-web/playwright.config.ts"),
+    },
+    {
+      path: "web/vitest.integration.config.ts",
+      contents: genericSourceFile("apps/generic-web/vitest.integration.config.ts"),
+    },
     { path: "web/tsconfig.json", contents: genericSourceFile("apps/generic-web/tsconfig.json") },
     { path: "web/src/app-config.ts", contents: templates.webAppConfig(context) },
     { path: "web/src/app.css", contents: genericSourceFile("apps/generic-web/src/app.css") },
     { path: "web/src/app.tsx", contents: genericSourceFile("apps/generic-web/src/app.tsx") },
     { path: "web/src/main.tsx", contents: genericSourceFile("apps/generic-web/src/main.tsx") },
+    {
+      path: "web/test/api-smoke.integration.test.ts",
+      contents: genericSourceFile("apps/generic-web/test/api-smoke.integration.test.ts"),
+    },
+    {
+      path: "web/test/e2e/layout.spec.ts",
+      contents: genericSourceFile("apps/generic-web/test/e2e/layout.spec.ts"),
+    },
     { path: "worker/package.json", contents: templates.workerPackageJson(context) },
     {
       path: "worker/alchemy.run.ts",

@@ -28,6 +28,8 @@ describe("buildGeneratedFiles", () => {
       "core/test/chat/request.test.ts",
       "core/tsconfig.json",
       "web/src/app.tsx",
+      "web/test/api-smoke.integration.test.ts",
+      "web/test/e2e/layout.spec.ts",
       "worker/src/generic.worker.ts",
     ]) {
       assert.ok(paths.includes(path), `expected generated file "${path}"`);
@@ -44,6 +46,7 @@ describe("buildGeneratedFiles", () => {
     const workerPackageJson = JSON.parse(findFile(files, "worker/package.json").contents) as {
       name: string;
       dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
     };
 
     assert.equal(webPackageJson.name, "acme-chat-web");
@@ -51,6 +54,7 @@ describe("buildGeneratedFiles", () => {
 
     assert.equal(workerPackageJson.name, "acme-chat-worker");
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
+    assert.equal(workerPackageJson.devDependencies["@effect/platform-node"], "4.0.0-beta.88");
   });
 
   it("supports dependency mode for an existing @emi/core package", () => {
@@ -79,21 +83,40 @@ describe("buildGeneratedFiles", () => {
   it("generates a usable streaming web chat instead of a smoke page", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     const app = findFile(files, "web/src/app.tsx").contents;
+    const styledContent = findFile(files, "core/src/web/styled/chat-content.tsx").contents;
+    const styledSidebar = findFile(files, "core/src/web/styled/chat-sidebar.tsx").contents;
     const packageJson = JSON.parse(findFile(files, "web/package.json").contents) as {
       dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+      scripts: Record<string, string>;
     };
 
     assert.match(app, /genericChatAppMachine/);
     assert.match(app, /\/api\/chat/);
-    assert.match(app, /Temporary chat/);
-    assert.match(app, /Queued follow-ups/);
+    assert.match(app, /@emi\/core\/web\/styled/);
+    assert.match(app, /ChatComposer/);
+    assert.match(styledSidebar, /Temporary chat/);
+    assert.match(styledContent, /Queued follow-ups/);
     assert.match(app, /conversation-store-event/);
     assert.match(app, /conversation-load-requested/);
-    assert.match(app, /Add attachments/);
-    assert.match(app, /Search conversations/);
+    assert.match(styledContent, /Add attachments/);
+    assert.match(styledSidebar, /Search conversations/);
     assert.match(app, /draft is saved locally/);
     assert.match(app, /createConversationClient/);
     assert.equal(packageJson.dependencies.ai, "catalog:");
+    assert.equal(packageJson.dependencies["lucide-react"], "^1.21.0");
+    assert.equal(packageJson.dependencies["radix-ui"], "^1.6.0");
+    assert.equal(packageJson.devDependencies["@playwright/test"], "^1.61.1");
+    assert.equal(packageJson.devDependencies.vitest, "^4.1.10");
+    assert.equal(
+      packageJson.scripts.test,
+      "vitest run --exclude test/api-smoke.integration.test.ts",
+    );
+    assert.equal(
+      packageJson.scripts["test:api"],
+      "vitest run --config vitest.integration.config.ts",
+    );
+    assert.equal(packageJson.scripts["test:e2e"], "playwright test");
   });
 
   it("generates the core streaming and replay worker routes", () => {
@@ -115,6 +138,22 @@ describe("buildGeneratedFiles", () => {
     const sourceFiles = [
       { generatedPath: "web/src/app.tsx", sourcePath: "../../../apps/generic-web/src/app.tsx" },
       { generatedPath: "web/src/app.css", sourcePath: "../../../apps/generic-web/src/app.css" },
+      {
+        generatedPath: "web/playwright.config.ts",
+        sourcePath: "../../../apps/generic-web/playwright.config.ts",
+      },
+      {
+        generatedPath: "web/vitest.integration.config.ts",
+        sourcePath: "../../../apps/generic-web/vitest.integration.config.ts",
+      },
+      {
+        generatedPath: "web/test/api-smoke.integration.test.ts",
+        sourcePath: "../../../apps/generic-web/test/api-smoke.integration.test.ts",
+      },
+      {
+        generatedPath: "web/test/e2e/layout.spec.ts",
+        sourcePath: "../../../apps/generic-web/test/e2e/layout.spec.ts",
+      },
       {
         generatedPath: "worker/src/generic.worker.ts",
         sourcePath: "../../../apps/generic-worker/src/generic.worker.ts",
