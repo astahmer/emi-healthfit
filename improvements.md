@@ -6,13 +6,13 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 
 - `apps/generic-worker/src/generic.worker.ts` now uses public core streaming/replay, conversation-action, and branch route factories, but still needs settings APIs and a web asset deployment path.
 - `packages/create-chat-app` now emits an owned `core/` workspace by default and retains dependency mode for external core. It still needs a versioned generated-source manifest plus an upgrade command that preserves local edits.
-- `pnpm --dir packages/create-chat-app test:generated` now proves install, typecheck, migration generation/check, web build, and a real Worker-through-Vite API smoke. Add browser chat smoke and an Alchemy dry run without requiring production credentials.
+- `pnpm --dir packages/create-chat-app test:generated` now proves install, typecheck, migration generation/check, web build, and a real Worker-through-Vite API integration. Add generated browser E2E and an Alchemy dry run without requiring production credentials.
 
 ## P0 — core extraction boundaries
 
 - Generic chat lifecycle and memory/title/suggestion orchestration still live under `apps/api/src/core`. Provider streaming, durable generation storage/replay, and protocol helpers now live behind public core exports; move the remaining server services next.
 - Generic browser runtime, transport, composer, thread renderer, minimap, and settings still live under `apps/chat`. Generic fixture now has a focused XState session machine and basic branch navigation; extract reusable UI primitives before adding more generic behavior.
-- Generic session, transport, conversation-store, settings, browser-state, and UI actors now compose under `genericChatAppMachine`; the parent retains injected adapters only and routes typed events without mirroring child snapshots. Generic React now retains only DOM refs, adapter construction, selectors, event wiring, and core styled primitive composition. Worker/API smoke is covered; next migrate matching HealthFit protocols.
+- Generic session, transport, conversation-store, settings, browser-state, and UI actors now compose under `genericChatAppMachine`; the parent retains injected adapters only and routes typed events without mirroring child snapshots. Generic React now retains only DOM refs, adapter construction, selectors, event wiring, and core styled primitive composition. Worker/API integration and browser E2E are covered; next migrate matching HealthFit protocols.
 - Public core exports currently expose a small shell and a few rendering helpers, not a complete chat application API. Define intentional public entry points and test their dependency boundaries.
 
 ## P1 — product contracts and persistence
@@ -33,7 +33,7 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 ## P2 — developer experience and distribution
 
 - Add a generated-app manifest with source version, mode, feature flags, and hashes. `create-chat-app upgrade` should show a diff and preserve modified files.
-- Make the generated app's first-run/deploy path executable in CI: install, typecheck, Drizzle generate/check, local Worker/Vite API smoke, browser chat smoke, and Alchemy dry run.
+- Make the generated app's first-run/deploy path executable in CI: install, typecheck, Drizzle generate/check, local Worker/Vite API integration, browser chat E2E, and Alchemy dry run.
 - Generic web currently produces a 509 kB minified entry bundle after adding XState. Split settings/history and other cold sidebar features before this grows further.
 - Add an extension guide covering custom auth, prompts, tools, dynamic components, theme, release history, provider adapters, and data retention.
 - Keep `apps/generic-web` / `apps/generic-worker` as continuously tested canonical fixtures, not a second hand-written product.

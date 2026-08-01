@@ -18,7 +18,7 @@ describe("upgrading the generated app's core dependency", () => {
     });
     const after = buildGeneratedFiles({
       appName: "Upgrade Fixture",
-      coreVersion: "^0.2.0",
+      coreVersion: "0.2.0",
       distributionMode: "dependency",
     });
 
@@ -37,9 +37,9 @@ describe("upgrading the generated app's core dependency", () => {
     );
 
     assert.equal(webBefore.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
-    assert.equal(webAfter.dependencies["@emi/core"], "^0.2.0");
+    assert.equal(webAfter.dependencies["@emi/core"], "0.2.0");
     assert.equal(workerBefore.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
-    assert.equal(workerAfter.dependencies["@emi/core"], "^0.2.0");
+    assert.equal(workerAfter.dependencies["@emi/core"], "0.2.0");
   });
 
   it("resolves the same @emi/* package names across a pinned-to-pinned bump", () => {

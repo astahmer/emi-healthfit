@@ -58,17 +58,17 @@ const startProvider = async (): Promise<{ baseUrl: string; server: Server }> => 
 };
 
 const hasPersistedProviderReply = async ({
-  apiOrigin,
+  origin,
   cookie,
   conversationId,
   attempts,
 }: {
-  apiOrigin: string;
+  origin: string;
   cookie: string;
   conversationId: string;
   attempts: number;
 }): Promise<boolean> => {
-  const persistedResponse = await fetch(`${apiOrigin}/api/conversations/${conversationId}`, {
+  const persistedResponse = await fetch(`${origin}/api/conversations/${conversationId}`, {
     headers: { cookie },
   });
   if (persistedResponse.ok) {
@@ -82,7 +82,7 @@ const hasPersistedProviderReply = async ({
   }
   if (attempts <= 1) return false;
   await new Promise((resolve) => setTimeout(resolve, 50));
-  return hasPersistedProviderReply({ apiOrigin, attempts: attempts - 1, conversationId, cookie });
+  return hasPersistedProviderReply({ origin, attempts: attempts - 1, conversationId, cookie });
 };
 
 describe("generic web and worker local API topology", () => {
@@ -294,7 +294,7 @@ describe("generic web and worker local API topology", () => {
 
       expect(
         await hasPersistedProviderReply({
-          apiOrigin,
+          origin: apiOrigin,
           attempts: 20,
           conversationId: conversationId ?? "",
           cookie: cookie ?? "",

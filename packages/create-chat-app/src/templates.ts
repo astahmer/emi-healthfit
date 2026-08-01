@@ -140,7 +140,7 @@ export const envExample = (): string =>
     "# Required for the worker:",
     "#   BETTER_AUTH_SECRET   (min 32 chars)",
     "#   BETTER_AUTH_URL      (public origin, e.g. http://localhost:3233)",
-    "# Optional local smoke only (never in production):",
+    "# Optional local debugging only (never in production):",
     "#   ALLOW_DEMO_USER_HEADER=1   then send x-demo-user-id on API calls",
     "# Optional branding:",
     "#   AUTH_APP_NAME=Core Chat",

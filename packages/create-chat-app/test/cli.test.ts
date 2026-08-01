@@ -15,14 +15,14 @@ describe("parseArgs", () => {
       "--dir",
       "/tmp/out",
       "--core-version",
-      "^1.0.0",
+      "1.0.0",
       "--mode",
       "dependency",
       "--force",
     ]);
     assert.equal(args.name, "my-app");
     assert.equal(args.dir, "/tmp/out");
-    assert.equal(args.coreVersion, "^1.0.0");
+    assert.equal(args.coreVersion, "1.0.0");
     assert.equal(args.distributionMode, "dependency");
     assert.equal(args.force, true);
     assert.equal(args.dryRun, false);

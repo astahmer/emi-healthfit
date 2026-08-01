@@ -101,14 +101,14 @@ describe("buildGeneratedFiles", () => {
   it("supports dependency mode for an existing @emi/core package", () => {
     const files = buildGeneratedFiles({
       appName: "Acme Chat",
-      coreVersion: "^1.2.0",
+      coreVersion: "1.2.0",
       distributionMode: "dependency",
     });
     const webPackageJson = JSON.parse(findFile(files, "web/package.json").contents) as {
       dependencies: Record<string, string>;
     };
 
-    assert.equal(webPackageJson.dependencies["@emi/core"], "^1.2.0");
+    assert.equal(webPackageJson.dependencies["@emi/core"], "1.2.0");
     assert.ok(!files.some((file) => file.path.startsWith("core/")));
   });
 
@@ -121,7 +121,7 @@ describe("buildGeneratedFiles", () => {
     assert.match(schema, /chatEvents/);
   });
 
-  it("generates a usable streaming web chat instead of a smoke page", () => {
+  it("generates a usable streaming web chat instead of a placeholder page", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     const app = findFile(files, "web/src/app.tsx").contents;
     const styledContent = findFile(files, "core/src/web/styled/chat-content.tsx").contents;

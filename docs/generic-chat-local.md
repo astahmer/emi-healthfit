@@ -41,3 +41,16 @@ The generic stack is available at `https://generic-chat.localhost` and its Worke
 `https://generic-worker.localhost`. Portless creates and trusts its local certificate on first
 use. The fixed-port commands remain the deterministic choice for Playwright and generated-app
 acceptance.
+
+## Test layers
+
+The generic fixture keeps these checks distinct:
+
+- `pnpm --dir apps/generic-web test` runs unit and actor tests without a live Worker.
+- `pnpm --dir apps/generic-web test:api` is an integration test: it crosses the Vite proxy,
+  Worker routes, anonymous auth, D1 persistence, and a local OpenAI-compatible SSE provider.
+- `pnpm --dir apps/generic-web test:e2e` runs browser scenarios, including the Playwright BDD
+  Gherkin features.
+
+The `generic:dev` startup wait is only a narrow readiness check for the Worker health route. It
+does not replace the API integration or browser E2E suites.
