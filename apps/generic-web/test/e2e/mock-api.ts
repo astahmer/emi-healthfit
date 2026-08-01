@@ -89,6 +89,7 @@ export const createGenericE2eApi = () => {
   const memories: Memory[] = [];
   let anonymousSessionCalls = 0;
   let chatCalls = 0;
+  let compactCalls = 0;
   let nextThreadId = 1;
   let lastChatRequestBody: Record<string, unknown> | undefined;
   let holdStream = false;
@@ -204,8 +205,16 @@ export const createGenericE2eApi = () => {
 
     const compactMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/compact$/);
     if (compactMatch !== null && request.method() === "POST") {
-      const conversation = ensureConversation(compactMatch[1] ?? "");
-      await json({ route, body: { conversation } });
+      compactCalls += 1;
+      const source = ensureConversation(compactMatch[1] ?? "");
+      const conversation = createConversation({
+        id: `compact-${source.id}`,
+        title: `${source.title ?? "New chat"} (compacted)`,
+      });
+      conversations.unshift(conversation);
+      messages.set(conversation.id, []);
+      threads.set(conversation.id, []);
+      await json({ route, body: { conversation }, status: 201 });
       return;
     }
 
@@ -373,6 +382,7 @@ export const createGenericE2eApi = () => {
   return {
     anonymousSessionCalls: () => anonymousSessionCalls,
     chatCalls: () => chatCalls,
+    compactCalls: () => compactCalls,
     conversations,
     lastChatBody: () => lastChatRequestBody,
     holdStream: () => {

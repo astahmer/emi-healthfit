@@ -1,5 +1,5 @@
 import type { FileUIPart, UIMessage } from "ai";
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { ArrowDownIcon, ArrowUpIcon, PaperclipIcon, SquareIcon } from "lucide-react";
 
 import type { QueuedFollowUp } from "../chat-session-machine.ts";
@@ -131,70 +131,90 @@ export const MessageViewport = ({
   messageElements: Map<string, HTMLElement>;
   onSelectMinimapMessage: (messageId: string) => void;
   onBranchMessage: (messageId: string) => void;
-}) => (
-  <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-    <MessageMinimap messages={messages} onSelect={onSelectMinimapMessage} />
-    <div
-      aria-live="polite"
-      className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6"
-      data-testid="messages"
-      ref={messageContainer}
-    >
-      {messages.length === 0 ? (
-        <div className="m-auto max-w-md text-center text-muted-foreground">
-          <p>Ask anything. Configure a GPT-compatible provider in the settings panel.</p>
-        </div>
-      ) : (
-        messages.map((message) => {
-          const text = messageText(message);
-          const isUser = message.role === "user";
-          return (
-            <Message
-              align={isUser ? "end" : "start"}
-              className="mx-auto max-w-3xl"
-              data-message-id={message.id}
-              key={message.id}
-              ref={(element) => {
-                if (element === null) messageElements.delete(message.id);
-                else messageElements.set(message.id, element);
-              }}
-            >
-              <MessageContent>
-                <Bubble align={isUser ? "end" : "start"}>
-                  <BubbleContent
-                    className={cn(
-                      isUser
-                        ? "bg-primary text-primary-foreground"
-                        : "border bg-card text-card-foreground",
-                    )}
-                  >
-                    <p className="mb-1 text-[10px] font-semibold tracking-[0.16em] text-current/60 uppercase">
-                      {message.role}
-                    </p>
-                    <div className="whitespace-pre-wrap">
-                      {text || (message.role === "assistant" && streaming ? "Thinking…" : "")}
-                    </div>
-                    {conversationId !== undefined && !temporary && (
-                      <Button
-                        className="mt-2"
-                        onClick={() => onBranchMessage(message.id)}
-                        size="xs"
-                        variant={isUser ? "secondary" : "ghost"}
-                      >
-                        Branch here
-                      </Button>
-                    )}
-                  </BubbleContent>
-                </Bubble>
-                <MessageFooter>{message.role}</MessageFooter>
-              </MessageContent>
-            </Message>
-          );
-        })
-      )}
+}) => {
+  const [copiedMessageId, setCopiedMessageId] = useState<string>();
+
+  const copyMessage = async ({ messageId, text }: { messageId: string; text: string }) => {
+    if (typeof navigator === "undefined" || navigator.clipboard === undefined) return;
+    await navigator.clipboard.writeText(text);
+    setCopiedMessageId(messageId);
+  };
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <MessageMinimap messages={messages} onSelect={onSelectMinimapMessage} />
+      <div
+        aria-live="polite"
+        className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6"
+        data-testid="messages"
+        ref={messageContainer}
+      >
+        {messages.length === 0 ? (
+          <div className="m-auto max-w-md text-center text-muted-foreground">
+            <p>Ask anything. Configure a GPT-compatible provider in the settings panel.</p>
+          </div>
+        ) : (
+          messages.map((message) => {
+            const text = messageText(message);
+            const isUser = message.role === "user";
+            return (
+              <Message
+                align={isUser ? "end" : "start"}
+                className="mx-auto max-w-3xl"
+                data-message-id={message.id}
+                key={message.id}
+                ref={(element) => {
+                  if (element === null) messageElements.delete(message.id);
+                  else messageElements.set(message.id, element);
+                }}
+              >
+                <MessageContent>
+                  <Bubble align={isUser ? "end" : "start"}>
+                    <BubbleContent
+                      className={cn(
+                        isUser
+                          ? "bg-primary text-primary-foreground"
+                          : "border bg-card text-card-foreground",
+                      )}
+                    >
+                      <p className="mb-1 text-[10px] font-semibold tracking-[0.16em] text-current/60 uppercase">
+                        {message.role}
+                      </p>
+                      <div className="whitespace-pre-wrap">
+                        {text || (message.role === "assistant" && streaming ? "Thinking…" : "")}
+                      </div>
+                      {conversationId !== undefined && !temporary && (
+                        <Button
+                          className="mt-2"
+                          onClick={() => onBranchMessage(message.id)}
+                          size="xs"
+                          variant={isUser ? "secondary" : "ghost"}
+                        >
+                          Branch here
+                        </Button>
+                      )}
+                    </BubbleContent>
+                  </Bubble>
+                  <MessageFooter>
+                    {message.role}
+                    <Button
+                      aria-label="Copy message"
+                      onClick={() => void copyMessage({ messageId: message.id, text })}
+                      size="xs"
+                      variant="ghost"
+                    >
+                      {copiedMessageId === message.id ? "Message copied." : "Copy"}
+                    </Button>
+                  </MessageFooter>
+                </MessageContent>
+              </Message>
+            );
+          })
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const FollowUpQueue = ({
   followUps,

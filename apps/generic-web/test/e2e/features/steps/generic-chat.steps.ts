@@ -99,6 +99,15 @@ When("they restore the generic conversation", async ({ page }) => {
   await page.getByRole("button", { name: "Restore conversation", exact: true }).click();
 });
 
+When("they compact the generic conversation", async ({ page }) => {
+  await page.getByRole("button", { name: "Compact conversation", exact: true }).click();
+});
+
+When("they copy the generic assistant message", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByTestId("messages").getByRole("button", { name: "Copy message" }).last().click();
+});
+
 When("they open the generic branch", async ({ page }) => {
   await page.getByRole("button", { name: "Branch here", exact: true }).last().click();
 });
@@ -193,6 +202,14 @@ Then("the generic conversation should offer archive", async ({ page }) => {
 
 Then("the generic branch heading should be visible", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Branch", exact: true })).toBeVisible();
+});
+
+Then("the generic compact endpoint should be called", async ({ page }) => {
+  await expect.poll(() => getScenario(page).api.compactCalls()).toBe(1);
+});
+
+Then("the generic message copied status should be visible", async ({ page }) => {
+  await expect(page.getByText("Message copied.", { exact: true })).toBeVisible();
 });
 
 Then("the memory {string} should be visible", async ({ page }, content: string) => {
