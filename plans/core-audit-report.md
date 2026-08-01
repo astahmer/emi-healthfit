@@ -42,11 +42,11 @@ Review decisions below therefore distinguish intentional breadth from accidental
 | --- | --- | --- |
 | pnpm --dir packages/core typecheck | Pass | Strict core types currently compile. |
 | pnpm --dir packages/core lint | Pass | No production lint failure. Oxlint reports only non-blocking test-hygiene warnings. |
-| pnpm --dir packages/core test | Initial pass: 62 Node tests and 60 Vitest tests | The initial suite was green before the regression tests were added. |
+| pnpm --dir packages/core test | Pass: 62 Node tests and 66 Vitest tests | Core Node and browser-facing tests pass after the regression coverage was added. |
 | pnpm slop:check | Pass | Current AST slop rules match nothing; this does not detect behavioral slop. |
-| React Doctor JSON scan | 10 warnings | One warning is a real boundary bug; the others are triaged below. |
+| React Doctor JSON scan | 10 warnings | The request-body warning was fixed; remaining findings are triaged below. |
 | npm pack --dry-run --json from packages/core | Pass, 92 source files | The package contains TypeScript source, not built JavaScript or declarations. package.json remains private. |
-| Real createActor deletion repro | Failed behaviorally | A successful delete was called three times before the test client rejected it. |
+| Real createActor deletion repro | Fixed | The regression test now proves one delete call and typed completion. |
 
 ## Implementation follow-up
 
@@ -56,6 +56,7 @@ The behavioral findings are now covered by focused revisions:
 - `fix(core): harden web actors and URL sinks` applies the URL allow-list, reserves transport-owned fields, adds latest-wins query identity, removes fabricated forwarding fallbacks, and routes draft persistence through the operations actor.
 - `test(core): cover generation admission ordering` adds a real SQLite/D1-compatible concurrent route test.
 - `fix(core): admit generations before turn persistence` admits the active generation before saving the user turn, marks admitted generations failed when setup fails, and returns a structured 409 conflict.
+- `fix(core): preserve generic message identity` passes the validated client message ID through generic persistence so retry/edit/branch operations can address the stored turn.
 
 The remaining findings below are package contract, DTO, coverage, and registry-distribution work; they are not reasons to split the intentionally mixed-layer package.
 
@@ -146,6 +147,17 @@ Required follow-up:
 
 Implementation: each replaceable store query now has an actor-local identity; stale success and failure events are ignored. The conversation-store actor tests cover out-of-order conversation search and selection loads.
 
+### CORE-013 — Fixed high: generic chat persistence dropped validated message identity
+
+The generic Cloudflare route persisted the last validated user message with only its role and
+parts. `saveConversationMessages` therefore generated a new database ID even though the client
+message already had a stable ID. Retry, edit, branch, and reconciliation operations could then
+address the client ID while the stored turn used a different ID.
+
+Implementation: generic persistence now passes `lastMessage.id` to the server store. The real
+SQLite route regression asserts that the stored user turn keeps the client-generated ID. This
+also follows the repository anti-slop rule requiring client message IDs to survive persistence.
+
 ### CORE-006 — Medium: generic and HealthFit contract composition is not explicit
 
 Locations:
@@ -215,7 +227,11 @@ Evidence:
 - Core tests predominantly import internal source paths such as ../../src/web/chat-runtime/..., so passing tests do not prove that the package exports work from a packed consumer.
 - [entry-isolation.test.ts:41-116](../packages/core/test/entry-isolation.test.ts) performs useful source-text isolation checks, but it is not an import/pack/install test.
 
-The current pass count is not a coverage claim. The deletion, body-collision, URL-sink, stale-response, and concurrency gaps all exist while the suite is green. A high-standard package needs explicit behavioral coverage for ownership boundaries and a separate compatibility check for the public package surface.
+The current pass count is not a coverage claim. The initial suite was green while the deletion,
+body-collision, URL-sink, stale-response, message-identity, and concurrency gaps existed; the
+new tests close those specific regressions. A high-standard package still needs explicit
+coverage policy for ownership boundaries and a separate compatibility check for the public
+package surface.
 
 Required follow-up:
 
