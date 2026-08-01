@@ -409,6 +409,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: 4.20250805.0
         version: 4.20250805.0
+      '@effect/platform-node':
+        specifier: 4.0.0-beta.88
+        version: 4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2))
       '@types/node':
         specifier: ^26.0.0
         version: 26.1.1

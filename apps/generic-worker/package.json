@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20250805.0",
+    "@effect/platform-node": "4.0.0-beta.88",
     "@types/node": "^26.0.0",
     "drizzle-kit": "0.31.10",
     "miniflare": "4.20260710.0",
