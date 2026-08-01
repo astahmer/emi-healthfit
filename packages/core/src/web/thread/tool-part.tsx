@@ -41,12 +41,9 @@ export const ToolPart = ({
   renderToolResult?: (args: { toolName: string; result: unknown }) => ReactNode;
 }): ReactNode => {
   const toolPart = Schema.decodeUnknownOption(ToolMessagePart)(part);
-  if (Option.isNone(toolPart)) return null;
-  const type = toolPart.value.type;
+  const type = Option.isSome(toolPart) ? toolPart.value.type : "";
   const isTool = type === "dynamic-tool" || type === "tool-call" || type.startsWith("tool-");
-  if (!isTool) return null;
-
-  const configuredToolName = toolPart.value.toolName;
+  const configuredToolName = Option.isSome(toolPart) ? toolPart.value.toolName : undefined;
   const toolName =
     configuredToolName !== undefined
       ? configuredToolName
@@ -54,6 +51,8 @@ export const ToolPart = ({
         ? type.slice(5)
         : "tool";
   const registeredRenderer = useToolRenderer(toolName);
+  if (Option.isNone(toolPart) || !isTool) return null;
+
   const input = toolPart.value.input ?? toolPart.value.args ?? toolPart.value.argsText;
   const output = toolPart.value.output ?? toolPart.value.result;
   const state = toolPart.value.state;
