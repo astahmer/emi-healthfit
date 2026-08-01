@@ -12,6 +12,7 @@ import {
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
 } from "@emi/core/server";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 const user = {
@@ -99,8 +100,9 @@ const requestFor = ({ conversationId, requestId }: { conversationId: string; req
 describe("generic core chat route", () => {
   it("admits the generation before persisting a concurrent user message", async () => {
     const { db: database } = makeSqliteDatabase();
+    const conversationDatabase = narrowQueryDatabaseClient<ConversationDatabaseSchema>(database);
     const conversationId = await run(
-      createConversation(database, user.id, "Concurrent route test"),
+      createConversation(conversationDatabase, user.id, "Concurrent route test"),
     );
 
     let firstMessageBatch = true;
@@ -141,7 +143,7 @@ describe("generic core chat route", () => {
           Effect.provide(RuntimeContext.phantom),
           Effect.provideService(CurrentUser, user),
           Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {
-            waitUntil: (promise) => pendingTasks.push(promise),
+            waitUntil: (promise: Promise<unknown>) => pendingTasks.push(promise),
           }),
         ),
       );
@@ -179,7 +181,9 @@ describe("generic core chat route", () => {
       if (outcomes[1]?.status === "fulfilled") assert.equal(outcomes[1].value.status, 409);
       await Promise.allSettled(pendingTasks);
 
-      const messages = await run(getConversationMessages(database, user.id, conversationId));
+      const messages = await run(
+        getConversationMessages(conversationDatabase, user.id, conversationId),
+      );
       assert.equal(messages.filter((message) => message.role === "user").length, 1);
     } finally {
       globalThis.fetch = previousFetch;

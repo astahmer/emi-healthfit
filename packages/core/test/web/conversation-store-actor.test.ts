@@ -130,7 +130,9 @@ describe("conversationStoreActor", () => {
       }),
     });
 
-    await vi.waitFor(() => expect(actor.getSnapshot().context.conversations).toEqual([conversation]));
+    await vi.waitFor(() =>
+      expect(actor.getSnapshot().context.conversations).toEqual([conversation]),
+    );
     actor.send({
       type: "conversation-delete-requested",
       conversationId: conversation.id,
