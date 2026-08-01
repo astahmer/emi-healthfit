@@ -37,7 +37,7 @@ describe("@emi/core/contract", () => {
   });
 
   it("exposes generic and HealthFit API compositions explicitly", () => {
-    assert.deepEqual(Object.keys(CoreApi.groups).sort(), [
+    assert.deepEqual(Object.keys(CoreApi.groups).toSorted(), [
       "conversations",
       "discord",
       "memories",
@@ -47,7 +47,7 @@ describe("@emi/core/contract", () => {
       "suggestions",
       "threads",
     ]);
-    assert.deepEqual(Object.keys(EmiApi.groups).sort(), [
+    assert.deepEqual(Object.keys(EmiApi.groups).toSorted(), [
       "analytics",
       "conversations",
       "data",
