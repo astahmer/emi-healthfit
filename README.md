@@ -31,6 +31,10 @@ pnpm 11, Playwright browsers, Python, and the deployment utilities used by the r
 pnpm install
 ```
 
+Environment files are intentionally scoped by app. Start with the [local environment guide](docs/local-environment.md)
+before filling in `.env`; it lists where each value comes from, what generates it, and which commands
+consume it.
+
 ### Google sign-in
 
 Google requires the OAuth app and web client to be created in Google Cloud Console. Client creation
@@ -59,6 +63,9 @@ turn the downloaded client JSON into a complete local `.env`.
    ```text
    http://localhost:1337/api/auth/callback/google
    ```
+
+   If you will use the named Portless URL, also add
+   `https://emi-healthfit.localhost/api/auth/callback/google` to the same client.
 
    Scheme, host, port, path, case, and trailing slash must match exactly. Google permits HTTP only
    for localhost; deployed callbacks must use HTTPS.
@@ -125,6 +132,16 @@ On first install pnpm may ask you to approve native builds for `workerd` and `ms
 
 ## Local development
 
+For the memorable local HTTPS URL, run:
+
+```bash
+pnpm dev:portless
+```
+
+Open `https://emi-healthfit.localhost`. Portless creates and trusts its local certificate on first
+use. The fixed-port command remains available when a test or callback specifically needs
+`http://localhost:1337`:
+
 Run the Worker locally with Alchemy's dev server:
 
 ```bash
@@ -138,6 +155,9 @@ To work on the chat UI with hot reload:
 ```bash
 pnpm chat:dev
 ```
+
+For the hot-reload UI through Portless, start the API with `pnpm dev:portless` in one terminal and
+run `pnpm chat:dev:portless` in another; open `https://emi-chat.localhost/chat`.
 
 To type-check the whole monorepo:
 

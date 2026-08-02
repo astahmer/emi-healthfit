@@ -15,46 +15,49 @@ const portSuffix =
   (portlessHttps && portlessPort === 443) || (!portlessHttps && portlessPort === 80)
     ? ""
     : `:${portlessPort}`;
-const workerUrl = `${portlessScheme}://generic-worker.localhost${portSuffix}`;
-const webUrl = `${portlessScheme}://generic-chat.localhost${portSuffix}`;
+const apiUrl = `${portlessScheme}://emi-healthfit.localhost${portSuffix}`;
+const apiEnvironmentKeys = new Set([
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "ALLOWED_EMAILS",
+  "HEVY_CREDENTIAL_ENCRYPTION_KEY",
+  "OPENAI_API_KEY",
+  "DISCORD_INTERNAL_ASK_SECRET",
+]);
 
 const createEnvironmentFile = async () => {
   const source = await readFile(join(repositoryDirectory, ".env"), "utf8");
-  const lines = source
-    .split("\n")
-    .filter((line) => line.startsWith("BETTER_AUTH_SECRET="));
-  lines.push(`BETTER_AUTH_URL=${webUrl}`);
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "emi-generic-portless-"));
+  const lines = source.split("\n").filter((line) => {
+    const key = line.slice(0, line.indexOf("=")).trim();
+    return apiEnvironmentKeys.has(key) && !line.startsWith("BETTER_AUTH_URL=");
+  });
+  lines.push(`BETTER_AUTH_URL=${apiUrl}`);
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "emi-healthfit-portless-"));
   const environmentFile = join(temporaryDirectory, ".env");
   await writeFile(environmentFile, `${lines.join("\n")}\n`);
   return { environmentFile, temporaryDirectory };
 };
 
-const spawnPortless = ({ name, environment, arguments: commandArguments }) =>
-  spawn("pnpm", ["exec", "portless", "--name", name, "--", "pnpm", ...commandArguments], {
-    cwd: repositoryDirectory,
-    env: { ...process.env, ...environment },
-    stdio: "inherit",
-  });
-
 const waitForUrl = async ({ url, timeoutMs = 120_000 }) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const response = await new Promise((resolve, reject) => {
+      const statusCode = await new Promise((resolve, reject) => {
         const requestOptions = new URL(url);
         const requestHandle = (portlessHttps ? httpsRequest : httpRequest)(
           requestOptions,
           portlessHttps ? { rejectUnauthorized: false } : {},
-          (responseValue) => {
-            responseValue.resume();
-            resolve(responseValue.statusCode ?? 500);
+          (response) => {
+            response.resume();
+            resolve(response.statusCode ?? 500);
           },
         );
         requestHandle.on("error", reject);
         requestHandle.end();
       });
-      if (response === 200) return;
+      if (statusCode === 200) return;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -67,43 +70,37 @@ const stop = (child) => {
 
 const run = async () => {
   const { environmentFile, temporaryDirectory } = await createEnvironmentFile();
-  const worker = spawnPortless({
-    name: "generic-worker",
-    arguments: [
+  const api = spawn(
+    "pnpm",
+    [
+      "exec",
+      "portless",
+      "--name",
+      "emi-healthfit",
+      "--",
+      "pnpm",
       "--dir",
-      "apps/generic-worker",
+      "apps/api",
       "exec",
       "alchemy",
       "dev",
       "--env-file",
       environmentFile,
     ],
-    environment: { ALCHEMY_STAGE: `generic-portless-${process.pid}` },
-  });
-  let web;
-  const cleanup = () => {
-    stop(web);
-    stop(worker);
-  };
+    {
+      cwd: repositoryDirectory,
+      env: { ...process.env },
+      stdio: "inherit",
+    },
+  );
+  const cleanup = () => stop(api);
   process.once("SIGINT", cleanup);
   process.once("SIGTERM", cleanup);
 
   try {
-    await waitForUrl({ url: `${workerUrl}/api/health` });
-    web = spawnPortless({
-      name: "generic-chat",
-      arguments: ["--dir", "apps/generic-web", "exec", "vite", "--mode", "portless"],
-      environment: { VITE_WORKER_ORIGIN: workerUrl },
-    });
-    await waitForUrl({ url: `${webUrl}/api/health` });
-    const exitCode = await new Promise((resolve) => {
-      web.once("exit", (code, signal) => resolve(code ?? (signal === null ? 1 : 0)));
-      worker.once("exit", (code) => {
-        stop(web);
-        resolve(code ?? 1);
-      });
-    });
-    process.exitCode = exitCode;
+    await waitForUrl({ url: apiUrl });
+    console.log(`HealthFit is available at ${apiUrl}`);
+    await new Promise((resolve) => api.once("exit", resolve));
   } finally {
     cleanup();
     await rm(temporaryDirectory, { force: true, recursive: true });
