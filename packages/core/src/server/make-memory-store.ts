@@ -42,38 +42,35 @@ export class MemoryStoreLive {
     readonly summary: MemorySummaryStoreShape<TEnvironment>;
   } {
     const userId = requestContext.userId;
+    const databaseLayer = MemoryDatabase.layer({ db });
+    const provideDatabase = <A>(effect: Effect.Effect<A, never, MemoryDatabase>) =>
+      Effect.provide(effect, databaseLayer);
     return {
       reader: {
         list: (options) =>
-          MemoryDatabase.getMemories(db, userId, options).pipe(
+          provideDatabase(MemoryDatabase.getMemories({ userId, options })).pipe(
             Effect.map((memories) => memories.map(withRank)),
           ),
         search: (query, options) =>
-          MemoryDatabase.searchMemories(db, userId, query, options).pipe(
+          provideDatabase(MemoryDatabase.searchMemories({ userId, query, options })).pipe(
             Effect.map((memories) => memories.map(withRank)),
           ),
         listIdsForMessage: (messageId) =>
-          MemoryDatabase.listMemoryIdsForMessage(db, userId, messageId),
+          provideDatabase(MemoryDatabase.listMemoryIdsForMessage({ userId, messageId })),
       },
       writer: {
-        insertMany: (inputs) => MemoryDatabase.insertMemories(db, userId, [...inputs]),
-        insert: (input) =>
-          MemoryDatabase.insertMemory(
-            db,
-            userId,
-            input.content,
-            input.source,
-            input.threadId,
-            input.messageId,
-          ),
-        delete: (memoryId) => MemoryDatabase.deleteMemory(db, userId, memoryId),
+        insertMany: (inputs) =>
+          provideDatabase(MemoryDatabase.insertMemories({ userId, inputs: [...inputs] })),
+        insert: (input) => provideDatabase(MemoryDatabase.insertMemory({ userId, ...input })),
+        delete: (memoryId) =>
+          provideDatabase(MemoryDatabase.deleteMemory({ userId, id: memoryId })),
         deleteByMessage: (messageId) =>
-          MemoryDatabase.deleteMemoriesByMessage(db, userId, messageId),
+          provideDatabase(MemoryDatabase.deleteMemoriesByMessage({ userId, messageId })),
       },
       summary: {
-        get: () => MemoryDatabase.getMemorySummary(db, userId),
+        get: () => provideDatabase(MemoryDatabase.getMemorySummary({ userId })),
         upsert: ({ content, memoryCount }) =>
-          MemoryDatabase.upsertMemorySummary(db, userId, content, memoryCount),
+          provideDatabase(MemoryDatabase.upsertMemorySummary({ userId, content, memoryCount })),
       },
     };
   }
