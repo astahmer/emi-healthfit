@@ -8,6 +8,21 @@
   ],
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol/index.ts",
+    "./api": "./src/api/index.ts",
+    "./runtime": "./src/runtime/index.ts",
+    "./react": "./src/react/index.ts",
+    "./components": "./src/components/index.ts",
+    "./components/styled": "./src/components/styled/index.ts",
+    "./styles.css": "./src/styles/styles.css",
+    "./server/effect": "./src/server/effect/index.ts",
+    "./server/fetch": "./src/server/fetch/index.ts",
+    "./adapters/ai-sdk": "./src/adapters/ai-sdk/index.ts",
+    "./adapters/cloudflare": "./src/adapters/cloudflare/index.ts",
+    "./extensions": "./src/extensions/index.ts",
+    "./testing": "./src/testing/index.ts",
+    "./advanced/xstate": "./src/advanced/xstate/index.ts",
     "./contract": "./src/contract/index.ts",
     "./chat": "./src/chat/index.ts",
     "./chat/settings": "./src/chat/settings.ts",
@@ -25,7 +40,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts && vitest run",
+    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/public-api/fixtures.test.ts test/public-api/contract-catalog.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts && vitest run",
+    "test:public-api": "node --test --experimental-strip-types test/public-api/fixtures.test.ts test/public-api/contract-catalog.test.ts",
     "test:watch": "vitest",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
@@ -99,6 +115,302 @@
     },
     "tailwind-merge": {
       "optional": true
+    }
+  },
+  "emi": {
+    "publicApi": {
+      "version": "r0",
+      "entrypoints": {
+        ".": "facade",
+        "./protocol": "protocol",
+        "./api": "api",
+        "./runtime": "runtime",
+        "./react": "react",
+        "./components": "components",
+        "./components/styled": "styled-components",
+        "./styles.css": "styles",
+        "./server": "server",
+        "./server/effect": "server-effect",
+        "./server/fetch": "server-fetch",
+        "./adapters/ai-sdk": "ai-sdk-adapter",
+        "./adapters/cloudflare": "cloudflare-adapter",
+        "./extensions": "extensions",
+        "./testing": "testing",
+        "./advanced/xstate": "advanced-xstate"
+      },
+      "entrypointPaths": {
+        ".": "./src/index.ts",
+        "./protocol": "./src/protocol/index.ts",
+        "./api": "./src/api/index.ts",
+        "./runtime": "./src/runtime/index.ts",
+        "./react": "./src/react/index.ts",
+        "./components": "./src/components/index.ts",
+        "./components/styled": "./src/components/styled/index.ts",
+        "./styles.css": "./src/styles/styles.css",
+        "./server": "./src/server/index.ts",
+        "./server/effect": "./src/server/effect/index.ts",
+        "./server/fetch": "./src/server/fetch/index.ts",
+        "./adapters/ai-sdk": "./src/adapters/ai-sdk/index.ts",
+        "./adapters/cloudflare": "./src/adapters/cloudflare/index.ts",
+        "./extensions": "./src/extensions/index.ts",
+        "./testing": "./src/testing/index.ts",
+        "./advanced/xstate": "./src/advanced/xstate/index.ts"
+      },
+      "advancedEntrypoints": {
+        "xstate": "./advanced/xstate",
+        "effect": "./server/effect"
+      },
+      "dependencyMatrix": {
+        ".": {
+          "runtime": [
+            "xstate"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "ai",
+            "@ai-sdk/openai",
+            "@cloudflare/workers-types",
+            "drizzle-orm"
+          ]
+        },
+        "./protocol": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./api": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./runtime": {
+          "runtime": [
+            "xstate"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./react": {
+          "runtime": [],
+          "peer": [
+            "react",
+            "react-dom"
+          ],
+          "optional": [],
+          "forbidden": [
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./components": {
+          "runtime": [],
+          "peer": [
+            "react"
+          ],
+          "optional": [],
+          "forbidden": [
+            "xstate",
+            "ai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./components/styled": {
+          "runtime": [],
+          "peer": [
+            "react"
+          ],
+          "optional": [
+            "class-variance-authority",
+            "clsx",
+            "lucide-react",
+            "radix-ui",
+            "tailwind-merge"
+          ],
+          "forbidden": [
+            "ai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./styles.css": {
+          "runtime": [],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./server": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./server/effect": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./server/fetch": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./adapters/ai-sdk": {
+          "runtime": [
+            "ai"
+          ],
+          "peer": [],
+          "optional": [
+            "@ai-sdk/openai"
+          ],
+          "forbidden": [
+            "react",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./adapters/cloudflare": {
+          "runtime": [
+            "alchemy",
+            "drizzle-orm",
+            "kysely",
+            "kysely-d1"
+          ],
+          "peer": [],
+          "optional": [
+            "@cloudflare/workers-types"
+          ],
+          "forbidden": [
+            "react",
+            "ai",
+            "@ai-sdk/openai"
+          ]
+        },
+        "./extensions": {
+          "runtime": [],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./testing": {
+          "runtime": [
+            "xstate"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./advanced/xstate": {
+          "runtime": [
+            "xstate"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        }
+      },
+      "legacySourceEntrypoints": [
+        "./chat",
+        "./chat/settings",
+        "./chat/ui-messages",
+        "./web",
+        "./web/contributions",
+        "./web/styled",
+        "./web/styled/styles.css",
+        "./cloudflare",
+        "./discord"
+      ],
+      "rewriteGates": [
+        "common-consumer",
+        "target-subpaths",
+        "packed-current-subpaths",
+        "internal-source-import",
+        "healthfit-imports",
+        "ai-sdk-protocol-imports",
+        "platform-contract-imports"
+      ]
     }
   }
 }
