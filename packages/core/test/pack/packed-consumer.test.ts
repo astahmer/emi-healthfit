@@ -47,8 +47,13 @@ describe("@emi/core packed consumer", () => {
             "@emi/core": `file:${join(temporaryDirectory, tarball)}`,
             "@ai-sdk/openai": "3.0.84",
             ai: "6.0.224",
+            "class-variance-authority": "0.7.1",
+            clsx: "2.1.1",
+            "lucide-react": "1.24.0",
+            "radix-ui": "1.6.2",
             react: "19.2.7",
             "react-dom": "19.2.7",
+            "tailwind-merge": "3.6.0",
           },
         }),
       );
