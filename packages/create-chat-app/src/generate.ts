@@ -1,6 +1,7 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import * as Schema from "effect/Schema";
 
 import { toSlug } from "./slug.ts";
 import * as templates from "./templates.ts";
@@ -43,31 +44,62 @@ const toContext = (options: BuildFilesOptions): TemplateContext => ({
 const genericSourceFile = (path: string): string =>
   readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8");
 
+const JsonRecord = Schema.Record(Schema.String, Schema.Json);
+
+const decodePackageJson = (path: string) =>
+  Schema.decodeUnknownSync(Schema.fromJsonString(JsonRecord))(genericSourceFile(path));
+
+const decodeRecord = (value: unknown) => Schema.decodeUnknownSync(JsonRecord)(value);
+
+const PublicApi = Schema.Struct({
+  version: Schema.String,
+  entrypointPaths: Schema.Record(Schema.String, Schema.String),
+});
+
 const coreSourcePackageJson = (): string => {
-  const packageJson = JSON.parse(genericSourceFile("packages/core/package.json"));
-  const publicApi = packageJson.emi.publicApi;
+  const packageJson = decodePackageJson("packages/core/package.json");
+  const emi = decodeRecord(packageJson.emi);
+  const publicApi = Schema.decodeUnknownSync(PublicApi)(emi.publicApi);
   const sourcePaths = publicApi.entrypointPaths;
-  packageJson.private = true;
-  packageJson.files = ["src", "test", "PUBLISH.md", "source-manifest.json"];
-  packageJson.exports = Object.fromEntries(
-    Object.keys(packageJson.exports).map((entrypoint) => {
+  const exports = decodeRecord(packageJson.exports);
+  const targetExports = Object.fromEntries(
+    Object.keys(exports).map((entrypoint) => {
       const sourcePath = sourcePaths[entrypoint];
-      return [entrypoint, sourcePath ?? packageJson.exports[entrypoint]];
+      return [entrypoint, sourcePath ?? exports[entrypoint]];
     }),
   );
-  packageJson.emi.sourceDistribution = {
-    manifest: "./source-manifest.json",
-    provenance: `@emi/core source catalog ${publicApi.version}`,
-    generatedFrom: "./package.json > emi.publicApi",
-  };
-  return `${JSON.stringify(packageJson, null, 2)}\n`;
+  return `${JSON.stringify(
+    {
+      ...packageJson,
+      private: true,
+      files: ["src", "test", "PUBLISH.md", "source-manifest.json"],
+      exports: targetExports,
+      emi: {
+        ...emi,
+        sourceDistribution: {
+          manifest: "./source-manifest.json",
+          provenance: `@emi/core source catalog ${publicApi.version}`,
+          generatedFrom: "./package.json > emi.publicApi",
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`;
 };
 
 const migrationSourcePackageJson = (): string => {
-  const packageJson = JSON.parse(genericSourceFile("packages/core-migration/package.json"));
-  packageJson.private = true;
-  packageJson.dependencies["@emi/core"] = "workspace:*";
-  return `${JSON.stringify(packageJson, null, 2)}\n`;
+  const packageJson = decodePackageJson("packages/core-migration/package.json");
+  const dependencies = decodeRecord(packageJson.dependencies);
+  return `${JSON.stringify(
+    {
+      ...packageJson,
+      private: true,
+      dependencies: { ...dependencies, "@emi/core": "workspace:*" },
+    },
+    null,
+    2,
+  )}\n`;
 };
 
 const corePackageFiles = ({
