@@ -8,13 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import type {
-  ChatActions,
-  ChatRuntime,
-  ChatRuntimeOptions,
-  ChatState,
-  Selector,
-} from "./runtime/types.ts";
+import type { ChatActions, ChatRuntime, Selector } from "./runtime/types.ts";
 
 const ChatRuntimeContext = createContext<ChatRuntime | undefined>(undefined);
 
