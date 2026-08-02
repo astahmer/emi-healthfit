@@ -10,10 +10,13 @@ import {
 } from "../src/platform/db/client.ts";
 
 const migrationsDirectory = fileURLToPath(new URL("../migrations", import.meta.url));
+const generatedAuthMigrationName = "20260802113108_add-auth-tables.sql";
 
 const migrationNames = readdirSync(migrationsDirectory)
   .filter((name) => name.endsWith(".sql"))
-  .toSorted();
+  .filter((name) => name !== "0012_auth.sql" && name !== generatedAuthMigrationName)
+  .toSorted()
+  .flatMap((name) => (name === "0013_ownership.sql" ? [generatedAuthMigrationName, name] : [name]));
 
 const applyMigrations = (sqlite: DatabaseSync) => {
   sqlite.exec("PRAGMA foreign_keys = ON");

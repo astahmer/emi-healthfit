@@ -84,7 +84,11 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: Number(process.env.PORT ?? "3232"),
       proxy: {
-        "/api": apiBaseUrl,
+        "/api": {
+          target: apiBaseUrl,
+          changeOrigin: true,
+          headers: { origin: apiBaseUrl },
+        },
         "/ingest": apiBaseUrl,
       },
     },

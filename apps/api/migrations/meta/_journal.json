@@ -43,6 +43,13 @@
       "when": 1785319541634,
       "tag": "20260729100541_greedy_mordo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1785670268609,
+      "tag": "20260802113108_add-auth-tables",
+      "breakpoints": true
     }
   ]
 }
