@@ -2,6 +2,7 @@
 
 | Name | Local Path | Source | Purpose |
 |------|-----------|--------|---------|
+| effect | `/Users/astahmer/.references/effect` | https://github.com/Effect-TS/effect | Official Effect source and examples for service, Layer, error, Stream, and runtime patterns |
 | effect-smol | `.references/effect-smol` | https://github.com/Effect-TS/effect-smol | Effect v4 core libs, CF Workers adapters, patterns |
 | alchemy-effect | `.references/alchemy-effect` | https://github.com/alchemy-run/alchemy-effect | Infrastructure-as-Effects, CF Worker/D1/R2 bindings |
 | assistant-ui | `.references/assistant-ui` | https://github.com/assistant-ui/assistant-ui | React chat UI framework, templates, MCP/tools |
