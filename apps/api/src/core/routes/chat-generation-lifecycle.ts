@@ -200,7 +200,6 @@ export const handleConversationDiagnosticEvent = (
   Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
     const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const conversationLayer = ConversationDatabase.layer({ db: conversationDb });
     const generationLayer = GenerationDatabase.layer({ db: conversationDb });
     const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       Effect.provide(effect, generationLayer);
