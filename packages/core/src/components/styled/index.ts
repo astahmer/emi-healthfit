@@ -1,1 +1,1 @@
-export * from "./index.tsx";
+export { ChatApp, ChatShell } from "./recipe.tsx";

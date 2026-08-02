@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ConnectedComposer, ConnectedSidebar, ConnectedThread, Sidebar } from "../index.tsx";
+import { ConnectedComposer, ConnectedSidebar, ConnectedThread, Sidebar } from "../index.ts";
 
 export const ChatShell = ({ children }: { readonly children?: ReactNode }) => (
   <div data-testid="chat-shell">{children}</div>

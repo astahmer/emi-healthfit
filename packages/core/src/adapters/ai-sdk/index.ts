@@ -1,9 +1,17 @@
-import type { TextStreamPart, ToolSet, UIMessage } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import {
+  convertToModelMessages,
+  isLoopFinished,
+  stepCountIs,
+  streamText,
+  type TextStreamPart,
+  type ToolSet,
+  type UIMessage,
+} from "ai";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
-import { createChatStream, type OpenAiCompatibleConfiguration } from "../../chat/openai.ts";
 import type {
   ChatMessage,
   GenerationEvent,
@@ -209,7 +217,7 @@ const toGenerationStream = ({
   messageId,
   input,
 }: {
-  result: Awaited<ReturnType<typeof createChatStream>>;
+  result: { readonly fullStream: AsyncIterable<AiSdkStreamPart> };
   generationId: string;
   messageId: string;
   input: ModelGenerationInput;
@@ -242,28 +250,28 @@ export class AiSdkModelProvider implements ModelProvider {
     const createId = this.configuration.createId ?? (() => crypto.randomUUID());
     const generationId = createId();
     const messageId = createId();
-    const request: {
-      messages: Array<Omit<UIMessage, "id">>;
-      configuration: OpenAiCompatibleConfiguration;
-    } = {
-      messages: input.messages.map(toUiMessage).map(({ id: _id, ...message }) => message),
-      configuration: {
-        provider: "openai",
-        apiKey: this.configuration.apiKey,
-        model: input.configuration.model || this.configuration.model,
-        ...(this.configuration.baseUrl === undefined ? {} : { baseUrl: this.configuration.baseUrl }),
-        ...(this.configuration.fetch === undefined ? {} : { fetch: this.configuration.fetch }),
-      },
-    };
+    const messages = input.messages.map(toUiMessage).map(({ id: _id, ...message }) => message);
+    const model = input.configuration.model || this.configuration.model;
     const resultEffect: Effect.Effect<
       Stream.Stream<GenerationEvent, AiSdkAdapterError>,
       AiSdkAdapterError
     > = Effect.tryPromise({
-        try: () => createChatStream({ request, executeTool: async () => ({}) }),
-        catch: (cause) => toAdapterError(cause),
-      }).pipe(
-        Effect.map((result) => toGenerationStream({ result, generationId, messageId, input })),
-      );
+      try: async () => {
+        const openai = createOpenAI({
+          apiKey: this.configuration.apiKey,
+          baseURL: this.configuration.baseUrl,
+          ...(this.configuration.fetch === undefined ? {} : { fetch: this.configuration.fetch }),
+        });
+        const result = streamText({
+          model: openai.chat(model),
+          messages: await convertToModelMessages(messages),
+          maxOutputTokens: 4096,
+          stopWhen: [isLoopFinished(), stepCountIs(8)],
+        });
+        return toGenerationStream({ result, generationId, messageId, input });
+      },
+      catch: (cause) => toAdapterError(cause),
+    });
     return Stream.unwrap(resultEffect);
   }
 }

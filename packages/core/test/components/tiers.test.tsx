@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { ChatProvider } from "../../src/react/index.ts";
-import { createChatRuntime } from "../../src/runtime/index.ts";
+import { ChatProvider } from "@emi/core/react";
+import { createChatRuntime } from "@emi/core";
 import {
   Composer,
   ConnectedComposer,
@@ -10,8 +10,8 @@ import {
   Message,
   MessagePart,
   ThreadViewport,
-} from "../../src/components/index.ts";
-import { ChatApp } from "../../src/components/styled/index.ts";
+} from "@emi/core/components";
+import { ChatApp } from "@emi/core/components/styled";
 
 const message = {
   id: "message-1",
