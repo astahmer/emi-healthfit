@@ -10,17 +10,26 @@
   ],
   "type": "module",
   "exports": {
-    ".": { "types": "./dist/types/index.d.ts", "import": "./dist/index.js" },
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./protocol": {
       "types": "./dist/types/protocol/index.d.ts",
       "import": "./dist/protocol/index.js"
     },
-    "./api": { "types": "./dist/types/api/index.d.ts", "import": "./dist/api/index.js" },
+    "./api": {
+      "types": "./dist/types/api/index.d.ts",
+      "import": "./dist/api/index.js"
+    },
     "./runtime": {
       "types": "./dist/types/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"
     },
-    "./react": { "types": "./dist/types/react/index.d.ts", "import": "./dist/react/index.js" },
+    "./react": {
+      "types": "./dist/types/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
     "./components": {
       "types": "./dist/types/components/index.d.ts",
       "import": "./dist/components/index.js"
@@ -37,10 +46,6 @@
     "./server/fetch": {
       "types": "./dist/types/server/fetch/index.d.ts",
       "import": "./dist/server/fetch/index.js"
-    },
-    "./server/legacy": {
-      "types": "./src/server/legacy/index.ts",
-      "import": "./dist/server/legacy/index.js"
     },
     "./adapters/ai-sdk": {
       "types": "./dist/types/adapters/ai-sdk/index.d.ts",
@@ -62,40 +67,9 @@
       "types": "./dist/types/advanced/xstate/index.d.ts",
       "import": "./dist/advanced/xstate/index.js"
     },
-    "./contract": {
-      "types": "./src/contract/index.ts",
-      "import": "./dist/contract/index.js"
-    },
-    "./chat": { "types": "./src/chat/index.ts", "import": "./dist/chat/index.js" },
-    "./chat/settings": {
-      "types": "./src/chat/settings.ts",
-      "import": "./dist/chat/settings.js"
-    },
-    "./chat/ui-messages": {
-      "types": "./src/chat/ui-messages.ts",
-      "import": "./dist/chat/ui-messages.js"
-    },
     "./server": {
       "types": "./dist/types/server/index.d.ts",
       "import": "./dist/server/index.js"
-    },
-    "./web": { "types": "./src/web/index.ts", "import": "./dist/web/index.js" },
-    "./web/contributions": {
-      "types": "./src/web/contributions.tsx",
-      "import": "./dist/web/contributions.js"
-    },
-    "./web/styled": {
-      "types": "./src/web/styled/index.ts",
-      "import": "./dist/web/styled/index.js"
-    },
-    "./web/styled/styles.css": "./dist/web/styled/styles.css",
-    "./cloudflare": {
-      "types": "./src/cloudflare/index.ts",
-      "import": "./dist/cloudflare/index.js"
-    },
-    "./discord": {
-      "types": "./src/discord/index.ts",
-      "import": "./dist/discord/index.js"
     }
   },
   "publishConfig": {
@@ -117,16 +91,7 @@
   "dependencies": {
     "@ai-sdk/openai": "catalog:",
     "ai": "catalog:",
-    "alchemy": "catalog:",
-    "better-auth": "catalog:",
-    "drizzle-orm": "catalog:",
     "effect": "catalog:",
-    "kysely": "catalog:",
-    "kysely-d1": "catalog:",
-    "react-markdown": "catalog:",
-    "remark-gfm": "catalog:",
-    "tailwindcss": "catalog:",
-    "tw-animate-css": "catalog:",
     "xstate": "catalog:"
   },
   "devDependencies": {
@@ -137,18 +102,27 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "esbuild": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "alchemy": "catalog:",
+    "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "drizzle-orm": "catalog:",
+    "esbuild": "catalog:",
     "jsdom": "catalog:",
+    "kysely": "catalog:",
+    "kysely-d1": "catalog:",
     "lucide-react": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "radix-ui": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "catalog:",
+    "remark-gfm": "catalog:",
     "tailwind-merge": "catalog:",
+    "tailwindcss": "catalog:",
+    "tw-animate-css": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
@@ -300,7 +274,9 @@
           ]
         },
         "./components": {
-          "runtime": ["effect"],
+          "runtime": [
+            "effect"
+          ],
           "peer": [
             "react"
           ],
@@ -313,7 +289,9 @@
           ]
         },
         "./components/styled": {
-          "runtime": ["effect"],
+          "runtime": [
+            "effect"
+          ],
           "peer": [
             "react"
           ],
@@ -401,7 +379,9 @@
           ]
         },
         "./adapters/cloudflare": {
-          "runtime": ["effect"],
+          "runtime": [
+            "effect"
+          ],
           "peer": [],
           "optional": [],
           "forbidden": [
@@ -411,7 +391,9 @@
           ]
         },
         "./extensions": {
-          "runtime": ["effect"],
+          "runtime": [
+            "effect"
+          ],
           "peer": [],
           "optional": [],
           "forbidden": [
@@ -451,32 +433,6 @@
             "@cloudflare/workers-types"
           ]
         }
-      },
-      "legacySourceEntrypoints": [
-        "./contract",
-        "./chat",
-        "./chat/settings",
-        "./chat/ui-messages",
-        "./server/legacy",
-        "./web",
-        "./web/contributions",
-        "./web/styled",
-        "./web/styled/styles.css",
-        "./cloudflare",
-        "./discord"
-      ],
-      "legacyEntrypointPaths": {
-        "./contract": "./src/contract/index.ts",
-        "./chat": "./src/chat/index.ts",
-        "./chat/settings": "./src/chat/settings.ts",
-        "./chat/ui-messages": "./src/chat/ui-messages.ts",
-        "./server/legacy": "./src/server/legacy/index.ts",
-        "./web": "./src/web/index.ts",
-        "./web/contributions": "./src/web/contributions.tsx",
-        "./web/styled": "./src/web/styled/index.ts",
-        "./web/styled/styles.css": "./src/web/styled/styles.css",
-        "./cloudflare": "./src/cloudflare/index.ts",
-        "./discord": "./src/discord/index.ts"
       },
       "rewriteGates": [
         "common-consumer",

@@ -32,26 +32,6 @@
       "dependencyTier": "api"
     },
     {
-      "name": "./chat",
-      "source": "./src/chat/index.ts",
-      "legacy": true
-    },
-    {
-      "name": "./chat/settings",
-      "source": "./src/chat/settings.ts",
-      "legacy": true
-    },
-    {
-      "name": "./chat/ui-messages",
-      "source": "./src/chat/ui-messages.ts",
-      "legacy": true
-    },
-    {
-      "name": "./cloudflare",
-      "source": "./src/cloudflare/index.ts",
-      "legacy": true
-    },
-    {
       "name": "./components",
       "source": "./src/components/index.ts",
       "dependencyTier": "components"
@@ -60,16 +40,6 @@
       "name": "./components/styled",
       "source": "./src/components/styled/index.ts",
       "dependencyTier": "styled-components"
-    },
-    {
-      "name": "./contract",
-      "source": "./src/contract/index.ts",
-      "legacy": true
-    },
-    {
-      "name": "./discord",
-      "source": "./src/discord/index.ts",
-      "legacy": true
     },
     {
       "name": "./extensions",
@@ -107,11 +77,6 @@
       "dependencyTier": "server-fetch"
     },
     {
-      "name": "./server/legacy",
-      "source": "./src/server/legacy/index.ts",
-      "legacy": true
-    },
-    {
       "name": "./styles.css",
       "source": "./src/styles/styles.css",
       "dependencyTier": "styles"
@@ -120,26 +85,6 @@
       "name": "./testing",
       "source": "./src/testing/index.ts",
       "dependencyTier": "testing"
-    },
-    {
-      "name": "./web",
-      "source": "./src/web/index.ts",
-      "legacy": true
-    },
-    {
-      "name": "./web/contributions",
-      "source": "./src/web/contributions.tsx",
-      "legacy": true
-    },
-    {
-      "name": "./web/styled",
-      "source": "./src/web/styled/index.ts",
-      "legacy": true
-    },
-    {
-      "name": "./web/styled/styles.css",
-      "source": "./src/web/styled/styles.css",
-      "legacy": true
     }
   ],
   "sourceFiles": [
@@ -194,7 +139,6 @@
     "src/react/index.ts",
     "src/runtime/create-chat-runtime.ts",
     "src/runtime/index.ts",
-    "src/runtime/legacy-bridge.ts",
     "src/runtime/types.ts",
     "src/server/app-definition.ts",
     "src/server/auth/emails.ts",

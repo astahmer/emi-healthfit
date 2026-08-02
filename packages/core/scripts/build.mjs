@@ -12,8 +12,6 @@ const readPackage = async () => JSON.parse(await readFile(packageJsonPath, "utf8
 const sourcePathFor = (packageJson, entrypoint) => {
   const publicPath = packageJson.emi.publicApi.entrypointPaths[entrypoint];
   if (publicPath !== undefined) return publicPath;
-  const legacyPath = packageJson.emi.publicApi.legacyEntrypointPaths[entrypoint];
-  if (legacyPath !== undefined) return legacyPath;
   throw new Error(`No source path is registered for ${entrypoint}.`);
 };
 
@@ -55,7 +53,10 @@ const copyStyles = async (entries) => {
     if (!entry.sourcePath.endsWith(".css")) continue;
     const outputPath = join(distDirectory, outputPathFor(entry.sourcePath));
     await mkdir(dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, await readFile(join(packageRoot, entry.sourcePath.replace(/^\.\//, ""))));
+    await writeFile(
+      outputPath,
+      await readFile(join(packageRoot, entry.sourcePath.replace(/^\.\//, ""))),
+    );
   }
 };
 
@@ -70,10 +71,7 @@ const rewriteDeclarationImports = async (directory) => {
       }
       if (!entry.name.endsWith(".d.ts")) return;
       const source = await readFile(path, "utf8");
-      const rewritten = source.replace(
-        /(["'])(\.\.?\/[^"']+)\.(?:tsx?|mts|cts)(\1)/g,
-        "$1$2.js$3",
-      );
+      const rewritten = source.replace(/(["'])(\.\.?\/[^"']+)\.(?:tsx?|mts|cts)(\1)/g, "$1$2.js$3");
       if (rewritten !== source) await writeFile(path, rewritten);
     }),
   );

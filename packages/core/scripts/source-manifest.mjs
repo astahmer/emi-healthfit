@@ -22,9 +22,6 @@ const main = async () => {
     source,
     dependencyTier: publicApi.entrypoints[name],
   }));
-  const legacyEntrypoints = Object.entries(publicApi.legacyEntrypointPaths).map(
-    ([name, source]) => ({ name, source, legacy: true }),
-  );
   const manifest = {
     manifestVersion: 1,
     package: packageJson.name,
@@ -32,9 +29,7 @@ const main = async () => {
     catalogVersion: publicApi.version,
     provenance: `@emi/core source catalog ${publicApi.version}`,
     generatedBy: "packages/core/scripts/source-manifest.mjs",
-    entrypoints: [...entrypoints, ...legacyEntrypoints].toSorted((left, right) =>
-      left.name.localeCompare(right.name),
-    ),
+    entrypoints: entrypoints.toSorted((left, right) => left.name.localeCompare(right.name)),
     sourceFiles: await filesUnder(join(packageRoot, "src")),
     testFiles: await filesUnder(join(packageRoot, "test")),
   };
