@@ -169,7 +169,10 @@ const toMessagePart = ({
   return Effect.succeed(undefined);
 };
 
-const appendPart = (parts: ReadonlyArray<MessagePart>, part: MessagePart): ReadonlyArray<MessagePart> => {
+const appendPart = (
+  parts: ReadonlyArray<MessagePart>,
+  part: MessagePart,
+): ReadonlyArray<MessagePart> => {
   const previous = parts.at(-1);
   if (
     previous !== undefined &&
@@ -204,10 +207,7 @@ const mapProviderEvent = (
         return [parts, [{ type: "completed", message }]];
       }
       const nextParts = appendPart(parts, part);
-      return [
-        nextParts,
-        [{ type: "message-part", part }],
-      ];
+      return [nextParts, [{ type: "message-part", part }]];
     }),
   );
 
@@ -229,10 +229,7 @@ const toGenerationStream = ({
       (parts, event) => mapProviderEvent(parts, event, messageId, input),
     ),
   );
-  return Stream.concat(
-    Stream.succeed<GenerationEvent>({ type: "started", generationId }),
-    mapped,
-  );
+  return Stream.concat(Stream.succeed<GenerationEvent>({ type: "started", generationId }), mapped);
 };
 
 export class AiSdkModelProvider implements ModelProvider {

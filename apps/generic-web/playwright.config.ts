@@ -14,7 +14,14 @@ export default defineConfig({
     serviceWorkers: "block",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", testDir: "./test/e2e", testMatch: /.*\.spec\.ts/, use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testDir: "./test/e2e",
+      testMatch: /.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
   webServer: {
     command: "vite --host 127.0.0.1 --port 3233",
     reuseExistingServer: true,

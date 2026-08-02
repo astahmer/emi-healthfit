@@ -111,7 +111,10 @@ class SqliteDatabase implements CloudflareDatabase {
 
 const makeDatabase = (): CloudflareDatabase => {
   const database = new DatabaseSync(":memory:");
-  for (const statement of schemaDdl.split(";").map((value) => value.trim()).filter(Boolean))
+  for (const statement of schemaDdl
+    .split(";")
+    .map((value) => value.trim())
+    .filter(Boolean))
     database.exec(statement);
   database
     .prepare(

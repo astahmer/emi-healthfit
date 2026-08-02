@@ -18,7 +18,10 @@ const message = {
   role: "assistant" as const,
   parts: [
     { type: "text" as const, text: "Hello" },
-    { type: "file" as const, file: { id: "file-1", name: "bad", mediaType: "image/png", url: "javascript:alert(1)" } },
+    {
+      type: "file" as const,
+      file: { id: "file-1", name: "bad", mediaType: "image/png", url: "javascript:alert(1)" },
+    },
   ],
   createdAt: "2026-08-02T00:00:00.000Z",
 };

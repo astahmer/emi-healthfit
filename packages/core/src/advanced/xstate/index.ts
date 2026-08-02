@@ -18,9 +18,7 @@ export type {
   SnapshotFrom,
 } from "xstate";
 
-export {
-  genericChatAppMachine as chatRuntimeMachine,
-} from "../../web/chat-runtime/generic-chat-app-machine.ts";
+export { genericChatAppMachine as chatRuntimeMachine } from "../../web/chat-runtime/generic-chat-app-machine.ts";
 export { createChatRuntimeActor } from "../../runtime/create-chat-runtime.ts";
 export type {
   GenericChatAppEvent,

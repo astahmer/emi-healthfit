@@ -4,12 +4,7 @@ import { createChatRuntime } from "../runtime/index.ts";
 import type { ChatRuntime, ChatRuntimeOptions } from "../runtime/index.ts";
 import { ChatServerError } from "../server/index.ts";
 import type { ChatRepositories } from "../server/index.ts";
-import type {
-  ChatMessage,
-  Conversation,
-  GenerationEvent,
-  Memory,
-} from "../protocol/index.ts";
+import type { ChatMessage, Conversation, GenerationEvent, Memory } from "../protocol/index.ts";
 
 type SubjectState = {
   readonly conversations: Map<string, Conversation[]>;
@@ -72,9 +67,7 @@ const inMemoryRepositories = (): ChatRepositories => {
     },
     memories: {
       list: ({ subject }) =>
-        Effect.succeed(
-          (state.memories.get(subject) ?? []).map((memory) => ({ id: memory.id })),
-        ),
+        Effect.succeed((state.memories.get(subject) ?? []).map((memory) => ({ id: memory.id }))),
     },
   };
 };

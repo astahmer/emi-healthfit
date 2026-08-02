@@ -38,7 +38,9 @@ describe("CoreApiClient", () => {
       const conversations = await CoreApiClient.runPromise(client.conversations.list());
       assert.deepEqual(conversations, [conversation]);
     } finally {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
     }
   });
 
@@ -60,7 +62,9 @@ describe("CoreApiClient", () => {
         return true;
       });
     } finally {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
     }
   });
 });

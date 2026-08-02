@@ -30,7 +30,8 @@ const createAnonymousSessionFetch = ({
     }
   };
   return async (input, init) => {
-    const inputUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const inputUrl =
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const pathname = new URL(inputUrl, normalizedOrigin || "http://localhost").pathname;
     const requestInit: RequestInit = { ...init, credentials: init?.credentials ?? "include" };
     const response = await fetch(input, requestInit);

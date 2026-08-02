@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  chatRuntimeMachine,
-  createChatRuntimeActor,
-} from "../../src/advanced/xstate/index.ts";
+import { chatRuntimeMachine, createChatRuntimeActor } from "../../src/advanced/xstate/index.ts";
 
 const options = {
   transport: { baseUrl: "/api", fetch: globalThis.fetch },

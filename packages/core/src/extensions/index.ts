@@ -1,7 +1,10 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-const Identifier = Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/i));
+const Identifier = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/i),
+);
 const Namespace = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isPattern(/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/i),

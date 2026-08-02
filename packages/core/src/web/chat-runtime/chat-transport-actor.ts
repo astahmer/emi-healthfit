@@ -2,11 +2,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { fromCallback } from "xstate";
 
-import type {
-  Attachment,
-  ChatMessage,
-  MessagePart,
-} from "../../protocol/index.ts";
+import type { Attachment, ChatMessage, MessagePart } from "../../protocol/index.ts";
 import type { ChatSessionEvent, QueuedFollowUp } from "../chat-session-machine.ts";
 
 export interface ChatTransportRequest {
@@ -63,13 +59,12 @@ const appendText = ({
   text: string;
   now: () => string;
 }): ChatMessage => {
-  const current =
-    message ?? {
-      id: `assistant:${now()}`,
-      role: "assistant" as const,
-      parts: [],
-      createdAt: now(),
-    };
+  const current = message ?? {
+    id: `assistant:${now()}`,
+    role: "assistant" as const,
+    parts: [],
+    createdAt: now(),
+  };
   const previous = current.parts.at(-1);
   const parts: ReadonlyArray<MessagePart> =
     previous?.type === "text"
@@ -214,9 +209,12 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       input.sendSession({ type: "stream-resumed" });
       void (async () => {
         try {
-          const response = await input.fetch(`${input.api}/${encodeURIComponent(conversationId)}/stream`, {
-            signal: controller.signal,
-          });
+          const response = await input.fetch(
+            `${input.api}/${encodeURIComponent(conversationId)}/stream`,
+            {
+              signal: controller.signal,
+            },
+          );
           if (!response.ok) throw new Error(`Chat resume failed (${response.status}).`);
           await consumeStream({ activeOperation, response, now: input.now });
         } catch (cause) {

@@ -19,7 +19,9 @@ test("boots the documented runtime/provider/recipe path", async ({ page }) => {
   expect(api.anonymousSessionCalls()).toBe(1);
 });
 
-test("sends a protocol message through the actor runtime and renders the stream", async ({ page }) => {
+test("sends a protocol message through the actor runtime and renders the stream", async ({
+  page,
+}) => {
   const api = await openGenericChat(page);
 
   await page.locator("summary").filter({ hasText: "Settings" }).click();
@@ -27,7 +29,9 @@ test("sends a protocol message through the actor runtime and renders the stream"
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Hello generic");
   await page.getByRole("button", { name: "Send", exact: true }).click();
 
-  await expect(page.getByTestId("messages").getByText("Hello generic", { exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId("messages").getByText("Hello generic", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Conversation history").getByRole("button")).toHaveCount(1);
   expect(api.chatCalls()).toBe(1);

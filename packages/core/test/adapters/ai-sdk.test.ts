@@ -3,10 +3,7 @@ import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 import { Effect } from "effect";
 import * as Stream from "effect/Stream";
-import {
-  AiSdkAdapterError,
-  AiSdkModelProvider,
-} from "../../src/adapters/ai-sdk/index.ts";
+import { AiSdkAdapterError, AiSdkModelProvider } from "../../src/adapters/ai-sdk/index.ts";
 
 const chunk = ({ text, finishReason }: { text?: string; finishReason?: string }) => ({
   id: "adapter-generation",
@@ -80,7 +77,9 @@ describe("AiSdkModelProvider", () => {
     assert.deepEqual(
       events
         .filter((event) => event.type === "message-part")
-        .map((event) => (event.type === "message-part" && event.part.type === "text" ? event.part.text : "")),
+        .map((event) =>
+          event.type === "message-part" && event.part.type === "text" ? event.part.text : "",
+        ),
       ["Hello", " world"],
     );
     const completed = events.find((event) => event.type === "completed");

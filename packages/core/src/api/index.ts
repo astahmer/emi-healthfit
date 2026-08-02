@@ -1,11 +1,7 @@
 import { Effect } from "effect";
 import * as Schema from "effect/Schema";
 
-import {
-  ChatProtocol,
-  type ChatMessage,
-  type Conversation,
-} from "../protocol/index.ts";
+import { ChatProtocol, type ChatMessage, type Conversation } from "../protocol/index.ts";
 
 const normalizeBaseUrl = (baseUrl: string): string => baseUrl.replace(/\/$/, "");
 

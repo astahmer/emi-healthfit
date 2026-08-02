@@ -57,7 +57,11 @@ const queryAll = ({
   parameters: ReadonlyArray<unknown>;
 }) =>
   Effect.tryPromise({
-    try: () => database.prepare(query).bind(...parameters).all(),
+    try: () =>
+      database
+        .prepare(query)
+        .bind(...parameters)
+        .all(),
     catch: (cause) => toServerError("internal", errorMessage(cause)),
   });
 
@@ -71,7 +75,11 @@ const queryFirst = ({
   parameters: ReadonlyArray<unknown>;
 }) =>
   Effect.tryPromise({
-    try: () => database.prepare(query).bind(...parameters).first(),
+    try: () =>
+      database
+        .prepare(query)
+        .bind(...parameters)
+        .first(),
     catch: (cause) => toServerError("internal", errorMessage(cause)),
   });
 
@@ -87,7 +95,11 @@ const execute = ({
   conflict?: boolean;
 }) =>
   Effect.tryPromise({
-    try: () => database.prepare(query).bind(...parameters).run(),
+    try: () =>
+      database
+        .prepare(query)
+        .bind(...parameters)
+        .run(),
     catch: (cause) => {
       const message = errorMessage(cause);
       if (conflict && /constraint|unique/i.test(message)) return toServerError("conflict", message);
@@ -241,12 +253,10 @@ const makeMemoryRepository = ({ database }: { database: CloudflareDatabase }) =>
         parameters: [subject],
       }).pipe(
         Effect.flatMap((result) =>
-          Effect.forEach(
-            result.results,
-            (row) =>
-              Schema.decodeUnknownEffect(Schema.Struct({ id: Schema.String }))(row).pipe(
-                Effect.mapError((error) => toServerError("internal", error.message)),
-              ),
+          Effect.forEach(result.results, (row) =>
+            Schema.decodeUnknownEffect(Schema.Struct({ id: Schema.String }))(row).pipe(
+              Effect.mapError((error) => toServerError("internal", error.message)),
+            ),
           ),
         ),
       ),
