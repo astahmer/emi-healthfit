@@ -115,9 +115,12 @@ describe("@emi/core entry isolation", () => {
   });
 
   it("loads node-compatible public subpaths through package exports", async () => {
-    const subpaths = ["chat", "cloudflare", "contract", "discord", "server"];
-    const modules = await Promise.all(subpaths.map((subpath) => import(`@emi/core/${subpath}`)));
-    assert.equal(modules.length, subpaths.length);
+    const subpaths = ["chat", "cloudflare", "contract", "discord", "react", "runtime", "server"];
+    const modules = await Promise.all([
+      import("@emi/core"),
+      ...subpaths.map((subpath) => import(`@emi/core/${subpath}`)),
+    ]);
+    assert.equal(modules.length, subpaths.length + 1);
     for (const module of modules) assert.ok(Object.keys(module).length > 0);
   });
 });

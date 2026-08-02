@@ -1,4 +1,4 @@
-# `@emi/core` R0 contract, R1 protocol, and distribution
+# `@emi/core` R0 contract, R1 protocol, R2 runtime facade, and distribution
 
 `@emi/core` is intentionally one mixed-layer package. Actors, provider-neutral chat
 protocols, React integration, controlled components, server composition, and platform
@@ -129,6 +129,27 @@ The old `src/contract` and `src/chat/message-parts.ts` surfaces remain migration
 current worker and app. They are intentionally not imported by the new protocol; R3 and R4 own
 their server-contract and provider-adapter migrations respectively.
 
+## R2 actor-backed runtime facade
+
+`@emi/core/runtime` now owns the existing XState actor graph behind `createChatRuntime`. The public
+runtime exposes stable selectors, intent commands, `getState`, subscriptions, and idempotent
+`start`/`stop`/`dispose` lifecycle methods. It does not expose actor refs, child snapshots, or raw
+transport/session event envelopes.
+
+`@emi/core/react` provides `ChatProvider`, `useChatRuntime`, `useChatSelector`, and
+`useChatActions`. It uses React's external-store subscription model; durable application,
+transport, browser, persistence, and UI state remains in actors. The canonical generic-web app now
+uses this facade and keeps only DOM refs, scrolling, prompts, and rendering conversion in React.
+
+The runtime accepts optional `storage.keys.settings` and `storage.keys.drafts` overrides. Defaults
+are `emi-core-chat-settings` and `emi-core-chat-settings:draft`. Fetch, browser notifications,
+storage, IDs, and the clock remain injected through `ChatRuntimeOptions`.
+
+R2 intentionally leaves two migration bridges. The facade currently adapts the existing AI SDK
+transport/session actors internally, and generic-web temporarily adapts protocol messages back to
+the existing styled web renderer. R4 moves provider translation into `adapters/ai-sdk`; R5
+rebuilds the React/component tiers. Neither bridge is part of the public runtime contract.
+
 ## Distribution modes
 
 ### Source mode
@@ -165,10 +186,11 @@ R0 freezes these choices for later packets:
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong
   in `testing`.
 
-The R0 public-contract gate and R1 protocol gate are closed. Remaining implementation gates are
-R2 for the runtime facade, R3 for generic API/server composition, R4 for the AI SDK adapter, R5
-for React/components/styles, R6 for extensions, and R7 for source and registry distribution.
+The R0 public-contract, R1 protocol, and R2 runtime-facade gates are closed. Remaining
+implementation gates are R3 for generic API/server composition, R4 for the AI SDK adapter, R5 for
+React/components/styles, R6 for extensions, and R7 for source and registry distribution.
 These are implementation dependencies, not alternate public names.
 
-R1 leaves the R2 runtime facade, R3 generic API/server migration, and R4 AI SDK adapter as the
-next implementation gates. No runtime actor or React implementation is part of this packet.
+R2 leaves the legacy transport/session bridge, generic-web styled bridge, and the remaining
+provider-neutral message conversion as explicit R4/R5 work. R3 generic API/server migration and
+R4 AI SDK adapter are the next implementation gates; R5 consumes their protocol fixtures.

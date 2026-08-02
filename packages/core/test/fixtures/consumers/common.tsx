@@ -1,6 +1,4 @@
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
 import { createChatRuntime } from "@emi/core";
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
 import { ChatProvider } from "@emi/core/react";
 // @ts-ignore R0 target entrypoint is implemented in a later packet.
 import { ChatApp } from "@emi/core/components/styled";

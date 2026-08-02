@@ -38,7 +38,8 @@ const streamResponse = () => {
   );
 };
 
-const createFetch = () =>
+const createFetch =
+  () =>
   async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const pathname = new URL(url, "http://localhost").pathname;
@@ -65,10 +66,15 @@ const createStorage = () => {
   };
 };
 
-const createOptions = () => {
+const createOptions = ({
+  drafts = createStorage(),
+}: {
+  drafts?: ReturnType<typeof createStorage>;
+} = {}) => {
   const settings = createStorage();
+  let onlineListener: ((online: boolean) => void) | undefined;
   settings.set(
-    "settings",
+    "emi-core-chat-settings",
     JSON.stringify({
       provider: "openai",
       apiKey: "test-key",
@@ -82,23 +88,36 @@ const createOptions = () => {
       theme: "light",
     }),
   );
-  return {
+  const options = {
     transport: { baseUrl: "/api", fetch: createFetch() as typeof globalThis.fetch },
-    storage: { settings, drafts: createStorage() },
-    browser: { online: true, subscribeOnline: () => () => undefined },
+    storage: { settings, drafts },
+    browser: {
+      online: true,
+      subscribeOnline: (listener: (online: boolean) => void) => {
+        onlineListener = listener;
+        return () => {
+          onlineListener = undefined;
+        };
+      },
+    },
     identity: { createId: () => "user-1", now: () => "2026-01-01T00:00:00.000Z" },
   };
+  return { options, setOnline: (online: boolean) => onlineListener?.(online) };
 };
 
 describe("createChatRuntime", () => {
   it("owns the actor graph behind stable state, commands, and lifecycle", async () => {
-    const runtime = createChatRuntime(createOptions());
+    const { options } = createOptions();
+    const runtime = createChatRuntime(options);
     const notifications = vi.fn();
     const unsubscribe = runtime.subscribe(notifications);
 
     runtime.start();
     expect(runtime.getState().connection).toBe("online");
     expect(runtime.getState().activeThread.id).toBeUndefined();
+    await vi.waitFor(() => {
+      expect(runtime.getState().settings.apiKey).toBe("test-key");
+    });
 
     runtime.actions.setDraft({ text: "Hello" });
     expect(runtime.getState().composer.text).toBe("Hello");
@@ -123,5 +142,27 @@ describe("createChatRuntime", () => {
     unsubscribe();
     runtime.dispose();
     runtime.dispose();
+  });
+
+  it("routes browser changes and persistence failures through the facade", async () => {
+    const drafts = createStorage();
+    drafts.set = () => {
+      throw new Error("Quota exceeded.");
+    };
+    const fixture = createOptions({ drafts });
+    const runtime = createChatRuntime(fixture.options);
+
+    runtime.start();
+    runtime.actions.setDraft({ text: "Saved locally" });
+
+    await vi.waitFor(() => {
+      expect(runtime.getState().error).toBe("Quota exceeded.");
+    });
+    fixture.setOnline(false);
+    expect(runtime.getState().connection).toBe("offline");
+
+    runtime.dispose();
+    fixture.setOnline(true);
+    expect(runtime.getState().connection).toBe("offline");
   });
 });

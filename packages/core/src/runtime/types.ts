@@ -5,7 +5,7 @@ import type {
   Memory,
   ModelConfiguration,
   Thread,
-} from "./protocol";
+} from "../protocol/index.ts";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;
@@ -107,6 +107,7 @@ export interface ChatState {
     readonly memoryPanelOpen: boolean;
     readonly sidebarOpen: boolean;
   };
+  readonly threads: ReadonlyArray<Thread>;
 }
 
 export type Selector<Value> = (state: ChatState) => Value;
@@ -142,7 +143,10 @@ export interface ChatActions {
   }): void;
   cloneConversation(input: { readonly conversationId: string }): void;
   compactConversation(input: { readonly conversationId: string }): void;
-  updateSettings(input: { readonly model?: ModelConfiguration }): void;
+  updateSettings(input: {
+    readonly model?: ModelConfiguration;
+    readonly patch?: Partial<ChatSettingsState>;
+  }): void;
   setDraft(input: { readonly text: string }): void;
   addAttachments(input: { readonly attachments: ReadonlyArray<Attachment> }): void;
   removeAttachment(input: { readonly attachmentId: string }): void;
@@ -170,5 +174,3 @@ export interface ChatRuntime {
   dispose(): void;
   subscribe(listener: () => void): () => void;
 }
-
-export declare const createChatRuntime: (options: ChatRuntimeOptions) => ChatRuntime;

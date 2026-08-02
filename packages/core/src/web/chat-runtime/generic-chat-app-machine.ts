@@ -68,7 +68,7 @@ export const genericChatAppMachine = setup({
     forwardSessionToBrowserState: sendTo("browserState", ({ event }) => {
       if (event.type === "session-event" && event.event.type === "draft-changed")
         return { type: "draft-persist-requested", draft: event.event.draft };
-      return invalidForwardingEvent();
+      return { type: "browser-noop" };
     }),
     forwardTransportEvent: sendTo("transport", ({ event }) => {
       if (event.type === "transport-event") return event.event;

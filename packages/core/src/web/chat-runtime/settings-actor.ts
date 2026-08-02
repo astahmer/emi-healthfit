@@ -9,8 +9,8 @@ import {
 } from "../../chat/settings.ts";
 
 export interface SettingsStorage {
-  getItem: (key: string) => string | null;
-  setItem: (key: string, value: string) => void;
+  getItem: (key: string) => string | null | Promise<string | null>;
+  setItem: (key: string, value: string) => unknown;
 }
 
 export interface SettingsActorInput {
@@ -52,26 +52,38 @@ const normalizeSettings = ({
 const settingsOperations = fromCallback<SettingsActorEvent, SettingsActorInput>(
   ({ input, receive, sendBack }) => {
     const defaults = input.defaults ?? defaultGenericChatSettings;
+    const hydrate = (stored: string | null) => {
+      try {
+        const decoded =
+          stored === null
+            ? Option.none<GenericChatSettings>()
+            : Schema.decodeUnknownOption(Schema.fromJsonString(GenericChatSettingsSchema))(stored);
+        sendBack({
+          type: "settings-hydrated",
+          settings: Option.isSome(decoded)
+            ? normalizeSettings({ defaults, settings: decoded.value })
+            : defaults,
+        });
+      } catch {
+        sendBack({ type: "settings-hydrated", settings: defaults });
+      }
+    };
     try {
       const stored = input.storage.getItem(input.storageKey);
-      const decoded =
-        stored === null
-          ? Option.none<GenericChatSettings>()
-          : Schema.decodeUnknownOption(Schema.fromJsonString(GenericChatSettingsSchema))(stored);
-      sendBack({
-        type: "settings-hydrated",
-        settings: Option.isSome(decoded)
-          ? normalizeSettings({ defaults, settings: decoded.value })
-          : defaults,
-      });
+      if (stored instanceof Promise) void stored.then(hydrate, () => hydrate(null));
+      else hydrate(stored);
     } catch {
-      sendBack({ type: "settings-hydrated", settings: defaults });
+      hydrate(null);
     }
 
     receive((event) => {
       if (event.type !== "settings-patch-requested") return;
       try {
-        input.storage.setItem(input.storageKey, JSON.stringify(event.patch));
+        const result = input.storage.setItem(input.storageKey, JSON.stringify(event.patch));
+        if (result instanceof Promise)
+          void result.catch((cause: unknown) =>
+            sendBack({ type: "settings-persistence-failed", error: errorMessage({ cause }) }),
+          );
       } catch (cause) {
         sendBack({ type: "settings-persistence-failed", error: errorMessage({ cause }) });
       }

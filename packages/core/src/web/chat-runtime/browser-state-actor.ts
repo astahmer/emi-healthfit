@@ -6,7 +6,9 @@ import type { SettingsStorage } from "./settings-actor.ts";
 export interface BrowserStateAdapter {
   online: () => boolean;
   subscribeOnline: (listener: (online: boolean) => void) => () => void;
-  storage: Pick<SettingsStorage, "getItem" | "setItem"> & { removeItem: (key: string) => void };
+  storage: Pick<SettingsStorage, "getItem" | "setItem"> & {
+    removeItem: (key: string) => unknown;
+  };
 }
 
 export interface BrowserStateActorInput {
@@ -34,10 +36,18 @@ const errorMessage = ({ cause }: { cause: unknown }): string =>
 
 const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserStateActorInput>(
   ({ input, receive, sendBack }) => {
-    try {
-      const draft = input.browser.storage.getItem(input.draftStorageKey);
+    const hydrate = (draft: string | null) => {
       if (draft !== null) sendBack({ type: "draft-restored", draft });
       sendBack({ type: "draft-hydrated" });
+    };
+    try {
+      const draft = input.browser.storage.getItem(input.draftStorageKey);
+      if (draft instanceof Promise)
+        void draft.then(hydrate, (cause: unknown) => {
+          sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
+          sendBack({ type: "draft-hydrated" });
+        });
+      else hydrate(draft);
     } catch (cause) {
       sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
       sendBack({ type: "draft-hydrated" });
@@ -50,8 +60,14 @@ const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserState
     receive((event) => {
       if (event.type !== "draft-persist-requested") return;
       try {
-        if (event.draft === "") input.browser.storage.removeItem(input.draftStorageKey);
-        else input.browser.storage.setItem(input.draftStorageKey, event.draft);
+        const persistence =
+          event.draft === ""
+            ? input.browser.storage.removeItem(input.draftStorageKey)
+            : input.browser.storage.setItem(input.draftStorageKey, event.draft);
+        if (persistence instanceof Promise)
+          void persistence.catch((cause: unknown) =>
+            sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) }),
+          );
       } catch (cause) {
         sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
       }
@@ -78,12 +94,6 @@ export const browserStateActor = setup({
     restoreDraft: ({ context, event }) => {
       if (event.type === "draft-restored")
         context.sendSession({ type: "draft-changed", draft: event.draft });
-    },
-    persistDraft: ({ context, event }) => {
-      if (event.type === "draft-persist-requested") {
-        if (event.draft === "") context.browser.storage.removeItem(context.draftStorageKey);
-        else context.browser.storage.setItem(context.draftStorageKey, event.draft);
-      }
     },
     reportFailure: assign(({ event }) =>
       event.type === "browser-state-failed" ? { error: event.error } : {},
