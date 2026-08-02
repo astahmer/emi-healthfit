@@ -77,6 +77,8 @@ const run = async () => {
       "portless",
       "--name",
       "emi-healthfit",
+      "--app-port",
+      "1337",
       "--",
       "pnpm",
       "--dir",
@@ -98,7 +100,7 @@ const run = async () => {
   process.once("SIGTERM", cleanup);
 
   try {
-    await waitForUrl({ url: apiUrl });
+    await waitForUrl({ url: `${apiUrl}/api/auth/get-session` });
     console.log(`HealthFit is available at ${apiUrl}`);
     await new Promise((resolve) => api.once("exit", resolve));
   } finally {
