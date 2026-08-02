@@ -709,7 +709,7 @@ wildcard barrel.
 ### R8 — Remove extraction artifacts and publish the contract
 
 **Primary paths:** all legacy aliases and barrels identified by R0/R7, `README`/package docs,
-`plans/core-audit-report.md`, `plans/generic-chat-handoff.md`, release scripts.
+`plans/core-audit-report.md`, `plans/core-chat-platform.md`, release scripts.
 
 **Depends on:** R7.
 
