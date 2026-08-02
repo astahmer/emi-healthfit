@@ -5,7 +5,8 @@
 - `apps/generic-web` is the canonical provider-agnostic chat fixture. Its React layer is a view:
   XState actors own session, transport, conversation, settings, browser, and UI state; React
   reads selectors and sends typed events.
-- `@emi/core/web` contains the headless runtime and `@emi/core/web/styled` contains the shared
+- `@emi/core/runtime` and `@emi/core/components` contain the headless runtime and
+  `@emi/core/components/styled` contains the shared
   shadcn-style surfaces used by both the main chat app and the generic fixture.
 - The generic Worker exposes authenticated and anonymous conversation, memory, thread, and
   streaming-chat routes. WebMCP must call those existing contracts through the actor/client

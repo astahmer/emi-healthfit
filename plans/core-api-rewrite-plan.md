@@ -186,7 +186,7 @@ be refined during packet R0; the dependency and ownership boundaries are non-neg
 | --- | --- | --- |
 | `@emi/core` | Minimal convenience facade: `createChatRuntime` and core protocol types. | Wildcard internals, product APIs, platform dependencies. |
 | `@emi/core/protocol` | Messages, parts, commands, events, errors, IDs, schemas, and extension contracts. | React, XState, Effect runtime services, database rows. |
-| `@emi/core/api` | Generic HTTP contract and typed `createCoreApiClient`. | HealthFit routes, raw response decoding, database details. |
+| `@emi/core/api` | Generic HTTP contract and typed `CoreApiClient` with an Effect-first operation surface. | HealthFit routes, raw response decoding, database details. |
 | `@emi/core/runtime` | Framework-neutral runtime, selectors, commands, subscriptions, and lifecycle. | React hooks and UI markup. |
 | `@emi/core/react` | `ChatProvider`, hooks, and React lifecycle integration. | Styled recipes, router assumptions, module-scope browser globals. |
 | `@emi/core/components` | Accessible controlled/headless primitives, shells, slots, and render contracts. | Network calls, persistence, product copy, mandatory CSS framework. |
@@ -509,11 +509,11 @@ results must decode through runtime schemas before entering domain state.
 | Current surface | Target | Main packet |
 | --- | --- | --- |
 | `genericChatAppMachine` plus child event envelopes | `createChatRuntime` with typed commands/selectors; actors remain internal or advanced | R2 |
-| `createConversationClient` hand-written response schemas | `createCoreApiClient` from named protocol DTOs and mappers | R1/R3 |
+| `createConversationClient` hand-written response schemas | `CoreApiClient` from named protocol DTOs and mappers | R1/R3/R7 |
 | `UIMessage` and `FileUIPart` in runtime/components | `ChatMessage` and `MessagePart` plus provider adapters | R1/R4 |
 | `chat/openai.ts` | Provider-neutral `ModelProvider` plus `adapters/ai-sdk` | R4 |
 | `makeGenericChatRoutes` and the large route module | `createChatServer` use cases plus small HTTP/platform adapters | R3 |
-| `server/index.ts` wildcard export | Curated ports/use cases; raw database helpers move behind the non-catalog `server/legacy` migration path | R0/R3/R8 |
+| `server/index.ts` wildcard export | Curated ports/use cases; extraction-era database/auth helpers move to private `@emi/core-migration` | R0/R3/R8 |
 | `web/styled` app-shaped components | Controlled primitives, connected components, and opt-in recipes | R5 |
 | `CoreWebContributions` arrays | Namespaced `ChatExtensions` definitions with collision validation | R6 |
 | `create-chat-app` repository-shaped copying | Public source manifest generated from the export catalog | R7 |
@@ -533,10 +533,10 @@ not permission to delete the test when the surrounding implementation is replace
 | CORE-004 generation admission ordering | Fixed now | R3: admission precedes durable turn persistence; the losing request leaves no orphan turn. |
 | CORE-005 stale store responses | Fixed now | R2: replaceable queries have identity plus latest-wins or cancellation semantics. |
 | CORE-006 HealthFit APIs in core | Fixed now | R1/R6: generic core exports foundations only; product APIs compose from flavor/extension packages. |
-| CORE-007 unsupported registry/source distribution | Documented, not complete | R0/R7: built package mode and generated owned-source mode pass clean-consumer acceptance. |
-| CORE-008 competing DTO schemas | Still open | R1/R3: one named schema and mapper per protocol; rows, wire DTOs, and domain types stay separate. |
-| CORE-009 unenforced coverage/public API | Still open | R0/R7/R8: coverage ownership, public import fixtures, packed consumer tests, and release gates are mandatory. |
-| CORE-010 unclear stable subpaths | Still open | R0/R7/R8: curated exports distinguish stable, advanced, and internal symbols. |
+| CORE-007 unsupported registry/source distribution | Fixed in R7/R8 | Built ESM/declarations, clean packed consumer, source manifest, owned-source generator acceptance, and target-only exports pass. |
+| CORE-008 competing DTO schemas | Fixed for target catalog | R1/R3/R8: target protocol schemas/mappers are named; extraction-era app DTOs are outside `@emi/core` in the private migration package. |
+| CORE-009 unenforced coverage/public API | Public API fixed; quantitative coverage reclassified | R0/R7/R8: public fixtures, negative gates, manifest checks, packed consumer, and release checks are wired; numeric thresholds remain post-rewrite quality policy. |
+| CORE-010 unclear stable subpaths | Fixed for target catalog | R0/R7/R8: curated target exports distinguish stable and advanced symbols; old source-shaped names are absent from `@emi/core`. |
 | CORE-011 duplicate draft persistence paths | Fixed now | R2: one actor-owned persistence path and one error path remain after runtime relocation. |
 | CORE-012 fabricated forwarding sentinels | Fixed now | R2: commands route typed events directly; no unreachable fallback events. |
 | CORE-013 persisted message identity loss | Fixed now | R1/R3: client message IDs survive protocol, persistence, retry, edit, and branch operations. |
@@ -725,6 +725,14 @@ public import tests, and browser smoke tests that exercise the documented quick 
 are gone; `pnpm slop:check` and the final `pnpm release:check` pass; audit findings are either
 closed with evidence or explicitly reclassified with an owner and next packet.
 
+**R8 completion note:** the published `@emi/core` catalog now contains only the target entrypoints
+and built conditions. Extraction-era application helpers are explicitly outside that catalog in
+the private `@emi/core-migration` workspace package; this is an application migration boundary,
+not a compatibility export or a registry distribution promise. The generated owned source mode
+copies that private boundary alongside the canonical generic Worker fixture so its acceptance
+workspace remains reproducible, while dependency mode remains for consumers that supply their own
+server/platform composition.
+
 ## Execution order and parallelism
 
 ```mermaid
@@ -876,7 +884,9 @@ ownership and schema-boundary rules.
 | 2026-08-02 | Keep Effect as a server/composition implementation model | Typed services, failures, schemas, resource safety, and layers remain valuable; hide them only from the common consumer path. |
 | 2026-08-02 | Organize public operations under domain classes or owned instances | A scoped domain owner improves discoverability and keeps the public surface from becoming a flat collection of unrelated functions and values. |
 | 2026-08-02 | Make Effect the canonical fallible API and derive Promise helpers | Typed success/error/requirements channels should survive composition; Promise conversion belongs at consumer or adapter boundaries. |
+| 2026-08-02 | Keep public files small and domain-scoped | `ChatProtocol`, `CoreApiClient`, `ChatExtensions`, `ChatServer`, and `ChatTesting` group discoverable operations; only independent React view primitives remain individually exported. |
 | 2026-08-02 | Curate the primary server entry and quarantine the old platform surface | `ChatServer`, `ChatServerEffect`, and `ChatFetchHandlers` provide the generic Effect-first boundary; existing D1/Drizzle/AI-SDK helpers use a non-catalog migration path until explicit Cloudflare ports replace them. |
+| 2026-08-02 | Close R8 with an explicit private migration boundary | `@emi/core` exports, manifests, packed fixtures, and docs describe only the target contract; application owners retire `@emi/core-migration` without reintroducing old names into the generic package. |
 | 2026-08-02 | Separate the audit report from this rewrite plan | The audit records current evidence and completed fixes; this document is the normative future target and agent execution map. |
 | 2026-08-02 | Do not preserve backward compatibility for the rewrite | The package may delete extraction artifacts and choose the best API instead of protecting historical names. |
 | 2026-08-02 | Keep HealthFit contracts in the flavor package | Core supplies generic foundations; product/domain APIs enter through explicit extensions. |

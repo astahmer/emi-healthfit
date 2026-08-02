@@ -1,4 +1,4 @@
-# `@emi/core` R0 contract, R1 protocol, R2 runtime facade, R3 server boundary, and distribution
+# `@emi/core` public contract and distribution boundary
 
 `@emi/core` is intentionally one mixed-layer package. Actors, provider-neutral chat
 protocols, React integration, controlled components, server composition, and platform
@@ -12,7 +12,7 @@ against that catalog.
 | ------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `@emi/core`                     | `createChatRuntime` and core protocol types                                    | no React, provider, product, database, or platform APIs      |
 | `@emi/core/protocol`            | domain messages, parts, IDs, errors, schemas, and extension contracts          | no React, XState, AI SDK, database rows, or platform types   |
-| `@emi/core/api`                 | generic HTTP DTOs and `createCoreApiClient`                                    | no product routes or persistence details                     |
+| `@emi/core/api`                 | generic HTTP DTOs and `CoreApiClient`                                          | no product routes or persistence details                     |
 | `@emi/core/runtime`             | actor-backed runtime facade, selectors, commands, lifecycle, and subscriptions | no React markup or framework hooks                           |
 | `@emi/core/react`               | `ChatProvider` and runtime hooks                                               | no styled recipes or module-scope browser globals            |
 | `@emi/core/components`          | controlled primitives and connected components                                 | no network, persistence, routing, or mandatory CSS framework |
@@ -71,8 +71,9 @@ Its rules are:
 - `adapters/cloudflare` is the only Cloudflare/database boundary; and
 - `testing` owns deterministic test helpers without becoming a production adapter.
 
-The matrix is a contract for later built-package dependency isolation. R7 must turn these
-intentions into emitted artifacts and clean-install checks.
+The matrix is enforced by the built package and packed-consumer checks. `components` and
+`components/styled` use Effect Schema for safe attachment sinks, so Effect is an implementation
+dependency there even though consumers do not compose Effect programs directly.
 
 ## API organization and Effect-first rule
 
@@ -82,6 +83,12 @@ its dependencies and lifecycle. Avoid flat files that export a long list of rela
 mutable values. Named TypeScript types may remain individually exported when consumers need them
 for annotations. React keeps a deliberately small exception for separately consumable provider and
 hook primitives because that is the native composition model and the frozen common-consumer path.
+
+The current named domain owners are `ChatProtocol`, `CoreApiClient`, `ChatExtensions`,
+`ChatServer`, and `ChatTesting`. New public operations belong on the owning class or instance
+rather than becoming another top-level helper. A group of individually exported React components
+is acceptable only when each component is an independently consumable view primitive; it must not
+become a miscellaneous utility barrel.
 
 Effect is the canonical form for fallible protocol, server, adapter, and use-case operations. A
 canonical method returns `Effect<Success, Error, Requirements>` and preserves its typed failure
@@ -106,11 +113,45 @@ Promise-based `Request`/`Response` boundary with `Effect.runPromise` and maps ty
 failures to HTTP responses. Fetch consumers do not need to know the server's Effect composition
 details.
 
-The old database, auth, and AI-SDK-shaped server helpers are quarantined under the internal
-migration path `@emi/core/server/legacy`; it is not listed in `emi.publicApi`, not a target name,
-and must not be used by generic consumers. Existing Cloudflare and application workers use this
-bridge while their platform adapters move to explicit ports. The primary server barrel has no
-wildcard exports and does not import D1, Drizzle, Kysely, Cloudflare, or AI SDK types.
+The old database, auth, and AI-SDK-shaped application helpers are isolated in the private
+workspace package `@emi/core-migration`. They are not part of the `@emi/core` package exports,
+catalog, source manifest, or registry tarball. Existing HealthFit and application workers use
+that explicit migration package while their product/platform code is retired or replaced; a
+generic consumer must use the target catalog above. The primary server barrel has no wildcard
+exports and does not import D1, Drizzle, Kysely, Cloudflare, or AI SDK types.
+
+## R4-R7 implementation and distribution
+
+`@emi/core/adapters/ai-sdk` maps AI SDK streams to the provider-neutral `ModelProvider` Effect
+stream. AI SDK imports stop at that adapter; protocol, runtime, components, and server ports do
+not expose AI SDK message types. `AiSdkModelProvider.create` is the explicit adapter construction
+point.
+
+`@emi/core/components` contains controlled and connected view primitives. `ChatApp` and
+`ChatShell` are opt-in recipes under `components/styled`; they render runtime selectors and send
+intent actions but do not own application state. Unsafe attachment URLs are rejected with Effect
+Schema before they reach an image sink.
+
+`@emi/core/extensions` exposes the Effect-first `ChatExtensions` domain owner. Definitions are
+validated, namespaced, collision-checked, immutable, and deterministically ordered. HealthFit's
+`healthFitExtension` is owned by `@emi/flavor-healthfit` and is not imported by generic core.
+
+Registry mode is built with:
+
+```sh
+pnpm --filter @emi/core source:manifest
+pnpm --filter @emi/core build
+```
+
+The build reads `emi.publicApi.entrypointPaths`, emits ESM and declarations under `dist/`, and
+rewrites emitted-relative declaration imports to `.js`. Target export conditions point at those
+emitted files. `test/pack` installs the tarball in a clean temporary consumer, imports all target
+subpaths, and typechecks the built declarations.
+
+Source mode copies the same catalog's source paths plus `source-manifest.json`. The manifest
+records catalog version, provenance, public entrypoints, source files, and test files. The
+`@emi/create-chat-app` owned mode rewrites the copied core package exports to those source paths
+and retains the manifest so a fork can compare its local ownership before an upgrade.
 
 ## Fixture strategy
 
@@ -120,22 +161,20 @@ R0 has four kinds of compile-time evidence under `test/fixtures`:
   including the explicit XState and Effect paths;
 - `contracts/` is a small R0-only declaration layer that expresses the target type shapes before
   R1–R6 create the implementation modules;
-- `packed/` compiles real currently available package subpaths such as `chat`, `contract`,
-  `server`, `web`, `cloudflare`, and `discord`; and
+- `packed/` compiles every target package subpath from a clean tarball consumer; and
 - `rewrite-gates/` contains expected compile-time rejections for internal `src` imports,
   HealthFit APIs, AI SDK message types in protocol, and raw database/platform types in generic
   protocol/server contracts.
 
 `test/public-api/fixtures.test.ts` runs both the contract fixture compiler and the real current
-subpath compiler. The target consumers are deliberately named rewrite gates: their temporary
-`@ts-ignore` annotations disappear when the corresponding R1–R6 public modules exist. The
-negative fixtures use `@ts-expect-error` so a future accidental export fails the fixture check.
+subpath compiler. The target consumers are compile-time contract fixtures, and the packed tests
+compile equivalent consumers against emitted declarations. The negative fixtures use
+`@ts-expect-error` so a future accidental export fails the fixture check.
 No fixture imports `packages/core/src`.
 
-The current source-oriented subpaths remain in the export map as migration bridges for the
-existing generic app and worker. They are listed as `legacySourceEntrypoints` in the R0 catalog;
-they are not target names to preserve. R8 removes them after the generic consumers move to the
-catalog above.
+Historical source-oriented subpaths are not in the `@emi/core` export map. The private
+`@emi/core-migration` package is intentionally outside the public catalog and is not a supported
+registry or source-distribution dependency.
 
 ## R1 provider-neutral protocol
 
@@ -166,9 +205,8 @@ boundary with `ChatProtocol.runPromise(effect)`; transport failures still use th
 `TransportError` and `ErrorResponseDto` schemas. The public import and type fixtures exercise the
 real package subpath as well as the compile-time consumer declarations.
 
-The old `src/contract` and `src/chat/message-parts.ts` surfaces remain migration bridges for the
-current worker and app. They are intentionally not imported by the new protocol; R3 and R4 own
-their server-contract and provider-adapter migrations respectively.
+The old `src/contract` and `src/chat/message-parts.ts` implementations are reachable only through
+the private migration package. They are intentionally not imported by the new protocol.
 
 ## R2 actor-backed runtime facade
 
@@ -186,10 +224,10 @@ The runtime accepts optional `storage.keys.settings` and `storage.keys.drafts` o
 are `emi-core-chat-settings` and `emi-core-chat-settings:draft`. Fetch, browser notifications,
 storage, IDs, and the clock remain injected through `ChatRuntimeOptions`.
 
-R2 intentionally leaves two migration bridges. The facade currently adapts the existing AI SDK
-transport/session actors internally, and generic-web temporarily adapts protocol messages back to
-the existing styled web renderer. R4 moves provider translation into `adapters/ai-sdk`; R5
-rebuilds the React/component tiers. Neither bridge is part of the public runtime contract.
+The runtime facade is protocol-native: its actor-owned session and transport state uses core
+`ChatMessage` and `Attachment` values, and its native fetch/SSE transport does not load AI SDK.
+Provider translation remains isolated in `adapters/ai-sdk`; no provider bridge is part of the
+common runtime contract.
 
 ## Distribution modes
 
@@ -202,15 +240,12 @@ strategy; R7 owns the generated manifest and upgrade procedure.
 
 ### Registry mode
 
-Registry mode is not publish-ready in R0. Before changing `private` to `false`, R7 must provide:
+Registry mode now emits built ESM and declarations for every target subpath, points target
+conditions at `dist`, and passes the clean tarball consumer. The package is non-private and carries
+`PUBLISH.md` plus `source-manifest.json` in its published files. Historical application helpers
+are outside the package in the private `@emi/core-migration` workspace package.
 
-- built ESM and declaration output for every target subpath;
-- conditional exports that point at emitted artifacts rather than workspace TypeScript;
-- isolated runtime, peer, and optional dependency installation per matrix tier;
-- a packed clean-consumer import and typecheck for the target fixtures; and
-- package README, license, version, and provenance metadata.
-
-## R0-R3 decisions and remaining gates
+## R0-R8 decisions and final boundary
 
 R0 freezes these choices for later packets:
 
@@ -228,20 +263,18 @@ R0 freezes these choices for later packets:
   derived at the boundary;
 - `ChatServer` owns the generic server use-case boundary, `ChatServerEffect` is the explicit
   Effect construction surface, and `ChatFetchHandlers` is the derived Promise adapter;
-- raw database/platform helpers are temporarily isolated behind the non-catalog
-  `server/legacy` migration path while Cloudflare ports are extracted;
+- raw database/platform helpers remain in the private `@emi/core-migration` package until the
+  application-specific server surfaces are retired;
 - source regeneration refuses to silently overwrite locally changed files and reports a diff;
 - styles remain an explicit `@emi/core/styles.css` import; and
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong
   in `testing`.
 
-The R0 public-contract, R1 protocol, R2 runtime-facade, and generic R3 server-boundary gates are
-closed for the new port/use-case/Fetch surface. The legacy Cloudflare route and its D1 repository
-mapping remain an explicit R3 migration bridge; they must be completed before the final
-distribution gate. Remaining implementation gates are R4 for the AI SDK adapter, R5 for
-React/components/styles, R6 for extensions, and R7 for source and registry distribution.
-These are implementation dependencies, not alternate public names.
+The R0 public-contract, R1 protocol, R2 runtime-facade, R3 server boundary, R4 AI SDK adapter,
+R5 component tiers, R6 extension registry, R7 source/registry distribution, and R8 public-export
+cleanup gates are closed for the target catalog. The private migration package is deliberately
+kept outside the published core boundary while application-specific server/UI surfaces are
+retired in their owning packages.
 
-R2 leaves the legacy transport/session bridge and generic-web styled bridge. R3 leaves only the
-explicit Cloudflare/D1 migration bridge described above. R4 owns the AI SDK adapter; R5 consumes
-the completed protocol and server fixtures.
+The remaining migration package is an explicit application boundary, not an alternate `@emi/core`
+entrypoint. It is not included in registry/source distribution promises.

@@ -1,5 +1,10 @@
 # Core chat platform plan
 
+The public API portion of this plan is superseded by
+[`core-api-rewrite-plan.md`](./core-api-rewrite-plan.md). The target `@emi/core` catalog and
+private migration boundary below are current; the remaining product-feature work in this document
+is intentionally separate from the clean-slate package contract.
+
 ## Context
 
 - `@emi/core` already owns useful generic contracts, D1 conversation storage, auth helpers, markdown rendering, attachments, conversation-tree utilities, and contribution points. Product-specific API contracts stay in named flavor packages.
@@ -47,9 +52,10 @@ Neither mode imports `apps/chat`, `apps/api`, or `flavor-healthfit`.
 
 ```mermaid
 flowchart LR
-  CORE["@emi/core source catalog"] --> WEB["web: UI + runtime"]
-  CORE --> SERVER["server: contracts + domain + ports"]
-  CORE --> CF["cloudflare: D1 + Worker + Alchemy adapters"]
+  CORE["@emi/core source catalog"] --> PROTOCOL["protocol + api"]
+  CORE --> WEB["runtime + React + components"]
+  CORE --> SERVER["server + Effect + Fetch"]
+  CORE --> CF["Cloudflare adapter"]
   WEB --> OWNED["create-chat-app --mode owned"]
   SERVER --> OWNED
   CF --> OWNED
@@ -77,9 +83,9 @@ flowchart LR
 | Choice            | Decision                                                                                | Rationale                                                                         |
 | ----------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | Distribution      | One `@emi/core` package with subpath imports plus owned CLI source-copy by default       | Supports no-fork reuse and shadcn-like ownership without splitting intentional layers. |
-| Source boundaries | `contract`, `server`, `web`, `cloudflare`, plus a generic `chat` surface where needed   | Prevents browser/server/platform/flavor leakage.                                  |
+| Source boundaries | `protocol`, `api`, `runtime`, `react`, `components`, `server`, and explicit adapters       | Prevents browser/server/platform/flavor leakage.                                  |
 | State             | Extract existing XState runtime behind public controller/provider APIs                  | Existing runtime already handles stream, queue, draft, and session races.         |
-| Streaming         | Keep Vercel AI SDK protocol plus persisted D1 replay chunks                             | Proven client interoperability and resumable Worker streaming.                    |
+| Streaming         | Keep the core protocol and isolate Vercel AI SDK translation in its adapter             | Preserves provider neutrality while retaining resumable Worker streaming.           |
 | Persistence       | Drizzle schema source of truth; generate migrations only through worker package scripts | Retains existing deployment and migration discipline.                             |
 | Styling           | Ship generic primitives/tokens with the scaffold, no HealthFit UI imports               | Generated app renders correctly without private aliases or copied app components. |
 | PWA               | Progressive enhancement with an explicit offline capability matrix                      | Offline draft/cache is useful; pretending streams work offline is not.            |
@@ -208,7 +214,7 @@ The core must add explicit schemas for app settings, release metadata, component
 
 1. Define public core surface and dependency rules; move generic contracts and Drizzle tables into core without changing generated SQL by hand.
 2. Extract generic server chat lifecycle, generation store/replay, provider adapter, suggestions, title/summary, memory services, and generic Worker routes from `apps/api` into `@emi/core`.
-3. Extract web API client, XState runtime, conversation controller, sidebar/actions, composer, thread view, minimap, and settings into `@emi/core/web`; replace app-specific aliases/primitives with core-owned equivalents.
+3. Extract the API client, XState runtime, conversation controller, sidebar/actions, composer, thread view, and settings into the target `@emi/core` runtime/React/component entries; replace app-specific aliases/primitives with core-owned equivalents.
 4. Add typed contribution contracts for prompts, tools, dynamic component registry, app identity, release data, and optional auth policy. Migrate HealthFit to those contracts.
 5. Turn `apps/generic-web` and `apps/generic-worker` into the canonical no-flavor acceptance fixture: full conversation, streaming, settings, and deployment stack.
 6. Replace CLI smoke templates with the canonical app generator. Add `--mode owned|workspace`, default `owned`, explicit `--with-pwa`, and a transparent generated-file manifest.
@@ -222,8 +228,8 @@ The core must add explicit schemas for app settings, release metadata, component
 | Area                                                                             | Status      | Remaining next step                                                                                                                                                   |
 | -------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core contracts, provider streaming, generation persistence/replay, Worker routes | Partial     | Move remaining generic API services out of `apps/api/src/core`; tighten persisted settings/release/component schemas.                                                 |
-| Generic web state                                                                | In progress | Session, transport, conversation-store, settings, browser-state, and UI actors compose under `@emi/core/web`; Worker-through-Vite API smoke is covered, with full chat flows next. |
-| Generic web UI                                                                   | In progress | Core styled sidebar, composer, viewport/minimap, queue, header, memory, and settings primitives are extracted; expand behavioral flow coverage next.                  |
+| Generic web state                                                                | Target boundary complete | Session, transport, conversation-store, settings, browser-state, and UI actors compose behind `@emi/core/runtime`; browser smoke uses the target recipe. |
+| Generic web UI                                                                   | Target boundary complete | Target controlled/connected primitives and the styled recipe are covered by focused tests and browser smoke; richer product features remain separate.                  |
 | Generic Worker                                                                   | Partial     | Local Worker smoke now runs through the documented Vite proxy; add settings/release APIs, browser chat smoke, and credential-free Alchemy dry run.                    |
 | Owned generator                                                                  | In progress | Default owned `core/` workspace and install/typecheck/migration/web-build plus Worker/Vite API smoke acceptance exist; add a generated-source manifest and upgrade command. |
 | User features                                                                    | Partial     | Preserve and test branches, minimap controls, memories, theme/releases, temporary chats, PWA draft/offline behavior, and every conversation action through core APIs. |

@@ -28,7 +28,8 @@ A personal gym assistant: Apple Health + Hevy data on Cloudflare, with a chat UI
 | --- | --- |
 | `apps/api` | Cloudflare Worker: auth, chat, ingest, fitness APIs, Hevy sync, tools |
 | `apps/chat` | Vite SPA: chat shell, data pages, settings; built assets served by the Worker |
-| `packages/core` | Reusable layer via subpaths: `/contract`, `/server`, `/web`, `/cloudflare`, `/discord` |
+| `packages/core` | Reusable target package via curated protocol, runtime, React, component, server, adapter, extension, testing, and advanced subpaths |
+| `packages/core-migration` | Private workspace boundary for extraction-era application helpers being retired |
 | `packages/flavor-healthfit` | Fitness schemas, tools, prompt, analytics, contracts, and UI contributions |
 | `packages/create-chat-app` | Scaffolder for thin composition roots |
 | `plans/` | Active product plans (not shipped docs) |
@@ -43,22 +44,28 @@ optional styled components, persistence/server logic, and platform adapters live
 behind capability subpaths. Layer purity is not the boundary; imports from an app or a
 product flavor are.
 
-Consumers choose the smallest supported subpath for their runtime:
+Consumers choose the smallest supported target subpath for their runtime:
 
-- `@emi/core/chat` — provider-neutral chat schemas, streaming, and message protocols.
-- `@emi/core/web` — headless actors, selectors, clients, and web primitives.
-- `@emi/core/web/styled` — optional shadcn/Radix-style components and CSS.
-- `@emi/core/server` and `@emi/core/cloudflare` — persistence ports and platform wiring.
-- `@emi/core/contract` — generic contracts and `CoreApi`; it contains no HealthFit product APIs.
+- `@emi/core/protocol` — provider-neutral messages, parts, schemas, and mappers.
+- `@emi/core/runtime` and `@emi/core/react` — actor-backed state facade and React view binding.
+- `@emi/core/components` and `@emi/core/components/styled` — headless primitives and recipes.
+- `@emi/core/server`, `/server/effect`, and `/server/fetch` — generic Effect-first server composition.
+- `@emi/core/adapters/ai-sdk` and `/adapters/cloudflare` — explicit provider/platform bindings.
+- `@emi/core/extensions` and `/testing` — namespaced product extensions and deterministic test helpers.
+- `@emi/core/advanced/xstate` — deliberate advanced actor access.
 - `@emi/flavor-healthfit/contract` — the HealthFit product composition, extending `CoreApi` with fitness and Hevy groups.
+
+The private `@emi/core-migration` package is not a generic-core API. It temporarily hosts the
+historical contract, worker, Discord, and styled-web helpers used by existing product workers
+while those application-specific surfaces are retired.
 
 The package supports two consumption modes. Dependency mode imports these subpaths from a
 workspace or registry package and supplies fetch, storage, browser, database, and execution
 adapters explicitly. Source mode, used by `create-chat-app`, copies the package source and
 tests into an editable app workspace in the spirit of shadcn; the copied source is then the
 consumer's ownership boundary and can be forked without changing core's public contracts.
-Registry distribution remains gated on a built packed-install consumer check; source mode is
-the current fork-friendly path.
+Registry distribution emits built ESM/declarations and passes a clean packed-install consumer;
+source mode is the fork-friendly path generated from the same catalog.
 
 ## Runtime composition
 
@@ -66,7 +73,8 @@ the current fork-friendly path.
 - **Effect** owns request handling, typed failures, and database access on the Worker.
 - **Better Auth** handles Google and anonymous sessions; `ALLOWED_EMAILS` is an application allowlist on top of identity.
 - **Ownership** is per authenticated user id. Repositories scope reads and writes; personal data is not shared across accounts.
-- **Chat generation** streams through the AI SDK, checkpoints UI chunks in D1, and resumes after refresh or disconnect via a stream replay endpoint. Long-term durable execution (Durable Objects) is planned separately.
+- **Chat generation** uses the provider-neutral core protocol; the AI SDK adapter checkpoints
+  generation events in D1 and resumes after refresh or disconnect via a stream replay endpoint.
 
 ## Data domains
 
@@ -80,7 +88,8 @@ Raw Health and Hevy uploads land in R2 under a user-id prefix. Normalized rows i
 ## Frontend shape
 
 - Static Vite build with TanStack Router; production assets are served from the Worker (SPA fallback).
-- Chat runtime is XState-driven (conversation, composer, sidebar item, settings sync) with Vercel AI SDK transport.
+- Chat runtime is XState-driven (conversation, composer, sidebar item, settings sync) with a
+  provider-neutral protocol transport; AI SDK translation belongs in the explicit adapter.
 - Local session cache (IndexedDB) supports offline browsing of known conversations.
 - Generative UI (json-render) can render structured tool results as charts/cards inside the thread.
 
@@ -96,6 +105,6 @@ Raw Health and Hevy uploads land in R2 under a user-id prefix. Normalized rows i
 HealthFit is one explicit product composition over the reusable core: the flavor package adds
 schemas, ingest, tools, prompts, fitness screens, and domain contracts to the generic chat
 baseline. Keep domain additions in named flavor packages and opt-in for product consumers;
-the generic runtime and `@emi/core/contract` must not import or export HealthFit code.
+the generic runtime and target `@emi/core` entrypoints must not import or export HealthFit code.
 Discord and Google Calendar are planned transports/integrations on that same ownership model,
 not separate data silos.

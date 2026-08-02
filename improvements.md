@@ -27,7 +27,9 @@ This is an evidence-based backlog discovered while planning the core chat platfo
 - React Doctor's changed-scope audit still finds two cross-app React correctness defects: conditional `useToolRenderer` in `packages/core/src/web/thread/tool-part.tsx` and a render-time ref mutation in `apps/chat/src/hooks/use-thread-viewport-scroll.ts`. Fix them in focused revisions before treating the audit as clean.
 - Promote the existing HealthFit conversation features into a core feature matrix with baseline vs optional status; users cannot currently tell what generic chat receives.
 - Make summarization and provider credentials configurable per app, with safe defaults and clear local/server storage behavior. Generic title generation accepts optional model and prompt overrides; compaction uses the selected chat model, while memory extraction has its own local model setting.
-- Generic sidebar, queue, attachments, minimap, message actions, scroll controls, memory, settings, and composer now live in the optional `@emi/core/web/styled` entry; add behavioral flow coverage before HealthFit migration.
+- Generic sidebar, attachments, thread viewport, settings, and composer now use the target
+  `@emi/core/components` and `@emi/core/components/styled` entries; behavioral coverage belongs
+  in the generic target recipe smoke suite.
 - Expand PWA behavior from its safe installable shell and local drafts: opt-in encrypted history cache, background sync for safe non-streaming actions, and explicit resume state for interrupted generations.
 
 ## P2 — developer experience and distribution

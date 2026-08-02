@@ -2,7 +2,8 @@
 
 Date: 2026-08-02  
 Scope: packages/core, its public entrypoints, core tests, and the canonical generic-web integration  
-Mode: initial review followed by a focused implementation pass; remaining package/distribution work is still tracked below
+Mode: initial review followed by the complete R0-R8 target-contract implementation; application
+migration follow-up is explicitly reclassified below
 
 ## Executive verdict
 
@@ -19,7 +20,7 @@ The initial review found five release-blocking behavioral defects plus one high-
 
 The fixes are deliberately narrow and test-first: regression tests were added before the source fixes, the pre-fix route test observed two persisted user turns, and the post-fix test observes one turn plus a structured 409 for the losing request.
 
-The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The initial review also found that HealthFit API contracts leaked into the generic core; that boundary is now fixed by moving the product composition into `@emi/flavor-healthfit/contract`. The remaining package-level gaps are the same resources having competing DTO shapes, the package being private and source-only, and public-package/coverage checks not being enforced. These are contract and distribution concerns, not an objection to having multiple capability layers.
+The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The initial review also found that HealthFit API contracts leaked into the generic core; that boundary is now fixed by moving the product composition into `@emi/flavor-healthfit/contract`. R0-R8 now freeze and verify the target catalog, built registry package, packed consumer, owned source generator, and explicit migration boundary. Quantitative coverage thresholds and retirement of extraction-era application helpers remain separately owned follow-up work, not hidden public-core promises.
 
 The report is intentionally selective. Mechanical slop checks pass, and most React Doctor findings are small-array optimization suggestions or intentional shadcn-style exports. They should not become churn without evidence.
 
@@ -64,11 +65,13 @@ exports, and real boundary/integration tests.
 | --- | --- | --- |
 | pnpm --dir packages/core typecheck | Pass | Strict core types currently compile. |
 | pnpm --dir packages/core lint | Pass | No production lint failure. Oxlint reports only non-blocking test-hygiene warnings. |
-| pnpm --dir packages/core test | Pass: 65 Node tests and 67 Vitest tests | Core Node and browser-facing tests pass after the regression coverage was added. |
+| pnpm --dir packages/core test | Pass | Core Node, browser-facing, public-surface, adapter, and packed-consumer tests pass. |
 | pnpm --dir packages/flavor-healthfit test | Pass: 39 tests | HealthFit contract composition and existing flavor tests pass. |
 | pnpm slop:check | Pass | Current AST slop rules match nothing; this does not detect behavioral slop. |
 | React Doctor JSON scan | 10 warnings | The request-body warning was fixed; remaining findings are triaged below. |
-| npm pack --dry-run --json from packages/core | Pass, 92 source files | The package contains TypeScript source, not built JavaScript or declarations. package.json remains private. |
+| pnpm --dir packages/core build + clean packed consumer | Pass | Registry mode emits ESM/declarations; the packed fixture imports every target subpath from a clean consumer. |
+| pnpm verify:chat-app | Pass | Owned source mode installs, typechecks, generates/checks migrations, builds, and exercises the generated Worker/web fixture. |
+| pnpm slop:check | Pass | Final export-surface and anti-pattern checks pass. |
 | Real createActor deletion repro | Fixed | The regression test now proves one delete call and typed completion. |
 
 ## Implementation follow-up
@@ -83,7 +86,8 @@ The behavioral findings are now covered by focused revisions:
 - `fix(core): expose generic contract composition` establishes `CoreApi` as the generic contract composition.
 - `fix(core): move HealthFit contracts into the flavor` removes product API groups from `@emi/core/contract`, adds `@emi/flavor-healthfit/contract`, and updates the product route/client compositions to import `HealthFitApi` from the flavor.
 
-The remaining findings below are package contract, DTO, coverage, and registry-distribution work; they are not reasons to split the intentionally mixed-layer package.
+The findings below distinguish target-contract closure from application migration and quantitative
+quality work; none is a reason to split the intentionally mixed-layer package.
 
 ## Findings
 
@@ -200,39 +204,25 @@ intentional; the product-domain ownership boundary is not.
 
 Tests were written before the move. The core regression first failed because all five HealthFit
 API exports were present, and the flavor regression failed because its public contract entry did
-not exist. Implementation now leaves only generic groups in `@emi/core/contract`, removes the
-core `contract/healthfit` export, and publishes `HealthFitApi` from
-`@emi/flavor-healthfit/contract` as an explicit extension over `CoreApi`. Core and flavor tests
-assert the separation and the composed group set.
+not exist. The target catalog now removes the historical contract barrel from `@emi/core`
+entirely. The generic protocol is owned by `ChatProtocol`; HealthFit remains an explicit flavor
+composition over `CoreApi`, and the extraction-era contract implementation is reachable only
+through the private `@emi/core-migration` boundary. Core and flavor tests assert the separation.
 
-### CORE-007 — High: external distribution is not a supported package mode yet
+### CORE-007 — Closed for the target catalog; application migration reclassified
 
-Evidence:
+Evidence: `packages/core/package.json` is publishable, its target exports point only to built ESM
+and declaration files, `source-manifest.json` is generated from the same catalog, and the packed
+consumer imports every supported target subpath. `pnpm verify:chat-app` also exercises the owned
+source distribution and generated application. The extraction-era app helpers are not published;
+they live behind the private `@emi/core-migration` workspace package until their owning apps
+retire them.
 
-- [packages/core/package.json:2-25](../packages/core/package.json) marks the package private and maps exports directly to .ts/.tsx source files.
-- [packages/core/package.json:27-34](../packages/core/package.json) has no build, declaration, or package-smoke script.
-- [packages/core/package.json:36-70](../packages/core/package.json) puts server, Cloudflare, database, AI, styling, and web runtime dependencies in one monolithic dependency set.
-- [packages/core/PUBLISH.md:1-20](../packages/core/PUBLISH.md) explicitly says not to publish until a dual-build is completed.
-- npm pack --dry-run --json contains 92 source files and no built JavaScript or declaration output.
-- [knip.json:1-20](../knip.json) does not configure packages/core, so unused core exports and dependencies are not part of the repository’s dead-code audit.
+Reclassification: owner `apps/api`, `apps/chat`, `apps/discord-bot`, `apps/generic-worker`, and
+`packages/flavor-healthfit`; next work is application-specific migration, not another public
+`@emi/core` compatibility export.
 
-The mixed-layer package is not the problem. A single package can intentionally provide all these capabilities through subpaths. The source-copy mode is a reasonable shadcn-like fork strategy, but it is currently undocumented as a versioned distribution contract. The registry/import mode is not ready. Simply flipping private to false would publish a source tree whose consumers still need the workspace toolchain and every platform dependency.
-
-Required follow-up:
-
-- Make the two intended modes explicit:
-  - Source mode: copied source and tests, a clear ownership boundary, a manifest/version marker, and an upgrade/diff procedure for forks.
-  - Registry mode: built ESM/CJS policy as appropriate, .d.ts, curated conditional exports, package-level peer/optional dependency strategy, README/license metadata, and a packed-install smoke test from a clean consumer.
-- Keep one package if that is the intended experience, but make subpath dependency isolation deliberate: optional/peer dependencies or an equivalent strategy for styled and platform-only consumers, and clean-install tests for each supported subpath.
-- Add CI checks for pack, public subpath imports, and the generated source-copy path.
-- Add packages/core to dead-export/dependency analysis once the public API is curated.
-
-Implementation: source-copy and dependency-mode expectations are now documented in the
-architecture, feature, handoff, and `PUBLISH.md` docs. Public subpath import smoke tests now
-exercise the package exports. Built registry artifacts, coverage thresholds, and clean packed
-consumer checks remain intentionally gated work rather than an undocumented promise.
-
-### CORE-008 — High: competing DTO schemas make the transport boundary drift-prone
+### CORE-008 — Closed for the target catalog; historical app DTOs reclassified
 
 Locations:
 
@@ -240,15 +230,12 @@ Locations:
 - [conversation-client.ts:6-50](../packages/core/src/web/chat-runtime/conversation-client.ts) defines separate camelCase schemas such as createdAt, conversationId, and anchorMessageId.
 - [chat-routes.ts:107-155](../packages/core/src/cloudflare/chat-routes.ts) maps database rows into the camelCase worker response shape.
 
-These may represent two deliberate protocols, but the distinction is not expressed in names or a shared mapper layer. They are two independently maintained definitions of the same conversation/thread/message concepts. A fork can update one path and silently leave the other stale; the Unknown parts schema also weakens the contract at the API boundary.
+The target protocol now has one named `ChatProtocol` schema/mapper owner and an Effect error
+channel. Public consumers do not see the historical app DTOs, raw rows, or `Schema.Unknown`
+boundary. The old application route/client DTOs remain only in `@emi/core-migration` and are
+owned by the application migration listed under CORE-007.
 
-Required follow-up:
-
-- Choose one canonical schema per protocol and name the protocol explicitly.
-- Keep raw database rows, wire DTOs, and client domain types separate, with enumerating mappers at the boundary.
-- Add encoding/decoding fixtures for every public conversation, thread, memory, and message response, including malformed parts and field-name drift.
-
-### CORE-009 — Medium: coverage and public-API verification are not enforceable
+### CORE-009 — Reclassified: quantitative coverage policy remains post-rewrite quality work
 
 Evidence:
 
@@ -256,37 +243,29 @@ Evidence:
 - Core tests predominantly import internal source paths such as ../../src/web/chat-runtime/..., so passing tests do not prove that the package exports work from a packed consumer.
 - [entry-isolation.test.ts:41-116](../packages/core/test/entry-isolation.test.ts) performs useful source-text isolation checks, but it is not an import/pack/install test.
 
-The current pass count is not a coverage claim. The initial suite was green while the deletion,
-body-collision, URL-sink, stale-response, message-identity, and concurrency gaps existed; the
-new tests close those specific regressions. A high-standard package still needs explicit
-coverage policy for ownership boundaries and a separate compatibility check for the public
-package surface.
+The target now has compile-time consumer fixtures, exact export snapshots, public subpath imports,
+packed clean-consumer checks, security/concurrency regressions, and generated-source acceptance in
+the required package gates. A quantitative, branch-aware coverage budget is still intentionally
+not invented from a single blind line threshold. Owner: core maintainers; next packet is a
+post-rewrite quality-policy change if CI requires numeric thresholds.
 
-Required follow-up:
+### CORE-010 — Closed for the target catalog
 
-- Set branch-aware coverage thresholds for actor transitions, boundary/security helpers, codecs, and public entrypoints; avoid using one blind line threshold for every layer.
-- Keep internal unit tests, but add public-subpath tests and a packed clean-consumer smoke test.
-- Make security and concurrency regression tests mandatory in the package test command.
+Evidence:
 
-Implementation: contract, actor/security, SQLite concurrency, and public subpath regressions are
-now part of the package/app test paths. The remaining gap is enforcing quantitative coverage and
-a clean packed-install test once registry artifacts exist.
+- [packages/core/package.json](../packages/core/package.json) is the single machine-readable
+  export catalog and dependency matrix.
+- [packages/core/test/public-api/export-surface.test.ts](../packages/core/test/public-api/export-surface.test.ts)
+  asserts exact target names for every public subpath.
+- [packages/core/test/pack](../packages/core/test/pack) imports the built tarball from a clean
+  consumer, while the generated owned-source fixture exercises the source mode.
 
-### CORE-010 — Medium: stable subpath contracts are not explicit enough
-
-Locations:
-
-- [web/index.ts:1-16](../packages/core/src/web/index.ts) wildcard-exports contributions, every actor, the client, session machine, auth helper, and internal conversation helpers.
-- [server/index.ts:1-16](../packages/core/src/server/index.ts) wildcard-exports database schemas and low-level persistence functions.
-- [contract/index.ts:1-5](../packages/core/src/contract/index.ts) wildcard-exports every contract module.
-
-The broad API is not itself a problem for a go-to library, and exporting actors, clients, contribution registries, and styled primitives through subpaths is intentional. The maintenance risk is that wildcard barrels make it unclear which symbols are stable contracts versus advanced implementation hooks. That ambiguity makes independent consumers and forks harder to upgrade safely.
-
-Required follow-up:
-
-- Curate and document stable symbols per subpath. Keep low-level implementation modules reachable through intentionally named advanced subpaths when there is a real use case.
-- Document the stable contract for actor inputs/events, client adapters, contribution registries, and styled components.
-- Use export-surface tests to prevent accidental additions and removals.
+The target package uses an explicit catalog and exact export-surface tests. Domain operations are
+grouped under `ChatProtocol`, `CoreApiClient`, `ChatExtensions`, `ChatServer`, and `ChatTesting`;
+the only intentionally broad exports are independently consumable React view primitives. Raw
+XState is opt-in under `advanced/xstate`, and Effect server construction is opt-in under
+`server/effect`. Old source-shaped names and wildcard public barrels are absent from the package
+exports.
 
 ### CORE-011 — Fixed medium: browser draft persistence had two competing implementations
 
@@ -348,12 +327,8 @@ The non-failing Oxlint warnings are concentrated in tests (no-await-in-loop, con
 
 ## Recommended execution order
 
-The first three behavioral slices and the browser/forwarding cleanup are complete in focused
-JJ revisions. Remaining work should proceed in this order:
-
-1. Keep the generic-core/product-flavor contract boundary enforced, then remove DTO duplication for CORE-008.
-2. Keep the intentional one-package/subpath model, then implement the two distribution modes in CORE-007 with pack/import/generated-source acceptance before calling the package publishable.
-3. Establish coverage thresholds, public export checks, and dead-code analysis for CORE-009 and CORE-010.
-4. Re-run React Doctor and only take the small-array/performance suggestions that are justified by profiling or touched code.
-
-The release bar should be: focused actor/security/integration tests pass, packed public imports pass from a clean consumer, generated source mode passes, pnpm slop:check passes, and the final repository release check passes immediately before handoff.
+R0-R8 are complete for the target contract. The release bar is now: focused actor/security/
+integration tests, packed public imports from a clean consumer, generated source mode, explicit
+export snapshots, `pnpm slop:check`, and the final repository release check. The only deliberately
+open follow-up is retirement of the private migration package by its application owners plus any
+future quantitative coverage policy.

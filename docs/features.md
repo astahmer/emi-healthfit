@@ -16,11 +16,12 @@ history/actions, stream reconnection, queued follow-ups, and attachments. Health
 domain composition with fitness-specific tools, prompts, screens, and contracts.
 
 There are two supported development shapes. Dependency mode reuses `@emi/core` through its
-subpaths without a fork. Source mode, the default for `create-chat-app`, copies core source
-and tests into an editable workspace in a shadcn-like ownership model so an app can fork and
-customize the implementation. Registry mode is intentionally not called publishable yet; its
-built-artifact and packed clean-consumer checks are tracked in `packages/core/PUBLISH.md`.
-Generic HTTP API consumers use the explicit `CoreApi` composition from `@emi/core/contract`.
+target subpaths without a fork. Source mode, the default for `create-chat-app`, copies core
+source and tests into an editable workspace in a shadcn-like ownership model so an app can fork
+and customize the implementation. Registry mode emits built artifacts and passes the packed
+clean-consumer checks documented in `packages/core/PUBLISH.md`.
+Generic HTTP API consumers use `CoreApiClient` from `@emi/core/api` and the Effect-first server
+surface from `@emi/core/server/effect`.
 The HealthFit product imports `HealthFitApi` from `@emi/flavor-healthfit/contract`, where the
 fitness and Hevy groups extend that generic baseline. HealthFit-specific contracts do not live
 in `@emi/core`.
