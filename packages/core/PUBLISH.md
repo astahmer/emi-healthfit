@@ -97,6 +97,8 @@ its dependencies and lifecycle. Avoid flat files that export a long list of rela
 mutable values. Named TypeScript types may remain individually exported when consumers need them
 for annotations. React keeps a deliberately small exception for separately consumable provider and
 hook primitives because that is the native composition model and the frozen common-consumer path.
+Do not use abstract domain classes or empty private constructors: an ordinary named class is enough
+for a static domain, while dependency-bearing contracts are Effect services composed with `Layer`.
 
 The current named domain owners are `Chat`, `ChatProtocol`, `CoreApiClient`, `CoreApi`, `Discord`,
 `Cloudflare`, `CloudflareDatabase`, `ChatExtensions`, `ChatServer`, `ServerDatabase`, and

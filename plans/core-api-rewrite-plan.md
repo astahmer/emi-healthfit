@@ -162,50 +162,50 @@ design system, or primitives with no core styling dependency.
 
 ### Tech choices
 
-| Choice | Decision | Rationale |
-|--------|----------|-----------|
-| State and async ownership | Keep XState actors internally | Actor lifetimes, transitions, cancellation, queues, and real-actor tests are a strong fit for chat and agent flows. Hide wiring behind a facade rather than weakening the model. |
-| Server composition | Keep Effect internally and expose an explicit Effect-native surface | Services, typed failures, schema decoding, resource safety, and layers are valuable. Fetch consumers can use an adapter without learning `Effect.gen` or layers. |
-| Public API organization | Group operations under domain classes or owned instances | One domain owner makes discovery, scoping, lifecycle, and dependency ownership visible. Avoid flat files with long lists of exported functions or mutable values; React provider/hooks are a deliberate composition exception. |
-| Effect-first fallible operations | Define Effect programs first and derive Promise boundaries | Preserve typed success, failure, and requirements through protocol, server, adapter, and use-case composition. Promise wrappers belong at outer boundaries; synchronous catch-and-throw helpers do not replace the failure channel. |
-| Domain protocol | Define core-owned types and runtime schemas | The protocol must not leak `UIMessage`, `FileUIPart`, OpenAI types, HealthFit types, or database rows. |
-| Provider integration | Optional `adapters/ai-sdk` and provider-neutral ports | Provider changes stay at an adapter boundary and AI SDK remains optional for consumers who do not use it. |
-| React integration | External-store style subscription over the runtime | React renders actor-derived snapshots; it must not own app, network, persistence, or domain state. |
-| Components | Controlled primitives plus connected components plus recipes | This makes ownership and customization visible and supports both default apps and design-system adopters. |
-| Styling | CSS variables and structural CSS as the baseline; editable styled recipes as an opt-in | A consumer can start quickly or own the markup/styles in source mode without mandatory Tailwind coupling. |
-| Schemas | One named runtime-schema source per protocol boundary | Encoding/decoding tests should prove wire DTOs, persisted payloads, and extension parts rather than relying on casts or `Schema.Unknown`. |
-| Package output | Built ESM plus declarations with curated conditional exports | Registry consumers should not need the workspace TypeScript toolchain or every platform dependency. |
-| Fork distribution | Generated source manifest with ownership metadata | Source mode should be reproducible, diffable, and upgradeable instead of being an undocumented directory copy. |
+| Choice                           | Decision                                                                               | Rationale                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| State and async ownership        | Keep XState actors internally                                                          | Actor lifetimes, transitions, cancellation, queues, and real-actor tests are a strong fit for chat and agent flows. Hide wiring behind a facade rather than weakening the model.                                                                                                                                                                                                                                      |
+| Server composition               | Keep Effect internally and expose an explicit Effect-native surface                    | Services, typed failures, schema decoding, resource safety, and layers are valuable. Fetch consumers can use an adapter without learning `Effect.gen` or layers.                                                                                                                                                                                                                                                      |
+| Public API organization          | Group operations under domain classes or owned instances                               | One domain owner makes discovery, scoping, lifecycle, and dependency ownership visible. Avoid flat files with long lists of exported functions or mutable values; React provider/hooks are a deliberate composition exception. Use ordinary named classes for static domains; do not introduce abstract classes or empty private constructors. Dependency-bearing contracts use Effect `Context.Service` and `Layer`. |
+| Effect-first fallible operations | Define Effect programs first and derive Promise boundaries                             | Preserve typed success, failure, and requirements through protocol, server, adapter, and use-case composition. Promise wrappers belong at outer boundaries; synchronous catch-and-throw helpers do not replace the failure channel.                                                                                                                                                                                   |
+| Domain protocol                  | Define core-owned types and runtime schemas                                            | The protocol must not leak `UIMessage`, `FileUIPart`, OpenAI types, HealthFit types, or database rows.                                                                                                                                                                                                                                                                                                                |
+| Provider integration             | Optional `adapters/ai-sdk` and provider-neutral ports                                  | Provider changes stay at an adapter boundary and AI SDK remains optional for consumers who do not use it.                                                                                                                                                                                                                                                                                                             |
+| React integration                | External-store style subscription over the runtime                                     | React renders actor-derived snapshots; it must not own app, network, persistence, or domain state.                                                                                                                                                                                                                                                                                                                    |
+| Components                       | Controlled primitives plus connected components plus recipes                           | This makes ownership and customization visible and supports both default apps and design-system adopters.                                                                                                                                                                                                                                                                                                             |
+| Styling                          | CSS variables and structural CSS as the baseline; editable styled recipes as an opt-in | A consumer can start quickly or own the markup/styles in source mode without mandatory Tailwind coupling.                                                                                                                                                                                                                                                                                                             |
+| Schemas                          | One named runtime-schema source per protocol boundary                                  | Encoding/decoding tests should prove wire DTOs, persisted payloads, and extension parts rather than relying on casts or `Schema.Unknown`.                                                                                                                                                                                                                                                                             |
+| Package output                   | Built ESM plus declarations with curated conditional exports                           | Registry consumers should not need the workspace TypeScript toolchain or every platform dependency.                                                                                                                                                                                                                                                                                                                   |
+| Fork distribution                | Generated source manifest with ownership metadata                                      | Source mode should be reproducible, diffable, and upgradeable instead of being an undocumented directory copy.                                                                                                                                                                                                                                                                                                        |
 
 ### Target public package map
 
 Keep one `@emi/core` package, but make each subpath describe a consumer job. The exact names may
 be refined during packet R0; the dependency and ownership boundaries are non-negotiable.
 
-| Subpath | Public responsibility | Explicitly excluded |
-| --- | --- | --- |
-| `@emi/core` | Minimal convenience facade: `createChatRuntime` and core protocol types. | Wildcard internals, product APIs, platform dependencies. |
-| `@emi/core/protocol` | Messages, parts, commands, events, errors, IDs, schemas, and extension contracts. | React, XState, Effect runtime services, database rows. |
-| `@emi/core/api` | Generic HTTP contract and typed `CoreApiClient` with an Effect-first operation surface. | HealthFit routes, raw response decoding, database details. |
-| `@emi/core/chat` | Explicitly provider-bound chat domain owner for applications that need its grouped operations. | The common provider-neutral path and unscoped flat helpers. |
-| `@emi/core/contract` | Generic HTTP schema composition owned by `CoreApi`. | HealthFit groups, platform bindings, and database rows. |
-| `@emi/core/cloudflare` | Explicit Cloudflare auth, route, request, user, and database composition. | Generic server contracts and common consumer setup. |
-| `@emi/core/discord` | Provider-neutral Discord request, response, interaction, and signature contracts. | React, product APIs, and database implementation. |
-| `@emi/core/runtime` | Framework-neutral runtime, selectors, commands, subscriptions, and lifecycle. | React hooks and UI markup. |
-| `@emi/core/react` | `ChatProvider`, hooks, and React lifecycle integration. | Styled recipes, router assumptions, module-scope browser globals. |
-| `@emi/core/components` | Accessible controlled/headless primitives, shells, slots, and render contracts. | Network calls, persistence, product copy, mandatory CSS framework. |
-| `@emi/core/components/styled` | Ready-to-use recipes and the default visual layer. | HealthFit branding and mandatory platform coupling. |
-| `@emi/core/web` | Generic browser views, contribution context, attachment policy, and thread presentation. | Raw XState actors/machines, HealthFit UI, and platform state. |
-| `@emi/core/styles.css` | Design tokens, layout structure, states, and theme variables. | App-specific colors, pages, data visualizations. |
-| `@emi/core/server` | Generic ports, use cases, auth interfaces, and persistence-independent composition. | D1/Drizzle row types in the primary entry. |
-| `@emi/core/server/database` | Explicit advanced SQL schemas, persistence domains, and generation replay. | Generic server contracts and common consumers. |
-| `@emi/core/server/effect` | Explicit Effect-native services, layers, and use-case access. | React-only concerns and provider-specific message types. |
-| `@emi/core/server/fetch` | Request/Response handlers over the server composition. | Platform-specific bindings. |
-| `@emi/core/adapters/ai-sdk` | AI SDK/provider bridge to the core protocol and model ports. | AI SDK types in protocol or runtime core. |
-| `@emi/core/adapters/cloudflare` | D1, Workers, R2, and platform bindings. | Cloudflare assumptions in generic server logic. |
-| `@emi/core/extensions` | `ChatExtensions` definition and collision-checked composition methods. | Product code bundled into the base core. |
-| `@emi/core/testing` | In-memory repositories, deterministic clock/ID/fetch/storage adapters, actor harnesses, and fixtures. | Production runtime dependencies. |
-| `@emi/core/advanced/xstate` | Deliberate actor refs, machine types, and integration helpers for advanced consumers. | Accidental access through default barrels. |
+| Subpath                         | Public responsibility                                                                                 | Explicitly excluded                                                |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `@emi/core`                     | Minimal convenience facade: `createChatRuntime` and core protocol types.                              | Wildcard internals, product APIs, platform dependencies.           |
+| `@emi/core/protocol`            | Messages, parts, commands, events, errors, IDs, schemas, and extension contracts.                     | React, XState, Effect runtime services, database rows.             |
+| `@emi/core/api`                 | Generic HTTP contract and typed `CoreApiClient` with an Effect-first operation surface.               | HealthFit routes, raw response decoding, database details.         |
+| `@emi/core/chat`                | Explicitly provider-bound chat domain owner for applications that need its grouped operations.        | The common provider-neutral path and unscoped flat helpers.        |
+| `@emi/core/contract`            | Generic HTTP schema composition owned by `CoreApi`.                                                   | HealthFit groups, platform bindings, and database rows.            |
+| `@emi/core/cloudflare`          | Explicit Cloudflare auth, route, request, user, and database composition.                             | Generic server contracts and common consumer setup.                |
+| `@emi/core/discord`             | Provider-neutral Discord request, response, interaction, and signature contracts.                     | React, product APIs, and database implementation.                  |
+| `@emi/core/runtime`             | Framework-neutral runtime, selectors, commands, subscriptions, and lifecycle.                         | React hooks and UI markup.                                         |
+| `@emi/core/react`               | `ChatProvider`, hooks, and React lifecycle integration.                                               | Styled recipes, router assumptions, module-scope browser globals.  |
+| `@emi/core/components`          | Accessible controlled/headless primitives, shells, slots, and render contracts.                       | Network calls, persistence, product copy, mandatory CSS framework. |
+| `@emi/core/components/styled`   | Ready-to-use recipes and the default visual layer.                                                    | HealthFit branding and mandatory platform coupling.                |
+| `@emi/core/web`                 | Generic browser views, contribution context, attachment policy, and thread presentation.              | Raw XState actors/machines, HealthFit UI, and platform state.      |
+| `@emi/core/styles.css`          | Design tokens, layout structure, states, and theme variables.                                         | App-specific colors, pages, data visualizations.                   |
+| `@emi/core/server`              | Generic ports, use cases, auth interfaces, and persistence-independent composition.                   | D1/Drizzle row types in the primary entry.                         |
+| `@emi/core/server/database`     | Explicit advanced SQL schemas, persistence domains, and generation replay.                            | Generic server contracts and common consumers.                     |
+| `@emi/core/server/effect`       | Explicit Effect-native services, layers, and use-case access.                                         | React-only concerns and provider-specific message types.           |
+| `@emi/core/server/fetch`        | Request/Response handlers over the server composition.                                                | Platform-specific bindings.                                        |
+| `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge to the core protocol and model ports.                                          | AI SDK types in protocol or runtime core.                          |
+| `@emi/core/adapters/cloudflare` | D1, Workers, R2, and platform bindings.                                                               | Cloudflare assumptions in generic server logic.                    |
+| `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition methods.                                | Product code bundled into the base core.                           |
+| `@emi/core/testing`             | In-memory repositories, deterministic clock/ID/fetch/storage adapters, actor harnesses, and fixtures. | Production runtime dependencies.                                   |
+| `@emi/core/advanced/xstate`     | Deliberate actor refs, machine types, and integration helpers for advanced consumers.                 | Accidental access through default barrels.                         |
 
 The stable public catalog must be hand-curated. Internal files can be reorganized freely when the
 catalog and its tests continue to pass.
@@ -338,9 +338,11 @@ const serverLayer = ChatServerEffect.Live.pipe(
   Layer.provide(configurationLayer),
 );
 
-const response = yield* ChatFetchHandlers.use((handlers) => handlers.handle(request)).pipe(
-  Effect.provide(ChatFetchHandlers.layer().pipe(Layer.provide(serverLayer))),
-);
+const response =
+  yield *
+  ChatFetchHandlers.use((handlers) => handlers.handle(request)).pipe(
+    Effect.provide(ChatFetchHandlers.layer().pipe(Layer.provide(serverLayer))),
+  );
 ```
 
 `ChatServerEffect.Live` is the canonical Effect composition. `ChatFetchHandlers.handle` is the
@@ -458,15 +460,15 @@ accessed in the adapter layer rather than at module scope.
 
 ### Common interactions
 
-| Action | Result |
-|--------|--------|
-| Send a message | A typed command enters the runtime; the actor graph persists/admits/streams it and selectors update. |
-| Stop generation | The runtime cancels the active generation and exposes a stable terminal state. |
-| Select a conversation | The latest selection owns the visible result; stale responses cannot overwrite it. |
-| Retry, edit, or branch | The stable message ID remains valid across protocol, persistence, and UI boundaries. |
-| Render an attachment or citation | URL policy is applied at every actual sink, not only in Markdown. |
-| Add a product tool renderer | A namespaced extension contribution is validated and resolved without core changes. |
-| Customize the UI | A consumer chooses a recipe, connected component, or controlled primitive tier. |
+| Action                           | Result                                                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Send a message                   | A typed command enters the runtime; the actor graph persists/admits/streams it and selectors update. |
+| Stop generation                  | The runtime cancels the active generation and exposes a stable terminal state.                       |
+| Select a conversation            | The latest selection owns the visible result; stale responses cannot overwrite it.                   |
+| Retry, edit, or branch           | The stable message ID remains valid across protocol, persistence, and UI boundaries.                 |
+| Render an attachment or citation | URL policy is applied at every actual sink, not only in Markdown.                                    |
+| Add a product tool renderer      | A namespaced extension contribution is validated and resolved without core changes.                  |
+| Customize the UI                 | A consumer chooses a recipe, connected component, or controlled primitive tier.                      |
 
 ## Data model
 
@@ -515,19 +517,19 @@ results must decode through runtime schemas before entering domain state.
 
 ## Current-to-target mapping
 
-| Current surface | Target | Main packet |
-| --- | --- | --- |
-| `genericChatAppMachine` plus child event envelopes | `createChatRuntime` with typed commands/selectors; actors remain internal or advanced | R2 |
-| `createConversationClient` hand-written response schemas | `CoreApiClient` from named protocol DTOs and mappers | R1/R3/R7 |
-| `UIMessage` and `FileUIPart` in runtime/components | `ChatMessage` and `MessagePart` plus provider adapters | R1/R4 |
-| `chat/openai.ts` | Provider-neutral `ModelProvider` plus `adapters/ai-sdk` | R4 |
-| `makeGenericChatRoutes` and the large route module | `createChatServer` use cases plus small HTTP/platform adapters | R3 |
-| `server.export.ts` broad/forwarding surface | Curated ports/use cases; platform-specific database/auth helpers stay in explicit advanced capability packages | R0/R3/R8 |
-| Unnamed database and Cloudflare helpers | `server/database` and `cloudflare` named advanced capability owners | R0/R3/R8 |
-| `web/styled` app-shaped components | Controlled primitives, connected components, and opt-in recipes | R5 |
-| `CoreWebContributions` arrays | Namespaced `ChatExtensions` definitions with collision validation | R6 |
-| `create-chat-app` repository-shaped copying | Public source manifest generated from the export catalog | R7 |
-| `packages/flavor-healthfit/src/contract.export.ts` | Product-owned extension contract over generic `CoreApi` | R6 |
+| Current surface                                          | Target                                                                                                         | Main packet |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------- |
+| `genericChatAppMachine` plus child event envelopes       | `createChatRuntime` with typed commands/selectors; actors remain internal or advanced                          | R2          |
+| `createConversationClient` hand-written response schemas | `CoreApiClient` from named protocol DTOs and mappers                                                           | R1/R3/R7    |
+| `UIMessage` and `FileUIPart` in runtime/components       | `ChatMessage` and `MessagePart` plus provider adapters                                                         | R1/R4       |
+| `chat/openai.ts`                                         | Provider-neutral `ModelProvider` plus `adapters/ai-sdk`                                                        | R4          |
+| `makeGenericChatRoutes` and the large route module       | `createChatServer` use cases plus small HTTP/platform adapters                                                 | R3          |
+| `server.export.ts` broad/forwarding surface              | Curated ports/use cases; platform-specific database/auth helpers stay in explicit advanced capability packages | R0/R3/R8    |
+| Unnamed database and Cloudflare helpers                  | `server/database` and `cloudflare` named advanced capability owners                                            | R0/R3/R8    |
+| `web/styled` app-shaped components                       | Controlled primitives, connected components, and opt-in recipes                                                | R5          |
+| `CoreWebContributions` arrays                            | Namespaced `ChatExtensions` definitions with collision validation                                              | R6          |
+| `create-chat-app` repository-shaped copying              | Public source manifest generated from the export catalog                                                       | R7          |
+| `packages/flavor-healthfit/src/contract.export.ts`       | Product-owned extension contract over generic `CoreApi`                                                        | R6          |
 
 ## Audit findings carried into the rewrite
 
@@ -535,21 +537,21 @@ The focused implementation pass fixed the immediate defects listed below. The re
 those regression guarantees while moving them into the cleaner target boundaries. “Fixed now” is
 not permission to delete the test when the surrounding implementation is replaced.
 
-| Audit finding | Current status | Target packet and invariant |
-| --- | --- | --- |
-| CORE-001 unsafe citation/file URL sinks | Fixed now | R1/R5: one URL policy is applied at every actual navigational, attachment, and image sink. |
-| CORE-002 deletion success loop | Fixed now | R2: typed command completion cannot re-enter the request path. |
-| CORE-003 protected transport fields | Fixed now | R2/R3: transport-owned fields are typed/reserved and cannot be overwritten by extension data. |
-| CORE-004 generation admission ordering | Fixed now | R3: admission precedes durable turn persistence; the losing request leaves no orphan turn. |
-| CORE-005 stale store responses | Fixed now | R2: replaceable queries have identity plus latest-wins or cancellation semantics. |
-| CORE-006 HealthFit APIs in core | Fixed now | R1/R6: generic core exports foundations only; product APIs compose from flavor/extension packages. |
-| CORE-007 unsupported registry/source distribution | Fixed in R7/R8 | Built ESM/declarations, clean packed consumer, source manifest, owned-source generator acceptance, and target-only exports pass. |
-| CORE-008 competing DTO schemas | Fixed for target catalog | R1/R3/R8: target protocol schemas/mappers are named; application DTOs remain in their owning application boundaries. |
-| CORE-009 unenforced coverage/public API | Public API fixed; quantitative coverage reclassified | R0/R7/R8: public fixtures, negative gates, manifest checks, packed consumer, and release checks are wired; numeric thresholds remain post-rewrite quality policy. |
-| CORE-010 unclear stable subpaths | Fixed for target catalog | R0/R7/R8: curated target exports distinguish stable and advanced symbols; old source-shaped names are absent from `@emi/core`. |
-| CORE-011 duplicate draft persistence paths | Fixed now | R2: one actor-owned persistence path and one error path remain after runtime relocation. |
-| CORE-012 fabricated forwarding sentinels | Fixed now | R2: commands route typed events directly; no unreachable fallback events. |
-| CORE-013 persisted message identity loss | Fixed now | R1/R3: client message IDs survive protocol, persistence, retry, edit, and branch operations. |
+| Audit finding                                     | Current status                                       | Target packet and invariant                                                                                                                                       |
+| ------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CORE-001 unsafe citation/file URL sinks           | Fixed now                                            | R1/R5: one URL policy is applied at every actual navigational, attachment, and image sink.                                                                        |
+| CORE-002 deletion success loop                    | Fixed now                                            | R2: typed command completion cannot re-enter the request path.                                                                                                    |
+| CORE-003 protected transport fields               | Fixed now                                            | R2/R3: transport-owned fields are typed/reserved and cannot be overwritten by extension data.                                                                     |
+| CORE-004 generation admission ordering            | Fixed now                                            | R3: admission precedes durable turn persistence; the losing request leaves no orphan turn.                                                                        |
+| CORE-005 stale store responses                    | Fixed now                                            | R2: replaceable queries have identity plus latest-wins or cancellation semantics.                                                                                 |
+| CORE-006 HealthFit APIs in core                   | Fixed now                                            | R1/R6: generic core exports foundations only; product APIs compose from flavor/extension packages.                                                                |
+| CORE-007 unsupported registry/source distribution | Fixed in R7/R8                                       | Built ESM/declarations, clean packed consumer, source manifest, owned-source generator acceptance, and target-only exports pass.                                  |
+| CORE-008 competing DTO schemas                    | Fixed for target catalog                             | R1/R3/R8: target protocol schemas/mappers are named; application DTOs remain in their owning application boundaries.                                              |
+| CORE-009 unenforced coverage/public API           | Public API fixed; quantitative coverage reclassified | R0/R7/R8: public fixtures, negative gates, manifest checks, packed consumer, and release checks are wired; numeric thresholds remain post-rewrite quality policy. |
+| CORE-010 unclear stable subpaths                  | Fixed for target catalog                             | R0/R7/R8: curated target exports distinguish stable and advanced symbols; old source-shaped names are absent from `@emi/core`.                                    |
+| CORE-011 duplicate draft persistence paths        | Fixed now                                            | R2: one actor-owned persistence path and one error path remain after runtime relocation.                                                                          |
+| CORE-012 fabricated forwarding sentinels          | Fixed now                                            | R2: commands route typed events directly; no unreachable fallback events.                                                                                         |
+| CORE-013 persisted message identity loss          | Fixed now                                            | R1/R3: client message IDs survive protocol, persistence, retry, edit, and branch operations.                                                                      |
 
 ## Implementation packets
 
@@ -886,19 +888,19 @@ ownership and schema-boundary rules.
 
 ## Decisions log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| 2026-08-02 | Keep the intentionally mixed-layer one-package model | Actors, web components, styles, server logic, and adapters are the intended go-to library surface; subpaths provide the boundary. |
-| 2026-08-02 | Keep XState as the runtime implementation model | Actor ownership and transition/cancellation semantics are a strength, not extraction slop. |
-| 2026-08-02 | Keep Effect as a server/composition implementation model | Typed services, failures, schemas, resource safety, and layers remain valuable; hide them only from the common consumer path. |
-| 2026-08-02 | Organize public operations under domain classes or owned instances | A scoped domain owner improves discoverability and keeps the public surface from becoming a flat collection of unrelated functions and values. |
-| 2026-08-02 | Scope large domains inside their owner | `Chat`, `Discord`, `Cloudflare`, and `ServerDatabase` use named members for schemas, operations, transport, persistence, and platform concerns; React primitives remain individually consumable view components. |
-| 2026-08-02 | Make Effect the canonical fallible API and derive Promise helpers | Typed success/error/requirements channels should survive composition; Promise conversion belongs at consumer or adapter boundaries. |
-| 2026-08-02 | Inject persistence clocks and identity capabilities | Advanced database adapters receive `DatabaseRuntime` through the query-client boundary; database operations do not read ambient time or randomness, and platform/application edges own the concrete runtime. |
-| 2026-08-02 | Keep public files small and domain-scoped | `ChatProtocol`, `CoreApiClient`, `ChatExtensions`, `ChatServer`, and `ChatTesting` group discoverable operations; only independent React view primitives remain individually exported. |
+| Date       | Decision                                                            | Rationale                                                                                                                                                                                                                                                                           |
+| ---------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-02 | Keep the intentionally mixed-layer one-package model                | Actors, web components, styles, server logic, and adapters are the intended go-to library surface; subpaths provide the boundary.                                                                                                                                                   |
+| 2026-08-02 | Keep XState as the runtime implementation model                     | Actor ownership and transition/cancellation semantics are a strength, not extraction slop.                                                                                                                                                                                          |
+| 2026-08-02 | Keep Effect as a server/composition implementation model            | Typed services, failures, schemas, resource safety, and layers remain valuable; hide them only from the common consumer path.                                                                                                                                                       |
+| 2026-08-02 | Organize public operations under domain classes or owned instances  | A scoped domain owner improves discoverability and keeps the public surface from becoming a flat collection of unrelated functions and values.                                                                                                                                      |
+| 2026-08-02 | Scope large domains inside their owner                              | `Chat`, `Discord`, `Cloudflare`, and `ServerDatabase` use named members for schemas, operations, transport, persistence, and platform concerns; React primitives remain individually consumable view components.                                                                    |
+| 2026-08-02 | Make Effect the canonical fallible API and derive Promise helpers   | Typed success/error/requirements channels should survive composition; Promise conversion belongs at consumer or adapter boundaries.                                                                                                                                                 |
+| 2026-08-02 | Inject persistence clocks and identity capabilities                 | Advanced database adapters receive `DatabaseRuntime` through the query-client boundary; database operations do not read ambient time or randomness, and platform/application edges own the concrete runtime.                                                                        |
+| 2026-08-02 | Keep public files small and domain-scoped                           | `ChatProtocol`, `CoreApiClient`, `ChatExtensions`, `ChatServer`, and `ChatTesting` group discoverable operations; only independent React view primitives remain individually exported.                                                                                              |
 | 2026-08-02 | Curate the primary server entry and name advanced platform surfaces | `ChatServer`, `ChatServerEffect`, and `ChatFetchHandlers` provide the generic Effect-first boundary; SQL/replay and Cloudflare route/auth implementations live behind explicit `server/database` and `cloudflare` capability owners and are never part of generic server contracts. |
-| 2026-08-02 | Close R8 by deleting the migration boundary | `@emi/core` exports, manifests, packed fixtures, and docs describe only the target contract; application and flavor owners import their named generic or product domains directly. |
-| 2026-08-02 | Separate the audit report from this rewrite plan | The audit records current evidence and completed fixes; this document is the normative future target and agent execution map. |
-| 2026-08-02 | Do not preserve backward compatibility for the rewrite | The package may delete extraction artifacts and choose the best API instead of protecting historical names. |
-| 2026-08-02 | Keep HealthFit contracts in the flavor package | Core supplies generic foundations; product/domain APIs enter through explicit extensions. |
-| 2026-08-02 | Use one plan with packet cards and a reusable prompt | Another agent can start at a precise file path with tests, dependencies, and acceptance criteria without replaying the entire audit. |
+| 2026-08-02 | Close R8 by deleting the migration boundary                         | `@emi/core` exports, manifests, packed fixtures, and docs describe only the target contract; application and flavor owners import their named generic or product domains directly.                                                                                                  |
+| 2026-08-02 | Separate the audit report from this rewrite plan                    | The audit records current evidence and completed fixes; this document is the normative future target and agent execution map.                                                                                                                                                       |
+| 2026-08-02 | Do not preserve backward compatibility for the rewrite              | The package may delete extraction artifacts and choose the best API instead of protecting historical names.                                                                                                                                                                         |
+| 2026-08-02 | Keep HealthFit contracts in the flavor package                      | Core supplies generic foundations; product/domain APIs enter through explicit extensions.                                                                                                                                                                                           |
+| 2026-08-02 | Use one plan with packet cards and a reusable prompt                | Another agent can start at a precise file path with tests, dependencies, and acceptance criteria without replaying the entire audit.                                                                                                                                                |

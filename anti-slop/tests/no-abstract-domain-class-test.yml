@@ -1,0 +1,19 @@
+id: no-abstract-domain-class
+valid:
+  - |
+    class Chat {
+      static create() { return new Chat(); }
+    }
+  - |
+    export class Chat {
+      static create() { return new Chat(); }
+    }
+invalid:
+  - |
+    abstract class Chat {
+      abstract send(): void;
+    }
+  - |
+    export abstract class Chat {
+      abstract send(): void;
+    }

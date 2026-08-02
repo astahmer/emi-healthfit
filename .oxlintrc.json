@@ -6,10 +6,16 @@
     "suspicious": "warn"
   },
   "plugins": ["typescript", "react", "react-perf", "unicorn"],
+  "jsPlugins": ["./scripts/oxlint/emi-plugin.mjs"],
   "rules": {
     "react/react-in-jsx-scope": "off",
     "react-perf/jsx-no-new-function-as-prop": "off",
-    "react-perf/jsx-no-new-object-as-prop": "off"
+    "react-perf/jsx-no-new-object-as-prop": "off",
+    "emi/no-abstract-domain-class": "error",
+    "emi/no-empty-private-constructor": "error",
+    "emi/no-generic-platform-import": "error",
+    "emi/no-domain-effect-run": "error",
+    "emi/no-export-forwarding": "error"
   },
   "ignorePatterns": [".next/**", ".alchemy/**", "dist/**", "coverage/**"]
 }

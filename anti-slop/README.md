@@ -27,6 +27,8 @@ The current checks protect these boundaries:
 - internal modules import named implementation files, never another `.export.ts` boundary;
 - internal classes do not forward static domain members; only a named public `.export.ts` facade may group an owning domain;
 - domain APIs group related operations behind an instantiated class or a static domain class;
+- generic core does not use abstract domain classes or empty private constructors; dependency contracts
+  use Effect `Context.Service` and `Layer`;
 - Effect server services are composed with `Context.Service` and `Layer`, not dependency-bearing constructors;
 - Effect is the canonical implementation surface: Promise helpers are thin outer adapters over typed
   Effect success and error channels;
@@ -43,15 +45,15 @@ The current checks protect these boundaries:
 `check-architecture-boundaries.mjs` owns checks that need package metadata, filesystem topology, or
 cross-file context:
 
-| Check | Violation caught | Required shape |
-| --- | --- | --- |
-| Public domain surface | A new non-exception public entrypoint grows into a flat utility barrel | One named domain class or owned instance; keep helpers private |
-| Public web/XState split | The common web entry imports or exposes an actor/machine | Put raw actor access in `@emi/core/advanced/xstate` |
-| Injected capabilities | Runtime or use-case code reads ambient time, randomness, fetch, or browser globals | Receive capabilities through runtime options, services, or layers |
-| Effect-first domain | A generic port/use case calls `Effect.runPromise` or `Effect.runSync` internally | Return the typed `Effect`/`Stream`; run it only at the HTTP/platform edge |
-| Actor-owned state | Runtime implementation duplicates actor state with React `useState`/`useReducer` | Read actor-owned snapshots through the runtime subscription facade |
-| Package self-boundary | A consumer reaches into `@emi/core/src` or `@emi/core/dist` | Import a declared package subpath |
-| Export topology | An implementation imports a boundary, wildcard, forwarding module, or `index.ts` | Import the owning implementation and bind explicit exports only at `.export.ts` |
+| Check                   | Violation caught                                                                   | Required shape                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Public domain surface   | A new non-exception public entrypoint grows into a flat utility barrel             | One named domain class or owned instance; keep helpers private                  |
+| Public web/XState split | The common web entry imports or exposes an actor/machine                           | Put raw actor access in `@emi/core/advanced/xstate`                             |
+| Injected capabilities   | Runtime or use-case code reads ambient time, randomness, fetch, or browser globals | Receive capabilities through runtime options, services, or layers               |
+| Effect-first domain     | A generic port/use case calls `Effect.runPromise` or `Effect.runSync` internally   | Return the typed `Effect`/`Stream`; run it only at the HTTP/platform edge       |
+| Actor-owned state       | Runtime implementation duplicates actor state with React `useState`/`useReducer`   | Read actor-owned snapshots through the runtime subscription facade              |
+| Package self-boundary   | A consumer reaches into `@emi/core/src` or `@emi/core/dist`                        | Import a declared package subpath                                               |
+| Export topology         | An implementation imports a boundary, wildcard, forwarding module, or `index.ts`   | Import the owning implementation and bind explicit exports only at `.export.ts` |
 
 The grouping check deliberately allows the independently consumable React view/recipe entries,
 HTTP contract items, and explicit advanced XState entrypoint. Those exceptions are contract-shaped,
@@ -67,6 +69,14 @@ The Effect-first rule means a use case or adapter should first expose an `Effect
 qualified success and error types. A Promise-returning method is allowed only at a browser, HTTP, or
 other platform edge, and should be implemented by running the canonical Effect program rather than
 duplicating its logic.
+
+## Oxlint contextual rules
+
+`scripts/oxlint/emi-plugin.mjs` complements ast-grep with ESLint-compatible rules that need source
+context. It rejects abstract core domain classes, empty private constructors, export forwarding,
+raw provider/platform imports in generic protocol and server contracts, and `Effect.run*` inside
+generic domain code. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise the plugin;
+`pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
 
 When a new smell is found, add its human rule with `antislop add`, then add the smallest
 deterministic rule or boundary assertion that can prevent recurrence. Every executable rule must

@@ -37,7 +37,7 @@
     "discord:deploy:prod": "pnpm --filter @emi/discord-bot deploy:prod",
     "discord:register": "pnpm --filter @emi/discord-bot register",
     "discord:setup:check": "pnpm --filter @emi/discord-bot test:file test/setup-check.test.ts",
-    "slop:check": "node scripts/check-architecture-boundaries.mjs && node scripts/run-ast-grep.mjs scan",
+    "slop:check": "node scripts/check-architecture-boundaries.mjs && node scripts/run-ast-grep.mjs scan && node scripts/check-oxlint-antislop.mjs",
     "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
     "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts",
     "portless:doctor": "pnpm exec portless doctor"

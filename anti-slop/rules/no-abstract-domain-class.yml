@@ -1,0 +1,11 @@
+id: no-abstract-domain-class
+language: TypeScript
+files:
+  - packages/core/src/**/*.ts
+  - packages/core/src/**/*.tsx
+message: Generic core domain owners must be ordinary named classes; use Effect Context.Service for dependency contracts instead of abstract classes.
+severity: error
+rule:
+  any:
+    - pattern: abstract class $CLASS { $$$BODY }
+    - pattern: export abstract class $CLASS { $$$BODY }
