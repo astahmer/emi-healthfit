@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
-import { Kysely, SqliteDialect, type Compilable, type SqliteDatabase, type SqliteStatement } from "kysely";
+import {
+  Kysely,
+  SqliteDialect,
+  type Compilable,
+  type SqliteDatabase,
+  type SqliteStatement,
+} from "kysely";
 import { MemoryStoreLive } from "../../src/server/make-memory-store.ts";
 import {
   MemoryReader,
@@ -145,27 +151,23 @@ describe("makeMemoryStore", () => {
       ]),
     );
     assert.deepEqual(ids, ["memory-test-id"]);
-    assert.deepEqual(
-      await run(services.reader.list()),
-      [
-        {
-          id: "memory-test-id",
-          content: "Typed memory",
-          source: "manual",
-          thread_id: null,
-          created_at: "2026-08-02T00:00:00.000Z",
-          rank: 0,
-        },
-      ],
-    );
+    assert.deepEqual(await run(services.reader.list()), [
+      {
+        id: "memory-test-id",
+        content: "Typed memory",
+        source: "manual",
+        thread_id: null,
+        created_at: "2026-08-02T00:00:00.000Z",
+        rank: 0,
+      },
+    ]);
     assert.equal((await run(services.reader.search("typed")))[0]?.id, "memory-test-id");
 
     await run(services.summary.upsert({ content: "One memory", memoryCount: 1 }));
-    assert.deepEqual(await run(services.summary.get()), {
-      content: "One memory",
-      memory_count: 1,
-      updated_at: "2026-08-02T00:00:00.000Z",
-    });
+    const summary = await run(services.summary.get());
+    assert.equal(summary?.content, "One memory");
+    assert.equal(summary?.memory_count, 1);
+    assert.equal(summary?.updated_at, "2026-08-02T00:00:00.000Z");
 
     await run(services.writer.delete("memory-test-id"));
     assert.deepEqual(await run(services.reader.list()), []);

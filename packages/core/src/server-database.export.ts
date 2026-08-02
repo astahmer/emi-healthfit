@@ -56,6 +56,13 @@ import type {
   MemorySearchResult as MemorySearchResultRecord,
   MemorySummary as MemorySummaryRecord,
 } from "./server/db/memories.ts";
+import { MemoryStoreLive } from "./server/make-memory-store.ts";
+import { MemoryReader, MemorySummaryStore, MemoryWriter } from "./server/ports/memory-store.ts";
+import type {
+  MemoryReaderShape as MemoryReaderRecord,
+  MemorySummaryStoreShape as MemorySummaryStoreRecord,
+  MemoryWriterShape as MemoryWriterRecord,
+} from "./server/ports/memory-store.ts";
 import { QueryDatabase } from "./server/db/query-database.ts";
 import type {
   DatabaseRuntime as DatabaseRuntimeRecord,
@@ -102,6 +109,10 @@ export class ServerDatabase {
   static readonly messageStore = MessageStore;
   static readonly threadStore = ThreadStore;
   static readonly storeLive = ConversationStoreLive;
+  static readonly memoryReader = MemoryReader;
+  static readonly memoryWriter = MemoryWriter;
+  static readonly memorySummaryStore = MemorySummaryStore;
+  static readonly memoryStoreLive = MemoryStoreLive;
   static readonly errors = {
     generationAlreadyActive: GenerationAlreadyActiveError,
   } as const;
@@ -154,10 +165,14 @@ export namespace ServerDatabase {
   export type DiscordLinkCodeView = DiscordLinkCodeViewRecord;
   export type MemoryDatabaseSchema = MemoryDatabaseSchemaRecord;
   export type MemoryInput = MemoryInputRecord;
+  export type MemoryReaderShape<TEnvironment = never> = MemoryReaderRecord<TEnvironment>;
   export type MemoryRow = MemoryRowRecord;
   export type MemorySearchResult = MemorySearchResultRecord;
   export type MemorySummary = MemorySummaryRecord;
+  export type MemorySummaryStoreShape<TEnvironment = never> =
+    MemorySummaryStoreRecord<TEnvironment>;
   export type MemorySummaryRow = MemorySummaryRowRecord;
+  export type MemoryWriterShape<TEnvironment = never> = MemoryWriterRecord<TEnvironment>;
   export type Message = MessageRecord;
   export type MessageRow = MessageRowRecord;
   export type MessageUsage = MessageUsageRecord;

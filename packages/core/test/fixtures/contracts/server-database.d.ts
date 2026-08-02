@@ -22,6 +22,10 @@ export declare class ServerDatabase {
   static readonly messageStore: Record<string, unknown>;
   static readonly threadStore: Record<string, unknown>;
   static readonly storeLive: Record<string, unknown>;
+  static readonly memoryReader: Record<string, unknown>;
+  static readonly memoryWriter: Record<string, unknown>;
+  static readonly memorySummaryStore: Record<string, unknown>;
+  static readonly memoryStoreLive: Record<string, unknown>;
   static readonly errors: Record<string, unknown>;
   static readonly tables: Record<string, unknown>;
 }

@@ -28,7 +28,9 @@ const insertMemories = <Environment>(
     const unique = new Map<string, MemoryInput>();
     for (const input of inputs) {
       const content = normalizeContent(input.content);
-      if (content !== "") unique.set(normalizeMemoryKey(content), { ...input, content });
+      if (content !== "" && !unique.has(normalizeMemoryKey(content))) {
+        unique.set(normalizeMemoryKey(content), { ...input, content });
+      }
     }
     const candidates = [...unique.values()];
     if (candidates.length === 0) return [];
