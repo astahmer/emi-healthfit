@@ -1,4 +1,4 @@
-# `@emi/core` R0 contract and distribution
+# `@emi/core` R0 contract, R1 protocol, and distribution
 
 `@emi/core` is intentionally one mixed-layer package. Actors, provider-neutral chat
 protocols, React integration, controlled components, server composition, and platform
@@ -98,6 +98,37 @@ existing generic app and worker. They are listed as `legacySourceEntrypoints` in
 they are not target names to preserve. R8 removes them after the generic consumers move to the
 catalog above.
 
+## R1 provider-neutral protocol
+
+`@emi/core/protocol` is now a real public subpath. Its public model is owned by core and imports
+only `effect/Schema`; it does not import React, XState, AI SDK, HealthFit, database, or platform
+modules.
+
+R1 freezes these protocol decisions:
+
+- `ChatMessage` has stable non-empty IDs, the roles `user`, `assistant`, `system`, and `tool`,
+  provider-neutral text/reasoning/file/tool-call/tool-result parts, and an ISO UTC `createdAt`;
+- attachments allow HTTP(S) or root-relative URLs and reject unsafe schemes before persisted data
+  enters the domain;
+- tool inputs, tool outputs, extension data, and error details use `Schema.Json`, never
+  `Schema.Unknown`, at the normal JSON boundary;
+- extension parts are independently schema-validated and namespaced, but are not silently added
+  to the base message-part union;
+- conversation, thread, memory, and chat-message HTTP DTOs use explicit camelCase fields and have
+  one named DTO schema plus explicit domain mappers;
+- generation events are `started`, `message-part`, `completed`, or `failed`; provider deltas stay
+  outside the protocol; and
+- `ModelProvider` consumes core messages and configuration and yields core generation events
+  without AI SDK types.
+
+Invalid DTO mapping raises `ProtocolDecodeError`; transport failures use the structured
+`TransportError` and `ErrorResponseDto` schemas. The public import and type fixtures exercise the
+real package subpath as well as the compile-time consumer declarations.
+
+The old `src/contract` and `src/chat/message-parts.ts` surfaces remain migration bridges for the
+current worker and app. They are intentionally not imported by the new protocol; R3 and R4 own
+their server-contract and provider-adapter migrations respectively.
+
 ## Distribution modes
 
 ### Source mode
@@ -117,7 +148,7 @@ Registry mode is not publish-ready in R0. Before changing `private` to `false`, 
 - a packed clean-consumer import and typecheck for the target fixtures; and
 - package README, license, version, and provenance metadata.
 
-## R0 decisions and remaining gates
+## R0/R1 decisions and remaining gates
 
 R0 freezes these choices for later packets:
 
@@ -134,8 +165,10 @@ R0 freezes these choices for later packets:
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong
   in `testing`.
 
-The unresolved R0 gates are implementation dependencies, not alternate public names: R1 must
-build protocol schemas and mappers, R2 must build the runtime facade, R3 must curate server
-contracts, R4 must isolate AI SDK, R5 must create React/components/styles, R6 must create
-extensions, and R7 must make source and registry distribution real. R0 does not begin any of
-those packets.
+The R0 public-contract gate and R1 protocol gate are closed. Remaining implementation gates are
+R2 for the runtime facade, R3 for generic API/server composition, R4 for the AI SDK adapter, R5
+for React/components/styles, R6 for extensions, and R7 for source and registry distribution.
+These are implementation dependencies, not alternate public names.
+
+R1 leaves the R2 runtime facade, R3 generic API/server migration, and R4 AI SDK adapter as the
+next implementation gates. No runtime actor or React implementation is part of this packet.
