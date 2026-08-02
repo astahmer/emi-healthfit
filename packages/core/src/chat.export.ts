@@ -22,8 +22,6 @@ import type {
 import type { GenericChatSettings as GenericChatSettingsType } from "./chat/settings.ts";
 
 export class Chat {
-  private constructor() {}
-
   static readonly schemas = {
     chatMemoryRequest: ChatRequest.ChatMemoryRequestSchema,
     chatModelConfiguration: ChatRequest.ChatModelConfigurationSchema,

@@ -82,8 +82,6 @@ export type ProtocolSchemas = typeof protocolSchemas;
 export type ProtocolEffect<Value> = Effect.Effect<Value, ProtocolDecodeError>;
 
 export class ChatProtocol {
-  private constructor() {}
-
   static readonly schemas = protocolSchemas;
 
   static fromChatMessageDto(input: unknown): ProtocolEffect<ChatMessage> {

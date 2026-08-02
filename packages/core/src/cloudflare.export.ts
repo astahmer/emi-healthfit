@@ -41,8 +41,6 @@ import {
 } from "./cloudflare/db/client.ts";
 
 export class Cloudflare {
-  private constructor() {}
-
   static readonly auth = {
     anonymousSignInPath,
     authenticateRequest,

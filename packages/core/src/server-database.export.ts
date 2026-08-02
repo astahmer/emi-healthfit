@@ -21,11 +21,19 @@ import type {
 import { ConversationRevision } from "./server/db/conversation-revision.ts";
 import type {
   AddThreadMessageInput as AddThreadMessageRecord,
-  ConversationStoreShape as ConversationStoreRecord,
+  ConversationReaderShape as ConversationReaderRecord,
+  ConversationWriterShape as ConversationWriterRecord,
   CreateThreadInput as CreateThreadRecord,
+  MessageStoreShape as MessageStoreRecord,
   SaveMessagesInput as SaveMessagesRecord,
+  ThreadStoreShape as ThreadStoreRecord,
 } from "./server/ports/conversation-store.ts";
-import { ConversationStore } from "./server/ports/conversation-store.ts";
+import {
+  ConversationReader,
+  ConversationWriter,
+  MessageStore,
+  ThreadStore,
+} from "./server/ports/conversation-store.ts";
 import { ConversationStoreLive } from "./server/make-conversation-store.ts";
 import { DiscordLinkDatabase } from "./server/db/discord-links.ts";
 import type {
@@ -89,7 +97,10 @@ export class ServerDatabase {
   static readonly memories = MemoryDatabase;
   static readonly query = QueryDatabase;
   static readonly replay = GenerationReplay;
-  static readonly store = ConversationStore;
+  static readonly conversationReader = ConversationReader;
+  static readonly conversationWriter = ConversationWriter;
+  static readonly messageStore = MessageStore;
+  static readonly threadStore = ThreadStore;
   static readonly storeLive = ConversationStoreLive;
   static readonly errors = {
     generationAlreadyActive: GenerationAlreadyActiveError,
@@ -132,7 +143,10 @@ export namespace ServerDatabase {
   export type Conversation = ConversationRecord;
   export type ConversationDatabaseSchema = ConversationDatabaseSchemaRecord;
   export type ConversationRow = ConversationRowRecord;
-  export type ConversationStoreShape<TEnvironment = never> = ConversationStoreRecord<TEnvironment>;
+  export type ConversationReaderShape<TEnvironment = never> =
+    ConversationReaderRecord<TEnvironment>;
+  export type ConversationWriterShape<TEnvironment = never> =
+    ConversationWriterRecord<TEnvironment>;
   export type CreateThreadInput = CreateThreadRecord;
   export type CreatedDiscordLinkCode = CreatedDiscordLinkCodeRecord;
   export type DiscordAccountLinkView = DiscordAccountLinkViewRecord;
@@ -155,9 +169,11 @@ export namespace ServerDatabase {
   >;
   export type DatabaseRuntime = DatabaseRuntimeRecord;
   export type SaveMessagesInput = SaveMessagesRecord;
+  export type MessageStoreShape<TEnvironment = never> = MessageStoreRecord<TEnvironment>;
   export type StoredGenerationChunk = StoredGenerationChunkRecord;
   export type SuggestionsRow = SuggestionsRowRecord;
   export type Thread = ThreadRecord;
+  export type ThreadStoreShape<TEnvironment = never> = ThreadStoreRecord<TEnvironment>;
   export type ThreadMessageRow = ThreadMessageRowRecord;
   export type ThreadRow = ThreadRowRecord;
 }

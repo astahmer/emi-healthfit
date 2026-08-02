@@ -54,5 +54,3 @@ export const useChatSelector = <Value>(selector: Selector<Value>): Value => {
 };
 
 export const useChatActions = (): ChatActions => useChatRuntime().actions;
-
-export type { ChatRuntimeOptions, ChatState, Selector };

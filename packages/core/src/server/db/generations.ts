@@ -566,8 +566,6 @@ const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* <TEn
 });
 
 export class GenerationDatabase {
-  private constructor() {}
-
   static readonly GenerationAlreadyActiveError = GenerationAlreadyActiveError;
   static readonly appendGenerationChunk = appendGenerationChunk;
   static readonly appendGenerationChunks = appendGenerationChunks;

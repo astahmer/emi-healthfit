@@ -32,8 +32,6 @@ const isTransientD1Error = (error: unknown): boolean =>
   /D1_ERROR: Network connection lost/i.test(error instanceof Error ? error.message : String(error));
 
 export class CloudflareDatabase {
-  private constructor() {}
-
   static makeD1Kysely<TSchema>(database: D1Database) {
     return new Kysely<TSchema>({ dialect: new D1Dialect({ database }) });
   }

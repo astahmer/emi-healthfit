@@ -1,6 +1,4 @@
 export class SecureCompare {
-  private constructor() {}
-
   static equals(left: string, right: string): boolean {
     const encoder = new TextEncoder();
     const leftBytes = encoder.encode(left);

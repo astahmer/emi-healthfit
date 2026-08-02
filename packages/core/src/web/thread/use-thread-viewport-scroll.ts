@@ -6,8 +6,6 @@ const PREV_USER_MARGIN_PX = 24;
 const emptyUserMessageIds: readonly string[] = [];
 
 export class ThreadViewportScroll {
-  private constructor() {}
-
   static scrollToMessage({ messageId }: { messageId: string }): void {
     document.getElementById(`message-${messageId}`)?.scrollIntoView({
       behavior: "smooth",

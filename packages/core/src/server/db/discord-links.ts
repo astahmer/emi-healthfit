@@ -221,8 +221,6 @@ const consumeDiscordLinkCode = (db: DiscordDb, options: { code: string; discordU
   });
 
 export class DiscordLinkDatabase {
-  private constructor() {}
-
   static readonly consumeLinkCode = consumeDiscordLinkCode;
   static readonly createLinkCode = createDiscordLinkCode;
   static readonly getLinkedUserId = getLinkedUserIdForDiscord;

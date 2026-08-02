@@ -353,16 +353,16 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     request: HttpServerRequest,
   ) {
     const user = yield* CurrentUser;
-    const store = ConversationStoreLive.shape({
+    const stores = ConversationStoreLive.shapes({
       db: conversationDb,
       requestContext: makeRequestContext({ userId: user.id }),
     });
     if (request.method === "POST") {
-      const id = yield* store.create();
+      const id = yield* stores.conversationWriter.create();
       return yield* HttpServerResponse.json({ id }, { status: 201 });
     }
     const search = new URL(request.url, "http://localhost").searchParams.get("search") ?? undefined;
-    const values = yield* store.list(search);
+    const values = yield* stores.conversationReader.list(search);
     return yield* HttpServerResponse.json({ conversations: values.map(conversationResponse) });
   });
 

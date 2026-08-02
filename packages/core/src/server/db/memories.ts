@@ -358,8 +358,6 @@ const searchNotes = <Environment>(
   });
 
 export class MemoryDatabase {
-  private constructor() {}
-
   static readonly deleteMemoriesByMessage = deleteMemoriesByMessage;
   static readonly deleteMemory = deleteMemory;
   static readonly deleteNote = deleteNote;

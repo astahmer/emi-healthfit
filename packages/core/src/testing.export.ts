@@ -88,8 +88,6 @@ const deterministicDependencies = () => {
 };
 
 export class ChatTesting {
-  private constructor() {}
-
   static inMemoryRepositories(): ChatRepositoriesShape {
     return inMemoryRepositories();
   }

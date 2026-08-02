@@ -17,7 +17,10 @@ export declare class ServerDatabase {
   static readonly memories: Record<string, (...arguments_: ReadonlyArray<unknown>) => unknown>;
   static readonly query: Record<string, (...arguments_: ReadonlyArray<unknown>) => unknown>;
   static readonly replay: Record<string, (...arguments_: ReadonlyArray<unknown>) => unknown>;
-  static readonly store: Record<string, unknown>;
+  static readonly conversationReader: Record<string, unknown>;
+  static readonly conversationWriter: Record<string, unknown>;
+  static readonly messageStore: Record<string, unknown>;
+  static readonly threadStore: Record<string, unknown>;
   static readonly storeLive: Record<string, unknown>;
   static readonly errors: Record<string, unknown>;
   static readonly tables: Record<string, unknown>;

@@ -878,8 +878,6 @@ const saveSuggestions = <TEnvironment>(
   });
 
 export class ConversationDatabase {
-  private constructor() {}
-
   static readonly addThreadMessage = addThreadMessage;
   static readonly cloneConversation = cloneConversation;
   static readonly createConversation = createConversation;

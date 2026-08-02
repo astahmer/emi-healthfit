@@ -52,8 +52,6 @@ const validateNamespace = (value: unknown) =>
   );
 
 export class ChatExtensions {
-  private constructor() {}
-
   static define(
     definition: ChatExtensionDefinition,
   ): Effect.Effect<ChatExtension, ChatExtensionError> {

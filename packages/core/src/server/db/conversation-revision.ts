@@ -39,7 +39,5 @@ const getRevisionDeletionIds = ({
 };
 
 export class ConversationRevision {
-  private constructor() {}
-
   static readonly getDeletionIds = getRevisionDeletionIds;
 }

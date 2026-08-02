@@ -51,7 +51,5 @@ const createGenerationReplayStream = <E, R>({
   );
 
 export class GenerationReplay {
-  private constructor() {}
-
   static readonly stream = createGenerationReplayStream;
 }

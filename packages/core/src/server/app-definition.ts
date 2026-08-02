@@ -88,8 +88,6 @@ const coreAppDefinition: AppDefinition = {
 };
 
 export class AppDefinitions {
-  private constructor() {}
-
   static readonly core = coreAppDefinition;
   static readonly composeSystemPrompt = composeSystemPrompt;
   static readonly merge = mergeAppDefinitions;

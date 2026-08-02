@@ -41,8 +41,6 @@ import type {
 } from "./discord/verify-request.ts";
 
 export class Discord {
-  private constructor() {}
-
   static readonly crypto = {
     defaultMaxTimestampSkewMs: DEFAULT_MAX_TIMESTAMP_SKEW_MS,
     ed25519PublicKeyBytes: ED25519_PUBLIC_KEY_BYTES,

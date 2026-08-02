@@ -5,6 +5,12 @@ import * as Effect from "effect/Effect";
 import { Kysely, SqliteDialect, type Compilable } from "kysely";
 import type { SqliteDatabase, SqliteStatement } from "kysely";
 import { ConversationStoreLive } from "../../src/server/make-conversation-store.ts";
+import {
+  ConversationReader,
+  ConversationWriter,
+  MessageStore,
+  ThreadStore,
+} from "../../src/server/ports/conversation-store.ts";
 import { makeRequestContext } from "../../src/server/request-context.ts";
 import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
 import type { ConversationDatabaseSchema } from "../../src/server/db/schema.ts";
@@ -148,51 +154,81 @@ const makeInMemoryDb = (): QueryDatabaseClient<ConversationDatabaseSchema, never
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect);
 
 describe("makeConversationStore", () => {
+  it("provides each granular persistence port through one Effect Layer", async () => {
+    const db = makeInMemoryDb();
+    const layer = ConversationStoreLive.layer({
+      db,
+      requestContext: makeRequestContext({ userId: "user-layer" }),
+    });
+    const services = await run(
+      Effect.gen(function* () {
+        return {
+          reader: yield* ConversationReader,
+          writer: yield* ConversationWriter,
+          messages: yield* MessageStore,
+          threads: yield* ThreadStore,
+        };
+      }).pipe(Effect.provide(layer)),
+    );
+
+    assert.equal(typeof services.reader.list, "function");
+    assert.equal(typeof services.writer.create, "function");
+    assert.equal(typeof services.messages.saveMessages, "function");
+    assert.equal(typeof services.threads.createThread, "function");
+  });
+
   it("binds userId from RequestContext into every operation and isolates ownership", async () => {
     const db = makeInMemoryDb();
-    const alice = ConversationStoreLive.shape({
+    const alice = ConversationStoreLive.shapes({
       db,
       requestContext: makeRequestContext({ userId: "user-alice" }),
     });
-    const bob = ConversationStoreLive.shape({
+    const bob = ConversationStoreLive.shapes({
       db,
       requestContext: makeRequestContext({ userId: "user-bob" }),
     });
 
-    const conversationId = await run(alice.create("Alice chat"));
+    const conversationId = await run(alice.conversationWriter.create("Alice chat"));
     assert.ok(conversationId);
 
-    assert.strictEqual((await run(alice.get(conversationId)))?.title, "Alice chat");
-    assert.strictEqual(await run(bob.get(conversationId)), null);
-    assert.deepStrictEqual(await run(bob.list()), []);
+    assert.strictEqual(
+      (await run(alice.conversationReader.get(conversationId)))?.title,
+      "Alice chat",
+    );
+    assert.strictEqual(await run(bob.conversationReader.get(conversationId)), null);
+    assert.deepStrictEqual(await run(bob.conversationReader.list()), []);
 
     const [messageId] = await run(
-      alice.saveMessages({
+      alice.messageStore.saveMessages({
         conversationId,
         parentId: null,
         messages: [{ role: "user", parts: [{ type: "text", text: "private" }] }],
       }),
     );
     assert.ok(messageId);
-    assert.strictEqual((await run(alice.getMessages(conversationId))).length, 1);
-    assert.strictEqual((await run(bob.getMessages(conversationId))).length, 0);
+    assert.strictEqual((await run(alice.messageStore.getMessages(conversationId))).length, 1);
+    assert.strictEqual((await run(bob.messageStore.getMessages(conversationId))).length, 0);
 
     const threadId = await run(
-      alice.createThread({ conversationId, anchorMessageId: messageId, title: "Alice thread" }),
+      alice.threadStore.createThread({
+        conversationId,
+        anchorMessageId: messageId,
+        title: "Alice thread",
+      }),
     );
     assert.ok(threadId);
-    assert.strictEqual((await run(alice.getThread(threadId)))?.title, "Alice thread");
-    assert.strictEqual(await run(bob.getThread(threadId)), null);
+    assert.strictEqual((await run(alice.threadStore.getThread(threadId)))?.title, "Alice thread");
+    assert.strictEqual(await run(bob.threadStore.getThread(threadId)), null);
 
     assert.strictEqual(
-      await run(bob.createThread({ conversationId, anchorMessageId: messageId })),
+      await run(bob.threadStore.createThread({ conversationId, anchorMessageId: messageId })),
       null,
     );
-    assert.strictEqual(await run(bob.addThreadMessage({ threadId, messageId })), false);
+    assert.strictEqual(await run(bob.threadStore.addThreadMessage({ threadId, messageId })), false);
 
-    await run(bob.delete(conversationId));
-    assert.ok(await run(alice.get(conversationId)));
-    await run(alice.delete(conversationId));
-    assert.strictEqual(await run(alice.get(conversationId)), null);
+    await run(bob.conversationWriter.delete(conversationId));
+    assert.ok(await run(alice.conversationReader.get(conversationId)));
+    await run(alice.conversationWriter.delete(conversationId));
+    assert.strictEqual(await run(alice.conversationReader.get(conversationId)), null);
   });
 });
