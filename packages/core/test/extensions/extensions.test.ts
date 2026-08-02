@@ -40,6 +40,32 @@ describe("ChatExtensions", () => {
     }
   });
 
+  it("keeps decoded extension parts inside the JSON protocol boundary", async () => {
+    const nonJsonExtension = await ChatExtensions.runPromise(
+      ChatExtensions.define({
+        id: "non-json",
+        namespace: "non-json.chat",
+        parts: { "non-json.chat.symbol": Schema.Symbol },
+      }),
+    );
+    const result = await Effect.runPromiseExit(
+      ChatExtensions.decodePart({
+        extension: nonJsonExtension,
+        name: "non-json.chat.symbol",
+        value: Symbol("not-json"),
+      }),
+    );
+
+    assert.equal(result._tag, "Failure");
+    if (result._tag === "Failure") {
+      const reason = result.cause.reasons[0];
+      assert.equal(reason?._tag, "Fail");
+      if (reason?._tag === "Fail") {
+        assert.equal(reason.error.kind, "invalid-definition");
+      }
+    }
+  });
+
   it("rejects extension and contribution namespace collisions", async () => {
     const first = await ChatExtensions.runPromise(definition("first", "example.chat"));
     const second = await ChatExtensions.runPromise(definition("second", "example.chat"));

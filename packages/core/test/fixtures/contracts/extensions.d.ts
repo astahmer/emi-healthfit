@@ -5,8 +5,8 @@ export interface ChatExtensionDefinition {
   readonly id: string;
   readonly namespace?: string;
   readonly parts?: Record<string, Schema.ConstraintDecoder<unknown>>;
-  readonly tools?: Record<string, unknown>;
-  readonly navigation?: ReadonlyArray<unknown>;
+  readonly tools?: Record<string, Schema.ConstraintDecoder<unknown>>;
+  readonly navigation?: ReadonlyArray<Schema.Json>;
 }
 
 export interface ChatExtension extends ChatExtensionDefinition {
@@ -25,7 +25,7 @@ export declare class ChatExtensions {
     readonly extension: ChatExtension;
     readonly name: string;
     readonly value: unknown;
-  }): Effect.Effect<unknown, ChatExtensionError>;
+  }): Effect.Effect<Schema.Json, ChatExtensionError>;
   static runPromise<Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value>;
 }
 

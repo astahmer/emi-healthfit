@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 import { Chat } from "@emi/core/chat";
 
 describe("buildAssistantParts", () => {
-  it("preserves tool results from separate tool messages", () => {
-    const parts = Chat.messages.buildAssistantParts([
+  it("preserves tool results from separate tool messages", async () => {
+    const parts = await Chat.messages.buildAssistantParts([
       {
         role: "assistant",
         content: [{ type: "tool-call", toolCallId: "call-1", toolName: "get_recovery", input: {} }],
@@ -23,24 +23,20 @@ describe("buildAssistantParts", () => {
     ]);
 
     assert.strictEqual(parts.length, 1);
-    const toolPart = parts[0] as {
-      type: string;
-      toolName: string;
-      toolCallId: string;
-      input: unknown;
-      output: { label: string; explanation: string };
-      state: string;
-    };
-    assert.strictEqual(toolPart.type, "tool-invocation");
+    const toolPart = parts[0];
+    assert.equal(toolPart?.type, "tool-invocation");
+    if (toolPart?.type !== "tool-invocation") return;
     assert.strictEqual(toolPart.toolName, "get_recovery");
     assert.strictEqual(toolPart.toolCallId, "call-1");
     assert.deepStrictEqual(toolPart.input, {});
-    assert.strictEqual(toolPart.output.label, "Good");
+    assert.equal(toolPart.state, "output-available");
+    if (toolPart.state !== "output-available") return;
+    assert.deepStrictEqual(toolPart.output, { label: "Good", explanation: "You slept well" });
     assert.strictEqual(toolPart.state, "output-available");
   });
 
-  it("keeps text and tool-call order from the assistant message", () => {
-    const parts = Chat.messages.buildAssistantParts([
+  it("keeps text and tool-call order from the assistant message", async () => {
+    const parts = await Chat.messages.buildAssistantParts([
       {
         role: "assistant",
         content: [
@@ -68,23 +64,26 @@ describe("buildAssistantParts", () => {
 
     assert.strictEqual(parts.length, 2);
     assert.deepStrictEqual(parts[0], { type: "text", text: "Here is the info:" });
-    const toolPart = parts[1] as { type: string; toolName: string; output: { total: number } };
-    assert.strictEqual(toolPart.type, "tool-invocation");
+    const toolPart = parts[1];
+    assert.equal(toolPart?.type, "tool-invocation");
+    if (toolPart?.type !== "tool-invocation") return;
     assert.strictEqual(toolPart.toolName, "get_summary");
-    assert.strictEqual(toolPart.output.total, 100);
+    assert.equal(toolPart.state, "output-available");
+    if (toolPart.state !== "output-available") return;
+    assert.deepStrictEqual(toolPart.output, { total: 100 });
   });
 
-  it("returns an empty array when there are no assistant messages", () => {
-    const parts = Chat.messages.buildAssistantParts([]);
+  it("returns an empty array when there are no assistant messages", async () => {
+    const parts = await Chat.messages.buildAssistantParts([]);
     assert.strictEqual(parts.length, 0);
   });
 
-  it("unwraps provider outputs and deduplicates repeated step messages", () => {
+  it("unwraps provider outputs and deduplicates repeated step messages", async () => {
     const assistantMessage = {
       role: "assistant",
       content: [{ type: "tool-call", toolCallId: "call-3", toolName: "get_recovery", input: {} }],
     };
-    const parts = Chat.messages.buildAssistantParts([
+    const parts = await Chat.messages.buildAssistantParts([
       assistantMessage,
       {
         role: "tool",
@@ -100,11 +99,16 @@ describe("buildAssistantParts", () => {
     ]);
 
     assert.strictEqual(parts.length, 1);
-    assert.deepStrictEqual((parts[0] as { output: unknown }).output, { score: 90 });
+    const toolPart = parts[0];
+    assert.equal(toolPart?.type, "tool-invocation");
+    if (toolPart?.type !== "tool-invocation") return;
+    assert.equal(toolPart.state, "output-available");
+    if (toolPart.state !== "output-available") return;
+    assert.deepStrictEqual(toolPart.output, { score: 90 });
   });
 
-  it("persists error-text tool outcomes as failed", () => {
-    const parts = Chat.messages.buildAssistantParts([
+  it("persists error-text tool outcomes as failed", async () => {
+    const parts = await Chat.messages.buildAssistantParts([
       {
         role: "assistant",
         content: [

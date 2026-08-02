@@ -96,6 +96,20 @@ describe("@emi/core/protocol", () => {
     assert.throws(() =>
       decode(ChatProtocol.schemas.chatMessage, { ...message, createdAt: "yesterday" }),
     );
+    assert.throws(() =>
+      decode(ChatProtocol.schemas.messageUsage, {
+        promptTokens: -1,
+        completionTokens: 1,
+        totalTokens: 0,
+      }),
+    );
+    assert.throws(() =>
+      decode(ChatProtocol.schemas.messageUsage, {
+        promptTokens: 1.5,
+        completionTokens: 1,
+        totalTokens: 0,
+      }),
+    );
   });
 
   it("keeps extension parts namespaced without using an unknown boundary", () => {
@@ -205,6 +219,26 @@ describe("@emi/core/protocol", () => {
     assert.deepEqual(
       await ChatProtocol.runPromise(ChatProtocol.decodeErrorResponseDto(errorResponse)),
       errorResponse,
+    );
+    const providerError = {
+      code: "provider-unavailable",
+      message: "The configured model is unavailable.",
+      retryable: true,
+    };
+    assert.deepEqual(
+      decode(ChatProtocol.schemas.modelProviderError, providerError),
+      providerError,
+    );
+    assert.deepEqual(
+      await ChatProtocol.runPromise(ChatProtocol.decodeModelProviderError(providerError)),
+      providerError,
+    );
+    await assert.rejects(
+      () =>
+        ChatProtocol.runPromise(
+          ChatProtocol.decodeModelProviderError({ ...providerError, retryable: "yes" }),
+        ),
+      (error: unknown) => error instanceof ProtocolDecodeError,
     );
   });
 

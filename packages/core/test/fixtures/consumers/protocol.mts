@@ -15,6 +15,7 @@ import type {
   MessageId,
   MessagePart,
   ModelProvider,
+  ModelProviderError,
   Thread,
   ThreadDto,
   ThreadId,
@@ -41,6 +42,7 @@ declare const conversation: ConversationDto;
 declare const thread: ThreadDto;
 declare const memory: MemoryDto;
 declare const errorResponse: ErrorResponseDto;
+declare const providerError: ModelProviderError;
 declare const ids: {
   attachment: AttachmentId;
   conversation: string;
@@ -64,6 +66,9 @@ const memoryPromise: Promise<Memory> = ChatProtocol.runPromise(decodedMemory);
 const errorPromise: Promise<ErrorResponseDto> = ChatProtocol.runPromise(
   ChatProtocol.decodeErrorResponseDto(errorResponse),
 );
+const providerErrorPromise: Promise<ModelProviderError> = ChatProtocol.runPromise(
+  ChatProtocol.decodeModelProviderError(providerError),
+);
 
 void ChatProtocol.schemas.attachment;
 void ChatProtocol.schemas.chatMessage;
@@ -86,3 +91,4 @@ void messagePromise;
 void threadPromise;
 void memoryPromise;
 void errorPromise;
+void providerErrorPromise;

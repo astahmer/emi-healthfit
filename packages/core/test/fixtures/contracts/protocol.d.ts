@@ -184,6 +184,7 @@ export interface ProtocolSchemas {
   readonly modelConfiguration: unknown;
   readonly modelGenerationInput: unknown;
   readonly transportError: unknown;
+  readonly modelProviderError: unknown;
 }
 
 export declare class ChatProtocol {
@@ -202,5 +203,8 @@ export declare class ChatProtocol {
   static decodeErrorResponseDto(
     input: unknown,
   ): Effect.Effect<ErrorResponseDto, ProtocolDecodeError>;
+  static decodeModelProviderError(
+    input: unknown,
+  ): Effect.Effect<ModelProviderError, ProtocolDecodeError>;
   static runPromise<Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value>;
 }

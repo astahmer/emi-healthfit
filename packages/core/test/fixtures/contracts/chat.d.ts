@@ -34,7 +34,8 @@ export declare class Chat {
     readonly resolveGenerationTerminalState: (...args: ReadonlyArray<never>) => unknown;
   };
   static readonly messages: {
-    readonly buildAssistantParts: (...args: ReadonlyArray<never>) => unknown;
+    readonly buildAssistantPartsEffect: (...args: ReadonlyArray<never>) => unknown;
+    readonly buildAssistantParts: (...args: ReadonlyArray<never>) => Promise<unknown>;
     readonly firstUserText: (...args: ReadonlyArray<never>) => unknown;
     readonly getProviderMessages: (...args: ReadonlyArray<never>) => unknown;
     readonly validateStoredUIMessages: (...args: ReadonlyArray<never>) => unknown;

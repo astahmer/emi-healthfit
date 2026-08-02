@@ -104,7 +104,7 @@ describe("multi-step chat tool loop", () => {
 
   it("executes tools, continues the model, streams final text, and produces persistable parts", async () => {
     let toolExecutions = 0;
-    let persistedParts: unknown[] = [];
+    let persistedParts: ReadonlyArray<unknown> = [];
     const result = await createChatStream({
       request: {
         messages: [{ role: "user", parts: [{ type: "text", text: "How am I?" }] }],
@@ -126,8 +126,8 @@ describe("multi-step chat tool loop", () => {
         toolExecutions += 1;
         return { score: 82 };
       },
-      onFinish: (event) => {
-        persistedParts = Chat.messages.buildAssistantParts(event.response?.messages ?? []);
+      onFinish: async (event) => {
+        persistedParts = await Chat.messages.buildAssistantParts(event.response?.messages ?? []);
       },
     });
 
