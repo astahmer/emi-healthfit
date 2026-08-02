@@ -7,7 +7,12 @@ export declare class CoreApiClientError extends Error {
   readonly message: string;
 }
 
-export interface CoreApiClient {
+export interface CoreApiClientOptions {
+  readonly baseUrl: string;
+  readonly fetch: typeof globalThis.fetch;
+}
+
+export declare class CoreApiClient {
   readonly conversations: {
     list(): Effect.Effect<ReadonlyArray<Conversation>, CoreApiClientError>;
   };
@@ -16,14 +21,6 @@ export interface CoreApiClient {
       readonly conversationId: string;
     }): Effect.Effect<ReadonlyArray<ChatMessage>, CoreApiClientError>;
   };
-}
-
-export interface CoreApiClientOptions {
-  readonly baseUrl: string;
-  readonly fetch: typeof globalThis.fetch;
-}
-
-export declare class CoreApiClient {
   private constructor();
   static create(options: CoreApiClientOptions): CoreApiClient;
   static runPromise<Value>(effect: Effect.Effect<Value, CoreApiClientError>): Promise<Value>;

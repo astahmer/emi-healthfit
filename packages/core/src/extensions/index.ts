@@ -61,6 +61,7 @@ export class ChatExtensions {
       const id = yield* validateIdentifier(definition.id, "id");
       const namespace = yield* validateNamespace(definition.namespace ?? `${id}.chat`);
       const parts = definition.parts ?? {};
+      const tools = definition.tools ?? {};
       for (const name of Object.keys(parts)) {
         const validName = yield* Schema.decodeUnknownEffect(PartName)(name).pipe(
           Effect.mapError((error) => invalidDefinition(`part ${name}: ${error.message}`)),
@@ -76,7 +77,7 @@ export class ChatExtensions {
         id,
         namespace,
         parts: Object.freeze({ ...parts }),
-        tools: Object.freeze({ ...(definition.tools ?? {}) }),
+        tools: Object.freeze({ ...tools }),
         navigation: Object.freeze([...(definition.navigation ?? [])]),
       });
     });
