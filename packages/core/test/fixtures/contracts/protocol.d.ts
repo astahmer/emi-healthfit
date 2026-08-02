@@ -14,9 +14,24 @@ export interface ToolCall {
 
 export interface ToolResult {
   readonly callId: string;
-  readonly output: unknown;
+  readonly output: JsonValue;
   readonly isError?: boolean;
 }
+
+export interface ExtensionPart {
+  readonly type: "extension";
+  readonly namespace: string;
+  readonly name: string;
+  readonly data: JsonValue;
+}
+
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | ReadonlyArray<JsonValue>
+  | { readonly [key: string]: JsonValue };
 
 export type MessagePart =
   | { readonly type: "text"; readonly text: string }
@@ -30,7 +45,52 @@ export interface ChatMessage {
   readonly role: "user" | "assistant" | "system" | "tool";
   readonly parts: ReadonlyArray<MessagePart>;
   readonly createdAt: string;
+  readonly model?: string;
+  readonly usage?: MessageUsage;
 }
+
+export type ChatMessageDto = ChatMessage;
+
+export interface MessageUsage {
+  readonly promptTokens: number | null;
+  readonly completionTokens: number | null;
+  readonly totalTokens: number | null;
+}
+
+export interface ConversationDto {
+  readonly id: string;
+  readonly title: string | null;
+  readonly status: "regular" | "archived";
+  readonly pinned: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type Conversation = ConversationDto;
+
+export interface ThreadDto {
+  readonly id: string;
+  readonly conversationId: string;
+  readonly anchorMessageId: string;
+  readonly title: string | null;
+  readonly status: "regular" | "discarded" | "merged";
+  readonly pinned: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type Thread = ThreadDto;
+
+export interface MemoryDto {
+  readonly id: string;
+  readonly content: string;
+  readonly source: string | null;
+  readonly threadId: string | null;
+  readonly createdAt: string;
+  readonly rank: number;
+}
+
+export type Memory = MemoryDto;
 
 export interface ModelConfiguration {
   readonly model: string;
@@ -48,12 +108,61 @@ export interface TransportError {
   readonly code: string;
   readonly message: string;
   readonly retryable: boolean;
+  readonly details?: JsonValue;
 }
 
+export interface ErrorResponseDto {
+  readonly error: TransportError;
+}
+
+export interface ModelGenerationInput {
+  readonly messages: ReadonlyArray<ChatMessage>;
+  readonly configuration: ModelConfiguration;
+}
+
+export interface ModelProvider {
+  readonly generate: (
+    input: ModelGenerationInput,
+  ) => AsyncIterable<GenerationEvent>;
+}
+
+export declare const AttachmentSchema: unknown;
+export declare const ToolCallSchema: unknown;
+export declare const ToolResultSchema: unknown;
+export declare const ExtensionPartSchema: unknown;
+export declare const MessagePartSchema: unknown;
+export declare const ChatMessageSchema: unknown;
+export declare const ChatMessageDtoSchema: unknown;
+export declare const ConversationDtoSchema: unknown;
+export declare const ThreadDtoSchema: unknown;
+export declare const MemoryDtoSchema: unknown;
+export declare const GenerationEventSchema: unknown;
+export declare const ErrorResponseDtoSchema: unknown;
+export declare const ModelConfigurationSchema: unknown;
+
+export declare const fromChatMessageDto: (input: unknown) => ChatMessage;
+export declare const toChatMessageDto: (input: ChatMessage) => ChatMessageDto;
+export declare const fromConversationDto: (input: unknown) => Conversation;
+export declare const toConversationDto: (input: Conversation) => ConversationDto;
+export declare const fromThreadDto: (input: unknown) => Thread;
+export declare const toThreadDto: (input: Thread) => ThreadDto;
+export declare const fromMemoryDto: (input: unknown) => Memory;
+export declare const toMemoryDto: (input: Memory) => MemoryDto;
+
 export interface ProtocolSchemas {
-  readonly chatMessage: unknown;
+  readonly attachment: unknown;
+  readonly toolCall: unknown;
+  readonly toolResult: unknown;
+  readonly extensionPart: unknown;
   readonly messagePart: unknown;
+  readonly chatMessage: unknown;
+  readonly chatMessageDto: unknown;
+  readonly conversationDto: unknown;
+  readonly threadDto: unknown;
+  readonly memoryDto: unknown;
   readonly generationEvent: unknown;
+  readonly errorResponseDto: unknown;
+  readonly modelConfiguration: unknown;
 }
 
 export declare const protocolSchemas: ProtocolSchemas;
