@@ -8,13 +8,14 @@ Mode: initial review followed by a focused implementation pass; remaining packag
 
 @emi/core has a solid architectural spine. The actor composition is real, adapter injection is respected, the generic app is now a React projection of actors, the headless/styled split exists, and the package has meaningful boundary and actor tests.
 
-The initial review found five release-blocking behavioral defects. The focused implementation pass now fixes and covers all five:
+The initial review found five release-blocking behavioral defects plus one high-severity product-boundary defect. The focused implementation pass now fixes and covers all six:
 
 1. Untrusted citation and file URLs bypassed the existing URL safety policy.
 2. Successful conversation deletion fed the request event back into the actor, causing repeated deletion attempts.
 3. Caller-provided transport body fields could overwrite protected sessionId, threadId, and temporary values.
 4. The generic Worker route persisted a user message before generation admission, so the one-active-generation race could leave durable orphan messages.
 5. Conversation, thread, and memory loads had no request identity or latest-wins rule, so stale responses could overwrite newer UI state.
+6. HealthFit-specific API contracts were exported from the generic core instead of a product flavor.
 
 The fixes are deliberately narrow and test-first: regression tests were added before the source fixes, the pre-fix route test observed two persisted user turns, and the post-fix test observes one turn plus a structured 409 for the losing request.
 
@@ -42,7 +43,8 @@ Review decisions below therefore distinguish intentional breadth from accidental
 | --- | --- | --- |
 | pnpm --dir packages/core typecheck | Pass | Strict core types currently compile. |
 | pnpm --dir packages/core lint | Pass | No production lint failure. Oxlint reports only non-blocking test-hygiene warnings. |
-| pnpm --dir packages/core test | Pass: 62 Node tests and 66 Vitest tests | Core Node and browser-facing tests pass after the regression coverage was added. |
+| pnpm --dir packages/core test | Pass: 65 Node tests and 67 Vitest tests | Core Node and browser-facing tests pass after the regression coverage was added. |
+| pnpm --dir packages/flavor-healthfit test | Pass: 39 tests | HealthFit contract composition and existing flavor tests pass. |
 | pnpm slop:check | Pass | Current AST slop rules match nothing; this does not detect behavioral slop. |
 | React Doctor JSON scan | 10 warnings | The request-body warning was fixed; remaining findings are triaged below. |
 | npm pack --dry-run --json from packages/core | Pass, 92 source files | The package contains TypeScript source, not built JavaScript or declarations. package.json remains private. |
