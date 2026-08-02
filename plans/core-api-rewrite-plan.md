@@ -818,9 +818,9 @@ they do not block progress unnecessarily.
    the caller needs immediate success/failure; expose streaming through selectors.
 2. **Runtime construction:** should `ChatProvider` auto-start the runtime? Recommended default:
    yes for the common React path, with idempotent explicit `start`/`dispose` for non-React hosts.
-3. **Effect boundary:** should `createChatServer` be Promise/Fetch-first or Effect-first?
-   Recommended default: keep Effect-native services in `/server/effect` and provide a small
-   Fetch-first adapter in `/server/fetch`; both are first-class, with no hidden layer magic.
+3. **Effect boundary (resolved):** `createChatServer` and its use cases are Effect-first. The
+   `/server/fetch` entry derives a small `Request`/`Response` adapter from those typed programs;
+   both are first-class, with no hidden layer magic.
 4. **Custom message parts:** should extensions use a global registry or namespaced discriminated
    unions? Recommended default: namespaced schemas plus an immutable registry supplied at runtime.
 5. **Protocol streaming:** should the protocol use a normalized event stream or provider-shaped
