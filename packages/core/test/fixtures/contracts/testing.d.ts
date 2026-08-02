@@ -8,7 +8,6 @@ export interface DeterministicDependencies {
 }
 
 export declare class ChatTesting {
-  private constructor();
   static inMemoryRepositories(): ChatRepositories;
   static deterministicDependencies(): DeterministicDependencies;
   static createRuntime(options: ChatRuntimeOptions): ChatRuntime;

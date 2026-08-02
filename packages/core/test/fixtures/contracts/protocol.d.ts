@@ -9,7 +9,7 @@ export interface Attachment {
 export interface ToolCall {
   readonly id: string;
   readonly name: string;
-  readonly input: Record<string, unknown>;
+  readonly input: { readonly [key: string]: JsonValue };
 }
 
 export interface ToolResult {
@@ -144,11 +144,7 @@ export interface ModelProvider {
   ) => Stream.Stream<GenerationEvent, ModelProviderError>;
 }
 
-export interface ModelProviderError {
-  readonly code: string;
-  readonly message: string;
-  readonly retryable: boolean;
-}
+export type ModelProviderError = TransportError;
 
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
@@ -188,7 +184,6 @@ export interface ProtocolSchemas {
 }
 
 export declare class ChatProtocol {
-  private constructor();
   static readonly schemas: ProtocolSchemas;
   static fromChatMessageDto(input: unknown): Effect.Effect<ChatMessage, ProtocolDecodeError>;
   static toChatMessageDto(input: ChatMessage): Effect.Effect<ChatMessageDto, ProtocolDecodeError>;

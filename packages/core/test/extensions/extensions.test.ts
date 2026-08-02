@@ -79,6 +79,31 @@ describe("ChatExtensions", () => {
     }
   });
 
+  it("rejects tool contribution collisions across independent namespaces", async () => {
+    const first = await ChatExtensions.runPromise(
+      ChatExtensions.define({
+        id: "first-tools",
+        namespace: "first.chat",
+        tools: { lookup: Schema.Struct({ query: Schema.String }) },
+      }),
+    );
+    const second = await ChatExtensions.runPromise(
+      ChatExtensions.define({
+        id: "second-tools",
+        namespace: "second.chat",
+        tools: { lookup: Schema.Struct({ query: Schema.String }) },
+      }),
+    );
+    const collision = await Effect.runPromiseExit(ChatExtensions.compose([first, second]));
+
+    assert.equal(collision._tag, "Failure");
+    if (collision._tag === "Failure") {
+      const reason = collision.cause.reasons[0];
+      assert.equal(reason?._tag, "Fail");
+      if (reason?._tag === "Fail") assert.equal(reason.error.kind, "collision");
+    }
+  });
+
   it("orders independent extensions deterministically", async () => {
     const zulu = await ChatExtensions.runPromise(definition("zulu", "zulu.chat"));
     const alpha = await ChatExtensions.runPromise(definition("alpha", "alpha.chat"));

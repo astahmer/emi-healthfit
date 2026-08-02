@@ -21,7 +21,6 @@ export declare class CoreApiClient {
       readonly conversationId: string;
     }): Effect.Effect<ReadonlyArray<ChatMessage>, CoreApiClientError>;
   };
-  private constructor();
   static create(options: CoreApiClientOptions): CoreApiClient;
   static runPromise<Value>(effect: Effect.Effect<Value, CoreApiClientError>): Promise<Value>;
 }

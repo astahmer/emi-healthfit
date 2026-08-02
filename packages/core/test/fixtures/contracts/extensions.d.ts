@@ -4,8 +4,8 @@ import type * as Schema from "effect/Schema";
 export interface ChatExtensionDefinition {
   readonly id: string;
   readonly namespace?: string;
-  readonly parts?: Record<string, Schema.ConstraintDecoder<unknown>>;
-  readonly tools?: Record<string, Schema.ConstraintDecoder<unknown>>;
+  readonly parts?: Readonly<Record<string, Schema.ConstraintDecoder<unknown>>>;
+  readonly tools?: Readonly<Record<string, Schema.ConstraintDecoder<unknown>>>;
   readonly navigation?: ReadonlyArray<Schema.Json>;
 }
 
@@ -14,7 +14,6 @@ export interface ChatExtension extends ChatExtensionDefinition {
 }
 
 export declare class ChatExtensions {
-  private constructor();
   static define(
     definition: ChatExtensionDefinition,
   ): Effect.Effect<ChatExtension, ChatExtensionError>;

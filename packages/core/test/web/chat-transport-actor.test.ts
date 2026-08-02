@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
@@ -80,6 +82,17 @@ const lastStreamMessage = ({ events }: { events: ChatSessionEvent[] }): ChatMess
 };
 
 describe("chatTransportActor", () => {
+  it("consumes browser response bodies through the Effect Stream boundary", async () => {
+    const source = await readFile(
+      join(process.cwd(), "src/web/chat-runtime/chat-transport-actor.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("Stream.fromReadableStream");
+    expect(source).toContain("releaseLockOnEnd: true");
+    expect(source).not.toContain("for await");
+  });
+
   it("streams through the default transport and identifies the returned conversation", async () => {
     const { input, sessionEvents } = createInput({
       fetch: async () =>

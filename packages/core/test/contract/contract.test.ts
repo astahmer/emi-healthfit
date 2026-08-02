@@ -65,6 +65,30 @@ describe("@emi/core/contract", () => {
     );
   });
 
+  it("rejects invalid token counts at the HTTP contract boundary", () => {
+    const message = {
+      id: "m1",
+      conversationId: "c1",
+      parentId: null,
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "reply" }],
+      createdAt: "2026-07-21T00:00:00.000Z",
+    };
+
+    assert.throws(() =>
+      Schema.decodeUnknownSync(Message)({
+        ...message,
+        usage: { promptTokens: -1, completionTokens: 1, totalTokens: 0 },
+      }),
+    );
+    assert.throws(() =>
+      Schema.decodeUnknownSync(Message)({
+        ...message,
+        usage: { promptTokens: 1.5, completionTokens: 1, totalTokens: 0 },
+      }),
+    );
+  });
+
   it("uses provider-neutral model configuration names at the contract boundary", async () => {
     const contract = await import("../../src/contract.export.ts");
     assert.equal("ModelClientConfiguration" in contract, true);
