@@ -17,9 +17,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
-    "effect": "catalog:"
-  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
@@ -29,6 +26,9 @@
     "format:fix": "oxfmt",
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt"
+  },
+  "dependencies": {
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
