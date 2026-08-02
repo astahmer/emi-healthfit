@@ -169,11 +169,14 @@ export interface ProtocolSchemas {
 }
 
 export declare class ChatProtocol {
+  private constructor();
   static readonly schemas: ProtocolSchemas;
   static fromChatMessageDto(input: unknown): Effect.Effect<ChatMessage, ProtocolDecodeError>;
   static toChatMessageDto(input: ChatMessage): Effect.Effect<ChatMessageDto, ProtocolDecodeError>;
   static fromConversationDto(input: unknown): Effect.Effect<Conversation, ProtocolDecodeError>;
-  static toConversationDto(input: Conversation): Effect.Effect<ConversationDto, ProtocolDecodeError>;
+  static toConversationDto(
+    input: Conversation,
+  ): Effect.Effect<ConversationDto, ProtocolDecodeError>;
   static fromThreadDto(input: unknown): Effect.Effect<Thread, ProtocolDecodeError>;
   static toThreadDto(input: Thread): Effect.Effect<ThreadDto, ProtocolDecodeError>;
   static fromMemoryDto(input: unknown): Effect.Effect<Memory, ProtocolDecodeError>;

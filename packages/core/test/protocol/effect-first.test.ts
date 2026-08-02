@@ -14,9 +14,14 @@ const conversationDto = {
 
 describe("@emi/core/protocol Effect-first surface", () => {
   it("groups protocol schemas and mappers under one domain class", async () => {
+    const publicProtocol = await import("@emi/core/protocol");
+
     assert.equal(typeof ChatProtocol, "function");
     assert.equal(typeof ChatProtocol.schemas.conversation, "object");
     assert.equal(typeof ChatProtocol.fromConversationDto, "function");
+    assert.equal("ChatProtocol" in publicProtocol, true);
+    assert.equal("fromConversationDto" in publicProtocol, false);
+    assert.equal("protocolSchemas" in publicProtocol, false);
 
     const decoded: Effect.Effect<Conversation, ProtocolDecodeError> =
       ChatProtocol.fromConversationDto(conversationDto);

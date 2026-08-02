@@ -57,6 +57,10 @@ const decodedConversation: Effect.Effect<Conversation, Error> =
 const conversationPromise: Promise<Conversation> = ChatProtocol.runPromise(decodedConversation);
 const decodedMessage: Effect.Effect<ChatMessage, Error> = ChatProtocol.fromChatMessageDto(message);
 const messagePromise: Promise<ChatMessage> = ChatProtocol.runPromise(decodedMessage);
+const decodedThread: Effect.Effect<Thread, Error> = ChatProtocol.fromThreadDto(thread);
+const threadPromise: Promise<Thread> = ChatProtocol.runPromise(decodedThread);
+const decodedMemory: Effect.Effect<Memory, Error> = ChatProtocol.fromMemoryDto(memory);
+const memoryPromise: Promise<Memory> = ChatProtocol.runPromise(decodedMemory);
 const errorPromise: Promise<ErrorResponseDto> = ChatProtocol.runPromise(
   ChatProtocol.decodeErrorResponseDto(errorResponse),
 );
@@ -79,4 +83,6 @@ void thread;
 void conversation;
 void conversationPromise;
 void messagePromise;
+void threadPromise;
+void memoryPromise;
 void errorPromise;

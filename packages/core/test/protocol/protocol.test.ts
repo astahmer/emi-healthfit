@@ -3,7 +3,6 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { Effect } from "effect";
 import * as Schema from "effect/Schema";
 import { ChatProtocol, ProtocolDecodeError } from "../../src/protocol/index.ts";
 
