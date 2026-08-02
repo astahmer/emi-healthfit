@@ -10,9 +10,13 @@ import {
   RefreshCwIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { Bubble, BubbleContent } from "../styled/ui/bubble.tsx";
-import { Button } from "../styled/ui/button.tsx";
-import { Message, MessageContent, MessageFooter } from "../styled/ui/message.tsx";
+import { Bubble, BubbleContent } from "../../components/styled/internal/ui/bubble.tsx";
+import { Button } from "../../components/styled/internal/ui/button.tsx";
+import {
+  Message,
+  MessageContent,
+  MessageFooter,
+} from "../../components/styled/internal/ui/message.tsx";
 import { cn } from "../cn.ts";
 import { MessagePart } from "./message-part.tsx";
 import type { MessagePartValue } from "./tool-part.tsx";

@@ -320,11 +320,7 @@ export class AiSdkModelProvider extends Context.Service<
   }
 }
 
-export {
-  OpenAiChat,
-  OpenAiChatError,
-  OpenAiCompatibleConfigurationSchema,
-};
+export { OpenAiChat, OpenAiChatError, OpenAiCompatibleConfigurationSchema };
 export type {
   ChatStreamOptions,
   ChatStreamPart,

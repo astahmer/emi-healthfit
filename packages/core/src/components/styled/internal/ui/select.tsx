@@ -6,7 +6,9 @@ import { Select as SelectPrimitive } from "radix-ui";
 
 import { cn } from "./utils.ts";
 
-export const Select = ({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) => (
+type SelectRootProps = React.ComponentProps<typeof SelectPrimitive.Root>;
+
+export const Select = ({ ...props }: SelectRootProps) => (
   <SelectPrimitive.Root data-slot="select" {...props} />
 );
 

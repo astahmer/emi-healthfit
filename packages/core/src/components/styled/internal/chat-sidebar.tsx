@@ -11,15 +11,15 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { Conversation, Memory, Thread } from "../../protocol/resources.ts";
-import type { ChatSettingsState } from "../../runtime/types.ts";
+import type { Conversation, Memory, Thread } from "../../../protocol/resources.ts";
+import type { ChatSettingsState } from "../../../runtime/types.ts";
 import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.tsx";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./ui/sheet.tsx";
 import { Textarea } from "./ui/textarea.tsx";
 import { cn } from "./ui/utils.ts";
-import { useIsMobile } from "./ui/use-mobile.ts";
+import { useIsMobile } from "../../../web/use-mobile.ts";
 
 const SidebarSurface = ({ children }: { children: ReactNode }) => (
   <div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">

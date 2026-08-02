@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "./utils.ts";
 
-const bubbleVariants = cva(
+const bubbleVariantClasses = cva(
   "relative flex w-fit max-w-[85%] min-w-0 flex-col gap-1 data-[align=end]:self-end data-[variant=ghost]:max-w-full",
   {
     variants: {
@@ -24,12 +24,12 @@ export const Bubble = ({
   className,
   ...props
 }: React.ComponentProps<"div"> &
-  VariantProps<typeof bubbleVariants> & { align?: "start" | "end" }) => (
+  VariantProps<typeof bubbleVariantClasses> & { align?: "start" | "end" }) => (
   <div
     data-slot="bubble"
     data-variant={variant}
     data-align={align}
-    className={cn(bubbleVariants({ variant }), className)}
+    className={cn(bubbleVariantClasses({ variant }), className)}
     {...props}
   />
 );

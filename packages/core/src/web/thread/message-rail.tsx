@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { CornerLeftUpIcon, ListIcon } from "lucide-react";
-import { Button } from "../styled/ui/button.tsx";
+import { Button } from "../../components/styled/internal/ui/button.tsx";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "../styled/ui/sheet.tsx";
+} from "../../components/styled/internal/ui/sheet.tsx";
 import { cn } from "../cn.ts";
 import { ChatThreadScroll } from "./chat-thread-scroll.ts";
 

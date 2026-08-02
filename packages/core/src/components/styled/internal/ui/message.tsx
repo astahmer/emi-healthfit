@@ -2,11 +2,13 @@ import * as React from "react";
 
 import { cn } from "./utils.ts";
 
+type MessageSurfaceProps = React.ComponentProps<"div">;
+
 export const Message = ({
   className,
   align = "start",
   ...props
-}: React.ComponentProps<"div"> & { align?: "start" | "end" }) => (
+}: MessageSurfaceProps & { align?: "start" | "end" }) => (
   <div
     data-slot="message"
     data-align={align}

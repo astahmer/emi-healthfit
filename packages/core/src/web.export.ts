@@ -45,7 +45,7 @@ import type {
   ThreadMessageProps,
   ThreadMessageValue,
 } from "./web/thread/thread-message.tsx";
-import { useIsMobile } from "./web/styled/ui/use-mobile.ts";
+import { useIsMobile } from "./web/use-mobile.ts";
 import { ChatThreadScroll } from "./web/thread/chat-thread-scroll.ts";
 import { MessageRail, formatMessageRailTime } from "./web/thread/message-rail.tsx";
 import type { MessageRailItem } from "./web/thread/message-rail.tsx";

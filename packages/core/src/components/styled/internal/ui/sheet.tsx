@@ -6,7 +6,9 @@ import { Dialog as SheetPrimitive } from "radix-ui";
 
 import { cn } from "./utils.ts";
 
-export const Sheet = ({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) => (
+type SheetRootProps = React.ComponentProps<typeof SheetPrimitive.Root>;
+
+export const Sheet = ({ ...props }: SheetRootProps) => (
   <SheetPrimitive.Root data-slot="sheet" {...props} />
 );
 

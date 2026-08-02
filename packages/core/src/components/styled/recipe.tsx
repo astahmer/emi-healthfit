@@ -7,14 +7,14 @@ import {
   ChatHeader,
   FollowUpQueue,
   MessageViewport,
-} from "../../web/styled/chat-content.tsx";
+} from "./internal/chat-content.tsx";
 import {
   ChatSidebar,
   ConversationList,
   MemoryPanel,
   SettingsPanel,
-} from "../../web/styled/chat-sidebar.tsx";
-import { Button } from "../../web/styled/ui/button.tsx";
+} from "./internal/chat-sidebar.tsx";
+import { Button } from "./internal/ui/button.tsx";
 import { SuggestionChips } from "../../web/thread/suggestion-chips.tsx";
 
 const maximumAttachments = 10;

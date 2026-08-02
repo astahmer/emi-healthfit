@@ -2,7 +2,9 @@ import * as React from "react";
 
 import { cn } from "./utils.ts";
 
-export const Input = ({ className, type, ...props }: React.ComponentProps<"input">) => (
+type InputProps = React.ComponentProps<"input">;
+
+export const Input = ({ className, type, ...props }: InputProps) => (
   <input
     type={type}
     data-slot="input"
