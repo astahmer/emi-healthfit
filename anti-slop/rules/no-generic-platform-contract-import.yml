@@ -1,0 +1,19 @@
+id: no-generic-platform-contract-import
+language: TypeScript
+files:
+  - packages/core/src/protocol/**/*.ts
+  - packages/core/src/protocol/**/*.tsx
+  - packages/core/src/server/ports/**/*.ts
+  - packages/core/src/server/ports/**/*.tsx
+  - packages/core/src/server/use-cases/**/*.ts
+  - packages/core/src/server/use-cases/**/*.tsx
+  - packages/core/src/server.export.ts
+  - packages/core/src/server-effect.export.ts
+  - packages/core/src/server-fetch.export.ts
+message: Generic contracts cannot import raw database, platform, or AI SDK types.
+severity: error
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: "drizzle-orm|kysely|kysely-d1|@cloudflare/workers-types|^ai$|@ai-sdk/"

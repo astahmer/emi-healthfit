@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { QueryDatabaseClient } from "@emi/core/server";
+import type { ServerDatabase } from "@emi/core/server/database";
 import type { HealthfitDatabaseSchema } from "../../db/schema.ts";
 import {
   decryptHevyApiKey,
@@ -12,7 +12,7 @@ import {
   attachProviderIdToSession,
   deleteHevyConnection,
   deleteHevyWorkoutByProviderId,
-  findLegacySessionForReconciliation,
+  findUnlinkedSessionForReconciliation,
   getHevyConnection,
   getHevySyncState,
   markHevySyncFailure,
@@ -25,7 +25,7 @@ import {
 } from "./hevy-store.ts";
 import { mapHevyWorkoutToRows } from "./map-workout.ts";
 
-type HevyDb = QueryDatabaseClient<HealthfitDatabaseSchema>;
+type HevyDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
 export const HEVY_FRESHNESS_MS = 15 * 60 * 1000;
 const SYNC_LEASE_MS = 2 * 60 * 1000;
@@ -47,7 +47,7 @@ export type HevySyncSummary = {
   imported: number;
   updated: number;
   deleted: number;
-  ambiguousLegacy: number;
+  ambiguousUnlinked: number;
   startedAt: string;
   completedAt: string;
   lastErrorCode: string | null;
@@ -105,9 +105,9 @@ const upsertMappedWorkout = Effect.fn("hevy.sync.upsertMapped")(function* ({
   workout: Parameters<typeof mapHevyWorkoutToRows>[0];
 }) {
   const mapped = mapHevyWorkoutToRows(workout);
-  if (mapped === null) return { updated: false, ambiguousLegacy: 0 };
+  if (mapped === null) return { updated: false, ambiguousUnlinked: 0 };
 
-  const legacy = yield* findLegacySessionForReconciliation({
+  const unlinked = yield* findUnlinkedSessionForReconciliation({
     db,
     userId,
     title: mapped.session.title,
@@ -116,31 +116,31 @@ const upsertMappedWorkout = Effect.fn("hevy.sync.upsertMapped")(function* ({
 
   const providerWorkoutId = mapped.session.provider_workout_id;
   if (
-    legacy.kind === "match" &&
+    unlinked.kind === "match" &&
     providerWorkoutId !== null &&
-    legacy.session.session_id !== mapped.session.session_id
+    unlinked.session.session_id !== mapped.session.session_id
   ) {
     yield* attachProviderIdToSession({
       db,
       userId,
-      sessionId: legacy.session.session_id,
+      sessionId: unlinked.session.session_id,
       providerWorkoutId,
       sourceUpdatedAt: mapped.session.source_updated_at,
     });
     const sets = mapped.sets.map((set) => ({
       ...set,
-      session_id: legacy.session.session_id,
+      session_id: unlinked.session.session_id,
     }));
     yield* replaceHevyWorkoutRows({
       db,
       userId,
       session: {
         ...mapped.session,
-        session_id: legacy.session.session_id,
+        session_id: unlinked.session.session_id,
       },
       sets,
     });
-    return { updated: true, ambiguousLegacy: 0 };
+    return { updated: true, ambiguousUnlinked: 0 };
   }
 
   yield* replaceHevyWorkoutRows({
@@ -151,7 +151,8 @@ const upsertMappedWorkout = Effect.fn("hevy.sync.upsertMapped")(function* ({
   });
   return {
     updated: true,
-    ambiguousLegacy: legacy.kind === "ambiguous_or_none" && legacy.count > 1 ? legacy.count : 0,
+    ambiguousUnlinked:
+      unlinked.kind === "ambiguous_or_none" && unlinked.count > 1 ? unlinked.count : 0,
   };
 });
 
@@ -167,7 +168,7 @@ const runInitialSync = Effect.fn("hevy.sync.initial")(function* ({
   let page = 1;
   let pageCount = 1;
   let imported = 0;
-  let ambiguousLegacy = 0;
+  let ambiguousUnlinked = 0;
   let newestUpdatedAt: string | null = null;
 
   while (page <= pageCount) {
@@ -180,31 +181,31 @@ const runInitialSync = Effect.fn("hevy.sync.initial")(function* ({
     for (const workout of workouts) {
       const mapped = mapHevyWorkoutToRows(workout);
       if (mapped === null) continue;
-      const legacy = yield* findLegacySessionForReconciliation({
+      const unlinked = yield* findUnlinkedSessionForReconciliation({
         db,
         userId,
         title: mapped.session.title,
         startTime: mapped.session.start_time,
       });
       const providerWorkoutId = mapped.session.provider_workout_id;
-      if (legacy.kind === "match" && providerWorkoutId !== null) {
+      if (unlinked.kind === "match" && providerWorkoutId !== null) {
         yield* attachProviderIdToSession({
           db,
           userId,
-          sessionId: legacy.session.session_id,
+          sessionId: unlinked.session.session_id,
           providerWorkoutId,
           sourceUpdatedAt: mapped.session.source_updated_at,
         });
         sessions.push({
           ...mapped.session,
-          session_id: legacy.session.session_id,
+          session_id: unlinked.session.session_id,
         });
         for (const set of mapped.sets) {
-          sets.push({ ...set, session_id: legacy.session.session_id });
+          sets.push({ ...set, session_id: unlinked.session.session_id });
         }
       } else {
-        if (legacy.kind === "ambiguous_or_none" && legacy.count > 1) {
-          ambiguousLegacy += legacy.count;
+        if (unlinked.kind === "ambiguous_or_none" && unlinked.count > 1) {
+          ambiguousUnlinked += unlinked.count;
         }
         sessions.push(mapped.session);
         sets.push(...mapped.sets);
@@ -223,7 +224,7 @@ const runInitialSync = Effect.fn("hevy.sync.initial")(function* ({
     page += 1;
   }
 
-  return { imported, ambiguousLegacy, newestUpdatedAt };
+  return { imported, ambiguousUnlinked, newestUpdatedAt };
 });
 
 const runIncrementalSync = Effect.fn("hevy.sync.incremental")(function* ({
@@ -241,7 +242,7 @@ const runIncrementalSync = Effect.fn("hevy.sync.incremental")(function* ({
   let pageCount = 1;
   let updated = 0;
   let deleted = 0;
-  let ambiguousLegacy = 0;
+  let ambiguousUnlinked = 0;
   let newestEventAt = watermark;
   const since = watermark === null ? undefined : subtractOverlap(watermark);
   const seen = new Set<string>();
@@ -285,7 +286,7 @@ const runIncrementalSync = Effect.fn("hevy.sync.incremental")(function* ({
       const detail = yield* client.getWorkout({ workoutId });
       const result = yield* upsertMappedWorkout({ db, userId, workout: detail });
       if (result.updated) updated += 1;
-      ambiguousLegacy += result.ambiguousLegacy;
+      ambiguousUnlinked += result.ambiguousUnlinked;
       const updatedAt = detail.updated_at ?? detail.created_at;
       if (
         updatedAt !== undefined &&
@@ -298,7 +299,7 @@ const runIncrementalSync = Effect.fn("hevy.sync.incremental")(function* ({
     page += 1;
   }
 
-  return { updated, deleted, ambiguousLegacy, newestEventAt };
+  return { updated, deleted, ambiguousUnlinked, newestEventAt };
 });
 
 export const connectHevy = Effect.fn("hevy.connect")(function* ({
@@ -332,7 +333,7 @@ export const connectHevy = Effect.fn("hevy.connect")(function* ({
       imported: 0,
       updated: 0,
       deleted: 0,
-      ambiguousLegacy: 0,
+      ambiguousUnlinked: 0,
       startedAt,
       completedAt: new Date().toISOString(),
       lastErrorCode: null,
@@ -359,7 +360,7 @@ export const connectHevy = Effect.fn("hevy.connect")(function* ({
     imported: initial.imported,
     updated: 0,
     deleted: 0,
-    ambiguousLegacy: initial.ambiguousLegacy,
+    ambiguousUnlinked: initial.ambiguousUnlinked,
     startedAt,
     completedAt: new Date().toISOString(),
     lastErrorCode: null,
@@ -389,7 +390,7 @@ export const syncHevy = Effect.fn("hevy.sync")(function* ({
         imported: 0,
         updated: 0,
         deleted: 0,
-        ambiguousLegacy: 0,
+        ambiguousUnlinked: 0,
         startedAt,
         completedAt: new Date().toISOString(),
         lastErrorCode: state.last_error_code,
@@ -404,7 +405,7 @@ export const syncHevy = Effect.fn("hevy.sync")(function* ({
       imported: 0,
       updated: 0,
       deleted: 0,
-      ambiguousLegacy: 0,
+      ambiguousUnlinked: 0,
       startedAt,
       completedAt: new Date().toISOString(),
       lastErrorCode: state?.last_error_code ?? null,
@@ -431,7 +432,7 @@ export const syncHevy = Effect.fn("hevy.sync")(function* ({
         imported: initial.imported,
         updated: 0,
         deleted: 0,
-        ambiguousLegacy: initial.ambiguousLegacy,
+        ambiguousUnlinked: initial.ambiguousUnlinked,
         startedAt,
         completedAt: new Date().toISOString(),
         lastErrorCode: null,
@@ -455,7 +456,7 @@ export const syncHevy = Effect.fn("hevy.sync")(function* ({
       imported: 0,
       updated: incremental.updated,
       deleted: incremental.deleted,
-      ambiguousLegacy: incremental.ambiguousLegacy,
+      ambiguousUnlinked: incremental.ambiguousUnlinked,
       startedAt,
       completedAt: new Date().toISOString(),
       lastErrorCode: null,

@@ -1,3 +1,5 @@
 "use client";
 
-export { WorkoutsPanel as default } from "@emi/flavor-healthfit/web";
+import { WorkoutsPanel } from "@emi/flavor-healthfit/web";
+
+export default WorkoutsPanel;

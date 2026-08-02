@@ -29,7 +29,6 @@ A personal gym assistant: Apple Health + Hevy data on Cloudflare, with a chat UI
 | `apps/api` | Cloudflare Worker: auth, chat, ingest, fitness APIs, Hevy sync, tools |
 | `apps/chat` | Vite SPA: chat shell, data pages, settings; built assets served by the Worker |
 | `packages/core` | Reusable target package via curated protocol, runtime, React, component, server, adapter, extension, testing, and advanced subpaths |
-| `packages/core-migration` | Private workspace boundary for extraction-era application helpers being retired |
 | `packages/flavor-healthfit` | Fitness schemas, tools, prompt, analytics, contracts, and UI contributions |
 | `packages/create-chat-app` | Scaffolder for thin composition roots |
 | `plans/` | Active product plans (not shipped docs) |
@@ -47,17 +46,31 @@ product flavor are.
 Consumers choose the smallest supported target subpath for their runtime:
 
 - `@emi/core/protocol` — provider-neutral messages, parts, schemas, and mappers.
+- `@emi/core/chat` and `/contract` — explicitly named generic chat and HTTP domain owners for
+  applications that need the broader server/client contract; these are not required by the
+  common React path.
 - `@emi/core/runtime` and `@emi/core/react` — actor-backed state facade and React view binding.
 - `@emi/core/components` and `@emi/core/components/styled` — headless primitives and recipes.
+- `@emi/core/web` — generic browser views, contribution context, and thread presentation without
+  raw actor access.
 - `@emi/core/server`, `/server/effect`, and `/server/fetch` — generic Effect-first server composition.
-- `@emi/core/adapters/ai-sdk` and `/adapters/cloudflare` — explicit provider/platform bindings.
+- `@emi/core/server/database` — explicit advanced persistence and replay implementations.
+- `@emi/core/adapters/ai-sdk`, `/adapters/cloudflare`, and `/cloudflare` — explicit
+  provider/platform bindings; the latter includes Cloudflare route and auth composition.
+- `@emi/core/discord` — explicit Discord transport contracts.
 - `@emi/core/extensions` and `/testing` — namespaced product extensions and deterministic test helpers.
 - `@emi/core/advanced/xstate` — deliberate advanced actor access.
 - `@emi/flavor-healthfit/contract` — the HealthFit product composition, extending `CoreApi` with fitness and Hevy groups.
 
-The private `@emi/core-migration` package is not a generic-core API. It temporarily hosts the
-historical contract, worker, Discord, and styled-web helpers used by existing product workers
-while those application-specific surfaces are retired.
+The flavor root exports one `HealthFit` domain owner with scoped `app`, `chat`, `data`, `ingest`,
+`storage`, `hevy`, and `tools` members. Product consumers discover HealthFit operations through
+that owner instead of importing a flat collection of unrelated functions and tables.
+
+Core follows the same rule: `Chat`, `CoreApi`, `Discord`, `Cloudflare`, `CloudflareDatabase`,
+and `ServerDatabase` are named domain owners with scoped members. Generic chat message rendering
+belongs in core; the HealthFit app supplies only its memory, model, settings, and GenUI composition
+around that view. Individually exported React view primitives remain an intentional exception when
+each component is independently consumable; they are not a miscellaneous utility barrel.
 
 The package supports two consumption modes. Dependency mode imports these subpaths from a
 workspace or registry package and supplies fetch, storage, browser, database, and execution

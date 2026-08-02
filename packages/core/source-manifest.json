@@ -8,72 +8,97 @@
   "entrypoints": [
     {
       "name": ".",
-      "source": "./src/index.ts",
+      "source": "./src/core.export.ts",
       "dependencyTier": "facade"
     },
     {
       "name": "./adapters/ai-sdk",
-      "source": "./src/adapters/ai-sdk/index.ts",
+      "source": "./src/adapters/ai-sdk.export.ts",
       "dependencyTier": "ai-sdk-adapter"
     },
     {
       "name": "./adapters/cloudflare",
-      "source": "./src/adapters/cloudflare/index.ts",
+      "source": "./src/adapters/cloudflare.export.ts",
       "dependencyTier": "cloudflare-adapter"
     },
     {
       "name": "./advanced/xstate",
-      "source": "./src/advanced/xstate/index.ts",
+      "source": "./src/advanced-xstate.export.ts",
       "dependencyTier": "advanced-xstate"
     },
     {
       "name": "./api",
-      "source": "./src/api/index.ts",
+      "source": "./src/api.export.ts",
       "dependencyTier": "api"
     },
     {
+      "name": "./chat",
+      "source": "./src/chat.export.ts",
+      "dependencyTier": "chat"
+    },
+    {
+      "name": "./cloudflare",
+      "source": "./src/cloudflare.export.ts",
+      "dependencyTier": "cloudflare"
+    },
+    {
       "name": "./components",
-      "source": "./src/components/index.ts",
+      "source": "./src/components.export.ts",
       "dependencyTier": "components"
     },
     {
       "name": "./components/styled",
-      "source": "./src/components/styled/index.ts",
+      "source": "./src/components-styled.export.ts",
       "dependencyTier": "styled-components"
     },
     {
+      "name": "./contract",
+      "source": "./src/contract.export.ts",
+      "dependencyTier": "contract"
+    },
+    {
+      "name": "./discord",
+      "source": "./src/discord.export.ts",
+      "dependencyTier": "discord"
+    },
+    {
       "name": "./extensions",
-      "source": "./src/extensions/index.ts",
+      "source": "./src/extensions.export.ts",
       "dependencyTier": "extensions"
     },
     {
       "name": "./protocol",
-      "source": "./src/protocol/index.ts",
+      "source": "./src/protocol.export.ts",
       "dependencyTier": "protocol"
     },
     {
       "name": "./react",
-      "source": "./src/react/index.ts",
+      "source": "./src/react.export.ts",
       "dependencyTier": "react"
     },
     {
       "name": "./runtime",
-      "source": "./src/runtime/index.ts",
+      "source": "./src/runtime.export.ts",
       "dependencyTier": "runtime"
     },
     {
       "name": "./server",
-      "source": "./src/server/index.ts",
+      "source": "./src/server.export.ts",
       "dependencyTier": "server"
     },
     {
+      "name": "./server/database",
+      "source": "./src/server-database.export.ts",
+      "dependencyTier": "server-database"
+    },
+    {
       "name": "./server/effect",
-      "source": "./src/server/effect/index.ts",
+      "source": "./src/server-effect.export.ts",
       "dependencyTier": "server-effect"
     },
     {
       "name": "./server/fetch",
-      "source": "./src/server/fetch/index.ts",
+      "source": "./src/server-fetch.export.ts",
       "dependencyTier": "server-fetch"
     },
     {
@@ -83,17 +108,22 @@
     },
     {
       "name": "./testing",
-      "source": "./src/testing/index.ts",
+      "source": "./src/testing.export.ts",
       "dependencyTier": "testing"
+    },
+    {
+      "name": "./web",
+      "source": "./src/web.export.ts",
+      "dependencyTier": "web"
     }
   ],
   "sourceFiles": [
-    "src/adapters/ai-sdk/index.ts",
-    "src/adapters/cloudflare/index.ts",
-    "src/advanced/xstate/index.ts",
-    "src/api/index.ts",
+    "src/adapters/ai-sdk.export.ts",
+    "src/adapters/cloudflare.export.ts",
+    "src/advanced-xstate.export.ts",
+    "src/api.export.ts",
+    "src/chat.export.ts",
     "src/chat/generation-terminal-state.ts",
-    "src/chat/index.ts",
     "src/chat/message-parts.ts",
     "src/chat/openai.ts",
     "src/chat/operation-budget.ts",
@@ -103,46 +133,50 @@
     "src/chat/stream-response.ts",
     "src/chat/tool-circuit-breaker.ts",
     "src/chat/ui-messages.ts",
+    "src/cloudflare.export.ts",
     "src/cloudflare/auth/anonymous-session.ts",
-    "src/cloudflare/auth/index.ts",
     "src/cloudflare/auth/make-auth.ts",
     "src/cloudflare/auth/request-auth.ts",
     "src/cloudflare/chat-routes.ts",
     "src/cloudflare/db/client.ts",
-    "src/cloudflare/index.ts",
-    "src/components/index.ts",
+    "src/components-styled.export.ts",
+    "src/components.export.ts",
     "src/components/primitives.tsx",
-    "src/components/styled/index.ts",
     "src/components/styled/recipe.tsx",
+    "src/contract.export.ts",
     "src/contract/common.ts",
     "src/contract/conversations.ts",
     "src/contract/data.ts",
     "src/contract/discord.ts",
-    "src/contract/index.ts",
     "src/contract/notes-and-memories.ts",
+    "src/core.export.ts",
+    "src/discord.export.ts",
     "src/discord/crypto.ts",
     "src/discord/follow-up.ts",
-    "src/discord/index.ts",
     "src/discord/interaction-types.ts",
     "src/discord/responses.ts",
     "src/discord/verify-request.ts",
-    "src/extensions/index.ts",
-    "src/index.ts",
+    "src/extensions.export.ts",
+    "src/extensions.ts",
+    "src/protocol.export.ts",
     "src/protocol/errors.ts",
     "src/protocol/ids.ts",
-    "src/protocol/index.ts",
     "src/protocol/mappers.ts",
     "src/protocol/messages.ts",
     "src/protocol/model.ts",
     "src/protocol/parts.ts",
     "src/protocol/resources.ts",
-    "src/react/index.ts",
+    "src/react-hooks.ts",
+    "src/react.export.ts",
+    "src/runtime.export.ts",
     "src/runtime/create-chat-runtime.ts",
-    "src/runtime/index.ts",
     "src/runtime/types.ts",
+    "src/server-database.export.ts",
+    "src/server-effect.export.ts",
+    "src/server-fetch.export.ts",
+    "src/server.export.ts",
     "src/server/app-definition.ts",
     "src/server/auth/emails.ts",
-    "src/server/auth/index.ts",
     "src/server/auth/paths.ts",
     "src/server/auth/principal.ts",
     "src/server/db/auth-schema.ts",
@@ -154,11 +188,7 @@
     "src/server/db/memories.ts",
     "src/server/db/query-database.ts",
     "src/server/db/schema.ts",
-    "src/server/effect/index.ts",
-    "src/server/fetch/index.ts",
     "src/server/generation-replay.ts",
-    "src/server/index.ts",
-    "src/server/legacy/index.ts",
     "src/server/make-conversation-store.ts",
     "src/server/ports/chat-server.ts",
     "src/server/ports/conversation-store.ts",
@@ -166,7 +196,8 @@
     "src/server/secure-compare.ts",
     "src/server/use-cases/chat-server.ts",
     "src/styles/styles.css",
-    "src/testing/index.ts",
+    "src/testing.export.ts",
+    "src/web.export.ts",
     "src/web/attachments/attachments.ts",
     "src/web/auth/anonymous-session.ts",
     "src/web/chat-runtime/browser-state-actor.ts",
@@ -183,10 +214,8 @@
     "src/web/conversation/conversation-markdown.ts",
     "src/web/conversation/conversation-tree.ts",
     "src/web/conversation/types.ts",
-    "src/web/index.ts",
     "src/web/styled/chat-content.tsx",
     "src/web/styled/chat-sidebar.tsx",
-    "src/web/styled/index.ts",
     "src/web/styled/styles.css",
     "src/web/styled/ui/bubble.tsx",
     "src/web/styled/ui/button.tsx",
@@ -197,15 +226,18 @@
     "src/web/styled/ui/textarea.tsx",
     "src/web/styled/ui/use-mobile.ts",
     "src/web/styled/ui/utils.ts",
-    "src/web/thread/index.ts",
+    "src/web/thread/chat-thread-scroll.ts",
     "src/web/thread/markdown-text.tsx",
     "src/web/thread/markdown-url-policy.ts",
     "src/web/thread/message-part.tsx",
+    "src/web/thread/message-rail.tsx",
     "src/web/thread/suggestion-chips.tsx",
+    "src/web/thread/thread-message.tsx",
     "src/web/thread/thread-viewport.tsx",
     "src/web/thread/tool-part.tsx",
     "src/web/thread/tool-result-content.tsx",
-    "src/web/thread/types.ts"
+    "src/web/thread/types.ts",
+    "src/web/thread/use-thread-viewport-scroll.ts"
   ],
   "testFiles": [
     "test/adapters/ai-sdk.test.ts",
@@ -231,13 +263,16 @@
     "test/fixtures/consumers/adapters.mts",
     "test/fixtures/consumers/advanced-xstate.mts",
     "test/fixtures/consumers/api.mts",
+    "test/fixtures/consumers/chat.mts",
     "test/fixtures/consumers/common.tsx",
     "test/fixtures/consumers/components.tsx",
+    "test/fixtures/consumers/discord.mts",
     "test/fixtures/consumers/extensions.mts",
     "test/fixtures/consumers/protocol-effect.mts",
     "test/fixtures/consumers/protocol.mts",
     "test/fixtures/consumers/react.tsx",
     "test/fixtures/consumers/runtime.mts",
+    "test/fixtures/consumers/server-database.mts",
     "test/fixtures/consumers/server-effect.mts",
     "test/fixtures/consumers/server-fetch.mts",
     "test/fixtures/consumers/server.mts",
@@ -247,13 +282,16 @@
     "test/fixtures/contracts/adapters-cloudflare.d.ts",
     "test/fixtures/contracts/advanced-xstate.d.ts",
     "test/fixtures/contracts/api.d.ts",
+    "test/fixtures/contracts/chat.d.ts",
     "test/fixtures/contracts/components-styled.d.ts",
     "test/fixtures/contracts/components.d.ts",
+    "test/fixtures/contracts/discord.d.ts",
     "test/fixtures/contracts/extensions.d.ts",
     "test/fixtures/contracts/protocol.d.ts",
     "test/fixtures/contracts/react.d.ts",
     "test/fixtures/contracts/root.d.ts",
     "test/fixtures/contracts/runtime.d.ts",
+    "test/fixtures/contracts/server-database.d.ts",
     "test/fixtures/contracts/server-effect.d.ts",
     "test/fixtures/contracts/server-fetch.d.ts",
     "test/fixtures/contracts/server.d.ts",
@@ -290,6 +328,7 @@
     "test/web/browser-state-actor.test.ts",
     "test/web/chat-session-machine.test.ts",
     "test/web/chat-shell.test.tsx",
+    "test/web/chat-thread-scroll.test.ts",
     "test/web/chat-transport-actor.test.ts",
     "test/web/chat-ui-actor.test.ts",
     "test/web/contributions.test.tsx",
@@ -299,10 +338,12 @@
     "test/web/conversation-tree.test.ts",
     "test/web/generic-chat-app-machine.test.ts",
     "test/web/markdown-url-policy.test.ts",
+    "test/web/message-rail.test.tsx",
     "test/web/public-entrypoints.test.ts",
     "test/web/settings-actor.test.ts",
     "test/web/setup.ts",
     "test/web/thread-shell.test.tsx",
-    "test/web/tool-part.test.tsx"
+    "test/web/tool-part.test.tsx",
+    "test/web/use-thread-viewport-scroll.test.tsx"
   ]
 }

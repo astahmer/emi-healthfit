@@ -19,7 +19,7 @@ const walk = async (directory: string): Promise<string[]> => {
 };
 
 const forbiddenPatterns = ["apps/chat", "apps/api", "healthfit", "flavor-healthfit"];
-const primaryServerEntry = join(srcRoot, "index.ts");
+const primaryServerEntry = join(srcRoot, "..", "server.export.ts");
 
 describe("core-server boundary", () => {
   it("never imports the chat app, the API worker, or healthfit flavor code", async () => {

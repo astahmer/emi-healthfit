@@ -49,6 +49,3 @@ export const parseChatConflictError = async (
   }
   return undefined;
 };
-
-/** @deprecated Use parseChatConflictError */
-export const parseOrphanTurnError = parseChatConflictError;

@@ -1,24 +1,23 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
-import { deleteIngestedSource } from "../src/healthfit/db/ingested-data.ts";
-import { getWorkouts } from "../src/healthfit/db/fitness.ts";
-import { encryptHevyApiKey } from "../src/healthfit/integrations/hevy/credential-crypto.ts";
-import {
-  getHevyConnection,
-  getHevySyncState,
-  upsertHevyConnection,
-} from "../src/healthfit/integrations/hevy/hevy-store.ts";
-import {
-  connectHevy,
-  disconnectHevy,
-  ensureHevyFresh,
-  getHevyIntegrationStatus,
-  syncHevy,
-} from "../src/healthfit/integrations/hevy/hevy-sync.ts";
+
+const {
+  connect: connectHevy,
+  disconnect: disconnectHevy,
+  encryptApiKey: encryptHevyApiKey,
+  ensureFresh: ensureHevyFresh,
+  getConnection: getHevyConnection,
+  getIntegrationStatus: getHevyIntegrationStatus,
+  getSyncState: getHevySyncState,
+  sync: syncHevy,
+  upsertConnection: upsertHevyConnection,
+} = HealthFit.hevy;
+const { deleteIngestedSource } = HealthFit.ingest;
+const { getWorkouts } = HealthFit.data;
 
 const originalFetch = globalThis.fetch;
 
@@ -171,7 +170,13 @@ describe("Hevy lifecycle", () => {
       }),
     );
 
-    await run(deleteIngestedSource({ db, userId: "user-1", source: "hevy" }));
+  await run(
+    deleteIngestedSource({
+      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      userId: "user-1",
+      source: "hevy",
+    }),
+  );
 
     const kysely = await run(db.kysely);
     assert.equal(

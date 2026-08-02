@@ -1,30 +1,33 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
-import { getDataSummary } from "../src/healthfit/db/fitness.ts";
-import {
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const { getDataSummary, getRawUploadRetentionDays } = HealthFit.data;
+const {
   deleteIngestedSource,
-  getRawUploadRetentionDays,
-  insertHealthWorkouts,
   updateRawUploadRetentionDays,
   updateSyncCursor,
+} = HealthFit.ingest;
+const {
+  insertHealthWorkouts,
   upsertBodyMetrics,
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../src/healthfit/db/ingested-data.ts";
-import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+} = HealthFit.storage;
 
 describe("ingested data SQLite integration", () => {
   it("upserts every import record type and tracks source-specific sync cursors", async () => {
     const { db } = makeSqliteDatabase();
+    const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const userId = "user-a";
 
     assert.strictEqual(
       await run(
-        upsertDailyActivity(db, userId, [
+        upsertDailyActivity(healthfitDb, userId, [
           {
             date: "2026-07-01",
             active_kcal: 100,
@@ -38,7 +41,7 @@ describe("ingested data SQLite integration", () => {
       1,
     );
     await run(
-      upsertDailyActivity(db, userId, [
+      upsertDailyActivity(healthfitDb, userId, [
         {
           date: "2026-07-01",
           active_kcal: 250,
@@ -50,7 +53,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      insertHealthWorkouts(db, userId, [
+      insertHealthWorkouts(healthfitDb, userId, [
         {
           date: "2026-07-01",
           type: "Run",
@@ -67,7 +70,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      insertHealthWorkouts(db, userId, [
+      insertHealthWorkouts(healthfitDb, userId, [
         {
           date: "2026-07-01",
           type: "Run",
@@ -84,7 +87,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySessions(db, userId, [
+      upsertHevySessions(healthfitDb, userId, [
         {
           session_id: "session-a",
           provider_workout_id: null,
@@ -98,7 +101,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySets(db, userId, [
+      upsertHevySets(healthfitDb, userId, [
         {
           session_id: "session-a",
           exercise_template_id: null,
@@ -116,7 +119,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySets(db, userId, [
+      upsertHevySets(healthfitDb, userId, [
         {
           session_id: "session-a",
           exercise_template_id: null,
@@ -134,7 +137,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertSleepSessions(db, userId, [
+      upsertSleepSessions(healthfitDb, userId, [
         {
           date: "2026-07-01",
           start: "2026-06-30T22:30:00Z",
@@ -147,7 +150,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertBodyMetrics(db, userId, [
+      upsertBodyMetrics(healthfitDb, userId, [
         {
           date: "2026-07-01",
           weight_kg: 80,
@@ -157,8 +160,8 @@ describe("ingested data SQLite integration", () => {
         },
       ]),
     );
-    await run(updateSyncCursor(db, userId, "apple_health", "2026-07-01T12:00:00Z"));
-    await run(updateSyncCursor(db, userId, "hevy", "2026-07-01T12:30:00Z"));
+    await run(updateSyncCursor(healthfitDb, userId, "apple_health", "2026-07-01T12:00:00Z"));
+    await run(updateSyncCursor(healthfitDb, userId, "hevy", "2026-07-01T12:30:00Z"));
 
     assert.deepStrictEqual(
       await run(getDataSummary(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId)),
@@ -181,13 +184,13 @@ describe("ingested data SQLite integration", () => {
     const alice = "user-a";
     const bob = "user-b";
 
-    assert.strictEqual(await run(getRawUploadRetentionDays({ db, userId: alice })), 30);
-    await run(updateRawUploadRetentionDays({ db, userId: alice, days: 14 }));
-    assert.strictEqual(await run(getRawUploadRetentionDays({ db, userId: alice })), 14);
-    assert.strictEqual(await run(getRawUploadRetentionDays({ db, userId: bob })), 30);
+    assert.strictEqual(await run(getRawUploadRetentionDays({ db: fitnessDb, userId: alice })), 30);
+    await run(updateRawUploadRetentionDays({ db: fitnessDb, userId: alice, days: 14 }));
+    assert.strictEqual(await run(getRawUploadRetentionDays({ db: fitnessDb, userId: alice })), 14);
+    assert.strictEqual(await run(getRawUploadRetentionDays({ db: fitnessDb, userId: bob })), 30);
 
     await run(
-      upsertDailyActivity(db, alice, [
+      upsertDailyActivity(fitnessDb, alice, [
         {
           date: "2026-07-01",
           active_kcal: null,
@@ -199,7 +202,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      insertHealthWorkouts(db, alice, [
+      insertHealthWorkouts(fitnessDb, alice, [
         {
           date: "2026-07-01",
           type: "Walk",
@@ -216,7 +219,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertSleepSessions(db, alice, [
+      upsertSleepSessions(fitnessDb, alice, [
         {
           date: "2026-07-01",
           start: "2026-06-30T22:00:00Z",
@@ -229,7 +232,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertBodyMetrics(db, alice, [
+      upsertBodyMetrics(fitnessDb, alice, [
         {
           date: "2026-07-01",
           weight_kg: null,
@@ -240,7 +243,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySessions(db, alice, [
+      upsertHevySessions(fitnessDb, alice, [
         {
           session_id: "session-a",
           provider_workout_id: null,
@@ -254,7 +257,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySets(db, alice, [
+      upsertHevySets(fitnessDb, alice, [
         {
           session_id: "session-a",
           exercise_template_id: null,
@@ -271,10 +274,10 @@ describe("ingested data SQLite integration", () => {
         },
       ]),
     );
-    await run(updateSyncCursor(db, alice, "apple_health", "health-sync"));
-    await run(updateSyncCursor(db, alice, "hevy", "hevy-sync"));
+    await run(updateSyncCursor(fitnessDb, alice, "apple_health", "health-sync"));
+    await run(updateSyncCursor(fitnessDb, alice, "hevy", "hevy-sync"));
     await run(
-      upsertDailyActivity(db, bob, [
+      upsertDailyActivity(fitnessDb, bob, [
         {
           date: "2026-07-01",
           active_kcal: null,
@@ -286,7 +289,7 @@ describe("ingested data SQLite integration", () => {
       ]),
     );
 
-    await run(deleteIngestedSource({ db, userId: alice, source: "health" }));
+    await run(deleteIngestedSource({ db: fitnessDb, userId: alice, source: "health" }));
 
     assert.deepStrictEqual(await run(getDataSummary(fitnessDb, alice)), {
       dailyActivity: 0,
@@ -300,7 +303,7 @@ describe("ingested data SQLite integration", () => {
     });
     assert.strictEqual((await run(getDataSummary(fitnessDb, bob))).dailyActivity, 1);
 
-    await run(deleteIngestedSource({ db, userId: alice, source: "hevy" }));
+    await run(deleteIngestedSource({ db: fitnessDb, userId: alice, source: "hevy" }));
     assert.strictEqual((await run(getDataSummary(fitnessDb, alice))).hevySessions, 0);
     assert.strictEqual((await run(getDataSummary(fitnessDb, alice))).hevySets, 0);
   });

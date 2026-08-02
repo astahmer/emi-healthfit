@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect";
-import type { QueryDatabaseClient } from "@emi/core/server";
+import type { ServerDatabase } from "@emi/core/server/database";
 import { estimateRecovery } from "./recovery-estimate.ts";
 import type { HealthfitDatabaseSchema, HevySetRow, SleepSessionRow } from "../db/schema.ts";
 
-type ChatContextDb = QueryDatabaseClient<HealthfitDatabaseSchema>;
+type ChatContextDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
 interface WorkoutContext {
   lastSessionDate: string | null;

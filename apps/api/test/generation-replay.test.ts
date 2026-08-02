@@ -3,8 +3,9 @@ import { describe, it } from "node:test";
 import type { UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { createGenerationReplayStream } from "../src/core/chat/generation-replay.ts";
-import type { ChatGeneration } from "../src/core/chat/generation-store.ts";
+import { ServerDatabase } from "@emi/core/server/database";
+
+type ChatGeneration = ServerDatabase.ChatGeneration;
 
 const generation = (
   status: ChatGeneration["status"],
@@ -35,7 +36,7 @@ describe("createGenerationReplayStream", () => {
     const chunks: Array<{ sequence: number; chunk: UIMessageChunk }> = [];
     let status: ChatGeneration["status"] = "streaming";
     let polls = 0;
-    const stream = createGenerationReplayStream({
+    const stream = ServerDatabase.replay.stream({
       generationId: "generation",
       getChunks: ({ afterSequence }) =>
         Effect.succeed(chunks.filter((item) => item.sequence > afterSequence)),
@@ -63,7 +64,7 @@ describe("createGenerationReplayStream", () => {
 
   it("turns a failed generation into a terminal stream error chunk", async () => {
     const output = await readAll(
-      createGenerationReplayStream({
+      ServerDatabase.replay.stream({
         generationId: "generation",
         getChunks: () => Effect.succeed([]),
         getGeneration: () => Effect.succeed(generation("failed", "provider unavailable")),
@@ -76,7 +77,7 @@ describe("createGenerationReplayStream", () => {
   it("reports a generation abandoned by a terminated Worker", async () => {
     let reads = 0;
     const output = await readAll(
-      createGenerationReplayStream({
+      ServerDatabase.replay.stream({
         generationId: "generation",
         getChunks: () => Effect.succeed([]),
         getGeneration: () => {

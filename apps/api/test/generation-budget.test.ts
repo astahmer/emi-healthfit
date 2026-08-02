@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createChatOperationBudget } from "../src/core/chat/generation-budget.ts";
+import { Chat } from "@emi/core/chat";
 
 describe("chat operation budget", () => {
   it("reserves capacity for terminal persistence before dropping optional work", () => {
-    const budget = createChatOperationBudget({
+    const budget = Chat.operations.createChatOperationBudget({
       maximumOperations: 6,
       reservedOperations: 2,
     });
@@ -30,7 +30,7 @@ describe("chat operation budget", () => {
   });
 
   it("prevents tool loops before invoking another expensive tool", () => {
-    const budget = createChatOperationBudget({ maximumOperations: 8, maximumToolCalls: 2 });
+    const budget = Chat.operations.createChatOperationBudget({ maximumOperations: 8, maximumToolCalls: 2 });
 
     assert.equal(budget.tryStartToolCall(), true);
     assert.equal(budget.tryStartToolCall(), true);

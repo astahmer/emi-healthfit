@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { connectedHevyStatus, createChatMock, sampleHevyWorkout } from "./mock/install.ts";
+import { connectedHevyStatus, sampleHevyWorkout } from "./mock/app.ts";
+import { createChatMock } from "./mock/install.ts";
 
 test("shows flavor summary overview metrics from analytics", async ({ page }) => {
   const mock = createChatMock({

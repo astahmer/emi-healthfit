@@ -6,15 +6,6 @@ import { GenUIRenderer } from "@emi/flavor-healthfit/web";
 import { ErrorBoundary } from "../error-boundary";
 import { cn } from "@/lib/utils";
 
-export {
-  ExerciseProgressToolRenderer,
-  ExerciseProgressView,
-  RecoveryCard,
-  RecoveryToolRenderer,
-  WorkoutHistoryTable,
-  WorkoutHistoryToolRenderer,
-} from "@emi/flavor-healthfit/web";
-
 const FallbackResult: FC<{ value: unknown; className?: string }> = ({ value, className }) => (
   <pre
     className={cn(

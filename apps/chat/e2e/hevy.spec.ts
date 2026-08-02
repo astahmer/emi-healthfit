@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { connectedHevyStatus, createChatMock, sampleHevyWorkout } from "./mock/install.ts";
+import { connectedHevyStatus, sampleHevyWorkout } from "./mock/app.ts";
+import { createChatMock } from "./mock/install.ts";
 
 const acceptNextDialog = (page: Page) => {
   page.once("dialog", (dialog) => {

@@ -13,14 +13,20 @@ against that catalog.
 | `@emi/core`                     | `createChatRuntime` and core protocol types                                    | no React, provider, product, database, or platform APIs      |
 | `@emi/core/protocol`            | domain messages, parts, IDs, errors, schemas, and extension contracts          | no React, XState, AI SDK, database rows, or platform types   |
 | `@emi/core/api`                 | generic HTTP DTOs and `CoreApiClient`                                          | no product routes or persistence details                     |
+| `@emi/core/chat`                | provider-bound chat operations grouped under `Chat`                            | never part of the common provider-neutral path               |
+| `@emi/core/contract`            | generic HTTP schemas and `CoreApi` composition                                 | no HealthFit groups or platform details                      |
+| `@emi/core/cloudflare`          | explicit Cloudflare auth, database, and route adapters                        | optional platform/provider peers; not the generic server path |
+| `@emi/core/discord`             | provider-neutral Discord request, response, and signature boundary            | no React, product, or database coupling                      |
 | `@emi/core/runtime`             | actor-backed runtime facade, selectors, commands, lifecycle, and subscriptions | no React markup or framework hooks                           |
 | `@emi/core/react`               | `ChatProvider` and runtime hooks                                               | no styled recipes or module-scope browser globals            |
 | `@emi/core/components`          | controlled primitives and connected components                                 | no network, persistence, routing, or mandatory CSS framework |
 | `@emi/core/components/styled`   | opt-in connected recipes such as `ChatApp` and `ChatShell`                     | no HealthFit branding or product coupling                    |
+| `@emi/core/web`                 | generic browser views, contribution context, URL/attachment policy, and thread views | no raw XState actors or machines                         |
 | `@emi/core/styles.css`          | design tokens and structural styles                                            | explicit opt-in; no application theme ownership              |
 | `@emi/core/server`              | generic ports and server composition                                           | no raw D1, Drizzle, Kysely, or platform rows                 |
 | `@emi/core/server/effect`       | explicit Effect-native services and layers                                     | advanced server composition only                             |
 | `@emi/core/server/fetch`        | Fetch `Request`/`Response` handlers                                            | no platform bindings                                         |
+| `@emi/core/server/database`    | advanced SQL schemas, persistence domains, and replay helpers                 | optional database/AI peers; never a generic server contract  |
 | `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge                                                         | provider types stop at this adapter                          |
 | `@emi/core/adapters/cloudflare` | Cloudflare, D1, R2, and Worker bindings                                        | platform assumptions stay in the adapter                     |
 | `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition                  | product domains remain external packages                     |
@@ -67,9 +73,13 @@ Its rules are:
 - `react` and `components` require React only through their declared peer boundaries;
 - `components/styled` keeps visual helpers optional and does not make styling mandatory;
 - `server` and `server/fetch` keep generic server contracts free of database/platform packages;
+- `server/database` is an explicit advanced persistence boundary; its raw rows and optional AI
+  chunk decoder never enter `protocol`, `runtime`, React, or the primary `server` entry;
+- `cloudflare` is an explicit platform route/auth boundary and may require the optional platform
+  and provider peers listed in its matrix; common consumers do not import it;
 - `adapters/ai-sdk` is the only AI SDK boundary; its AI SDK packages are optional peers, so
   protocol, runtime, React, server, and component consumers do not install them unless they opt
-  into that adapter;
+  into that adapter or the provider-bound `chat`/`cloudflare` capability;
 - `adapters/cloudflare` is the only Cloudflare/database boundary; and
 - `testing` owns deterministic test helpers without becoming a production adapter.
 
@@ -86,11 +96,15 @@ mutable values. Named TypeScript types may remain individually exported when con
 for annotations. React keeps a deliberately small exception for separately consumable provider and
 hook primitives because that is the native composition model and the frozen common-consumer path.
 
-The current named domain owners are `ChatProtocol`, `CoreApiClient`, `ChatExtensions`,
-`ChatServer`, and `ChatTesting`. New public operations belong on the owning class or instance
-rather than becoming another top-level helper. A group of individually exported React components
-is acceptable only when each component is an independently consumable view primitive; it must not
-become a miscellaneous utility barrel.
+The current named domain owners are `Chat`, `ChatProtocol`, `CoreApiClient`, `CoreApi`, `Discord`,
+`Cloudflare`, `CloudflareDatabase`, `ChatExtensions`, `ChatServer`, `ServerDatabase`, and
+`ChatTesting`. `Chat` scopes schemas,
+streaming, generation, memory, message, orphan, operation, attachment, and tool APIs under
+named members; `Discord` scopes interaction, request, response, follow-up, and crypto APIs under
+named members. New public operations belong on the owning class or instance rather than becoming
+another top-level helper. A group of individually exported React components is acceptable only
+when each component is an independently consumable view primitive; it must not become a
+miscellaneous utility barrel.
 
 Effect is the canonical form for fallible protocol, server, adapter, and use-case operations. A
 canonical method returns `Effect<Success, Error, Requirements>` and preserves its typed failure
@@ -109,25 +123,24 @@ protocol schemas before authentication or persistence; admission runs before use
 persistence; every emitted generation event is persisted through the generation port; and response
 conversations are encoded through the protocol DTO mapper.
 
-`@emi/core/server/effect` exposes `ChatServerEffect.create` for an explicit Effect-native
-construction point. `@emi/core/server/fetch` exposes `ChatFetchHandlers`, which derives a
+`@emi/core/server/effect` exposes the `ChatServerEffect` service and its static `Live` layer for
+an explicit Effect-native composition point. `@emi/core/server/fetch` exposes `ChatFetchHandlers`, which derives a
 Promise-based `Request`/`Response` boundary with `Effect.runPromise` and maps typed server
 failures to HTTP responses. Fetch consumers do not need to know the server's Effect composition
 details.
 
-The old database, auth, and AI-SDK-shaped application helpers are isolated in the private
-workspace package `@emi/core-migration`. They are not part of the `@emi/core` package exports,
-catalog, source manifest, or registry tarball. Existing HealthFit and application workers use
-that explicit migration package while their product/platform code is retired or replaced; a
-generic consumer must use the target catalog above. The primary server barrel has no wildcard
-exports and does not import D1, Drizzle, Kysely, Cloudflare, or AI SDK types.
+Database schemas and persistence implementations are available only through the explicitly
+advanced `@emi/core/server/database` subpath. The generic `@emi/core/server` contract remains
+port- and use-case-oriented, while HealthFit and platform workers own their product-specific
+schemas and adapters. The primary server export has no wildcard exports and does not import D1,
+Drizzle, Kysely, Cloudflare, or AI SDK types.
 
 ## R4-R7 implementation and distribution
 
 `@emi/core/adapters/ai-sdk` maps AI SDK streams to the provider-neutral `ModelProvider` Effect
 stream. AI SDK imports stop at that adapter; protocol, runtime, components, and server ports do
-not expose AI SDK message types. `AiSdkModelProvider.create` is the explicit adapter construction
-point.
+not expose AI SDK message types. `AiSdkModelProvider.layer(configuration)` is the explicit
+adapter composition point.
 
 `@emi/core/components` contains controlled and connected view primitives. `ChatApp` and
 `ChatShell` are opt-in recipes under `components/styled`; they render runtime selectors and send
@@ -174,9 +187,8 @@ compile equivalent consumers against emitted declarations. The negative fixtures
 `@ts-expect-error` so a future accidental export fails the fixture check.
 No fixture imports `packages/core/src`.
 
-Historical source-oriented subpaths are not in the `@emi/core` export map. The private
-`@emi/core-migration` package is intentionally outside the public catalog and is not a supported
-registry or source-distribution dependency.
+Historical source-oriented subpaths are not in the `@emi/core` export map. Consumers use the
+named package exports and never reach into `src`.
 
 ## R1 provider-neutral protocol
 
@@ -207,8 +219,8 @@ boundary with `ChatProtocol.runPromise(effect)`; transport failures still use th
 `TransportError` and `ErrorResponseDto` schemas. The public import and type fixtures exercise the
 real package subpath as well as the compile-time consumer declarations.
 
-The old `src/contract` and `src/chat/message-parts.ts` implementations are reachable only through
-the private migration package. They are intentionally not imported by the new protocol.
+The protocol boundary owns its schemas and mappers. Internal implementation modules are not
+alternate public contracts and are never imported through source-layout paths.
 
 ## R2 actor-backed runtime facade
 
@@ -231,6 +243,11 @@ The runtime facade is protocol-native: its actor-owned session and transport sta
 Provider translation remains isolated in `adapters/ai-sdk`; no provider bridge is part of the
 common runtime contract.
 
+Generic web views follow the same ownership rule. Core owns provider-neutral message rendering,
+thread scrolling, attachment policy, suggestions, and runtime-connected recipes. Product apps may
+keep a thin wrapper for product renderers, memory actions, settings, model controls, and product
+navigation, but must not duplicate the generic message view or actor state in that wrapper.
+
 ## Distribution modes
 
 ### Source mode
@@ -242,10 +259,9 @@ strategy; R7 owns the generated manifest and upgrade procedure.
 
 ### Registry mode
 
-Registry mode now emits built ESM and declarations for every target subpath, points target
-conditions at `dist`, and passes the clean tarball consumer. The package is non-private and carries
-`PUBLISH.md` plus `source-manifest.json` in its published files. Historical application helpers
-are outside the package in the private `@emi/core-migration` workspace package.
+Registry mode emits built ESM and declarations for every target subpath, points target conditions
+at `dist`, and passes the clean tarball consumer. The package is non-private and carries
+`PUBLISH.md` plus `source-manifest.json` in its published files.
 
 ## R0-R8 decisions and final boundary
 
@@ -255,8 +271,8 @@ R0 freezes these choices for later packets:
   selectors and subscriptions;
 - `ChatProvider` starts the runtime for the common React path, while `start`, `stop`, and
   `dispose` are idempotent for non-React hosts;
-- `createChatServer` is Fetch-first, with Effect-native composition explicitly under
-  `server/effect`;
+- `ChatServerEffect` is the Effect-native composition surface, and `ChatFetchHandlers` derives the
+  Promise-based Fetch boundary from its typed Effect program;
 - extension contributions use namespaced, schema-validated parts and an immutable registry;
 - streaming uses normalized generation events; provider deltas remain inside adapters;
 - public operations are grouped under domain classes or owned instances instead of flat export
@@ -265,8 +281,7 @@ R0 freezes these choices for later packets:
   derived at the boundary;
 - `ChatServer` owns the generic server use-case boundary, `ChatServerEffect` is the explicit
   Effect construction surface, and `ChatFetchHandlers` is the derived Promise adapter;
-- raw database/platform helpers remain in the private `@emi/core-migration` package until the
-  application-specific server surfaces are retired;
+- advanced database/platform helpers remain isolated behind explicitly named adapter subpaths;
 - source regeneration refuses to silently overwrite locally changed files and reports a diff;
 - styles remain an explicit `@emi/core/styles.css` import; and
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong
@@ -274,9 +289,4 @@ R0 freezes these choices for later packets:
 
 The R0 public-contract, R1 protocol, R2 runtime-facade, R3 server boundary, R4 AI SDK adapter,
 R5 component tiers, R6 extension registry, R7 source/registry distribution, and R8 public-export
-cleanup gates are closed for the target catalog. The private migration package is deliberately
-kept outside the published core boundary while application-specific server/UI surfaces are
-retired in their owning packages.
-
-The remaining migration package is an explicit application boundary, not an alternate `@emi/core`
-entrypoint. It is not included in registry/source distribution promises.
+cleanup gates are evaluated from the named package exports, source manifest, and consumer fixtures.

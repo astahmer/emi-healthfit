@@ -2,7 +2,7 @@ import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
-import { getConversation } from "./conversations.ts";
+import { ConversationDatabase } from "./conversations.ts";
 import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
 
@@ -44,7 +44,7 @@ export interface StoredGenerationChunk {
 
 const nowIso = (): string => new Date().toISOString();
 
-export const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => {
+const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => {
   const parsed = Schema.decodeUnknownSync(Json)(value);
   const validate = uiMessageChunkSchema().validate;
   if (validate === undefined) throw new Error("UI message chunk validator is unavailable");
@@ -53,16 +53,16 @@ export const decodeGenerationChunk = async (value: string): Promise<UIMessageChu
   return result.value;
 };
 
-export const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
+const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
   (generation.status === "pending" || generation.status === "streaming") &&
   now - new Date(generation.updated_at).getTime() >= generationStaleMilliseconds;
 
-export const isUniqueConstraintError = (error: unknown): boolean => {
+const isUniqueConstraintError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
   return /unique|constraint failed/i.test(message);
 };
 
-export const createGeneration = Effect.fn("chatGeneration.create")(function* <TEnvironment>({
+const createGeneration = Effect.fn("chatGeneration.create")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -79,7 +79,7 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* <TE
   traceId?: string;
   model?: string;
 }) {
-  const conversation = yield* getConversation(db, userId, conversationId);
+  const conversation = yield* ConversationDatabase.getConversation(db, userId, conversationId);
   if (conversation === null) return false;
 
   const kysely = yield* db.kysely;
@@ -111,7 +111,7 @@ export const createGeneration = Effect.fn("chatGeneration.create")(function* <TE
   return true;
 });
 
-export const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* <
+const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* <
   TEnvironment,
 >({
   db,
@@ -134,7 +134,7 @@ export const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")
   );
 });
 
-export const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(function* <
+const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(function* <
   TEnvironment,
 >({
   db,
@@ -167,7 +167,7 @@ export const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata
   );
 });
 
-export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* <
+const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* <
   TEnvironment,
 >({
   db,
@@ -190,7 +190,7 @@ export const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(fun
   });
 });
 
-export const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function* <
+const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function* <
   TEnvironment,
 >({
   db,
@@ -228,7 +228,7 @@ export const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(f
   return true;
 });
 
-export const finishGeneration = Effect.fn("chatGeneration.finish")(function* <TEnvironment>({
+const finishGeneration = Effect.fn("chatGeneration.finish")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -269,7 +269,7 @@ export const finishGeneration = Effect.fn("chatGeneration.finish")(function* <TE
   return Number(result.numUpdatedRows) > 0;
 });
 
-export const cancelRunningGenerations = Effect.fn("chatGeneration.cancelRunning")(function* <
+const cancelRunningGenerations = Effect.fn("chatGeneration.cancelRunning")(function* <
   TEnvironment,
 >({
   db,
@@ -304,7 +304,7 @@ export const cancelRunningGenerations = Effect.fn("chatGeneration.cancelRunning"
   return Number(result.numUpdatedRows);
 });
 
-export const recordChatEvent = Effect.fn("chatEvent.record")(function* <TEnvironment>({
+const recordChatEvent = Effect.fn("chatEvent.record")(function* <TEnvironment>({
   db,
   userId,
   conversationId,
@@ -343,7 +343,7 @@ export const recordChatEvent = Effect.fn("chatEvent.record")(function* <TEnviron
   );
 });
 
-export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function* <
+const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function* <
   TEnvironment,
 >({
   db,
@@ -372,7 +372,7 @@ export const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(fu
   return Number(result.numUpdatedRows);
 });
 
-export const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished")(
+const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished")(
   function* <TEnvironment>({
     db,
     userId,
@@ -419,7 +419,7 @@ export const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileF
   },
 );
 
-export const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(function* <
+const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(function* <
   TEnvironment,
 >({
   db,
@@ -443,7 +443,7 @@ export const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory
   return Number(result.numDeletedRows);
 });
 
-export const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* <
+const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* <
   TEnvironment,
 >({
   db,
@@ -468,7 +468,7 @@ export const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(funct
   return result ?? null;
 });
 
-export const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(function* <
+const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(function* <
   TEnvironment,
 >({
   db,
@@ -495,7 +495,7 @@ export const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(f
   return result;
 });
 
-export const getGeneration = Effect.fn("chatGeneration.get")(function* <TEnvironment>({
+const getGeneration = Effect.fn("chatGeneration.get")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -516,7 +516,7 @@ export const getGeneration = Effect.fn("chatGeneration.get")(function* <TEnviron
   return result ?? null;
 });
 
-export const getGenerationByRequestId = Effect.fn("chatGeneration.getByRequestId")(function* <
+const getGenerationByRequestId = Effect.fn("chatGeneration.getByRequestId")(function* <
   TEnvironment,
 >({
   db,
@@ -543,7 +543,7 @@ export const getGenerationByRequestId = Effect.fn("chatGeneration.getByRequestId
   return result ?? null;
 });
 
-export const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* <TEnvironment>({
+const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -572,3 +572,28 @@ export const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(functio
     })),
   );
 });
+
+export class GenerationDatabase {
+  private constructor() {}
+
+  static readonly GenerationAlreadyActiveError = GenerationAlreadyActiveError;
+  static readonly appendGenerationChunk = appendGenerationChunk;
+  static readonly appendGenerationChunks = appendGenerationChunks;
+  static readonly cancelRunningGenerations = cancelRunningGenerations;
+  static readonly cleanupGenerationHistory = cleanupGenerationHistory;
+  static readonly createGeneration = createGeneration;
+  static readonly decodeGenerationChunk = decodeGenerationChunk;
+  static readonly expireStaleGenerations = expireStaleGenerations;
+  static readonly finishGeneration = finishGeneration;
+  static readonly getGeneration = getGeneration;
+  static readonly getGenerationByRequestId = getGenerationByRequestId;
+  static readonly getGenerationChunks = getGenerationChunks;
+  static readonly getResumableGeneration = getResumableGeneration;
+  static readonly getRunningGeneration = getRunningGeneration;
+  static readonly isGenerationStale = isGenerationStale;
+  static readonly isUniqueConstraintError = isUniqueConstraintError;
+  static readonly markGenerationStreaming = markGenerationStreaming;
+  static readonly reconcileFinishedGenerations = reconcileFinishedGenerations;
+  static readonly recordChatEvent = recordChatEvent;
+  static readonly updateGenerationMetadata = updateGenerationMetadata;
+}

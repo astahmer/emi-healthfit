@@ -22,6 +22,7 @@ const targetEntrypoints = {
   "./components/styled": "styled-components",
   "./styles.css": "styles",
   "./server": "server",
+  "./server/database": "server-database",
   "./server/effect": "server-effect",
   "./server/fetch": "server-fetch",
   "./adapters/ai-sdk": "ai-sdk-adapter",
@@ -46,6 +47,7 @@ const targetEntrypointPaths = {
   "./components/styled": "./src/components-styled.export.ts",
   "./styles.css": "./src/styles/styles.css",
   "./server": "./src/server.export.ts",
+  "./server/database": "./src/server-database.export.ts",
   "./server/effect": "./src/server-effect.export.ts",
   "./server/fetch": "./src/server-fetch.export.ts",
   "./adapters/ai-sdk": "./src/adapters/ai-sdk.export.ts",
@@ -95,9 +97,9 @@ const dependencyMatrix = {
   },
   "./cloudflare": {
     runtime: ["effect"],
-    peer: ["@cloudflare/workers-types"],
+    peer: ["@ai-sdk/openai", "@cloudflare/workers-types", "ai"],
     optional: ["alchemy", "better-auth", "drizzle-orm", "kysely", "kysely-d1"],
-    forbidden: ["react", "xstate", "ai", "@ai-sdk/openai"],
+    forbidden: ["react", "xstate"],
   },
   "./discord": {
     runtime: [],
@@ -113,10 +115,10 @@ const dependencyMatrix = {
     ],
   },
   "./web": {
-    runtime: ["xstate", "effect"],
+    runtime: ["effect"],
     peer: ["react", "react-dom"],
     optional: ["ai", "lucide-react"],
-    forbidden: ["@cloudflare/workers-types", "drizzle-orm"],
+    forbidden: ["xstate", "@cloudflare/workers-types", "drizzle-orm"],
   },
   "./runtime": {
     runtime: ["xstate"],
@@ -160,6 +162,12 @@ const dependencyMatrix = {
       "drizzle-orm",
       "@cloudflare/workers-types",
     ],
+  },
+  "./server/database": {
+    runtime: ["effect"],
+    peer: ["ai"],
+    optional: ["drizzle-orm", "kysely"],
+    forbidden: ["react", "xstate", "@ai-sdk/openai", "@cloudflare/workers-types"],
   },
   "./server/effect": {
     runtime: ["effect"],

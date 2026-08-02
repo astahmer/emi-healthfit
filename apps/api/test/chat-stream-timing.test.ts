@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
-import { createChatStream, toUiMessageStream } from "../src/core/chat/ai-sdk.ts";
+import { createChatStream } from "../src/core/chat/ai-sdk.ts";
+import { Chat } from "@emi/core/chat";
 
 const delayMilliseconds = 600;
 
@@ -124,7 +125,7 @@ describe("chat stream timing", () => {
 
   it("delivers UI chunks progressively with a slow tee consumer", async () => {
     const result = await makeResult();
-    const streams = toUiMessageStream({ result }).tee();
+    const streams = Chat.stream.toUiMessageStream({ result }).tee();
     const startedAt = performance.now();
     const arrivals: number[] = [];
 
@@ -146,7 +147,7 @@ describe("chat stream timing", () => {
 
   it("continues the persistence branch after the client branch disconnects", async () => {
     const result = await makeResult();
-    const streams = toUiMessageStream({ result }).tee();
+    const streams = Chat.stream.toUiMessageStream({ result }).tee();
     const persistedText: string[] = [];
     const consumePersistence = async () => {
       for await (const part of streams[1]) {
@@ -168,7 +169,7 @@ describe("chat stream timing", () => {
     const result = await makeResult();
     const messageIds: string[] = [];
 
-    for await (const chunk of toUiMessageStream({ result })) {
+    for await (const chunk of Chat.stream.toUiMessageStream({ result })) {
       if (chunk.type === "start" && typeof chunk.messageId === "string") {
         messageIds.push(chunk.messageId);
       }

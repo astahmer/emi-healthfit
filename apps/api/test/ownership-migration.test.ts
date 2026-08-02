@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, it } from "node:test";
 
 const migrationDirectory = new URL("../migrations/", import.meta.url);
-const legacyMigrations = [
+const preOwnershipMigrations = [
   "0001_init.sql",
   "0002_threads.sql",
   "0003_usage_and_limits.sql",
@@ -27,15 +27,15 @@ const executeMigration = ({ database, name }: { database: DatabaseSync; name: st
   database.exec(sql);
 };
 
-const makeLegacyDatabase = () => {
+const makePreOwnershipDatabase = () => {
   const database = new DatabaseSync(":memory:");
-  for (const name of legacyMigrations) executeMigration({ database, name });
+  for (const name of preOwnershipMigrations) executeMigration({ database, name });
   return database;
 };
 
 describe("ownership migration", () => {
-  it("backfills every legacy row to the sole existing auth user", () => {
-    const database = makeLegacyDatabase();
+  it("backfills every pre-ownership row to the sole existing auth user", () => {
+    const database = makePreOwnershipDatabase();
     database.exec(`
       INSERT INTO auth_user (id, name, email, email_verified) VALUES ('owner', 'Owner', 'owner@example.com', 1);
       INSERT INTO daily_activity (date, steps) VALUES ('2026-07-16', 123);
@@ -61,8 +61,8 @@ describe("ownership migration", () => {
     );
   });
 
-  it("refuses ambiguous backfill when legacy data and two users exist", () => {
-    const database = makeLegacyDatabase();
+  it("refuses ambiguous backfill when pre-ownership data and two users exist", () => {
+    const database = makePreOwnershipDatabase();
     database.exec(`
       INSERT INTO auth_user (id, name, email, email_verified) VALUES ('alice', 'Alice', 'alice@example.com', 1);
       INSERT INTO auth_user (id, name, email, email_verified) VALUES ('bob', 'Bob', 'bob@example.com', 1);
@@ -75,7 +75,7 @@ describe("ownership migration", () => {
   });
 
   it("supports a fresh database before its first user enrolls", () => {
-    const database = makeLegacyDatabase();
+    const database = makePreOwnershipDatabase();
     executeMigration({ database, name: "0013_ownership.sql" });
     const columns = database.prepare("PRAGMA table_info(daily_activity)").all();
     assert.ok(columns.some((column) => Reflect.get(column, "name") === "user_id"));

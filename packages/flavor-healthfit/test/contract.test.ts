@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HealthFitApi } from "../src/contract/index.ts";
+import { HealthFitApi } from "../src/contract.export.ts";
 
 describe("@emi/flavor-healthfit/contract", () => {
   it("composes the generic core API with HealthFit product groups", () => {

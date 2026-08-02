@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  anonymousSignInPath,
-  createAnonymousSessionFetch,
-  startAnonymousSession,
-} from "../../src/web/auth/anonymous-session.ts";
+import { AnonymousSession } from "../../src/web/auth/anonymous-session.ts";
 
 describe("anonymous web session adapter", () => {
   it("starts a guest session with credentials included", async () => {
@@ -14,10 +10,12 @@ describe("anonymous web session adapter", () => {
       return new Response(null, { status: 201 });
     };
 
-    expect(await startAnonymousSession({ apiOrigin: "https://chat.example/", fetch })).toBe(true);
+    expect(
+      await AnonymousSession.start({ apiOrigin: "https://chat.example/", fetch }),
+    ).toBe(true);
     expect(requests).toEqual([
       {
-        url: `https://chat.example${anonymousSignInPath}`,
+        url: `https://chat.example${AnonymousSession.signInPath}`,
         init: { credentials: "include", method: "POST" },
       },
     ]);
@@ -29,7 +27,7 @@ describe("anonymous web session adapter", () => {
     const fetch = async (input: RequestInfo | URL) => {
       const url = String(input);
       requests.push(url);
-      if (url.endsWith(anonymousSignInPath)) {
+      if (url.endsWith(AnonymousSession.signInPath)) {
         authCalls += 1;
         return new Response(null, { status: 201 });
       }
@@ -39,7 +37,7 @@ describe("anonymous web session adapter", () => {
         headers: { "content-type": "application/json" },
       });
     };
-    const authenticatedFetch = createAnonymousSessionFetch({
+    const authenticatedFetch = AnonymousSession.createFetch({
       apiOrigin: "https://chat.example",
       fetch,
     });
@@ -49,7 +47,7 @@ describe("anonymous web session adapter", () => {
       authenticatedFetch("https://chat.example/api/memories"),
     ]);
 
-    expect(requests.filter((url) => url.endsWith(anonymousSignInPath))).toHaveLength(1);
+    expect(requests.filter((url) => url.endsWith(AnonymousSession.signInPath))).toHaveLength(1);
     expect(requests.filter((url) => url.includes("/api/conversations"))).toHaveLength(2);
     expect(requests.filter((url) => url.includes("/api/memories"))).toHaveLength(2);
   });
@@ -59,10 +57,10 @@ describe("anonymous web session adapter", () => {
       status: 401,
       headers: { "content-type": "application/json" },
     });
-    const authenticatedFetch = createAnonymousSessionFetch({
+    const authenticatedFetch = AnonymousSession.createFetch({
       apiOrigin: "https://chat.example",
       fetch: async (input) =>
-        String(input).endsWith(anonymousSignInPath)
+        String(input).endsWith(AnonymousSession.signInPath)
           ? new Response(null, { status: 503 })
           : response,
     });

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getOrphanUserMessageId } from "../src/core/chat/orphan-turn.ts";
-import { fitnessCoachV1 } from "../src/healthfit/chat/prompts/fitness-coach-v1.ts";
-import { createToolCircuitBreaker } from "../src/core/chat/tool-circuit-breaker.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
+import { Chat } from "@emi/core/chat";
+
+const { fitnessCoachV1 } = HealthFit.chat;
 
 describe("chat generation safety", () => {
   it("blocks equivalent calls only after a failure", () => {
-    const breaker = createToolCircuitBreaker();
+    const breaker = Chat.tools.createToolCircuitBreaker();
     const call = {
       name: "get_workout_details",
       args: { sessionId: "session-1", nested: { b: 2, a: 1 } },
@@ -27,14 +28,14 @@ describe("chat generation safety", () => {
 
   it("identifies an orphan only when persisted history ends with a user turn", () => {
     assert.strictEqual(
-      getOrphanUserMessageId([
+      Chat.orphans.getOrphanUserMessageId([
         { id: "user-1", role: "user" },
         { id: "assistant-1", role: "assistant" },
       ]),
       null,
     );
     assert.strictEqual(
-      getOrphanUserMessageId([
+      Chat.orphans.getOrphanUserMessageId([
         { id: "assistant-1", role: "assistant" },
         { id: "user-orphan", role: "user" },
       ]),

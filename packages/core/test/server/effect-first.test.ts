@@ -4,22 +4,23 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import {
-  AuthPort,
-  ChatModel,
-  ChatRepositories,
-  ChatServer,
-  ChatServerConfiguration,
-  ChatServerError,
-  ChatServerLive,
-} from "../../src/server-effect.export.ts";
-import { ChatFetch, ChatFetchHandlers, ChatFetchHandlersLive } from "../../src/server-fetch.export.ts";
+import { ChatServerEffect } from "../../src/server-effect.export.ts";
+import { ChatFetchHandlers } from "../../src/server-fetch.export.ts";
 import type {
   AuthPortShape,
   ChatModelShape,
   ChatRepositoriesShape,
   ChatServerConfigurationShape,
 } from "../../src/server/ports/chat-server.ts";
+import type { ChatServer as ChatServerServiceTag } from "../../src/server/use-cases/chat-server.ts";
+
+const AuthPort = ChatServerEffect.AuthPort;
+const ChatModel = ChatServerEffect.ChatModel;
+const ChatRepositories = ChatServerEffect.ChatRepositories;
+const ChatServer = ChatServerEffect.Server;
+const ChatServerConfiguration = ChatServerEffect.Configuration;
+const ChatServerError = ChatServerEffect.Error;
+const ChatServerLive = ChatServerEffect.Live;
 
 const message = {
   id: "message-1",
@@ -28,14 +29,16 @@ const message = {
   createdAt: "2026-08-02T00:00:00.000Z",
 };
 
-const makeServices = (events: Array<string>) => {
-  const auth: AuthPortShape = {
-    authenticate: () =>
-      Effect.sync(() => {
-        events.push("auth");
-        return { subject: "user-1" };
-      }),
-  };
+const makeServices = (events: Array<string>, authOverride?: AuthPortShape) => {
+  const auth =
+    authOverride ??
+    ({
+      authenticate: () =>
+        Effect.sync(() => {
+          events.push("auth");
+          return { subject: "user-1" };
+        }),
+    } satisfies AuthPortShape);
   const repositories: ChatRepositoriesShape = {
     conversations: {
       list: () =>
@@ -97,8 +100,8 @@ const makeServices = (events: Array<string>) => {
 };
 
 const useServer = <Value, Error, Environment>(
-  layer: Layer.Layer<ChatServer, Error, Environment>,
-  effect: (server: ChatServer["Service"]) => Effect.Effect<Value, Error>,
+  layer: Layer.Layer<ChatServerServiceTag, Error, Environment>,
+  effect: (server: ChatServerServiceTag["Service"]) => Effect.Effect<Value, Error>,
 ) => ChatServer.use(effect).pipe(Effect.provide(layer));
 
 describe("@emi/core/server Effect-first surface", () => {
@@ -206,8 +209,8 @@ describe("@emi/core/server Effect-first surface", () => {
 
   it("derives the Promise Fetch adapter from the server Effect", async () => {
     const serverLayer = makeServices([]);
-    const fetchLayer = ChatFetchHandlersLive.pipe(Layer.provide(serverLayer));
-    const response = await ChatFetch.handle({
+    const fetchLayer = ChatFetchHandlers.layer().pipe(Layer.provide(serverLayer));
+    const response = await ChatFetchHandlers.handle({
       layer: fetchLayer,
       request: new Request("https://example.test/api/conversations"),
     });
@@ -226,16 +229,12 @@ describe("@emi/core/server Effect-first surface", () => {
   });
 
   it("maps typed server failures at the Promise adapter boundary", async () => {
-    const layer = makeServices([]).pipe(
-      Layer.provideMerge(
-        Layer.succeed(AuthPort, {
-          authenticate: () =>
-            Effect.fail(new ChatServerError({ kind: "unauthorized", message: "Sign in required." })),
-        }),
-      ),
-    );
-    const response = await ChatFetch.handle({
-      layer: ChatFetchHandlersLive.pipe(Layer.provide(layer)),
+    const layer = makeServices([], {
+      authenticate: () =>
+        Effect.fail(new ChatServerError({ kind: "unauthorized", message: "Sign in required." })),
+    });
+    const response = await ChatFetchHandlers.handle({
+      layer: ChatFetchHandlers.layer().pipe(Layer.provide(layer)),
       request: new Request("https://example.test/api/conversations"),
     });
 

@@ -7,15 +7,9 @@ import {
   ArrowUpIcon,
   BookmarkIcon,
   BrainIcon,
-  CopyIcon,
-  DownloadIcon,
-  GitBranchIcon,
   GlobeIcon,
   GhostIcon,
-  LoaderIcon,
   PaperclipIcon,
-  PencilIcon,
-  RefreshCwIcon,
   SquareIcon,
   XIcon,
 } from "lucide-react";
@@ -23,10 +17,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { assign, setup } from "xstate";
 import {
-  MessagePart,
+  ChatThreadScroll,
+  MessageRail,
   SuggestionChips,
+  ThreadMessage,
+  useThreadViewportScroll,
   type ComposerControls as CoreComposerControls,
-  type MessagePartValue,
+  type ThreadMessageValue,
 } from "@emi/core/web";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -40,12 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MessageRail } from "@/components/chat/message-rail";
-import { ToolResultContent } from "@/components/chat/tool-result-content";
 import { cn } from "@/lib/utils";
-import { CHAT_THREAD_SCROLL_ID } from "@/lib/chat-thread-scroll";
-import { useThreadViewportScroll } from "@/hooks/use-thread-viewport-scroll";
-import { useChatRuntime } from "@/app/chat/chat-runtime";
+import { useChatRuntime } from "@/app/chat/chat-runtime-context";
 import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@/app/chat/follow-up-queue";
 import type { ChatModel } from "@/app/models";
 import { fetchSuggestions } from "@/app/suggestions";
@@ -61,6 +54,7 @@ import {
 } from "@/app/memories";
 import { notifyMemoriesChanged } from "@/app/memory-events";
 import { useActionFeedback } from "@/app/action-feedback";
+import { ToolResultContent } from "@/components/chat/tool-result-content";
 
 export type ComposerControls = Omit<CoreComposerControls, "onKeepTemporary" | "models"> & {
   onKeepTemporary: (messages: UIMessage[]) => Promise<void>;
@@ -106,39 +100,17 @@ const messageEditorMachine = setup({
   },
 });
 
-const renderMessagePart = ({
-  part,
-  onReferenceMessage,
-  isStreaming,
-}: {
-  part: MessagePartValue;
-  onReferenceMessage?: (messageId: string) => void;
-  isStreaming: boolean;
-}) => (
-  <MessagePart
-    part={part}
-    onReferenceMessage={onReferenceMessage}
-    isStreaming={isStreaming}
-    renderToolResult={({ toolName, result }) => (
-      <ToolResultContent toolName={toolName} result={result} className="mt-2" />
-    )}
-  />
-);
-
 const getText = (message: UIMessage | undefined): string =>
   message?.parts.reduce(
     (text, part) => (part.type === "text" ? `${text}${text === "" ? "" : "\n"}${part.text}` : text),
     "",
   ) ?? "";
 
-const messagePartKey = (part: MessagePartValue): string => {
-  if (part.type === "text") return `text:${String(part.text ?? "")}`;
-  if (part.type === "file") return `file:${String(part.url ?? "")}`;
-  if ("toolCallId" in part && typeof part.toolCallId === "string") {
-    return `tool:${part.type}:${part.toolCallId}`;
-  }
-  return `${part.type}:${JSON.stringify(part)}`;
-};
+const toThreadMessage = (message: UIMessage): ThreadMessageValue => ({
+  id: message.id,
+  role: message.role,
+  parts: message.parts,
+});
 
 const StreamingIndicator = () => (
   <span
@@ -197,225 +169,6 @@ const FollowUpSuggestions = () => {
         onSelect={(suggestion) => void runtime.submit(suggestion)}
       />
     </div>
-  );
-};
-
-const ChatMessage = ({
-  message,
-  isStreaming,
-  onFork,
-  onRemember,
-  isRemembered,
-  isRemembering,
-  editingDraft,
-  onEditStart,
-  onEditChange,
-  onEditCancel,
-  onEditSubmit,
-  onRegenerate,
-  onReferenceMessage,
-  error,
-  onRetry,
-  retryDisabled = false,
-}: {
-  message: UIMessage;
-  isStreaming: boolean;
-  onFork?: (messageId: string) => void;
-  onRemember: (message: UIMessage) => Promise<void>;
-  isRemembered: boolean;
-  isRemembering: boolean;
-  editingDraft?: string;
-  onEditStart: (message: UIMessage) => void;
-  onEditChange: (value: string) => void;
-  onEditCancel: () => void;
-  onEditSubmit: () => void;
-  onRegenerate: (messageId: string) => void;
-  onReferenceMessage?: (messageId: string) => void;
-  error?: Error;
-  onRetry?: (messageId: string) => void;
-  retryDisabled?: boolean;
-}) => {
-  const isUser = message.role === "user";
-  const feedback = useActionFeedback();
-  const usage = useUsage();
-  const metadata = usage.metaByMessageId.get(message.id);
-  const tokens = usage.usageByMessageId.get(message.id)?.totalTokens;
-  const model = chatModels.find((candidate) => candidate.id === metadata?.model);
-  const createdAt = metadata?.createdAt;
-  const exportMessage = () => {
-    const blob = new Blob([getText(message)], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `message-${message.id}.md`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-  const copyMessage = async () => {
-    try {
-      await navigator.clipboard.writeText(getText(message));
-      feedback.show({ kind: "success", message: "Message copied." });
-    } catch {
-      feedback.show({ kind: "error", message: "Could not copy message." });
-    }
-  };
-  return (
-    <Message
-      id={`message-${message.id}`}
-      align={isUser ? "end" : "start"}
-      aria-live={isStreaming ? "polite" : undefined}
-      className="scroll-mt-28 py-1"
-    >
-      <MessageContent className={cn(!isUser && "gap-3")}>
-        {editingDraft === undefined ? (
-          <Bubble
-            align={isUser ? "end" : "start"}
-            variant={isUser ? "muted" : "ghost"}
-            className={cn(isUser ? "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md" : "w-full")}
-          >
-            <BubbleContent className={cn(!isUser && "w-full space-y-3")}>
-              {message.parts.map((part) => (
-                <div key={messagePartKey(part)}>
-                  {renderMessagePart({
-                    part,
-                    onReferenceMessage,
-                    isStreaming,
-                  })}
-                </div>
-              ))}
-              {isStreaming && <StreamingIndicator />}
-            </BubbleContent>
-          </Bubble>
-        ) : (
-          <form
-            className="ms-auto flex w-full max-w-[85%] flex-col gap-2 rounded-xl border bg-muted/30 p-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onEditSubmit();
-            }}
-          >
-            <textarea
-              value={editingDraft}
-              onChange={(event) => onEditChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") onEditCancel();
-              }}
-              aria-label="Edit message"
-              className="min-h-20 resize-y bg-transparent p-2 outline-none"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button type="button" size="sm" variant="ghost" onClick={onEditCancel}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={editingDraft.trim() === ""}>
-                Update
-              </Button>
-            </div>
-          </form>
-        )}
-        {isUser && error !== undefined && (
-          <div className="ms-auto flex max-w-[85%] items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <span>{error.message}</span>
-            {onRetry !== undefined && (
-              <button
-                type="button"
-                className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={retryDisabled}
-                onClick={() => onRetry(message.id)}
-              >
-                {retryDisabled ? "Retrying…" : "Retry this request"}
-              </button>
-            )}
-          </div>
-        )}
-        <MessageFooter className={cn("gap-1", !isUser && "px-2")}>
-          <span className="me-1 font-medium text-foreground/70">{isUser ? "You" : "Coach"}</span>
-          {model !== undefined && <span>{model.label}</span>}
-          {typeof tokens === "number" && tokens > 0 && (
-            <span>{tokens.toLocaleString()} tokens</span>
-          )}
-          {createdAt !== undefined && (
-            <time dateTime={createdAt} title={new Date(createdAt).toLocaleString()}>
-              {new Date(createdAt).toLocaleTimeString(undefined, {
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </time>
-          )}
-          <TooltipIconButton
-            tooltip="Copy message"
-            side="top"
-            type="button"
-            aria-label="Copy message"
-            onClick={() => void copyMessage()}
-          >
-            <CopyIcon className="size-3.5" />
-          </TooltipIconButton>
-          {isUser && !isStreaming && editingDraft === undefined && (
-            <TooltipIconButton
-              tooltip="Edit message"
-              side="top"
-              type="button"
-              aria-label="Edit message"
-              onClick={() => onEditStart(message)}
-            >
-              <PencilIcon className="size-3.5" />
-            </TooltipIconButton>
-          )}
-          {!isUser && !isStreaming && (
-            <TooltipIconButton
-              tooltip="Regenerate response"
-              side="top"
-              type="button"
-              aria-label="Regenerate response"
-              disabled={retryDisabled}
-              onClick={() => onRegenerate(message.id)}
-            >
-              <RefreshCwIcon className="size-3.5" />
-            </TooltipIconButton>
-          )}
-          {onFork !== undefined && message.id !== "" && !isStreaming && (
-            <TooltipIconButton
-              tooltip="Fork from this message"
-              side="top"
-              type="button"
-              aria-label="Fork from message"
-              onClick={() => onFork(message.id)}
-            >
-              <GitBranchIcon className="size-3.5" />
-            </TooltipIconButton>
-          )}
-          {!isUser && !isStreaming && getText(message).trim() !== "" && (
-            <>
-              <TooltipIconButton
-                tooltip={isRemembered ? "Remove from memories" : "Save to memory"}
-                side="top"
-                type="button"
-                aria-label={isRemembered ? "Remove message memories" : "Save message to memory"}
-                onClick={() => void onRemember(message)}
-                disabled={isRemembering}
-              >
-                {isRemembering ? (
-                  <LoaderIcon className="size-3.5 animate-spin" />
-                ) : (
-                  <BookmarkIcon className={cn("size-3.5", isRemembered && "fill-current")} />
-                )}
-              </TooltipIconButton>
-              <TooltipIconButton
-                tooltip="Export as Markdown"
-                side="top"
-                type="button"
-                aria-label="Export message as Markdown"
-                onClick={exportMessage}
-              >
-                <DownloadIcon className="size-3.5" />
-              </TooltipIconButton>
-            </>
-          )}
-        </MessageFooter>
-      </MessageContent>
-    </Message>
   );
 };
 
@@ -559,7 +312,7 @@ export const Thread = ({
           role="log"
           aria-relevant="additions"
           data-testid="chat-thread-viewport"
-          data-scroll-restoration-id={CHAT_THREAD_SCROLL_ID}
+          data-scroll-restoration-id={ChatThreadScroll.elementId}
         >
           <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
             {contextSummary !== undefined && (
@@ -595,16 +348,29 @@ export const Thread = ({
             ) : (
               <>
                 {runtime.messages.map((message, index) => (
-                  <ChatMessage
+                  <ThreadMessage
                     key={message.id}
-                    message={message}
+                    message={toThreadMessage(message)}
                     isStreaming={
                       runtime.isStreaming &&
                       index === runtime.messages.length - 1 &&
                       message.role === "assistant"
                     }
+                    assistantLabel="Coach"
+                    metadata={{
+                      modelLabel: chatModels.find(
+                        (candidate) => candidate.id === usage.metaByMessageId.get(message.id)?.model,
+                      )?.label,
+                      totalTokens: usage.usageByMessageId.get(message.id)?.totalTokens ?? undefined,
+                      createdAt: usage.metaByMessageId.get(message.id)?.createdAt,
+                    }}
                     onFork={onForkMessage}
-                    onRemember={rememberMessage}
+                    onRemember={(selectedMessage) => {
+                      const source = runtime.messages.find(
+                        (candidate) => candidate.id === selectedMessage.id,
+                      );
+                      if (source !== undefined) return rememberMessage(source);
+                    }}
                     isRemembered={savedMemoryMessageIds.has(message.id)}
                     isRemembering={memoryMessageId === message.id}
                     editingDraft={
@@ -612,13 +378,17 @@ export const Thread = ({
                         ? editorState.context.draft
                         : undefined
                     }
-                    onEditStart={(selectedMessage) =>
+                    onEditStart={(selectedMessage) => {
+                      const source = runtime.messages.find(
+                        (candidate) => candidate.id === selectedMessage.id,
+                      );
+                      if (source === undefined) return;
                       sendEditor({
                         type: "edit.start",
-                        messageId: selectedMessage.id,
-                        draft: getText(selectedMessage),
-                      })
-                    }
+                        messageId: source.id,
+                        draft: getText(source),
+                      });
+                    }}
                     onEditChange={(draft) => sendEditor({ type: "edit.change", draft })}
                     onEditCancel={() => sendEditor({ type: "edit.cancel" })}
                     onEditSubmit={() => {
@@ -637,6 +407,16 @@ export const Thread = ({
                     }
                     onRetry={(messageId) => void runtime.revise({ messageId })}
                     retryDisabled={runtime.isRetrying || runtime.isStreaming}
+                    onCopyResult={({ ok }) => {
+                      feedback.show(
+                        ok
+                          ? { kind: "success", message: "Message copied." }
+                          : { kind: "error", message: "Could not copy message." },
+                      );
+                    }}
+                    renderToolResult={({ toolName, result }) => (
+                      <ToolResultContent toolName={toolName} result={result} className="mt-2" />
+                    )}
                   />
                 ))}
                 {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (

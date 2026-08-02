@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { GenUIRenderer } from "@/components/chat/gen-ui/registry";
+import { GenUIRenderer } from "@emi/flavor-healthfit/web";
 import { Button } from "@/components/ui/button";
 
 const samples = [

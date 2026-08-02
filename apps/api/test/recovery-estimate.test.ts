@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { estimateRecovery } from "../src/healthfit/chat/recovery-estimate.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
+
+const { estimateRecovery } = HealthFit.chat;
 
 describe("recovery estimate", () => {
   it("does not diagnose poor recovery when sleep data is missing", () => {

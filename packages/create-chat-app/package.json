@@ -12,7 +12,7 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/create-chat-app.export.ts"
   },
   "publishConfig": {
     "access": "public"

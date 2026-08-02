@@ -1,28 +1,29 @@
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
-import { generateSuggestions, normalizeGeneratedStrings } from "@emi/core/chat";
+import { Chat } from "@emi/core/chat";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
-import { CurrentUser } from "../../core/auth/request-auth.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import { ServerDatabase } from "@emi/core/server/database";
 import {
-  getSuggestionsById,
-  hashSuggestionsKey,
-  saveSuggestions,
-} from "../../core/db/conversations.ts";
+  HealthFit,
+  type HealthfitDatabaseSchema,
+} from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
-import { getAnalyticsOverview, getIngestedDataExportSummary, getWorkouts } from "../db/fitness.ts";
-import {
-  deleteIngestedSource,
-  getRawUploadRetentionDays,
-  updateRawUploadRetentionDays,
-} from "../db/ingested-data.ts";
 import { withInternalError } from "../../core/http/errors.ts";
-import { ensureHevyFresh } from "../integrations/hevy/hevy-sync.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
+
+const toHealthfitDb = (db: QueryDatabaseClient) =>
+  narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+
+const { getAnalyticsOverview, getIngestedDataExportSummary, getRawUploadRetentionDays, getWorkouts } =
+  HealthFit.data;
+const { deleteIngestedSource, updateRawUploadRetentionDays } = HealthFit.ingest;
+const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
+
+const { getSuggestionsById, hashSuggestionsKey, saveSuggestions } = ServerDatabase.conversations;
 
 export const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
@@ -61,16 +62,16 @@ export const suggestionsHandlers = ({
       "generate",
       Effect.fn("httpApi.suggestions.generate")(
         function* ({ payload }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const lastAssistantText = payload.lastAssistantText.trim();
           const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
-          const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+          const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
           const cached = yield* getSuggestionsById(conversationDb, user.id, key);
           if (cached !== null) {
-            return { suggestions: normalizeGeneratedStrings(cached.suggestions) };
+            return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };
           }
           const suggestions = yield* Effect.promise(() =>
-            generateSuggestions({
+            Chat.generation.generateSuggestions({
               configuration: payload.config,
               lastAssistantText,
               lastUserText: payload.lastUserText,
@@ -99,7 +100,7 @@ export const analyticsHandlers = ({
       "overview",
       Effect.fn("httpApi.analytics.overview")(
         function* ({ query }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           yield* ensureHevyFresh({
             db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
             userId: user.id,
@@ -129,7 +130,7 @@ export const dataHandlers = ({
       "exportSummary",
       Effect.fn("httpApi.data.exportSummary")(
         function* () {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const summary = yield* getIngestedDataExportSummary({
             db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
             userId: user.id,
@@ -157,9 +158,9 @@ export const privacyHandlers = ({
         "read",
         Effect.fn("httpApi.privacy.read")(
           function* () {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const rawUploadRetentionDays = yield* getRawUploadRetentionDays({
-              db,
+              db: toHealthfitDb(db),
               userId: user.id,
             });
             return { rawUploadRetentionDays };
@@ -172,9 +173,9 @@ export const privacyHandlers = ({
         "update",
         Effect.fn("httpApi.privacy.update")(
           function* ({ payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             yield* updateRawUploadRetentionDays({
-              db,
+              db: toHealthfitDb(db),
               userId: user.id,
               days: payload.rawUploadRetentionDays,
             });
@@ -193,8 +194,12 @@ export const privacyHandlers = ({
         "removeSource",
         Effect.fn("httpApi.privacy.removeSource")(
           function* ({ params }) {
-            const user = yield* CurrentUser;
-            yield* deleteIngestedSource({ db, userId: user.id, source: params.source });
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            yield* deleteIngestedSource({
+              db: toHealthfitDb(db),
+              userId: user.id,
+              source: params.source,
+            });
             const deletedRawUploads = yield* deleteRawUploads({
               bucket,
               prefix: `${user.id}/${params.source}/`,
@@ -221,7 +226,7 @@ export const workoutsHandlers = ({
       "list",
       Effect.fn("httpApi.workouts.list")(
         function* () {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           yield* ensureHevyFresh({
             db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
             userId: user.id,

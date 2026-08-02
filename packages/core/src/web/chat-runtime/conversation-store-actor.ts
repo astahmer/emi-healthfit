@@ -1,6 +1,6 @@
 import { assign, fromCallback, sendTo, setup } from "xstate";
 
-import type { ChatMessage } from "../../protocol.export.ts";
+import type { ChatMessage } from "../../protocol/messages.ts";
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
 import type { ChatTransportActorEvent } from "./chat-transport-actor.ts";
 import type {

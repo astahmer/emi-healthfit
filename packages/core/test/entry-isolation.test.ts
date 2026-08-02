@@ -69,6 +69,7 @@ describe("@emi/core entry isolation", () => {
       "server/effect",
       "server/fetch",
       "testing",
+      "web",
     ];
     const modules = await Promise.all([
       import("@emi/core"),
@@ -76,5 +77,19 @@ describe("@emi/core entry isolation", () => {
     ]);
     assert.equal(modules.length, subpaths.length + 1);
     for (const module of modules) assert.ok(Object.keys(module).length > 0);
+  });
+
+  it("keeps raw XState actors on the explicit advanced entrypoint", async () => {
+    const web = await import("@emi/core/web");
+    for (const name of [
+      "browserStateActor",
+      "chatRuntimeMachine",
+      "chatSessionMachine",
+      "chatTransportActor",
+      "chatUiActor",
+      "conversationStoreActor",
+      "genericChatAppMachine",
+      "settingsActor",
+    ]) assert.equal(name in web, false, name);
   });
 });

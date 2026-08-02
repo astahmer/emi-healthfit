@@ -1,11 +1,12 @@
 import { RuntimeContext } from "alchemy";
-import { generateConversationSummary } from "@emi/core/chat";
+import { Chat } from "@emi/core/chat";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import type { createChatOperationBudget } from "../chat/generation-budget.ts";
-import { recordChatEvent } from "../chat/generation-store.ts";
-import { createToolCircuitBreaker } from "../chat/tool-circuit-breaker.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import { ServerDatabase } from "@emi/core/server/database";
+import {
+  narrowQueryDatabaseClient,
+  type QueryDatabaseClient,
+} from "../../platform/db/client.ts";
 import type { ChatToolExecutor } from "./chat-hooks.ts";
 
 export const createChatToolExecutor = ({
@@ -35,9 +36,11 @@ export const createChatToolExecutor = ({
   model: string;
   services: Context.Context<RuntimeContext>;
   executeTool: ChatToolExecutor;
-  budget: ReturnType<typeof createChatOperationBudget>;
+  budget: ReturnType<typeof Chat.operations.createChatOperationBudget>;
 }) => {
-  const toolCircuitBreaker = createToolCircuitBreaker();
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const { recordChatEvent } = ServerDatabase.generations;
+  const toolCircuitBreaker = Chat.tools.createToolCircuitBreaker();
   const recordEvent = (type: string, payload: Record<string, unknown> = {}) =>
     isTemporary
       ? Effect.void
@@ -53,7 +56,7 @@ export const createChatToolExecutor = ({
             }),
           )
         : recordChatEvent({
-            db,
+            db: conversationDb,
             userId,
             conversationId: sessionId,
             generationId,
@@ -101,7 +104,7 @@ export const createChatToolExecutor = ({
             ...(isTemporary ? {} : { conversationId: sessionId }),
             summarize: (messages) =>
               Effect.promise(() =>
-                generateConversationSummary({
+                Chat.generation.generateConversationSummary({
                   configuration: { apiKey, baseUrl, model },
                   messages,
                 }),

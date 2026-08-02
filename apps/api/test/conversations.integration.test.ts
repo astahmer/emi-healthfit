@@ -1,6 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import {
+import { ServerDatabase } from "@emi/core/server/database";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const {
   addThreadMessage,
   cloneConversation,
   createConversation,
@@ -26,15 +30,12 @@ import {
   saveSuggestions,
   summarizeThread,
   updateConversationState,
-} from "../src/core/db/conversations.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
-import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+} = ServerDatabase.conversations;
 
 describe("conversations SQLite integration", () => {
   it("persists conversation, branch, summary, suggestion, and revision lifecycle", async () => {
     const { db: rawDb } = makeSqliteDatabase();
-    const db = narrowQueryDatabaseClient<ConversationDatabaseSchema>(rawDb);
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
     const userId = "user-a";
     const conversationId = await run(createConversation(db, userId, "Running plan"));
     const [questionId] = await run(
@@ -157,7 +158,7 @@ describe("conversations SQLite integration", () => {
 
   it("creates a conversation with a batch of root messages in order", async () => {
     const { db: rawDb } = makeSqliteDatabase();
-    const db = narrowQueryDatabaseClient<ConversationDatabaseSchema>(rawDb);
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
     const userId = "user-a";
     const conversationId = await run(createConversation(db, userId, "Kept ghost"));
     await run(
@@ -192,7 +193,7 @@ describe("conversations SQLite integration", () => {
 
   it("clones linked messages and threads, then deletes only owned original conversation", async () => {
     const { db: rawDb } = makeSqliteDatabase();
-    const db = narrowQueryDatabaseClient<ConversationDatabaseSchema>(rawDb);
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
     const alice = "user-a";
     const bob = "user-b";
     const conversationId = await run(createConversation(db, alice, "Strength plan"));

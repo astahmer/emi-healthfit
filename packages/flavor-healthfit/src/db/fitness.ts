@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect";
 import { sql } from "kysely";
-import type { QueryDatabaseClient } from "@emi/core/server";
+import type { ServerDatabase } from "@emi/core/server/database";
 import type { HealthfitDatabaseSchema } from "./schema.ts";
 
-type FitnessDb = QueryDatabaseClient<HealthfitDatabaseSchema>;
+type FitnessDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
 export interface WorkoutHistoryItem {
   session_id: string;

@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import * as Effect from "effect/Effect";
-import {
-  DiscordInteractionType,
-  DiscordInteractionResponseType,
-} from "@emi/core/discord";
+import { Discord } from "@emi/core/discord";
 import { handleInteractionsRequest } from "../src/routes/interactions.ts";
 import {
   resetDiscordRateLimitsForTests,
@@ -31,7 +28,7 @@ const applicationCommandBody = (
   options?: Array<{ name: string; type: number; value?: string }>,
 ) => ({
   id: "interaction-1",
-  type: DiscordInteractionType.ApplicationCommand,
+  type: Discord.interactions.type.ApplicationCommand,
   token: "interaction-token",
   data: {
     id: "command-1",
@@ -77,7 +74,7 @@ describe("handleInteractionsRequest", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
       id: "interaction-0",
-      type: DiscordInteractionType.Ping,
+      type: Discord.interactions.type.Ping,
     });
 
     const response = await Effect.runPromise(
@@ -91,7 +88,7 @@ describe("handleInteractionsRequest", () => {
       }),
     );
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { type: DiscordInteractionResponseType.Pong });
+    assert.deepEqual(response.body, { type: Discord.interactions.responseType.Pong });
   });
 
   it("returns 401 when the signature is missing", async () => {
@@ -100,7 +97,7 @@ describe("handleInteractionsRequest", () => {
 
     const response = await Effect.runPromise(
       handleInteractionsRequest({
-        rawBody: JSON.stringify({ id: "x", type: DiscordInteractionType.Ping }),
+        rawBody: JSON.stringify({ id: "x", type: Discord.interactions.type.Ping }),
         signature: null,
         timestamp: String(Math.floor(Date.now() / 1000)),
         publicKeyHex,
@@ -116,7 +113,7 @@ describe("handleInteractionsRequest", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const { signature, timestamp } = await makeSignedInteraction(privateKey, {
       id: "interaction-0",
-      type: DiscordInteractionType.Ping,
+      type: Discord.interactions.type.Ping,
     });
 
     const response = await Effect.runPromise(
@@ -136,7 +133,10 @@ describe("handleInteractionsRequest", () => {
     const { privateKey, publicKey } = await generateDiscordKeyPair();
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const staleTimestamp = String(Math.floor(Date.now() / 1000) - 10 * 60);
-    const rawBody = JSON.stringify({ id: "interaction-0", type: DiscordInteractionType.Ping });
+    const rawBody = JSON.stringify({
+      id: "interaction-0",
+      type: Discord.interactions.type.Ping,
+    });
     const signature = await signInteractionBody(privateKey, staleTimestamp, rawBody);
 
     const response = await Effect.runPromise(
@@ -295,7 +295,7 @@ describe("handleInteractionsRequest", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
       id: "interaction-1",
-      type: DiscordInteractionType.ApplicationCommand,
+      type: Discord.interactions.type.ApplicationCommand,
       token: "interaction-token",
       data: { id: "command-2", name: "other" },
     });
@@ -319,7 +319,7 @@ describe("handleInteractionsRequest", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
       id: "interaction-ask-1",
-      type: DiscordInteractionType.ApplicationCommand,
+      type: Discord.interactions.type.ApplicationCommand,
       token: "ask-token",
       data: {
         id: "command-ask",
@@ -345,7 +345,7 @@ describe("handleInteractionsRequest", () => {
     );
     assert.equal(response.status, 200);
     assert.deepEqual(response.body, {
-      type: DiscordInteractionResponseType.DeferredChannelMessageWithSource,
+      type: Discord.interactions.responseType.DeferredChannelMessageWithSource,
       data: { flags: 64 },
     });
     assert.equal(scheduled.length, 1);
@@ -360,7 +360,7 @@ describe("handleInteractionsRequest", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
       id: "interaction-ask-2",
-      type: DiscordInteractionType.ApplicationCommand,
+      type: Discord.interactions.type.ApplicationCommand,
       token: "ask-token-2",
       data: {
         id: "command-ask",
@@ -423,7 +423,7 @@ describe("handleInteractionsRequest", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const { rawBody, signature, timestamp } = await makeSignedInteraction(privateKey, {
       id: "interaction-ask-3",
-      type: DiscordInteractionType.ApplicationCommand,
+      type: Discord.interactions.type.ApplicationCommand,
       token: "ask-token-3",
       data: {
         id: "command-ask",

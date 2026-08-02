@@ -1,13 +1,9 @@
 import {
-  createChatStream as createCoreChatStream,
-  normalizeGeneratedStrings,
-  toUiMessageStream,
+  Chat,
   type OpenAiCompatibleConfiguration,
 } from "@emi/core/chat";
 import type { StreamTextOnChunkCallback, ToolSet, UIMessage } from "ai";
 import type { JSONSchema7 } from "json-schema";
-
-export { normalizeGeneratedStrings, toUiMessageStream };
 
 interface ChatConfig extends OpenAiCompatibleConfiguration {}
 
@@ -28,11 +24,11 @@ export interface ChatStreamRequest {
 export const createChatStream = (options: {
   request: ChatStreamRequest;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
-  onFinish?: Parameters<typeof createCoreChatStream>[0]["onFinish"];
+  onFinish?: Parameters<typeof Chat.stream.createChatStream>[0]["onFinish"];
   onChunk?: StreamTextOnChunkCallback<ToolSet>;
   onError?: (error: unknown) => void | Promise<void>;
 }) =>
-  createCoreChatStream({
+  Chat.stream.createChatStream({
     ...options,
     request: {
       messages: options.request.messages,

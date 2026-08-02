@@ -1,6 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import {
+import { ServerDatabase } from "@emi/core/server/database";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const {
   appendGenerationChunk,
   appendGenerationChunks,
   cancelRunningGenerations,
@@ -17,19 +21,16 @@ import {
   reconcileFinishedGenerations,
   recordChatEvent,
   updateGenerationMetadata,
-} from "../src/core/chat/generation-store.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
-import { createConversation } from "../src/core/db/conversations.ts";
-import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+} = ServerDatabase.generations;
 
 describe("generation store SQLite integration", () => {
   it("persists streaming lifecycle, ordered chunks, events, reconciliation, expiry, and cleanup", async () => {
-    const { db, sqlite } = makeSqliteDatabase();
+    const { db: database, sqlite } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-a";
     const conversationId = await run(
-      createConversation(
-        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+      ServerDatabase.conversations.createConversation(
+        db,
         userId,
         "Streaming",
       ),
@@ -226,11 +227,12 @@ describe("generation store SQLite integration", () => {
   });
 
   it("cancels running generations for a conversation without touching finished ones", async () => {
-    const { db } = makeSqliteDatabase();
+    const { db: database } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-cancel";
     const conversationId = await run(
-      createConversation(
-        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+      ServerDatabase.conversations.createConversation(
+        db,
         userId,
         "Cancel running",
       ),
@@ -299,11 +301,12 @@ describe("generation store SQLite integration", () => {
   });
 
   it("ignores late finishGeneration after a generation was cancelled", async () => {
-    const { db } = makeSqliteDatabase();
+    const { db: database } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-late-finish";
     const conversationId = await run(
-      createConversation(
-        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+      ServerDatabase.conversations.createConversation(
+        db,
         userId,
         "Late finish",
       ),
@@ -350,11 +353,12 @@ describe("generation store SQLite integration", () => {
   });
 
   it("cancel-then-create unlocks the one-active unique index", async () => {
-    const { db } = makeSqliteDatabase();
+    const { db: database } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-supersede";
     const conversationId = await run(
-      createConversation(
-        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+      ServerDatabase.conversations.createConversation(
+        db,
         userId,
         "Supersede",
       ),
@@ -397,11 +401,12 @@ describe("generation store SQLite integration", () => {
   });
 
   it("rejects a second active generation for the same conversation", async () => {
-    const { db } = makeSqliteDatabase();
+    const { db: database } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-unique";
     const conversationId = await run(
-      createConversation(
-        narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+      ServerDatabase.conversations.createConversation(
+        db,
         userId,
         "Unique active",
       ),

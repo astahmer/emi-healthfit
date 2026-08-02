@@ -1,0 +1,6 @@
+id: no-generic-platform-contract-import
+valid:
+  - "import type { ChatMessage } from './messages.ts';"
+invalid:
+  - "import type { Kysely } from 'kysely';"
+  - "import type { D1Database } from '@cloudflare/workers-types';"

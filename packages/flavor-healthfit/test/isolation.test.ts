@@ -32,7 +32,7 @@ describe("@emi/flavor-healthfit isolation", () => {
   });
 
   it("exports ingested-data and data-transfer from the package root", async () => {
-    const source = await readFile(join(packageRoot, "src/index.ts"), "utf8");
+    const source = await readFile(join(packageRoot, "src/flavor-healthfit.export.ts"), "utf8");
     expect(source).toContain("./db/ingested-data.ts");
     expect(source).toContain("./ingest/data-transfer.ts");
   });

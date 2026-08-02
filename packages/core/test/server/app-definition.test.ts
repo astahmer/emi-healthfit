@@ -1,16 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  composeSystemPrompt,
-  mergeAppDefinitions,
-  type AppDefinition,
-} from "../../src/server/app-definition.ts";
+import { AppDefinitions, type AppDefinition } from "../../src/server/app-definition.ts";
 
 describe("mergeAppDefinitions", () => {
   it("overrides identity fields with later definitions", () => {
     const core: AppDefinition = { identity: { name: "Core Chat", description: "core" } };
     const flavor: AppDefinition = { identity: { name: "HealthFit" } };
-    const merged = mergeAppDefinitions(core, flavor);
+    const merged = AppDefinitions.merge(core, flavor);
     assert.deepEqual(merged.identity, { name: "HealthFit", description: "core" });
   });
 
@@ -26,7 +22,7 @@ describe("mergeAppDefinitions", () => {
         { id: "unordered", text: "unordered" },
       ],
     };
-    const merged = mergeAppDefinitions(core, flavor);
+    const merged = AppDefinitions.merge(core, flavor);
     assert.deepEqual(
       merged.promptContributors?.map((contributor) => contributor.id),
       ["core-safety", "coach", "unordered"],
@@ -45,7 +41,7 @@ describe("mergeAppDefinitions", () => {
       identity: { name: "b" },
       promptContributors: [{ id: "b1", text: "b1" }],
     };
-    const merged = mergeAppDefinitions(first, second);
+    const merged = AppDefinitions.merge(first, second);
     assert.deepEqual(
       merged.promptContributors?.map((contributor) => contributor.id),
       ["a1", "a2", "b1"],
@@ -65,7 +61,7 @@ describe("mergeAppDefinitions", () => {
         { name: "search_memories", description: "flavor override", parameters: objectSchema },
       ],
     };
-    const merged = mergeAppDefinitions(core, flavor);
+    const merged = AppDefinitions.merge(core, flavor);
     assert.deepEqual(
       merged.tools?.map((tool) => tool.name),
       ["search_memories", "get_recovery"],
@@ -77,7 +73,7 @@ describe("mergeAppDefinitions", () => {
   });
 
   it("returns empty prompt contributors and tools when no definitions declare any", () => {
-    const merged = mergeAppDefinitions({ identity: { name: "Core Chat" } });
+    const merged = AppDefinitions.merge({ identity: { name: "Core Chat" } });
     assert.deepEqual(merged.promptContributors, []);
     assert.deepEqual(merged.tools, []);
   });
@@ -85,7 +81,7 @@ describe("mergeAppDefinitions", () => {
 
 describe("composeSystemPrompt", () => {
   it("joins prompt contributor text with a blank line separator", () => {
-    const prompt = composeSystemPrompt([
+    const prompt = AppDefinitions.composeSystemPrompt([
       { id: "a", text: "first" },
       { id: "b", text: "second" },
     ]);
@@ -93,7 +89,7 @@ describe("composeSystemPrompt", () => {
   });
 
   it("returns an empty string when given no contributors", () => {
-    assert.equal(composeSystemPrompt(undefined), "");
-    assert.equal(composeSystemPrompt([]), "");
+    assert.equal(AppDefinitions.composeSystemPrompt(undefined), "");
+    assert.equal(AppDefinitions.composeSystemPrompt([]), "");
   });
 });

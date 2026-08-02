@@ -10,8 +10,8 @@ import {
   ThreadWithMessages,
 } from "@emi/core/contract";
 import * as Schema from "effect/Schema";
-import { decodeGenerationChunk } from "../src/core/chat/generation-store.ts";
-import { normalizeGeneratedStrings } from "../src/core/chat/ai-sdk.ts";
+import { Chat } from "@emi/core/chat";
+import { ServerDatabase } from "@emi/core/server/database";
 import {
   decodeMessageParts,
   decodeSuggestions,
@@ -142,15 +142,17 @@ describe("HTTP response contracts", () => {
   });
 
   it("recovers a JSON suggestion array wrapped in a malformed response", () => {
-    assert.deepStrictEqual(normalizeGeneratedStrings('["First question", "Second question"]}'), [
+    assert.deepStrictEqual(Chat.generation.normalizeGeneratedStrings('["First question", "Second question"]}'), [
       "First question",
       "Second question",
     ]);
   });
 
   it("validates persisted generation chunks with the AI SDK schema", async () => {
-    assert.deepStrictEqual(await decodeGenerationChunk('{"type":"finish"}'), { type: "finish" });
-    await assert.rejects(() => decodeGenerationChunk('{"type":"unknown"}'));
-    await assert.rejects(() => decodeGenerationChunk("not-json"));
+    assert.deepStrictEqual(await ServerDatabase.generations.decodeGenerationChunk('{"type":"finish"}'), {
+      type: "finish",
+    });
+    await assert.rejects(() => ServerDatabase.generations.decodeGenerationChunk('{"type":"unknown"}'));
+    await assert.rejects(() => ServerDatabase.generations.decodeGenerationChunk("not-json"));
   });
 });

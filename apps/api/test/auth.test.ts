@@ -1,22 +1,23 @@
-import {
-  isProtectedPath,
-  makeRequestContext,
-  withRequestContext,
-  CurrentRequestContext,
-} from "../src/core/auth/request-auth.ts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { Miniflare } from "miniflare";
 import * as Effect from "effect/Effect";
-import { isAuthorizedAuthEmail, makeAuth, parseAllowedEmails } from "../src/core/auth/auth.ts";
-import {
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+
+const {
   createAnonymousEmail,
   createAnonymousSessionResponse,
   createSessionCookie,
   isAnonymousEmail,
+  isAuthorizedAuthEmail,
+  isProtectedPath,
   isTrustedAuthOrigin,
-} from "../src/core/auth/anonymous-session.ts";
+  makeAuth,
+  makeAuthRequestContext: makeRequestContext,
+  parseAllowedEmails,
+} = CoreCloudflare.auth;
+const { CurrentRequestContext, withRequestContext } = CoreCloudflare.request;
 
 describe("authentication boundaries", () => {
   it("builds RequestContext from the authenticated principal", async () => {

@@ -13,21 +13,9 @@ import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
-import type { MemoryDatabaseSchema } from "@emi/core/server";
-import { CurrentUser } from "./core/auth/request-auth.ts";
+import { ServerDatabase } from "@emi/core/server/database";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "./platform/db/client.ts";
-import {
-  deleteMemory,
-  deleteMemoriesByMessage,
-  deleteNote,
-  getMemories,
-  getNotes,
-  insertMemory,
-  insertNote,
-  searchMemories,
-  searchNotes,
-  updateNote,
-} from "./core/db/memories.ts";
 import {
   conversationsHandlers,
   memoryExtractionHandlers,
@@ -45,6 +33,19 @@ import {
 import { hevyHandlers } from "./healthfit/http/hevy.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
+
+const {
+  deleteMemory,
+  deleteMemoriesByMessage,
+  deleteNote,
+  getMemories,
+  getNotes,
+  insertMemory,
+  insertNote,
+  searchMemories,
+  searchNotes,
+  updateNote,
+} = ServerDatabase.memories;
 const HttpApiHandler = Schema.Struct({
   routes: Schema.declare<Array<HttpRouter.Route<never, never>>>(Array.isArray),
 });
@@ -77,13 +78,13 @@ const notesHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const notesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  const notesDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "notes", (handlers) =>
     handlers
       .handle(
         "list",
         Effect.fn("httpApi.notes.list")(function* ({ query }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const limit = query.limit ?? 100;
           const notes =
             query.search === undefined
@@ -95,7 +96,7 @@ const notesHandlers = ({
       .handle(
         "create",
         Effect.fn("httpApi.notes.create")(function* ({ payload }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const id = yield* insertNote(notesDb, user.id, payload.content);
           return { id: requireIdentifier(id) };
         }, Effect.provide(runtimeContext)),
@@ -103,7 +104,7 @@ const notesHandlers = ({
       .handle(
         "update",
         Effect.fn("httpApi.notes.update")(function* ({ params, payload }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           yield* updateNote(notesDb, user.id, params.id, payload.content);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
@@ -111,7 +112,7 @@ const notesHandlers = ({
       .handle(
         "remove",
         Effect.fn("httpApi.notes.remove")(function* ({ params }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           yield* deleteNote(notesDb, user.id, params.id);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
@@ -126,13 +127,13 @@ const memoriesHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const memoriesDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  const memoriesDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "memories", (handlers) =>
     handlers
       .handle(
         "list",
         Effect.fn("httpApi.memories.list")(function* ({ query }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const limit = query.limit ?? 100;
           const memories =
             query.search === undefined
@@ -144,7 +145,7 @@ const memoriesHandlers = ({
       .handle(
         "create",
         Effect.fn("httpApi.memories.create")(function* ({ payload }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const id = yield* insertMemory(
             memoriesDb,
             user.id,
@@ -159,7 +160,7 @@ const memoriesHandlers = ({
       .handle(
         "remove",
         Effect.fn("httpApi.memories.remove")(function* ({ params }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           yield* deleteMemory(memoriesDb, user.id, params.id);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),
@@ -167,7 +168,7 @@ const memoriesHandlers = ({
       .handle(
         "removeByMessage",
         Effect.fn("httpApi.memories.removeByMessage")(function* ({ params }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           yield* deleteMemoriesByMessage(memoriesDb, user.id, params.messageId);
           return { success: true } satisfies { success: true };
         }, Effect.provide(runtimeContext)),

@@ -4,13 +4,14 @@ import {
   createAnonymousEmail,
   isAnonymousEmail,
   isAuthorizedAuthEmail,
-  isGenericProtectedPath,
-  isProtectedPath,
-  makeAuthRequestContext,
   parseAllowedEmails,
-  withCurrentUser,
+} from "../../src/server/auth/emails.ts";
+import { isGenericProtectedPath, isProtectedPath } from "../../src/server/auth/paths.ts";
+import {
   CurrentUser,
-} from "../../src/server/auth.export.ts";
+  makeAuthRequestContext,
+  withCurrentUser,
+} from "../../src/server/auth/principal.ts";
 import { CurrentRequestContext, withRequestContext } from "../../src/server/request-context.ts";
 import * as Effect from "effect/Effect";
 

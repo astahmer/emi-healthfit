@@ -1,8 +1,9 @@
+import * as Effect from "effect/Effect";
 import { AiSdkModelProvider } from "@emi/core/adapters/ai-sdk";
 import { CloudflareRepositories } from "@emi/core/adapters/cloudflare";
 
-const model = AiSdkModelProvider.create({ model: "example", apiKey: "test" });
-const repositories = CloudflareRepositories.fromDatabase({
+const modelLayer = AiSdkModelProvider.layer({ model: "example", apiKey: "test" });
+const repositoriesLayer = CloudflareRepositories.layer({
   database: {
     prepare: () => ({
       bind: () => ({
@@ -13,6 +14,17 @@ const repositories = CloudflareRepositories.fromDatabase({
     }),
   },
 });
+
+const model = Effect.runPromise(
+  AiSdkModelProvider.use((provider) => Effect.succeed(provider)).pipe(
+    Effect.provide(modelLayer),
+  ),
+);
+const repositories = Effect.runPromise(
+  CloudflareRepositories.use((value) => Effect.succeed(value)).pipe(
+    Effect.provide(repositoriesLayer),
+  ),
+);
 
 void model;
 void repositories;

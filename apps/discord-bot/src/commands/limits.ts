@@ -1,8 +1,4 @@
-import type {
-  ApplicationCommandInteraction,
-  DiscordHttpResponse,
-} from "@emi/core/discord";
-import { ephemeralMessageResponse } from "@emi/core/discord";
+import { Discord } from "@emi/core/discord";
 import type * as Effect from "effect/Effect";
 
 export const DISCORD_MAX_CONTENT_LENGTH = 2000;
@@ -35,8 +31,8 @@ export const truncateDiscordContent = (content: string): string => {
   return `${content.slice(0, DISCORD_MAX_CONTENT_LENGTH - 1)}…`;
 };
 
-export const ephemeralContent = (content: string): DiscordHttpResponse =>
-  ephemeralMessageResponse(truncateDiscordContent(content));
+export const ephemeralContent = (content: string): Discord.HttpResponse =>
+  Discord.responses.ephemeralMessage(truncateDiscordContent(content));
 
 export type ConsumeLinkResult =
   | { readonly ok: true; readonly userId: string }
@@ -54,11 +50,13 @@ export interface HealthfitCommandServices {
   readonly formatRecovery: (userId: string) => Effect.Effect<string>;
 }
 
-export const discordUserIdOf = (interaction: ApplicationCommandInteraction): string | undefined =>
+export const discordUserIdOf = (
+  interaction: Discord.ApplicationCommandInteraction,
+): string | undefined =>
   interaction.user?.id ?? interaction.member?.user?.id;
 
 export const optionString = (
-  interaction: ApplicationCommandInteraction,
+  interaction: Discord.ApplicationCommandInteraction,
   optionName: string,
 ): string | undefined => {
   const subcommand = interaction.data.options?.[0];

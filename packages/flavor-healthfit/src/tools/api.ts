@@ -1,6 +1,5 @@
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
@@ -8,18 +7,7 @@ import * as Stream from "effect/Stream";
 import * as Tool from "effect/unstable/ai/Tool";
 import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
-import {
-  createThread,
-  getMessage,
-  getThread,
-  getThreadMessages,
-  getThreads,
-  searchMemories,
-  summarizeThread,
-  type ConversationDatabaseSchema,
-  type MemoryDatabaseSchema,
-  type QueryDatabaseClient,
-} from "@emi/core/server";
+import { ServerDatabase } from "@emi/core/server/database";
 import { buildChatContext } from "../chat/context.ts";
 import {
   getDataSummary,
@@ -36,11 +24,24 @@ import {
 import type { HealthfitDatabaseSchema } from "../db/schema.ts";
 
 interface ToolsDatabaseSchema
-  extends ConversationDatabaseSchema, MemoryDatabaseSchema, HealthfitDatabaseSchema {}
+  extends
+    ServerDatabase.ConversationDatabaseSchema,
+    ServerDatabase.MemoryDatabaseSchema,
+    HealthfitDatabaseSchema {}
 
 export type HealthfitToolsDatabaseSchema = ToolsDatabaseSchema;
 
-type ToolsDb = QueryDatabaseClient<ToolsDatabaseSchema>;
+type ToolsDb = ServerDatabase.QueryDatabaseClient<ToolsDatabaseSchema>;
+
+const {
+  createThread,
+  getMessage,
+  getThread,
+  getThreadMessages,
+  getThreads,
+  summarizeThread,
+} = ServerDatabase.conversations;
+const { searchMemories } = ServerDatabase.memories;
 
 /**
  * Kysely's `Transaction`/`withRecursive` typings make `Kysely<T>` (and thus
@@ -52,8 +53,8 @@ type ToolsDb = QueryDatabaseClient<ToolsDatabaseSchema>;
  * toolkit, so we narrow explicitly at each call boundary instead of widening
  * every downstream function's schema parameter.
  */
-const narrow = <TSchema>(db: ToolsDb): QueryDatabaseClient<TSchema> =>
-  db as unknown as QueryDatabaseClient<TSchema>;
+const narrow = <TSchema>(db: ToolsDb): ServerDatabase.QueryDatabaseClient<TSchema> =>
+  db as unknown as ServerDatabase.QueryDatabaseClient<TSchema>;
 
 export interface ToolDefinition {
   name: string;
@@ -264,7 +265,7 @@ const SummarizeToMessage = Tool.make("summarize_to_message", {
 
 const RenderComponent = Tool.make("render_component", {
   description:
-    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; SleepTrend {days, avg_sleep_hours?, nights}; WorkoutStreak {current_streak, longest_streak, last_workout_date?}; TrainingLoad {weeks, total_volume_kg, current_week_volume_kg, previous_week_volume_kg?, volume_change_pct?}; RecoveryTimeline {days, average_sleep_hours?}; GoalProgress {period_days, average_steps?, step_goal?, workouts, workouts_goal?, latest_weight_kg?, target_weight_kg?, weight_remaining_kg?}; NextWorkout {suggested_title, readiness, reason, last_workout_date?, last_workout_title?, days_since_last_workout?, recent_workout_count, sleep_average_hours?}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label?, value, unit?, trend?: up|down|flat}; SetList {sets}. MetricCard defaults its label to Metric and accepts stable as flat. Never put title, subtitle, or context props on MetricCard.",
+    "Render a rich UI component. Props: WorkoutTable {workouts}; ExerciseProgress {exercise_title, weeks, workouts, personalRecord}; SleepTrend {days, avg_sleep_hours?, nights}; WorkoutStreak {current_streak, longest_streak, last_workout_date?}; TrainingLoad {weeks, total_volume_kg, current_week_volume_kg, previous_week_volume_kg?, volume_change_pct?}; RecoveryTimeline {days, average_sleep_hours?}; GoalProgress {period_days, average_steps?, step_goal?, workouts, workouts_goal?, latest_weight_kg?, target_weight_kg?, weight_remaining_kg?}; NextWorkout {suggested_title, readiness, reason, last_workout_date?, last_workout_title?, days_since_last_workout?, recent_workout_count, sleep_average_hours?}; RecoveryCard {today?, label?, explanation?, lastWorkout?, sleepAverageHours?, recentWorkoutCount?, recentVolume?}; MetricCard {label, value, unit?, trend?: up|down|flat}; SetList {sets}. Never put title, subtitle, or context props on MetricCard.",
   parameters: Schema.Struct({
     component: Schema.String.annotate({
       description:
@@ -279,10 +280,10 @@ const RenderComponent = Tool.make("render_component", {
 });
 
 const MetricCardProps = Schema.Struct({
-  label: Schema.optional(Schema.String),
+  label: Schema.String,
   value: Schema.Union([Schema.String, Schema.Number]),
   unit: Schema.optional(Schema.String),
-  trend: Schema.optional(Schema.Literals(["up", "down", "flat", "stable"])),
+  trend: Schema.optional(Schema.Literals(["up", "down", "flat"])),
 });
 
 const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
@@ -424,18 +425,6 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
   ],
 ]);
 
-const normalizeComponentProps = ({ component, props }: { component: string; props: unknown }) => {
-  if (component !== "MetricCard") return props;
-  const metricCard = Schema.decodeUnknownOption(MetricCardProps)(props);
-  if (Option.isNone(metricCard)) return props;
-  const { label, trend, ...rest } = metricCard.value;
-  return {
-    ...rest,
-    label: label ?? "Metric",
-    ...(trend === undefined ? {} : { trend: trend === "stable" ? "flat" : trend }),
-  };
-};
-
 const FitnessToolkit = Toolkit.make(
   GetSummary,
   GetRecovery,
@@ -496,7 +485,11 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     threadId: string;
   }) {
     const conversationId = yield* requireConversationId({ tool });
-    const thread = yield* getThread(narrow<ConversationDatabaseSchema>(db), userId, threadId).pipe(
+    const thread = yield* getThread(
+      narrow<ServerDatabase.ConversationDatabaseSchema>(db),
+      userId,
+      threadId,
+    ).pipe(
       Effect.provideContext(services),
     );
     if (thread === null || thread.conversation_id !== conversationId) {
@@ -518,7 +511,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       return yield* toolError({ tool, message: "Summarization is unavailable." });
     }
     const rows = yield* getThreadMessages(
-      narrow<ConversationDatabaseSchema>(db),
+      narrow<ServerDatabase.ConversationDatabaseSchema>(db),
       userId,
       threadId,
     ).pipe(Effect.provideContext(services));
@@ -539,7 +532,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     }));
     const summary = yield* threadTools.summarize(messages);
     const messageId = yield* summarizeThread(
-      narrow<ConversationDatabaseSchema>(db),
+      narrow<ServerDatabase.ConversationDatabaseSchema>(db),
       userId,
       threadId,
       summary,
@@ -632,21 +625,30 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       ),
     ),
     search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
-      searchMemories(narrow<MemoryDatabaseSchema>(db), userId, query, { limit: limit ?? 10 }).pipe(
+      searchMemories(
+        narrow<ServerDatabase.MemoryDatabaseSchema>(db),
+        userId,
+        query,
+        { limit: limit ?? 10 },
+      ).pipe(
         Effect.provideContext(services),
         Effect.map((results) => ({ results })),
       ),
     ),
     get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
       const conversationId = yield* requireConversationId({ tool: "get_threads" });
-      return yield* getThreads(narrow<ConversationDatabaseSchema>(db), userId, conversationId).pipe(
+      return yield* getThreads(
+        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
+        userId,
+        conversationId,
+      ).pipe(
         Effect.provideContext(services),
       );
     }),
     read_thread: Effect.fn("FitnessToolkit.readThread")(function* ({ thread_id }) {
       yield* requireThread({ tool: "read_thread", threadId: thread_id });
       const rows = yield* getThreadMessages(
-        narrow<ConversationDatabaseSchema>(db),
+        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
         userId,
         thread_id,
       ).pipe(Effect.provideContext(services));
@@ -658,7 +660,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     read_message: Effect.fn("FitnessToolkit.readMessage")(function* ({ message_id }) {
       const conversationId = yield* requireConversationId({ tool: "read_message" });
       const message = yield* getMessage(
-        narrow<ConversationDatabaseSchema>(db),
+        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
         userId,
         message_id,
       ).pipe(Effect.provideContext(services));
@@ -673,7 +675,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     }) {
       const conversationId = yield* requireConversationId({ tool: "create_thread" });
       const anchor = yield* getMessage(
-        narrow<ConversationDatabaseSchema>(db),
+        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
         userId,
         anchor_message_id,
       ).pipe(Effect.provideContext(services));
@@ -681,7 +683,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         return yield* toolError({ tool: "create_thread", message: "Anchor message not found." });
       }
       const threadId = yield* createThread(
-        narrow<ConversationDatabaseSchema>(db),
+        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
         userId,
         conversationId,
         anchor_message_id,
@@ -690,7 +692,11 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       if (threadId === null) {
         return yield* toolError({ tool: "create_thread", message: "Thread not found." });
       }
-      return yield* getThread(narrow<ConversationDatabaseSchema>(db), userId, threadId).pipe(
+      return yield* getThread(
+        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
+        userId,
+        threadId,
+      ).pipe(
         Effect.provideContext(services),
       );
     }),
@@ -726,7 +732,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
           elements: {
             root: {
               type: component,
-              props: normalizeComponentProps({ component, props: parsed.success }),
+              props: parsed.success,
             },
           },
         },

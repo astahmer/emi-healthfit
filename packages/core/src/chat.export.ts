@@ -11,6 +11,8 @@ import * as UiMessages from "./chat/ui-messages.ts";
 import type {
   OpenAiCompatibleConfiguration as OpenAiCompatibleConfigurationType,
   ChatStreamRequest as ChatStreamRequestType,
+  ChatStreamOptions as ChatStreamOptionsType,
+  ChatStreamPart as ChatStreamPartType,
   GenerateTextConfiguration as GenerateTextConfigurationType,
 } from "./chat/openai.ts";
 import type {
@@ -22,37 +24,71 @@ import type { GenericChatSettings as GenericChatSettingsType } from "./chat/sett
 export class Chat {
   private constructor() {}
 
-  static readonly ChatMemoryRequestSchema = ChatRequest.ChatMemoryRequestSchema;
-  static readonly ChatModelConfigurationSchema = ChatRequest.ChatModelConfigurationSchema;
-  static readonly ChatStreamRequestSchema = ChatRequest.ChatStreamRequestSchema;
-  static readonly CompactConversationRequestSchema = ChatRequest.CompactConversationRequestSchema;
-  static readonly GenericChatSettingsSchema = ChatSettings.GenericChatSettingsSchema;
-  static readonly defaultConversationTitlePrompt = OpenAiChat.defaultConversationTitlePrompt;
-  static readonly defaultGenericChatSettings = ChatSettings.defaultGenericChatSettings;
+  static readonly schemas = {
+    chatMemoryRequest: ChatRequest.ChatMemoryRequestSchema,
+    chatModelConfiguration: ChatRequest.ChatModelConfigurationSchema,
+    chatStreamRequest: ChatRequest.ChatStreamRequestSchema,
+    compactConversationRequest: ChatRequest.CompactConversationRequestSchema,
+    genericChatSettings: ChatSettings.GenericChatSettingsSchema,
+  } as const;
 
-  static readonly buildAssistantParts = MessageParts.buildAssistantParts;
-  static readonly buildConversationTitlePrompt = OpenAiChat.buildConversationTitlePrompt;
-  static readonly createChatOperationBudget = OperationBudget.createChatOperationBudget;
-  static readonly createChatStreamResponse = StreamResponse.createChatStreamResponse;
-  static readonly createToolCircuitBreaker = ToolCircuitBreaker.createToolCircuitBreaker;
-  static readonly extractMemories = OpenAiChat.extractMemories;
-  static readonly firstUserText = ChatRequest.firstUserText;
-  static readonly generateConversationSummary = OpenAiChat.generateConversationSummary;
-  static readonly generateConversationTitle = OpenAiChat.generateConversationTitle;
-  static readonly generateMemorySummary = OpenAiChat.generateMemorySummary;
-  static readonly generateSuggestions = OpenAiChat.generateSuggestions;
-  static readonly getOrphanUserMessageId = OrphanTurn.getOrphanUserMessageId;
-  static readonly getProviderMessages = OrphanTurn.getProviderMessages;
-  static readonly isDuplicateOrphanRetry = OrphanTurn.isDuplicateOrphanRetry;
-  static readonly normalizeGeneratedStrings = OpenAiChat.normalizeGeneratedStrings;
-  static readonly resolveGenerationTerminalState = GenerationTerminalState.resolveGenerationTerminalState;
-  static readonly toUiMessageStream = OpenAiChat.toUiMessageStream;
-  static readonly validateChatAttachments = ChatRequest.validateChatAttachments;
-  static readonly validateStoredUIMessages = UiMessages.validateStoredUIMessages;
+  static readonly settings = {
+    defaultGenericChatSettings: ChatSettings.defaultGenericChatSettings,
+  } as const;
+
+  static readonly prompts = {
+    defaultConversationTitlePrompt: OpenAiChat.defaultConversationTitlePrompt,
+    buildConversationTitlePrompt: OpenAiChat.buildConversationTitlePrompt,
+  } as const;
+
+  static readonly stream = {
+    createChatStream: OpenAiChat.createChatStream,
+    createChatStreamResponse: StreamResponse.createChatStreamResponse,
+    toUiMessageStream: OpenAiChat.toUiMessageStream,
+  } as const;
+
+  static readonly operations = {
+    createChatOperationBudget: OperationBudget.createChatOperationBudget,
+  } as const;
+
+  static readonly tools = {
+    createToolCircuitBreaker: ToolCircuitBreaker.createToolCircuitBreaker,
+  } as const;
+
+  static readonly memory = {
+    extractMemories: OpenAiChat.extractMemories,
+    generateMemorySummary: OpenAiChat.generateMemorySummary,
+  } as const;
+
+  static readonly generation = {
+    generateConversationSummary: OpenAiChat.generateConversationSummary,
+    generateConversationTitle: OpenAiChat.generateConversationTitle,
+    generateSuggestions: OpenAiChat.generateSuggestions,
+    normalizeGeneratedStrings: OpenAiChat.normalizeGeneratedStrings,
+    resolveGenerationTerminalState: GenerationTerminalState.resolveGenerationTerminalState,
+  } as const;
+
+  static readonly messages = {
+    buildAssistantParts: MessageParts.buildAssistantParts,
+    firstUserText: ChatRequest.firstUserText,
+    getProviderMessages: OrphanTurn.getProviderMessages,
+    validateStoredUIMessages: UiMessages.validateStoredUIMessages,
+  } as const;
+
+  static readonly orphans = {
+    getOrphanUserMessageId: OrphanTurn.getOrphanUserMessageId,
+    isDuplicateOrphanRetry: OrphanTurn.isDuplicateOrphanRetry,
+  } as const;
+
+  static readonly attachments = {
+    validateChatAttachments: ChatRequest.validateChatAttachments,
+  } as const;
 }
 
 export type OpenAiCompatibleConfiguration = OpenAiCompatibleConfigurationType;
 export type ChatStreamRequest = ChatStreamRequestType;
+export type ChatStreamOptions = ChatStreamOptionsType;
+export type ChatStreamPart = ChatStreamPartType;
 export type GenerateTextConfiguration = GenerateTextConfigurationType;
 export type ChatOperationBudgetSnapshot = ChatOperationBudgetSnapshotType;
 export type ChatOperationCategory = ChatOperationCategoryType;

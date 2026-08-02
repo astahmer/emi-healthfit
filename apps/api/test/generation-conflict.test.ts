@@ -2,22 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import {
-  GenerationAlreadyActiveError,
-  isUniqueConstraintError,
-} from "../src/core/chat/generation-store.ts";
+import { ServerDatabase } from "@emi/core/server/database";
 
 describe("generation conflict helpers", () => {
   it("detects SQLite unique constraint messages", () => {
-    assert.equal(isUniqueConstraintError(new Error("UNIQUE constraint failed: idx")), true);
-    assert.equal(isUniqueConstraintError(new Error("constraint failed")), true);
-    assert.equal(isUniqueConstraintError(new Error("network down")), false);
+    assert.equal(
+      ServerDatabase.generations.isUniqueConstraintError(new Error("UNIQUE constraint failed: idx")),
+      true,
+    );
+    assert.equal(ServerDatabase.generations.isUniqueConstraintError(new Error("constraint failed")), true);
+    assert.equal(ServerDatabase.generations.isUniqueConstraintError(new Error("network down")), false);
   });
 
   it("builds a tagged already-active error for 409 mapping", async () => {
     const exit = await Effect.runPromiseExit(
       Effect.fail(
-        new GenerationAlreadyActiveError({
+        new ServerDatabase.generations.GenerationAlreadyActiveError({
           conversationId: "conversation-1",
           generationId: "generation-1",
         }),

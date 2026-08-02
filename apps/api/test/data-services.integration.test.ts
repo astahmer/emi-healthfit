@@ -1,15 +1,13 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
-import { buildChatContext } from "../src/healthfit/chat/context.ts";
-import { getDataSummary } from "../src/healthfit/db/fitness.ts";
-import {
-  importIngestedData,
-  type IngestedDataExport,
-  previewIngestedDataImport,
-} from "../src/healthfit/ingest/data-transfer.ts";
+import { HealthFit, type IngestedDataExport } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const { buildContext: buildChatContext } = HealthFit.chat;
+const { getDataSummary } = HealthFit.data;
+const { importIngestedData, previewIngestedDataImport } = HealthFit.ingest;
 
 const data: IngestedDataExport = {
   version: 1,
@@ -94,9 +92,10 @@ describe("data service SQLite integration", () => {
   it("previews import collisions, imports every data group, and builds a persisted chat context", async (testContext) => {
     testContext.mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-20T12:00:00Z") });
     const { db } = makeSqliteDatabase();
+    const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const userId = "user-a";
 
-    assert.deepStrictEqual(await run(previewIngestedDataImport({ db, userId, data })), {
+    assert.deepStrictEqual(await run(previewIngestedDataImport({ db: healthfitDb, userId, data })), {
       groups: {
         dailyActivity: { received: 1, existing: 0, new: 1 },
         healthWorkouts: { received: 1, existing: 0, new: 1 },
@@ -107,8 +106,10 @@ describe("data service SQLite integration", () => {
       },
       totals: { received: 6, existing: 0, new: 6 },
     });
-    await run(importIngestedData({ db, userId, data }));
-    assert.deepStrictEqual(await run(previewIngestedDataImport({ db, userId, data })), {
+    await run(importIngestedData({ db: healthfitDb, userId, data }));
+    assert.deepStrictEqual(
+      await run(previewIngestedDataImport({ db: healthfitDb, userId, data })),
+      {
       groups: {
         dailyActivity: { received: 1, existing: 1, new: 0 },
         healthWorkouts: { received: 1, existing: 1, new: 0 },

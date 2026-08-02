@@ -60,7 +60,7 @@ const main = async () => {
   if (counts === undefined) throw new Error("D1 count query returned no row");
   console.table(counts);
   if (counts.auth_users !== 1 || typeof counts.owner_id !== "string") {
-    throw new Error("Legacy data backfill requires exactly one enrolled auth user");
+    throw new Error("Pre-ownership data backfill requires exactly one enrolled auth user");
   }
   const prompt = createInterface({ input: stdin, output: stdout });
   const confirmation = await prompt.question(

@@ -18,7 +18,17 @@ import type {
   SnapshotFrom,
 } from "xstate";
 import { createChatRuntimeActor } from "./runtime/create-chat-runtime.ts";
+import { chatSessionMachine } from "./web/chat-session-machine.ts";
+import { browserStateActor } from "./web/chat-runtime/browser-state-actor.ts";
+import {
+  chatTransportActor,
+  type ChatTransportActorInput,
+  type ChatTransportRequest,
+} from "./web/chat-runtime/chat-transport-actor.ts";
+import { chatUiActor } from "./web/chat-runtime/chat-ui-actor.ts";
+import { conversationStoreActor } from "./web/chat-runtime/conversation-store-actor.ts";
 import { genericChatAppMachine as chatRuntimeMachine } from "./web/chat-runtime/generic-chat-app-machine.ts";
+import { settingsActor } from "./web/chat-runtime/settings-actor.ts";
 import type {
   GenericChatAppEvent,
   GenericChatAppInput,
@@ -26,7 +36,12 @@ import type {
 
 export {
   assign,
+  browserStateActor,
   chatRuntimeMachine,
+  chatSessionMachine,
+  chatTransportActor,
+  chatUiActor,
+  conversationStoreActor,
   createActor,
   createChatRuntimeActor,
   createMachine,
@@ -34,6 +49,7 @@ export {
   fromPromise,
   sendTo,
   setup,
+  settingsActor,
   spawnChild,
   stopChild,
 };
@@ -43,6 +59,8 @@ export type {
   ActorRefFrom,
   AnyActorLogic,
   AnyStateMachine,
+  ChatTransportActorInput,
+  ChatTransportRequest,
   EventFrom,
   GenericChatAppEvent,
   GenericChatAppInput,

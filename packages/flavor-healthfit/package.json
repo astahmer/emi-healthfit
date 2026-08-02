@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./web": "./src/web.ts",
-    "./contract": "./src/contract/index.ts"
+    ".": "./src/flavor-healthfit.export.ts",
+    "./web": "./src/web.export.ts",
+    "./contract": "./src/contract.export.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

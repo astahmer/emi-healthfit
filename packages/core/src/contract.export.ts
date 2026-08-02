@@ -109,7 +109,7 @@ export type Note = NoteType;
 export type Thread = ThreadType;
 export type ThreadWithMessages = ThreadWithMessagesType;
 
-const CoreApiBase = HttpApi.make("emi-core-api")
+export const CoreApi = HttpApi.make("emi-core-api")
   .add(NotesApi)
   .add(MemoriesApi)
   .add(ConversationsApi)
@@ -118,5 +118,3 @@ const CoreApiBase = HttpApi.make("emi-core-api")
   .add(SuggestionsApi)
   .add(MemoriesExtraApi)
   .add(DiscordApi);
-
-export class CoreApi extends CoreApiBase {}

@@ -2,8 +2,8 @@
 
 Date: 2026-08-02  
 Scope: packages/core, its public entrypoints, core tests, and the canonical generic-web integration  
-Mode: initial review followed by the complete R0-R8 target-contract implementation; application
-migration follow-up is explicitly reclassified below
+Mode: initial review followed by the target-contract implementation; remaining application and
+adapter cleanup is tracked as implementation work below.
 
 ## Executive verdict
 
@@ -20,7 +20,7 @@ The initial review found five release-blocking behavioral defects plus one high-
 
 The fixes are deliberately narrow and test-first: regression tests were added before the source fixes, the pre-fix route test observed two persisted user turns, and the post-fix test observes one turn plus a structured 409 for the losing request.
 
-The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The initial review also found that HealthFit API contracts leaked into the generic core; that boundary is now fixed by moving the product composition into `@emi/flavor-healthfit/contract`. R0-R8 now freeze and verify the target catalog, built registry package, packed consumer, owned source generator, and explicit migration boundary. Quantitative coverage thresholds and retirement of extraction-era application helpers remain separately owned follow-up work, not hidden public-core promises.
+The mixed-layer shape itself is intentional and acceptable. Actors, headless web components, styled components, server logic, and platform adapters can live in one go-to library when subpaths define the supported consumption boundary. The initial review also found that HealthFit API contracts leaked into the generic core; that boundary is now fixed by moving the product composition into `@emi/flavor-healthfit/contract`. The target catalog and packed/source checks define the generic distribution boundary. Quantitative coverage thresholds and remaining adapter cleanup remain separately owned follow-up work, not hidden public-core promises.
 
 The report is intentionally selective. Mechanical slop checks pass, and most React Doctor findings are small-array optimization suggestions or intentional shadcn-style exports. They should not become churn without evidence.
 
@@ -192,8 +192,8 @@ also follows the repository anti-slop rule requiring client message IDs to survi
 Locations:
 
 - [packages/core/src/contract/data.ts](../packages/core/src/contract/data.ts) defined analytics, export, privacy, workouts, and Hevy integration groups alongside generic suggestions and memory extraction.
-- [packages/core/src/contract/index.ts](../packages/core/src/contract/index.ts) exported those domain groups from the generic contract entrypoint.
-- [packages/flavor-healthfit/src/contract/index.ts](../packages/flavor-healthfit/src/contract/index.ts) now owns the HealthFit composition over `CoreApi`.
+- [packages/core/src/contract.export.ts](../packages/core/src/contract.export.ts) exports those domain groups from the generic contract entrypoint.
+- [packages/flavor-healthfit/src/contract.export.ts](../packages/flavor-healthfit/src/contract.export.ts) now owns the HealthFit composition over `CoreApi`.
 
 This is a real core-boundary violation under the intended direction. `@emi/core` provides the
 foundations that make HealthFit or another chat/agent product possible; it must not contain or
@@ -206,17 +206,16 @@ Tests were written before the move. The core regression first failed because all
 API exports were present, and the flavor regression failed because its public contract entry did
 not exist. The target catalog now removes the historical contract barrel from `@emi/core`
 entirely. The generic protocol is owned by `ChatProtocol`; HealthFit remains an explicit flavor
-composition over `CoreApi`, and the extraction-era contract implementation is reachable only
-through the private `@emi/core-migration` boundary. Core and flavor tests assert the separation.
+composition over `CoreApi`, and the product contract is owned by the flavor package. Core and
+flavor tests assert the separation.
 
 ### CORE-007 — Closed for the target catalog; application migration reclassified
 
 Evidence: `packages/core/package.json` is publishable, its target exports point only to built ESM
 and declaration files, `source-manifest.json` is generated from the same catalog, and the packed
 consumer imports every supported target subpath. `pnpm verify:chat-app` also exercises the owned
-source distribution and generated application. The extraction-era app helpers are not published;
-they live behind the private `@emi/core-migration` workspace package until their owning apps
-retire them.
+source distribution and generated application. Application-specific helpers remain in their
+owning application packages and are not published by generic core.
 
 Reclassification: owner `apps/api`, `apps/chat`, `apps/discord-bot`, `apps/generic-worker`, and
 `packages/flavor-healthfit`; next work is application-specific migration, not another public
@@ -232,8 +231,8 @@ Locations:
 
 The target protocol now has one named `ChatProtocol` schema/mapper owner and an Effect error
 channel. Public consumers do not see the historical app DTOs, raw rows, or `Schema.Unknown`
-boundary. The old application route/client DTOs remain only in `@emi/core-migration` and are
-owned by the application migration listed under CORE-007.
+boundary. The old application route/client DTOs remain only in their owning application packages and are
+owned by the application boundary listed under CORE-007.
 
 ### CORE-009 — Reclassified: quantitative coverage policy remains post-rewrite quality work
 
@@ -327,8 +326,6 @@ The non-failing Oxlint warnings are concentrated in tests (no-await-in-loop, con
 
 ## Recommended execution order
 
-R0-R8 are complete for the target contract. The release bar is now: focused actor/security/
-integration tests, packed public imports from a clean consumer, generated source mode, explicit
-export snapshots, `pnpm slop:check`, and the final repository release check. The only deliberately
-open follow-up is retirement of the private migration package by its application owners plus any
-future quantitative coverage policy.
+The target catalog is frozen; remaining work is focused actor/security/integration validation,
+adapter cleanup, explicit export snapshots, `pnpm slop:check`, and the final repository release
+check. No private migration package is retained.

@@ -1,0 +1,9 @@
+id: no-internal-forwarding-class
+language: TypeScript
+files:
+  - apps/**/*.ts
+  - apps/**/*.tsx
+message: Internal classes must not forward a static domain surface; use the owning domain directly.
+severity: error
+rule:
+  pattern: class $CLASS { $$$BEFORE static readonly $FIELD = $TARGET.$MEMBER $$$AFTER }

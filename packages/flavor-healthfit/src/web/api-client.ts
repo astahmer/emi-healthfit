@@ -1,4 +1,4 @@
-import { HealthFitApi } from "../contract/index.ts";
+import { HealthFitApi } from "../contract.ts";
 import * as Effect from "effect/Effect";
 import { FetchHttpClient } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";

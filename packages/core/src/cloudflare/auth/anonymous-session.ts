@@ -2,7 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { createAnonymousEmail } from "../../server/auth/emails.ts";
 import type { AuthDatabaseSchema } from "../../server/db/auth-schema.ts";
 import type { Compilable } from "kysely";
-import { makeD1Kysely } from "../db/client.ts";
+import { CloudflareDatabase } from "../db/client.ts";
 
 export const anonymousSignInPath = "/api/auth/sign-in/anonymous";
 
@@ -94,7 +94,7 @@ export const createAnonymousSessionResponse = async ({
   const token = `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
   const now = Date.now();
   const expiresAt = now + sessionDurationSeconds * 1000;
-  const kysely = makeD1Kysely<AuthDatabaseSchema>(database);
+  const kysely = CloudflareDatabase.makeD1Kysely<AuthDatabaseSchema>(database);
 
   await database.batch([
     compile({

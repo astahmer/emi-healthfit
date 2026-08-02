@@ -1,7 +1,7 @@
 import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Content } from "@emi/core/contract";
-import { generateConversationTitle } from "@emi/core/chat";
+import { Chat } from "@emi/core/chat";
 import * as Cause from "effect/Cause";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -11,37 +11,9 @@ import * as Stream from "effect/Stream";
 import { safeValidateUIMessages, type UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { CurrentUser } from "../auth/request-auth.ts";
-import { createChatStream, toUiMessageStream, type ChatStreamRequest } from "../chat/ai-sdk.ts";
-import { buildAssistantParts } from "../chat/assistant-parts.ts";
-import {
-  cancelRunningGenerations,
-  createGeneration,
-  expireStaleGenerations,
-  finishGeneration,
-  GenerationAlreadyActiveError,
-  getGeneration,
-  getGenerationByRequestId,
-  getGenerationChunks,
-  getResumableGeneration,
-  getRunningGeneration,
-  isGenerationStale,
-  recordChatEvent,
-  reconcileFinishedGenerations,
-  type ChatGeneration,
-} from "../chat/generation-store.ts";
-import { createGenerationReplayStream } from "../chat/generation-replay.ts";
-import { createChatStreamResponse } from "../chat/ui-message-stream-response.ts";
-import { createChatOperationBudget } from "../chat/generation-budget.ts";
-import {
-  addThreadMessage,
-  createConversation,
-  getConversation,
-  renameConversation,
-  reviseConversationMessage,
-  saveConversationMessages,
-} from "../db/conversations.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import { createChatStream, type ChatStreamRequest } from "../chat/ai-sdk.ts";
+import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { corsHeaders } from "../../platform/http/assets-cors.ts";
@@ -52,10 +24,33 @@ import { prepareChatHistory } from "./chat-history.ts";
 import { createChatToolExecutor } from "./chat-tool-execution.ts";
 import { appendMemoryContext, loadMemorySummary } from "../chat/memory-context.ts";
 import { decodeJsonOption } from "../lib/json-codec.ts";
-import type { MemoryDatabaseSchema } from "../db/memories.ts";
 import type { ChatLifecycleHooks } from "./chat-hooks.ts";
 
-export type { ChatLifecycleHooks, ChatToolDefinition, ChatToolExecutor } from "./chat-hooks.ts";
+type ChatGeneration = ServerDatabase.ChatGeneration;
+
+const {
+  cancelRunningGenerations,
+  createGeneration,
+  expireStaleGenerations,
+  finishGeneration,
+  getGeneration,
+  getGenerationByRequestId,
+  getGenerationChunks,
+  getResumableGeneration,
+  getRunningGeneration,
+  isGenerationStale,
+  recordChatEvent,
+  reconcileFinishedGenerations,
+} = ServerDatabase.generations;
+const GenerationAlreadyActiveError = ServerDatabase.generations.GenerationAlreadyActiveError;
+const {
+  addThreadMessage,
+  createConversation,
+  getConversation,
+  renameConversation,
+  reviseConversationMessage,
+  saveConversationMessages,
+} = ServerDatabase.conversations;
 const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
   const pathname = urlOrPath.startsWith("http") ? new URL(urlOrPath).pathname : urlOrPath;
   return pathname.match(/\/api\/conversations\/([^/]+)/)?.[1];
@@ -79,7 +74,7 @@ export const handleMessageRevision = ({
   messageId: string;
 }) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const body = yield* request.json;
     const decoded = Schema.decodeUnknownOption(MessageRevisionSchema)(body);
     if (Option.isNone(decoded)) {
@@ -94,7 +89,7 @@ export const handleMessageRevision = ({
       return yield* HttpServerResponse.json({ error: validated.error.message }, { status: 400 });
     }
     const revised = yield* reviseConversationMessage({
-      db: narrowQueryDatabaseClient<ConversationDatabaseSchema>(db),
+      db: narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db),
       userId: user.id,
       conversationId,
       messageId,
@@ -112,7 +107,7 @@ export const handleConversationDiagnostics = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const conversationId = getConversationIdFromPath(request.url) ?? "";
     const includeSensitive = new URL(request.url, "http://localhost").searchParams.get(
       "includeSensitive",
@@ -152,25 +147,26 @@ const createGenerationReplayResponse = ({
   request,
   services,
 }: {
-  db: QueryDatabaseClient;
+  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>;
   userId: string;
   conversationId: string;
   generation: ChatGeneration;
   request: HttpServerRequest;
   services: Context.Context<RuntimeContext>;
 }) => {
-  const response = createChatStreamResponse({
+  const conversationDb = db;
+  const response = Chat.stream.createChatStreamResponse({
     stream: Stream.toReadableStreamWith(
-      createGenerationReplayStream({
+      ServerDatabase.replay.stream({
         generationId: generation.id,
         getChunks: ({ generationId, afterSequence }) =>
-          getGenerationChunks({ db, userId, generationId, afterSequence }),
+          getGenerationChunks({ db: conversationDb, userId, generationId, afterSequence }),
         getGeneration: (generationId) =>
           Effect.gen(function* () {
-            const current = yield* getGeneration({ db, userId, generationId });
+            const current = yield* getGeneration({ db: conversationDb, userId, generationId });
             if (current === null || !isGenerationStale(current)) return current;
             yield* finishGeneration({
-              db,
+              db: conversationDb,
               userId,
               generationId,
               status: "failed",
@@ -198,7 +194,8 @@ export const handleConversationDiagnosticEvent = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const conversationId = getConversationIdFromPath(request.url) ?? "";
     const body = yield* request.json;
     const decoded = yield* Schema.decodeUnknownEffect(DiagnosticEventRequest)(body).pipe(
@@ -208,7 +205,7 @@ export const handleConversationDiagnosticEvent = (
       return yield* HttpServerResponse.json({ error: "Invalid diagnostic event" }, { status: 400 });
     }
     const generation = yield* getGeneration({
-      db,
+      db: conversationDb,
       userId: user.id,
       generationId: decoded.value.generationId,
     });
@@ -220,7 +217,7 @@ export const handleConversationDiagnosticEvent = (
       (generation.status === "pending" || generation.status === "streaming")
     ) {
       yield* finishGeneration({
-        db,
+        db: conversationDb,
         userId: user.id,
         generationId: generation.id,
         status: "cancelled",
@@ -229,7 +226,7 @@ export const handleConversationDiagnosticEvent = (
       });
     }
     yield* recordChatEvent({
-      db,
+      db: conversationDb,
       userId: user.id,
       conversationId,
       generationId: generation.id,
@@ -248,8 +245,8 @@ export const handleAiSdkChat = (
   hooks: ChatLifecycleHooks = {},
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
-    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+    const user = yield* CoreCloudflare.user.CurrentUser;
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const requestStartedAt = performance.now();
     const text = yield* request.text;
     if (isRequestBodyTooLarge({ body: text })) {
@@ -298,7 +295,7 @@ export const handleAiSdkChat = (
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
       const existingGeneration = yield* getGenerationByRequestId({
-        db,
+        db: conversationDb,
         userId: user.id,
         conversationId: sessionId,
         requestId,
@@ -314,7 +311,7 @@ export const handleAiSdkChat = (
           }),
         );
         return createGenerationReplayResponse({
-          db,
+          db: conversationDb,
           userId: user.id,
           conversationId: sessionId,
           generation: existingGeneration,
@@ -346,7 +343,7 @@ export const handleAiSdkChat = (
       isInitialContext,
     } = preparedHistory;
 
-    const memoryDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+    const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
     const memorySummary = isInitialContext
       ? yield* loadMemorySummary({
           db: memoryDb,
@@ -360,7 +357,7 @@ export const handleAiSdkChat = (
       ? undefined
       : yield* Cloudflare.Workers.WorkerExecutionContext;
     const generationId = crypto.randomUUID();
-    const budget = createChatOperationBudget();
+    const budget = Chat.operations.createChatOperationBudget();
     if (hooks.beforeChat !== undefined) {
       yield* hooks.beforeChat({ db, userId: user.id, environment });
     }
@@ -387,7 +384,7 @@ export const handleAiSdkChat = (
 
     if (!isTemporary) {
       const cancelledGenerations = yield* cancelRunningGenerations({
-        db,
+        db: conversationDb,
         userId: user.id,
         conversationId: sessionId,
         reason: "superseded",
@@ -399,7 +396,7 @@ export const handleAiSdkChat = (
         );
       }
       yield* createGeneration({
-        db,
+        db: conversationDb,
         userId: user.id,
         generationId,
         conversationId: sessionId,
@@ -408,12 +405,12 @@ export const handleAiSdkChat = (
         model: chatRequest.config.model,
       }).pipe(
         Effect.catchIf(
-          (error): error is GenerationAlreadyActiveError =>
+          (error): error is InstanceType<typeof GenerationAlreadyActiveError> =>
             error instanceof GenerationAlreadyActiveError,
           (error) =>
             Effect.gen(function* () {
               const running = yield* getRunningGeneration({
-                db,
+                db: conversationDb,
                 userId: user.id,
                 conversationId: sessionId,
               });
@@ -478,7 +475,9 @@ export const handleAiSdkChat = (
         onFinish: async (event) => {
           await Effect.runPromiseWith(services)(
             Effect.gen(function* () {
-              const structuredAssistantParts = buildAssistantParts(event.response?.messages ?? []);
+              const structuredAssistantParts = Chat.messages.buildAssistantParts(
+                event.response?.messages ?? [],
+              );
               const assistantParts =
                 structuredAssistantParts.length > 0
                   ? structuredAssistantParts
@@ -499,7 +498,7 @@ export const handleAiSdkChat = (
 
               if (!isTemporary && assistantParts.length === 0) {
                 yield* finishGeneration({
-                  db,
+                  db: conversationDb,
                   userId: user.id,
                   generationId,
                   status: "failed",
@@ -543,7 +542,7 @@ export const handleAiSdkChat = (
 
               if (!isTemporary) {
                 yield* finishGeneration({
-                  db,
+                  db: conversationDb,
                   userId: user.id,
                   generationId,
                   status: "completed",
@@ -571,7 +570,7 @@ export const handleAiSdkChat = (
                     )
                       return;
                     const title = yield* Effect.promise(() =>
-                      generateConversationTitle({
+                      Chat.generation.generateConversationTitle({
                         configuration: {
                           apiKey,
                           baseUrl: chatRequest.config.baseUrl,
@@ -605,7 +604,7 @@ export const handleAiSdkChat = (
       }),
     );
 
-    const uiMessageStream = toUiMessageStream({ result });
+    const uiMessageStream = Chat.stream.toUiMessageStream({ result });
 
     let responseStream = uiMessageStream;
 
@@ -615,7 +614,7 @@ export const handleAiSdkChat = (
       executionContext.waitUntil(
         Effect.runPromiseWith(services)(
           persistGenerationStream({
-            db,
+            db: conversationDb,
             userId: user.id,
             conversationId: sessionId,
             generationId,
@@ -628,7 +627,7 @@ export const handleAiSdkChat = (
       );
     }
 
-    const response = createChatStreamResponse({
+    const response = Chat.stream.createChatStreamResponse({
       stream: responseStream,
       headers: {
         "x-thread-id": sessionId,
@@ -644,7 +643,7 @@ export const handleAiSdkChat = (
     );
   }).pipe(
     Effect.catchIf(
-      (error): error is GenerationAlreadyActiveError =>
+      (error): error is InstanceType<typeof GenerationAlreadyActiveError> =>
         error instanceof GenerationAlreadyActiveError,
       (error) =>
         HttpServerResponse.json(
@@ -666,9 +665,16 @@ export const handleChatResume = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
-    const reconciledGenerations = yield* reconcileFinishedGenerations({ db, userId: user.id });
-    const abandonedGenerations = yield* expireStaleGenerations({ db, userId: user.id });
+    const user = yield* CoreCloudflare.user.CurrentUser;
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+    const reconciledGenerations = yield* reconcileFinishedGenerations({
+      db: conversationDb,
+      userId: user.id,
+    });
+    const abandonedGenerations = yield* expireStaleGenerations({
+      db: conversationDb,
+      userId: user.id,
+    });
     yield* Effect.logInfo("chat.generation.reconnect").pipe(
       Effect.annotateLogs({
         conversationId,
@@ -677,14 +683,18 @@ export const handleChatResume = (
         abandonedGenerations,
       }),
     );
-    const generation = yield* getResumableGeneration({ db, userId: user.id, conversationId });
+    const generation = yield* getResumableGeneration({
+      db: conversationDb,
+      userId: user.id,
+      conversationId,
+    });
     if (generation === null) {
       return HttpServerResponse.empty({ status: 204, headers: corsHeaders(request) });
     }
 
     const services = yield* Effect.context<RuntimeContext>();
     return createGenerationReplayResponse({
-      db,
+      db: conversationDb,
       userId: user.id,
       conversationId,
       generation,

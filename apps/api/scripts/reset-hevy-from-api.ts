@@ -6,12 +6,14 @@ import { loadEnvFile } from "node:process";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import {
-  encryptHevyApiKey,
-  resolveHevyEncryptionKey,
-} from "../src/healthfit/integrations/hevy/credential-crypto.ts";
-import { createHevyClient } from "../src/healthfit/integrations/hevy/hevy-client.ts";
-import { mapHevyWorkoutToRows } from "../src/healthfit/integrations/hevy/map-workout.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
+
+const {
+  createClient: createHevyClient,
+  encryptApiKey: encryptHevyApiKey,
+  mapWorkoutToRows: mapHevyWorkoutToRows,
+  resolveEncryptionKey: resolveHevyEncryptionKey,
+} = HealthFit.hevy;
 
 const WORKOUT_PAGE_SIZE = 10;
 const SESSION_INSERT_BATCH_SIZE = 8;

@@ -6,25 +6,19 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import {
-  authenticateWorkerFetch,
-  makeGenericChatRoutes,
-  makeQueryDatabaseClient,
-  type CloudflareQueryDatabaseClient,
-} from "@emi/core/cloudflare";
-import {
-  isGenericProtectedPath,
-  type AuthDatabaseSchema,
-  type ConversationDatabaseSchema,
-  type MemoryDatabaseSchema,
-} from "@emi/core/server";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import type { CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
+import type { ServerDatabase } from "@emi/core/server/database";
 import { genericWorkerAppConfig } from "./app-config.ts";
 
 const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
   migrationsDir: "./migrations",
 });
 
-type GenericDatabaseSchema = ConversationDatabaseSchema & AuthDatabaseSchema & MemoryDatabaseSchema;
+type GenericDatabaseSchema =
+  & ServerDatabase.ConversationDatabaseSchema
+  & ServerDatabase.AuthDatabaseSchema
+  & ServerDatabase.MemoryDatabaseSchema;
 
 export class GenericWorker extends Cloudflare.Worker<GenericWorker, {}>()("GenericWorker") {}
 
@@ -45,12 +39,12 @@ export default GenericWorker.make(
   })),
   Effect.gen(function* () {
     const query = yield* Cloudflare.D1.QueryDatabase(DB);
-    const db = makeQueryDatabaseClient<GenericDatabaseSchema>({ query });
+    const db = CoreCloudflare.database.makeQueryDatabaseClient<GenericDatabaseSchema>({ query });
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const router = yield* HttpRouter.make;
-    const routes = makeGenericChatRoutes({
+    const routes = CoreCloudflare.routes.makeGenericChatRoutes({
       db: db as unknown as CloudflareQueryDatabaseClient<
-        ConversationDatabaseSchema & MemoryDatabaseSchema
+        ServerDatabase.ConversationDatabaseSchema & ServerDatabase.MemoryDatabaseSchema
       >,
     });
     yield* Effect.gen(function* () {
@@ -99,10 +93,10 @@ export default GenericWorker.make(
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        return yield* authenticateWorkerFetch({
+        return yield* CoreCloudflare.auth.authenticateWorkerFetch({
           db,
           environment: env,
-          isProtectedPath: isGenericProtectedPath,
+          isProtectedPath: CoreCloudflare.auth.isGenericProtectedPath,
           policy: "anonymous",
           request,
           route: router.asHttpEffect(),

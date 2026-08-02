@@ -2,31 +2,6 @@ import type { Page, Route } from "@playwright/test";
 import type { Hono } from "hono";
 import { createMockApi, defaultMockApi, sessionOneSnapshot, type MockApi } from "./app.ts";
 
-export {
-  connectedHevyStatus,
-  createMockApi,
-  defaultMockApi,
-  disconnectedHevyStatus,
-  sampleHevyWorkout,
-  sessionOneSnapshot,
-  type MockApi,
-  type MockApiState,
-  type MockConversation,
-  type MockHevyStatus,
-  type MockMessage,
-  type MockSnapshot,
-  type MockThread,
-  type MockWorkout,
-} from "./app.ts";
-export {
-  assistantStream,
-  authSessionBody,
-  conversationPayload,
-  conversations,
-  emptyAnalyticsOverview,
-  multiToolStream,
-} from "./fixtures.ts";
-
 const requestFromRoute = (route: Route): Request => {
   const request = route.request();
   const headers = new Headers();
@@ -62,11 +37,6 @@ export const fulfillMockApi = async ({
     headers,
     body: Buffer.from(await response.arrayBuffer()),
   });
-};
-
-/** @deprecated Prefer createChatMock / fulfillMockApi with a per-test app. */
-export const fulfillApi = async (route: Route) => {
-  await fulfillMockApi({ route, app: defaultMockApi.app });
 };
 
 export type TestSettingsOptions = {

@@ -1,11 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  createChatMock,
-  createMockApi,
-  openWithMock,
-  type MockMessage,
-  type MockSnapshot,
-} from "./mock/install.ts";
+import { type MockMessage, type MockSnapshot, createMockApi } from "./mock/app.ts";
+import { createChatMock, openWithMock } from "./mock/install.ts";
 
 const tallParagraph = (label: string) =>
   `${label}\n\n${Array.from({ length: 12 }, (_, index) => `Line ${index + 1} of ${label} with enough height for scrolling.`).join("\n")}`;

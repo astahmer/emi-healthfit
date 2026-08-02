@@ -1,50 +1,108 @@
+import { createAuthClient } from "better-auth/react";
+import { useMemo, useState } from "react";
 import { createChatRuntime } from "@emi/core";
 import { ChatApp } from "@emi/core/components/styled";
 import { ChatProvider } from "@emi/core/react";
-import { useMemo } from "react";
+import { AnonymousSession } from "@emi/core/web";
 
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
 
-const anonymousSignInPath = "/api/auth/sign-in/anonymous";
+type AuthState = "signed-out" | "starting" | "authenticated" | "error";
 
-const createAnonymousSessionFetch = ({
+const AuthGate = ({
   apiOrigin,
-  fetch,
+  onAuthenticated,
 }: {
   readonly apiOrigin: string;
-  readonly fetch: typeof globalThis.fetch;
-}): typeof globalThis.fetch => {
-  const normalizedOrigin = apiOrigin.replace(/\/$/, "");
-  let sessionPromise: Promise<boolean> | undefined;
-  const startSession = async (): Promise<boolean> => {
-    try {
-      const response = await fetch(`${normalizedOrigin}${anonymousSignInPath}`, {
-        credentials: "include",
-        method: "POST",
-      });
-      return response.ok;
-    } catch {
-      return false;
+  readonly onAuthenticated: () => void;
+}) => {
+  const [authState, setAuthState] = useState<AuthState>("signed-out");
+  const authClient = useMemo(
+    () => createAuthClient({ baseURL: apiOrigin || undefined }),
+    [apiOrigin],
+  );
+  const rawFetch = useMemo(() => window.fetch.bind(window), []);
+
+  const continueAsGuest = async () => {
+    setAuthState("starting");
+    const started = await AnonymousSession.start({ apiOrigin, fetch: rawFetch });
+    if (!started) {
+      setAuthState("error");
+      return;
     }
+    setAuthState("authenticated");
+    onAuthenticated();
   };
-  return async (input, init) => {
-    const inputUrl =
-      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    const pathname = new URL(inputUrl, normalizedOrigin || "http://localhost").pathname;
-    const requestInit: RequestInit = { ...init, credentials: init?.credentials ?? "include" };
-    const response = await fetch(input, requestInit);
-    if (response.status !== 401 || pathname.startsWith("/api/auth/")) return response;
-    sessionPromise ??= startSession();
-    if (!(await sessionPromise)) return response;
-    return fetch(input, requestInit);
+
+  const continueWithGoogle = async () => {
+    setAuthState("starting");
+    const result = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: window.location.href,
+      errorCallbackURL: window.location.href,
+    });
+    if (result.error !== null) setAuthState("error");
   };
+
+  if (authState === "authenticated") return null;
+
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-[radial-gradient(circle_at_top,hsl(var(--muted)),transparent_45%)] px-6">
+      <section className="w-full max-w-md rounded-3xl border bg-card p-8 shadow-2xl shadow-black/10">
+        <div className="mb-8 space-y-3">
+          <p className="text-xs font-semibold tracking-[0.22em] text-muted-foreground uppercase">
+            Emi Core
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome to Core Chat</h1>
+          <p className="leading-7 text-muted-foreground">
+            Continue as a guest for a browser-only session, or sign in with an approved Google
+            account.
+          </p>
+        </div>
+        <button
+          className="h-12 w-full rounded-xl bg-primary px-4 font-medium text-primary-foreground disabled:opacity-60"
+          onClick={() => void continueAsGuest()}
+          disabled={authState === "starting"}
+          type="button"
+        >
+          {authState === "starting" ? "Connecting…" : "Continue as guest"}
+        </button>
+        <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          or
+          <span className="h-px flex-1 bg-border" />
+        </div>
+        <button
+          className="h-12 w-full rounded-xl border bg-background px-4 font-medium disabled:opacity-60"
+          onClick={() => void continueWithGoogle()}
+          disabled={authState === "starting"}
+          type="button"
+        >
+          Continue with Google
+        </button>
+        {authState === "error" && (
+          <p className="mt-4 text-center text-sm text-destructive" role="alert">
+            Sign-in could not be started. Try again.
+          </p>
+        )}
+        <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
+          Guest data stays in this browser. Google sign-in is handled by the configured server.
+        </p>
+      </section>
+    </main>
+  );
 };
 
 export const App = () => {
   const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
+  const [authenticated, setAuthenticated] = useState(false);
   const fetcher = useMemo(
-    () => createAnonymousSessionFetch({ apiOrigin, fetch: window.fetch.bind(window) }),
+    () =>
+      AnonymousSession.createFetch({
+        apiOrigin,
+        fetch: window.fetch.bind(window),
+      }),
     [apiOrigin],
   );
   const runtime = useMemo(
@@ -84,6 +142,9 @@ export const App = () => {
       }),
     [apiOrigin, fetcher],
   );
+
+  if (!authenticated)
+    return <AuthGate apiOrigin={apiOrigin} onAuthenticated={() => setAuthenticated(true)} />;
 
   return (
     <ChatProvider runtime={runtime}>

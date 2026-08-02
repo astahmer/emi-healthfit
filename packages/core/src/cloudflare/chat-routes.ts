@@ -17,47 +17,11 @@ import {
 } from "../chat/openai.ts";
 import { createChatStreamResponse } from "../chat/stream-response.ts";
 import { validateStoredUIMessages } from "../chat/ui-messages.ts";
-import {
-  createConversation,
-  getConversation,
-  getConversationMessages,
-  deleteConversation,
-  updateConversationState,
-  cloneConversation,
-  renameConversation,
-  saveConversationMessages,
-  createThread,
-  getThreads,
-  getThread,
-  renameThread,
-  pinThread,
-  discardThread,
-  restoreThread,
-  addThreadMessage,
-  getThreadMessages,
-} from "../server/db/conversations.ts";
-import {
-  GenerationAlreadyActiveError,
-  appendGenerationChunk,
-  createGeneration,
-  finishGeneration,
-  getGeneration,
-  getGenerationByRequestId,
-  getGenerationChunks,
-  getResumableGeneration,
-  markGenerationStreaming,
-} from "../server/db/generations.ts";
-import { createGenerationReplayStream } from "../server/generation-replay.ts";
-import {
-  deleteMemory,
-  getMemorySummary,
-  getMemories,
-  insertMemory,
-  insertMemories,
-  searchMemories,
-  upsertMemorySummary,
-} from "../server/db/memories.ts";
-import { makeConversationStore } from "../server/make-conversation-store.ts";
+import { ConversationDatabase } from "../server/db/conversations.ts";
+import { GenerationDatabase } from "../server/db/generations.ts";
+import { GenerationReplay } from "../server/generation-replay.ts";
+import { MemoryDatabase } from "../server/db/memories.ts";
+import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
@@ -70,6 +34,47 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
+
+const {
+  addThreadMessage,
+  cloneConversation,
+  createConversation,
+  createThread,
+  deleteConversation,
+  getConversation,
+  getConversationMessages,
+  getThread,
+  getThreadMessages,
+  getThreads,
+  renameConversation,
+  renameThread,
+  pinThread,
+  discardThread,
+  restoreThread,
+  saveConversationMessages,
+  updateConversationState,
+} = ConversationDatabase;
+const {
+  appendGenerationChunk,
+  createGeneration,
+  finishGeneration,
+  getGeneration,
+  getGenerationByRequestId,
+  getGenerationChunks,
+  getResumableGeneration,
+  markGenerationStreaming,
+  GenerationAlreadyActiveError,
+} = GenerationDatabase;
+const createGenerationReplayStream = GenerationReplay.stream;
+const {
+  deleteMemory,
+  getMemorySummary,
+  getMemories,
+  insertMemory,
+  insertMemories,
+  searchMemories,
+  upsertMemorySummary,
+} = MemoryDatabase;
 
 type PersistedChatDatabase = ConversationDatabaseSchema & MemoryDatabaseSchema;
 
@@ -339,7 +344,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     request: HttpServerRequest,
   ) {
     const user = yield* CurrentUser;
-    const store = makeConversationStore({
+    const store = ConversationStoreLive.shape({
       db: conversationDb,
       requestContext: makeRequestContext({ userId: user.id }),
     });
@@ -895,8 +900,8 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
   const chat = (request: HttpServerRequest) =>
     chatEffect(request).pipe(
       Effect.catchIf(
-        (error): error is GenerationAlreadyActiveError =>
-          error instanceof GenerationAlreadyActiveError,
+        (error): error is InstanceType<typeof GenerationDatabase.GenerationAlreadyActiveError> =>
+          error instanceof GenerationDatabase.GenerationAlreadyActiveError,
         (error) =>
           HttpServerResponse.json(
             { error: "A generation is already running", generationId: error.generationId },

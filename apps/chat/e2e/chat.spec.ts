@@ -1,13 +1,7 @@
 import { expect, test } from "@playwright/test";
-import {
-  assistantStream,
-  conversations,
-  createChatMock,
-  fulfillMockApi,
-  installMockApi,
-  openMockedChat,
-  sessionOneSnapshot,
-} from "./mock/install.ts";
+import { sessionOneSnapshot } from "./mock/app.ts";
+import { assistantStream, conversations } from "./mock/fixtures.ts";
+import { createChatMock, fulfillMockApi, installMockApi, openMockedChat } from "./mock/install.ts";
 
 test("requires an OpenAI API key before showing the chat composer", async ({ page }) => {
   const mock = createChatMock();

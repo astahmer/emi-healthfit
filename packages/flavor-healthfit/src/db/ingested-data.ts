@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Compilable } from "kysely";
-import { runBatches, runTransaction, type QueryDatabaseClient } from "@emi/core/server";
+import { ServerDatabase } from "@emi/core/server/database";
 import type {
   BodyMetricRow,
   DailyActivityRow,
@@ -11,7 +11,7 @@ import type {
   SleepSessionRow,
 } from "./schema.ts";
 
-type FitnessDb = QueryDatabaseClient<HealthfitDatabaseSchema>;
+type FitnessDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
 export const upsertDailyActivity = (
   db: FitnessDb,
@@ -35,7 +35,7 @@ export const upsertDailyActivity = (
           })),
         ),
     );
-    yield* runBatches(db, statements);
+    yield* ServerDatabase.query.batches(db, statements);
     return rows.length;
   });
 
@@ -66,7 +66,7 @@ export const insertHealthWorkouts = (
             })),
         ),
     );
-    yield* runBatches(db, statements);
+    yield* ServerDatabase.query.batches(db, statements);
     return rows.length;
   });
 
@@ -93,7 +93,7 @@ export const upsertHevySessions = (
           })),
         ),
     );
-    yield* runBatches(db, statements);
+    yield* ServerDatabase.query.batches(db, statements);
     return rows.length;
   });
 
@@ -121,7 +121,7 @@ export const upsertHevySets = (db: FitnessDb, userId: string, rows: ReadonlyArra
             })),
         ),
     );
-    yield* runBatches(db, statements);
+    yield* ServerDatabase.query.batches(db, statements);
     return rows.length;
   });
 
@@ -147,7 +147,7 @@ export const upsertSleepSessions = (
           })),
         ),
     );
-    yield* runBatches(db, statements);
+    yield* ServerDatabase.query.batches(db, statements);
     return rows.length;
   });
 
@@ -172,7 +172,7 @@ export const upsertBodyMetrics = (
           })),
         ),
     );
-    yield* runBatches(db, statements);
+    yield* ServerDatabase.query.batches(db, statements);
     return rows.length;
   });
 
@@ -194,7 +194,7 @@ export const getRawUploadRetentionDays = Effect.fn("privacy.readRetention")(func
   db,
   userId,
 }: {
-  db: QueryDatabaseClient<HealthfitDatabaseSchema>;
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
   userId: string;
 }) {
   const kysely = yield* db.kysely;
@@ -213,7 +213,7 @@ export const updateRawUploadRetentionDays = Effect.fn("privacy.updateRetention")
   userId,
   days,
 }: {
-  db: QueryDatabaseClient<HealthfitDatabaseSchema>;
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
   userId: string;
   days: number;
 }) {
@@ -241,7 +241,7 @@ export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* 
   userId,
   source,
 }: {
-  db: QueryDatabaseClient<HealthfitDatabaseSchema>;
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
   userId: string;
   source: "health" | "hevy";
 }) {
@@ -266,5 +266,5 @@ export const deleteIngestedSource = Effect.fn("privacy.deleteSource")(function* 
       .where("user_id", "=", userId)
       .where("source", "=", source === "health" ? "apple_health" : "hevy"),
   );
-  yield* runTransaction(db, statements);
+  yield* ServerDatabase.query.transaction(db, statements);
 });

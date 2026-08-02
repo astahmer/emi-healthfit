@@ -1,7 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import type { MemoryDatabaseSchema } from "@emi/core/server";
-import {
+import { ServerDatabase } from "@emi/core/server/database";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const {
   deleteMemoriesByMessage,
   deleteMemory,
   deleteNote,
@@ -16,14 +19,12 @@ import {
   searchNotes,
   upsertMemorySummary,
   updateNote,
-} from "../src/core/db/memories.ts";
-import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+} = ServerDatabase.memories;
 
 describe("memories SQLite integration", () => {
   it("normalizes, searches, and deletes memories without crossing owners", async () => {
     const { db: rawDb } = makeSqliteDatabase();
-    const db = narrowQueryDatabaseClient<MemoryDatabaseSchema>(rawDb);
+    const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
     const alice = "user-a";
     const bob = "user-b";
     const ids = await run(
@@ -89,7 +90,7 @@ describe("memories SQLite integration", () => {
 
   it("trims, filters, updates, and deletes notes per owner", async () => {
     const { db: rawDb } = makeSqliteDatabase();
-    const db = narrowQueryDatabaseClient<MemoryDatabaseSchema>(rawDb);
+    const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
     const alice = "user-a";
     const bob = "user-b";
 

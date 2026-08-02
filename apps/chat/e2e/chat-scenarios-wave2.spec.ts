@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { createChatMock, multiToolStream, sessionOneSnapshot } from "./mock/install.ts";
+import { sessionOneSnapshot } from "./mock/app.ts";
+import { multiToolStream } from "./mock/fixtures.ts";
+import { createChatMock } from "./mock/install.ts";
 
 const branchThread = {
   id: "branch-1",
@@ -387,7 +389,7 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
           elements: {
             metric: {
               type: "MetricCard",
-              props: { value: 8742, unit: "steps/day", trend: "stable" },
+              props: { label: "Steps", value: 8742, unit: "steps/day", trend: "flat" },
             },
           },
         },

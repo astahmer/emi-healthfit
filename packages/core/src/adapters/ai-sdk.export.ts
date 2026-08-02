@@ -8,17 +8,19 @@ import {
   type ToolSet,
   type UIMessage,
 } from "ai";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
+import type { ChatMessage } from "../protocol/messages.ts";
+import type { MessagePart } from "../protocol/parts.ts";
 import type {
-  ChatMessage,
   GenerationEvent,
-  MessagePart,
   ModelGenerationInput,
   ModelProvider,
-} from "../protocol.export.ts";
+} from "../protocol/model.ts";
 
 export interface AiSdkModelConfiguration {
   readonly model: string;
@@ -232,43 +234,50 @@ const toGenerationStream = ({
   return Stream.concat(Stream.succeed<GenerationEvent>({ type: "started", generationId }), mapped);
 };
 
-export class AiSdkModelProvider implements ModelProvider {
-  private readonly configuration: AiSdkModelConfiguration;
+const generateWithConfiguration = ({
+  configuration,
+  input,
+}: {
+  readonly configuration: AiSdkModelConfiguration;
+  readonly input: ModelGenerationInput;
+}): Stream.Stream<GenerationEvent, AiSdkAdapterError> => {
+  const createId = configuration.createId ?? (() => crypto.randomUUID());
+  const generationId = createId();
+  const messageId = createId();
+  const messages = input.messages.map(toUiMessage).map(({ id: _id, ...message }) => message);
+  const model = input.configuration.model || configuration.model;
+  const resultEffect: Effect.Effect<
+    Stream.Stream<GenerationEvent, AiSdkAdapterError>,
+    AiSdkAdapterError
+  > = Effect.tryPromise({
+    try: async () => {
+      const openai = createOpenAI({
+        apiKey: configuration.apiKey,
+        baseURL: configuration.baseUrl,
+        ...(configuration.fetch === undefined ? {} : { fetch: configuration.fetch }),
+      });
+      const result = streamText({
+        model: openai.chat(model),
+        messages: await convertToModelMessages(messages),
+        maxOutputTokens: 4096,
+        stopWhen: [isLoopFinished(), stepCountIs(8)],
+      });
+      return toGenerationStream({ result, generationId, messageId, input });
+    },
+    catch: (cause) => toAdapterError(cause),
+  });
+  return Stream.unwrap(resultEffect);
+};
 
-  private constructor(configuration: AiSdkModelConfiguration) {
-    this.configuration = configuration;
-  }
+export interface AiSdkModelProviderShape extends ModelProvider {}
 
-  static create(configuration: AiSdkModelConfiguration): AiSdkModelProvider {
-    return new AiSdkModelProvider(configuration);
-  }
-
-  generate(input: ModelGenerationInput): Stream.Stream<GenerationEvent, AiSdkAdapterError> {
-    const createId = this.configuration.createId ?? (() => crypto.randomUUID());
-    const generationId = createId();
-    const messageId = createId();
-    const messages = input.messages.map(toUiMessage).map(({ id: _id, ...message }) => message);
-    const model = input.configuration.model || this.configuration.model;
-    const resultEffect: Effect.Effect<
-      Stream.Stream<GenerationEvent, AiSdkAdapterError>,
-      AiSdkAdapterError
-    > = Effect.tryPromise({
-      try: async () => {
-        const openai = createOpenAI({
-          apiKey: this.configuration.apiKey,
-          baseURL: this.configuration.baseUrl,
-          ...(this.configuration.fetch === undefined ? {} : { fetch: this.configuration.fetch }),
-        });
-        const result = streamText({
-          model: openai.chat(model),
-          messages: await convertToModelMessages(messages),
-          maxOutputTokens: 4096,
-          stopWhen: [isLoopFinished(), stepCountIs(8)],
-        });
-        return toGenerationStream({ result, generationId, messageId, input });
-      },
-      catch: (cause) => toAdapterError(cause),
+export class AiSdkModelProvider extends Context.Service<
+  AiSdkModelProvider,
+  AiSdkModelProviderShape
+>()("@emi/core/adapters/AiSdkModelProvider") {
+  static layer(configuration: AiSdkModelConfiguration) {
+    return Layer.succeed(AiSdkModelProvider, {
+      generate: (input) => generateWithConfiguration({ configuration, input }),
     });
-    return Stream.unwrap(resultEffect);
   }
 }

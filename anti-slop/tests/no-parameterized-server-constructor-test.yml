@@ -1,0 +1,5 @@
+id: no-parameterized-server-constructor
+valid:
+  - "class Domain { private constructor() {} }"
+invalid:
+  - "class Domain { constructor(repository: Repository) {} }"

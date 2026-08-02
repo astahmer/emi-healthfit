@@ -8,7 +8,7 @@ interface ReplayState {
   afterSequence: number;
 }
 
-export const createGenerationReplayStream = <E, R>({
+const createGenerationReplayStream = <E, R>({
   generationId,
   getChunks,
   getGeneration,
@@ -49,3 +49,9 @@ export const createGenerationReplayStream = <E, R>({
       return [[], Option.some(state)];
     }),
   );
+
+export class GenerationReplay {
+  private constructor() {}
+
+  static readonly stream = createGenerationReplayStream;
+}

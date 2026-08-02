@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { QueryDatabaseClient } from "@emi/core/server";
+import type { ServerDatabase } from "@emi/core/server/database";
 import type { HealthfitDatabaseSchema } from "../db/schema.ts";
 import {
   insertHealthWorkouts,
@@ -133,7 +133,7 @@ export const previewIngestedDataImport = Effect.fn("dataImport.preview")(functio
   userId,
   data,
 }: {
-  db: QueryDatabaseClient<HealthfitDatabaseSchema>;
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
   userId: string;
   data: IngestedDataExport;
 }) {
@@ -230,7 +230,7 @@ export const importIngestedData = Effect.fn("dataImport.apply")(function* ({
   userId,
   data,
 }: {
-  db: QueryDatabaseClient<HealthfitDatabaseSchema>;
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
   userId: string;
   data: IngestedDataExport;
 }) {

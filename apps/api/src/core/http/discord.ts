@@ -2,15 +2,8 @@ import { BadRequest, CoreApi, NotFound } from "@emi/core/contract";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
-import {
-  createDiscordLinkCode,
-  listDiscordAccountLinks,
-  listDiscordLinkCodes,
-  revokeDiscordLinkCode,
-  unlinkDiscordAccount,
-  type DiscordDatabaseSchema,
-} from "@emi/core/server";
-import { CurrentUser } from "../auth/request-auth.ts";
+import { ServerDatabase } from "@emi/core/server/database";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 
 export const discordHandlers = ({
@@ -20,16 +13,16 @@ export const discordHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const discordDb = narrowQueryDatabaseClient<DiscordDatabaseSchema>(db);
+  const discordDb = narrowQueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "discord", (handlers) =>
     handlers
       .handle(
         "list",
         Effect.fn("httpApi.discord.list")(function* () {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const [links, codes] = yield* Effect.all([
-            listDiscordAccountLinks(discordDb, user.id),
-            listDiscordLinkCodes(discordDb, user.id),
+            ServerDatabase.discordLinks.listAccountLinks(discordDb, user.id),
+            ServerDatabase.discordLinks.listLinkCodes(discordDb, user.id),
           ]);
           return { links, codes };
         }, Effect.provide(runtimeContext)),
@@ -37,8 +30,8 @@ export const discordHandlers = ({
       .handle(
         "createCode",
         Effect.fn("httpApi.discord.createCode")(function* () {
-          const user = yield* CurrentUser;
-          const created = yield* createDiscordLinkCode(discordDb, user.id);
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          const created = yield* ServerDatabase.discordLinks.createLinkCode(discordDb, user.id);
           if (created === null) {
             return yield* new BadRequest({
               message: "Too many active Discord link codes. Wait for one to expire or revoke them.",
@@ -50,8 +43,12 @@ export const discordHandlers = ({
       .handle(
         "revokeCode",
         Effect.fn("httpApi.discord.revokeCode")(function* ({ params }) {
-          const user = yield* CurrentUser;
-          const removed = yield* revokeDiscordLinkCode(discordDb, user.id, params.id);
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          const removed = yield* ServerDatabase.discordLinks.revokeLinkCode(
+            discordDb,
+            user.id,
+            params.id,
+          );
           if (!removed) return yield* new NotFound({ message: "Link code not found" });
           return { success: true as const };
         }, Effect.provide(runtimeContext)),
@@ -59,8 +56,12 @@ export const discordHandlers = ({
       .handle(
         "unlink",
         Effect.fn("httpApi.discord.unlink")(function* ({ params }) {
-          const user = yield* CurrentUser;
-          const removed = yield* unlinkDiscordAccount(discordDb, user.id, params.discordUserId);
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          const removed = yield* ServerDatabase.discordLinks.unlinkAccount(
+            discordDb,
+            user.id,
+            params.discordUserId,
+          );
           if (!removed) return yield* new NotFound({ message: "Discord link not found" });
           return { success: true as const };
         }, Effect.provide(runtimeContext)),

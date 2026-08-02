@@ -3,11 +3,12 @@ import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
-import { getConversations, getConversationMessages } from "../src/core/db/conversations.ts";
+import { ServerDatabase } from "@emi/core/server/database";
 import { handleDiscordAsk } from "../src/core/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const { getConversations, getConversationMessages } = ServerDatabase.conversations;
 
 const SECRET = "test-discord-ask-secret";
 const environment = {
@@ -108,7 +109,7 @@ describe("handleDiscordAsk", () => {
     assert.match(prompts[0]!.prompt, /Recovery:/);
     assert.match(prompts[0]!.system, /Discord slash command/);
 
-    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const conversations = await run(getConversations(conversationDb, "user-1"));
     assert.equal(
       conversations.some((row) => row.title === "[Discord] /ask"),

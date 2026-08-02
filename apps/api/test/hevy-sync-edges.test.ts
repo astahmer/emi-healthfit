@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
-import { encryptHevyApiKey } from "../src/healthfit/integrations/hevy/credential-crypto.ts";
-import { upsertHevyConnection } from "../src/healthfit/integrations/hevy/hevy-store.ts";
-import { connectHevy, syncHevy } from "../src/healthfit/integrations/hevy/hevy-sync.ts";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+
+const { connect: connectHevy, encryptApiKey: encryptHevyApiKey, sync: syncHevy, upsertConnection: upsertHevyConnection } = HealthFit.hevy;
 
 const originalFetch = globalThis.fetch;
 

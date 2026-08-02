@@ -4,8 +4,6 @@ import type { MemoryDatabaseSchema } from "./schema.ts";
 
 type MemoriesDb<Environment = never> = QueryDatabaseClient<MemoryDatabaseSchema, Environment>;
 
-const nowIso = (): string => new Date().toISOString();
-
 const normalizeContent = (content: string): string => content.trim().replace(/\s+/g, " ");
 
 const normalizeMemoryKey = (content: string): string =>
@@ -21,7 +19,7 @@ export interface MemoryInput {
 const persistedSource = ({ source, messageId }: MemoryInput): string | null =>
   messageId === undefined ? (source ?? null) : `${source ?? "manual"}:${messageId}`;
 
-export const insertMemories = <Environment>(
+const insertMemories = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   inputs: MemoryInput[],
@@ -40,10 +38,10 @@ export const insertMemories = <Environment>(
       kysely.selectFrom("memories").select("content").where("user_id", "=", userId).execute(),
     );
     const existingKeys = new Set(existing.map((memory) => normalizeMemoryKey(memory.content)));
-    const createdAt = nowIso();
+    const createdAt = db.runtime.now();
     const inserted = candidates
       .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
-      .map((candidate) => ({ id: crypto.randomUUID(), ...candidate }));
+      .map((candidate) => ({ id: db.runtime.createId(), ...candidate }));
     if (inserted.length === 0) return [];
     yield* QueryDatabase.transaction(db, [
       ...inserted.map((memory) =>
@@ -61,7 +59,7 @@ export const insertMemories = <Environment>(
     return inserted.map((memory) => memory.id);
   });
 
-export const insertMemory = <Environment>(
+const insertMemory = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   content: string,
@@ -99,7 +97,7 @@ const toMemorySearchResult = (row: MemorySearchRow): MemorySearchResult => ({
   rank: row.rank ?? 0,
 });
 
-export const searchMemories = <Environment>(
+const searchMemories = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   query: string,
@@ -161,7 +159,7 @@ export const searchMemories = <Environment>(
     return result.map(toMemorySearchResult);
   });
 
-export const getMemories = <Environment>(
+const getMemories = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   options: { limit?: number } = {},
@@ -179,7 +177,7 @@ export const getMemories = <Environment>(
     );
   });
 
-export const getMemorySummary = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
+const getMemorySummary = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     return yield* Effect.promise(() =>
@@ -191,7 +189,7 @@ export const getMemorySummary = <Environment>(db: MemoriesDb<Environment>, userI
     );
   });
 
-export const upsertMemorySummary = <Environment>(
+const upsertMemorySummary = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   content: string,
@@ -199,7 +197,7 @@ export const upsertMemorySummary = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const updatedAt = nowIso();
+    const updatedAt = db.runtime.now();
     yield* Effect.promise(() =>
       kysely
         .insertInto("memory_summaries")
@@ -220,7 +218,7 @@ export const upsertMemorySummary = <Environment>(
     );
   });
 
-export const listMemoryIdsForMessage = <Environment>(
+const listMemoryIdsForMessage = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   messageId: string,
@@ -238,7 +236,7 @@ export const listMemoryIdsForMessage = <Environment>(
     return result.map((row) => row.id);
   });
 
-export const deleteMemory = <Environment>(
+const deleteMemory = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   id: string,
@@ -251,7 +249,7 @@ export const deleteMemory = <Environment>(
     ]);
   });
 
-export const deleteMemoriesByMessage = <Environment>(
+const deleteMemoriesByMessage = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   messageId: string,
@@ -267,7 +265,7 @@ export const deleteMemoriesByMessage = <Environment>(
     ]);
   });
 
-export const insertNote = <Environment>(
+const insertNote = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   content: string,
@@ -277,8 +275,8 @@ export const insertNote = <Environment>(
     if (trimmed === "") return null;
 
     const kysely = yield* db.kysely;
-    const id = crypto.randomUUID();
-    const createdAt = nowIso();
+    const id = db.runtime.createId();
+    const createdAt = db.runtime.now();
     yield* Effect.promise(() =>
       kysely
         .insertInto("notes")
@@ -295,7 +293,7 @@ export const insertNote = <Environment>(
     return id;
   });
 
-export const updateNote = <Environment>(
+const updateNote = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   id: string,
@@ -309,14 +307,14 @@ export const updateNote = <Environment>(
     yield* Effect.promise(() =>
       kysely
         .updateTable("notes")
-        .set({ content: trimmed, updated_at: nowIso() })
+        .set({ content: trimmed, updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", id)
         .execute(),
     );
   });
 
-export const deleteNote = <Environment>(db: MemoriesDb<Environment>, userId: string, id: string) =>
+const deleteNote = <Environment>(db: MemoriesDb<Environment>, userId: string, id: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* Effect.promise(() =>
@@ -324,7 +322,7 @@ export const deleteNote = <Environment>(db: MemoriesDb<Environment>, userId: str
     );
   });
 
-export const getNotes = <Environment>(db: MemoriesDb<Environment>, userId: string, limit = 100) =>
+const getNotes = <Environment>(db: MemoriesDb<Environment>, userId: string, limit = 100) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     return yield* Effect.promise(() =>
@@ -338,7 +336,7 @@ export const getNotes = <Environment>(db: MemoriesDb<Environment>, userId: strin
     );
   });
 
-export const searchNotes = <Environment>(
+const searchNotes = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
   query: string,
@@ -366,3 +364,22 @@ export const searchNotes = <Environment>(
         .execute(),
     );
   });
+
+export class MemoryDatabase {
+  private constructor() {}
+
+  static readonly deleteMemoriesByMessage = deleteMemoriesByMessage;
+  static readonly deleteMemory = deleteMemory;
+  static readonly deleteNote = deleteNote;
+  static readonly getMemories = getMemories;
+  static readonly getMemorySummary = getMemorySummary;
+  static readonly getNotes = getNotes;
+  static readonly insertMemories = insertMemories;
+  static readonly insertMemory = insertMemory;
+  static readonly insertNote = insertNote;
+  static readonly listMemoryIdsForMessage = listMemoryIdsForMessage;
+  static readonly searchMemories = searchMemories;
+  static readonly searchNotes = searchNotes;
+  static readonly updateNote = updateNote;
+  static readonly upsertMemorySummary = upsertMemorySummary;
+}

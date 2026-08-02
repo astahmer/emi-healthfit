@@ -1,8 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import { RuntimeContext } from "alchemy";
-import { executeTool } from "../src/healthfit/tools/api.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
 import * as Effect from "effect/Effect";
+
+const { execute: executeTool } = HealthFit.tools;
 
 const fakeDb = {} as never;
 
@@ -33,27 +35,21 @@ describe("render_component tool", () => {
     assert.deepStrictEqual(root.props, { label: "Volume", value: 1000, unit: "kg" });
   });
 
-  it("normalizes legacy MetricCard label and stable trend", async () => {
-    const result = await run(
-      executeTool({
-        db: fakeDb,
-        userId: "test-user",
-        name: "render_component",
-        args: {
-          component: "MetricCard",
-          props: { value: 8742, unit: "steps/day", trend: "stable" },
-        },
-      }),
+  it("rejects MetricCard props outside the current contract", async () => {
+    await assert.rejects(
+      run(
+        executeTool({
+          db: fakeDb,
+          userId: "test-user",
+          name: "render_component",
+          args: {
+            component: "MetricCard",
+            props: { value: 8742, unit: "steps/day", trend: "stable" },
+          },
+        }),
+      ),
+      /Invalid MetricCard props/,
     );
-
-    assert.ok(result && typeof result === "object" && "spec" in result);
-    const spec = result.spec as { elements: Record<string, { props: unknown }> };
-    assert.deepStrictEqual(spec.elements.root?.props, {
-      label: "Metric",
-      value: 8742,
-      unit: "steps/day",
-      trend: "flat",
-    });
   });
 
   it("fails when component name is missing", async () => {

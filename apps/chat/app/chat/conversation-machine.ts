@@ -11,8 +11,8 @@ import {
   renameThread as renameThreadApi,
   restoreThread as restoreThreadApi,
 } from "../conversations";
-import { searchMessages } from "./conversation-tree";
-import { conversationMarkdown } from "./conversation-markdown";
+import { searchMessages } from "@emi/core/web";
+import { conversationMarkdown } from "@emi/core/web";
 
 type ViewMode = "inline" | "sidebar" | "columns";
 

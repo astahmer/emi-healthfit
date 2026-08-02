@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { coreAppDefinition } from "@emi/core/server";
+import { ServerDatabase } from "@emi/core/server/database";
 import { makeHealthfitCommandServices } from "./commands/services.ts";
 import { handleInteractionsRequest } from "./routes/interactions.ts";
 
@@ -68,8 +68,8 @@ export default DiscordBotWorker.make(
     yield* Effect.gen(function* () {
       yield* router.add("GET", "/health", () =>
         HttpServerResponse.json({
-          name: coreAppDefinition.identity.name,
-          description: coreAppDefinition.identity.description,
+          name: ServerDatabase.app.core.identity.name,
+          description: ServerDatabase.app.core.identity.description,
           transport: "discord",
         }),
       );

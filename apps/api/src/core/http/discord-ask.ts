@@ -4,21 +4,13 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import { ServerDatabase } from "@emi/core/server/database";
 import {
-  composeSystemPrompt,
-  createConversation,
-  getConversations,
-  saveConversationMessages,
-  secureStringEqual,
-  type ConversationDatabaseSchema,
-} from "@emi/core/server";
-import {
-  buildChatContext,
-  healthFitAppDefinition,
-  renderContextPrompt,
+  HealthFit,
   type HealthfitDatabaseSchema,
 } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
+import { SecureCompare } from "../auth/secure-compare.ts";
 
 const DiscordAskBody = Schema.Struct({
   userId: Schema.String.check(Schema.isMinLength(1)),
@@ -34,6 +26,9 @@ const DiscordAskEnvironment = Schema.Struct({
 
 const DISCORD_ASK_TITLE = "[Discord] /ask";
 const DISCORD_ASK_MAX_OUTPUT_TOKENS = 600;
+
+const { buildContext: buildChatContext, renderContextPrompt } = HealthFit.chat;
+const { definition: healthFitAppDefinition } = HealthFit.app;
 
 export type DiscordAskGenerateAnswer = (input: {
   system: string;
@@ -84,7 +79,7 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
   const provided = request.headers["x-discord-internal-secret"];
   if (
     typeof provided !== "string" ||
-    !secureStringEqual(provided, config.DISCORD_INTERNAL_ASK_SECRET)
+    !SecureCompare.equals(provided, config.DISCORD_INTERNAL_ASK_SECRET)
   ) {
     return yield* HttpServerResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -94,17 +89,25 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     rawBody,
   ).pipe(Effect.mapError((error) => new Error(`Invalid ask body: ${String(error)}`)));
 
-  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
   const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
-  const conversations = yield* getConversations(conversationDb, body.userId);
+  const conversations = yield* ServerDatabase.conversations.getConversations(
+    conversationDb,
+    body.userId,
+  );
   const existing = conversations.find((conversation) => conversation.title === DISCORD_ASK_TITLE);
   const conversationId =
-    existing?.id ?? (yield* createConversation(conversationDb, body.userId, DISCORD_ASK_TITLE));
+    existing?.id ??
+    (yield* ServerDatabase.conversations.createConversation(
+      conversationDb,
+      body.userId,
+      DISCORD_ASK_TITLE,
+    ));
 
   const fitnessContext = yield* buildChatContext(healthfitDb, body.userId);
   const model = config.DISCORD_ASK_MODEL ?? "gpt-4o-mini";
   const system =
-    `${composeSystemPrompt(healthFitAppDefinition.promptContributors)}\n\n` +
+    `${ServerDatabase.app.composeSystemPrompt(healthFitAppDefinition.promptContributors)}\n\n` +
     `You are answering a Discord slash command. Keep the answer under 1500 characters. ` +
     `No markdown tables. Ephemeral guild-safe tone.`;
   const prompt = renderContextPrompt(fitnessContext, body.question);
@@ -120,10 +123,16 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     maxOutputTokens: DISCORD_ASK_MAX_OUTPUT_TOKENS,
   });
 
-  yield* saveConversationMessages(conversationDb, body.userId, conversationId, null, [
+  yield* ServerDatabase.conversations.saveConversationMessages(
+    conversationDb,
+    body.userId,
+    conversationId,
+    null,
+    [
     { role: "user", parts: [{ type: "text", text: body.question }] },
     { role: "assistant", parts: [{ type: "text", text: answer }] },
-  ]);
+    ],
+  );
 
   return yield* HttpServerResponse.json({ answer, conversationId });
 });

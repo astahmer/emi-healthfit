@@ -37,5 +37,3 @@ export interface ModelProvider {
     input: ModelGenerationInput,
   ) => Stream.Stream<GenerationEvent, ModelProviderError>;
 }
-
-export type { ChatMessage, MessagePart, TransportError };

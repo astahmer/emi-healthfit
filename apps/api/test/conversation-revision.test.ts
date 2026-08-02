@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { getRevisionDeletionIds } from "../src/core/chat/conversation-revision.ts";
+import { ServerDatabase } from "@emi/core/server/database";
 
 describe("getRevisionDeletionIds", () => {
   it("removes later root turns and every branch descending from the revised turn", () => {
@@ -13,7 +13,7 @@ describe("getRevisionDeletionIds", () => {
       { id: "preserved-branch", parent_id: "earlier" },
     ];
 
-    const deleted = getRevisionDeletionIds({
+    const deleted = ServerDatabase.conversationRevision.getDeletionIds({
       conversationRows,
       scopedRows: conversationRows.filter((row) => row.parent_id === null),
       messageId: "target",
@@ -30,7 +30,7 @@ describe("getRevisionDeletionIds", () => {
       { id: "other-thread", parent_id: "anchor" },
     ];
 
-    const deleted = getRevisionDeletionIds({
+    const deleted = ServerDatabase.conversationRevision.getDeletionIds({
       conversationRows,
       scopedRows: conversationRows.slice(0, 2),
       messageId: "target",

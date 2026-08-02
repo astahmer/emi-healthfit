@@ -4,7 +4,7 @@ import { useMachine } from "@xstate/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNotes } from "../notes-context";
 import { useSettings } from "../settings-store";
-import { prepareAttachmentParts } from "./attachments";
+import { prepareAttachmentParts } from "@emi/core/web";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import {
   ChatRuntimeContext,
@@ -19,9 +19,6 @@ import { useFollowUpQueueSync } from "./use-follow-up-queue-sync";
 import { OrphanTurnError } from "./orphan-turn-error";
 import type { ConversationSnapshot } from "../conversations";
 import type { QueuedFollowUp } from "./chat-runtime-machine";
-
-export type { ChatRuntimeConfig } from "./chat-runtime-context";
-export { useChatRuntime } from "./chat-runtime-context";
 
 export const ChatRuntimeProvider = ({
   config,

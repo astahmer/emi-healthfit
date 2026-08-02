@@ -2,44 +2,52 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import {
+  HealthFit,
+  type DataSummary,
+  type HealthfitDatabaseSchema,
+  type IngestedDataExport,
+} from "@emi/flavor-healthfit";
 import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
-import { CurrentUser } from "../../core/auth/request-auth.ts";
-import { buildChatContext } from "../chat/context.ts";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { TtlCache } from "../cache.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
-import { ensureHevyFresh } from "../integrations/hevy/hevy-sync.ts";
-import {
-  type DataSummary,
+import { decodeJsonOption } from "../../core/lib/json-codec.ts";
+
+const { buildContext: buildChatContext } = HealthFit.chat;
+const {
   getAnalyticsOverview,
   getDataSummary,
   getIngestedDataExport,
   getIngestedDataExportSummary,
-  getWorkouts,
-} from "../db/fitness.ts";
-import {
-  deleteIngestedSource,
   getRawUploadRetentionDays,
-  insertHealthWorkouts,
+  getWorkouts,
+} = HealthFit.data;
+const {
+  deleteIngestedSource,
+  importIngestedData,
+  ingestedDataExportSchema,
+  parseHealthExport,
+  parseHevyCsv,
+  previewIngestedDataImport,
   updateRawUploadRetentionDays,
   updateSyncCursor,
+} = HealthFit.ingest;
+const {
+  insertHealthWorkouts,
   upsertBodyMetrics,
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../db/ingested-data.ts";
-import {
-  importIngestedData,
-  ingestedDataExportSchema,
-  previewIngestedDataImport,
-} from "../ingest/data-transfer.ts";
-import { decodeJsonOption } from "../../core/lib/json-codec.ts";
-import { parseHealthExport } from "../ingest/health.ts";
-import { parseHevyCsv } from "../ingest/hevy.ts";
+} = HealthFit.storage;
+const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
+
+const toHealthfitDb = (db: QueryDatabaseClient) =>
+  narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
 
 const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
@@ -75,7 +83,7 @@ const applyRawUploadRetention = Effect.fn("privacy.applyRetention")(function* ({
   bucket: ReadWriteBucketClient;
   userId: string;
 }) {
-  const days = yield* getRawUploadRetentionDays({ db, userId });
+  const days = yield* getRawUploadRetentionDays({ db: toHealthfitDb(db), userId });
   return yield* deleteRawUploads({
     bucket,
     prefix: `${userId}/`,
@@ -89,7 +97,8 @@ export const handleIngest = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
+    const healthfitDb = toHealthfitDb(db);
     const nativeRequest = yield* requestToWeb(request);
     const formData = yield* Effect.tryPromise({
       try: () => nativeRequest.formData(),
@@ -132,11 +141,11 @@ export const handleIngest = (
         body: parsed.body.length,
       };
 
-      yield* upsertDailyActivity(db, user.id, parsed.daily);
-      yield* insertHealthWorkouts(db, user.id, parsed.workouts);
-      yield* upsertSleepSessions(db, user.id, parsed.sleep);
-      yield* upsertBodyMetrics(db, user.id, parsed.body);
-      yield* updateSyncCursor(db, user.id, "apple_health", timestamp);
+      yield* upsertDailyActivity(healthfitDb, user.id, parsed.daily);
+      yield* insertHealthWorkouts(healthfitDb, user.id, parsed.workouts);
+      yield* upsertSleepSessions(healthfitDb, user.id, parsed.sleep);
+      yield* upsertBodyMetrics(healthfitDb, user.id, parsed.body);
+      yield* updateSyncCursor(healthfitDb, user.id, "apple_health", timestamp);
     }
 
     if (hevyFile !== null) {
@@ -156,9 +165,9 @@ export const handleIngest = (
         sets: parsed.sets.length,
       };
 
-      yield* upsertHevySessions(db, user.id, parsed.sessions);
-      yield* upsertHevySets(db, user.id, parsed.sets);
-      yield* updateSyncCursor(db, user.id, "hevy", timestamp);
+      yield* upsertHevySessions(healthfitDb, user.id, parsed.sessions);
+      yield* upsertHevySets(healthfitDb, user.id, parsed.sets);
+      yield* updateSyncCursor(healthfitDb, user.id, "hevy", timestamp);
     }
 
     yield* applyRawUploadRetention({ db, bucket, userId: user.id });
@@ -173,14 +182,14 @@ export const handleIngest = (
 
 export const handleRecovery = (db: QueryDatabaseClient, environment: Record<string, unknown>) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     yield* ensureHevyFresh({
-      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      db: toHealthfitDb(db),
       userId: user.id,
       environment,
     });
     const ctx = yield* buildChatContext(
-      narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      toHealthfitDb(db),
       user.id,
     );
     return yield* HttpServerResponse.json({
@@ -193,7 +202,12 @@ export const handleRecovery = (db: QueryDatabaseClient, environment: Record<stri
       recentVolume: ctx.lastWorkout.recentVolume,
     });
   }).pipe(
-    Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
+    Effect.catch((error) =>
+      HttpServerResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 500 },
+      ),
+    ),
   );
 
 const summaryCache = new TtlCache<DataSummary>();
@@ -201,19 +215,19 @@ const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export const handleSummary = (db: QueryDatabaseClient, environment: Record<string, unknown>) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const cached = summaryCache.get(user.id);
     if (cached !== undefined) {
       return yield* HttpServerResponse.json(cached);
     }
 
     yield* ensureHevyFresh({
-      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      db: toHealthfitDb(db),
       userId: user.id,
       environment,
     });
     const summary = yield* getDataSummary(
-      narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      toHealthfitDb(db),
       user.id,
     );
     summaryCache.set(user.id, summary, SUMMARY_CACHE_TTL_MS);
@@ -224,14 +238,14 @@ export const handleSummary = (db: QueryDatabaseClient, environment: Record<strin
 
 export const handleAnalyticsOverview = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const requestedDays = Number(new URL(request.url, "http://localhost").searchParams.get("days"));
     const days =
       Number.isInteger(requestedDays) && requestedDays >= 7 && requestedDays <= 365
         ? requestedDays
         : 90;
     const overview = yield* getAnalyticsOverview({
-      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      db: toHealthfitDb(db),
       userId: user.id,
       days,
     });
@@ -242,9 +256,9 @@ export const handleAnalyticsOverview = (db: QueryDatabaseClient, request: HttpSe
 
 export const handleIngestedDataExport = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const data = yield* getIngestedDataExport({
-      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      db: toHealthfitDb(db),
       userId: user.id,
     });
     return yield* HttpServerResponse.json(data);
@@ -254,9 +268,9 @@ export const handleIngestedDataExport = (db: QueryDatabaseClient) =>
 
 export const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const summary = yield* getIngestedDataExportSummary({
-      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      db: toHealthfitDb(db),
       userId: user.id,
     });
     return yield* HttpServerResponse.json({ summary });
@@ -266,7 +280,7 @@ export const handleIngestedDataExportSummary = (db: QueryDatabaseClient) =>
 
 export const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpServerRequest) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const raw = decodeJsonOption(yield* request.text);
     if (Option.isNone(raw)) {
       return yield* HttpServerResponse.json({ error: "Invalid HealthFit export" }, { status: 400 });
@@ -275,10 +289,14 @@ export const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpS
     if (Option.isNone(parsed)) {
       return yield* HttpServerResponse.json({ error: "Invalid HealthFit export" }, { status: 400 });
     }
-    const preview = yield* previewIngestedDataImport({ db, userId: user.id, data: parsed.value });
+    const preview = yield* previewIngestedDataImport({
+      db: toHealthfitDb(db),
+      userId: user.id,
+      data: parsed.value,
+    });
     const apply = new URL(request.url, "http://localhost").searchParams.get("apply") === "true";
     if (apply) {
-      yield* importIngestedData({ db, userId: user.id, data: parsed.value });
+      yield* importIngestedData({ db: toHealthfitDb(db), userId: user.id, data: parsed.value });
       summaryCache.clear();
     }
     return yield* HttpServerResponse.json({ preview, applied: apply });
@@ -288,8 +306,11 @@ export const handleIngestedDataImport = (db: QueryDatabaseClient, request: HttpS
 
 export const handlePrivacyRead = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
-    const rawUploadRetentionDays = yield* getRawUploadRetentionDays({ db, userId: user.id });
+    const user = yield* CoreCloudflare.user.CurrentUser;
+    const rawUploadRetentionDays = yield* getRawUploadRetentionDays({
+      db: toHealthfitDb(db),
+      userId: user.id,
+    });
     return yield* HttpServerResponse.json({ rawUploadRetentionDays });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),
@@ -301,7 +322,7 @@ export const handlePrivacyUpdate = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const raw = decodeJsonOption(yield* request.text);
     if (Option.isNone(raw)) {
       return yield* HttpServerResponse.json(
@@ -321,7 +342,7 @@ export const handlePrivacyUpdate = (
       );
     }
     yield* updateRawUploadRetentionDays({
-      db,
+      db: toHealthfitDb(db),
       userId: user.id,
       days: parsed.value.rawUploadRetentionDays,
     });
@@ -340,12 +361,12 @@ export const handleSourceDelete = (
   request: HttpServerRequest,
 ) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const source = new URL(request.url).pathname.match(/\/api\/privacy\/data\/(health|hevy)$/)?.[1];
     if (source !== "health" && source !== "hevy") {
       return yield* HttpServerResponse.json({ error: "Unknown data source" }, { status: 400 });
     }
-    yield* deleteIngestedSource({ db, userId: user.id, source });
+    yield* deleteIngestedSource({ db: toHealthfitDb(db), userId: user.id, source });
     const deletedRawUploads = yield* deleteRawUploads({ bucket, prefix: `${user.id}/${source}/` });
     return yield* HttpServerResponse.json({ source, deletedRawUploads });
   }).pipe(
@@ -354,9 +375,9 @@ export const handleSourceDelete = (
 
 export const handleWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
-    const user = yield* CurrentUser;
+    const user = yield* CoreCloudflare.user.CurrentUser;
     const workouts = yield* getWorkouts(
-      narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+      toHealthfitDb(db),
       user.id,
     );
     return yield* HttpServerResponse.json({ workouts });

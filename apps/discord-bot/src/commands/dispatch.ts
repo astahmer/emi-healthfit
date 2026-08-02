@@ -1,15 +1,11 @@
-import type {
-  ApplicationCommandInteraction,
-  DiscordHttpResponse,
-} from "@emi/core/discord";
-import { ephemeralMessageResponse } from "@emi/core/discord";
+import { Discord } from "@emi/core/discord";
 import * as Effect from "effect/Effect";
 import { handleAskCommand } from "./ask.ts";
 import { handleHealthfitCommand } from "./healthfit.ts";
 import type { HealthfitCommandServices } from "./limits.ts";
 
 export interface DispatchApplicationCommandInput {
-  readonly interaction: ApplicationCommandInteraction;
+  readonly interaction: Discord.ApplicationCommandInteraction;
   readonly services: HealthfitCommandServices;
   readonly applicationId: string;
   readonly botToken: string;
@@ -20,7 +16,7 @@ export interface DispatchApplicationCommandInput {
 
 export const dispatchApplicationCommand = (
   input: DispatchApplicationCommandInput,
-): Effect.Effect<DiscordHttpResponse> => {
+): Effect.Effect<Discord.HttpResponse> => {
   if (input.interaction.data.name === "healthfit") {
     return handleHealthfitCommand(input.interaction, input.services);
   }
@@ -38,6 +34,6 @@ export const dispatchApplicationCommand = (
     );
   }
   return Effect.succeed(
-    ephemeralMessageResponse(`Unsupported command: ${input.interaction.data.name}`),
+    Discord.responses.ephemeralMessage(`Unsupported command: ${input.interaction.data.name}`),
   );
 };

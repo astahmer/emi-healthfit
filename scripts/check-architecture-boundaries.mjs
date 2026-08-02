@@ -9,6 +9,14 @@ const filesUnder = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
+    if (
+      entry.name === "node_modules" ||
+      entry.name === "dist" ||
+      entry.name === ".git" ||
+      entry.name === ".alchemy"
+    ) {
+      continue;
+    }
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...(await filesUnder(path)));
@@ -47,6 +55,62 @@ const scanText = async (path, patterns) => {
   }
 };
 
+const scanForwardingClasses = async (path) => {
+  const source = await readFile(path, "utf8");
+  const classPattern = /(?:export\s+)?class\s+([A-Z][A-Za-z0-9_]*)\b([\s\S]*?)(?=(?:\n|^)\s*(?:export\s+)?class\s+[A-Z][A-Za-z0-9_]*\b|$)/g;
+  for (const classMatch of source.matchAll(classPattern)) {
+    const className = classMatch[1];
+    const classBody = classMatch[2];
+    const aliasPattern = /(?:^|\n)[\t ]*(?!(?:private|protected)\s+)static\s+(?:readonly\s+)?[A-Za-z_$][\w$]*\s*=\s*([A-Z][A-Za-z0-9_]*)\.[A-Za-z_$][\w$]*/gm;
+    for (const aliasMatch of classBody.matchAll(aliasPattern)) {
+      if (aliasMatch[1] === className) continue;
+      report(
+        path,
+        lineNumber(source, classMatch.index + classMatch[0].indexOf(aliasMatch[0])),
+        "internal classes must not forward a static domain surface; use the owning domain directly or a named .export.ts facade.",
+      );
+    }
+  }
+};
+
+const publicSurfaceExceptions = new Map([
+  ["./advanced/xstate", "explicit advanced actor integration"],
+  ["./components", "independently consumable React view primitives"],
+  ["./components/styled", "independently consumable React recipes"],
+  ["./contract", "independently consumable HTTP schemas and groups"],
+  ["./react", "React provider and hook composition"],
+  ["./web", "independently consumable generic web views and policies"],
+]);
+
+const collectPublicValueExports = (source) => {
+  const names = new Set();
+  for (const match of source.matchAll(
+    /(?:^|\n)\s*export\s+(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g,
+  )) {
+    names.add(match[1]);
+  }
+  for (const match of source.matchAll(/(?:^|\n)\s*export\s*\{([\s\S]*?)\}\s*;/g)) {
+    for (const item of match[1].split(",")) {
+      const name = item.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0]?.trim();
+      if (name !== undefined && /^[A-Za-z_$][\w$]*$/.test(name)) names.add(name);
+    }
+  }
+  return names;
+};
+
+const ambientDependencyPatterns = [
+  {
+    expression: /Date\.now\s*\(|new\s+Date\s*\(|Math\.random\s*\(|crypto\.randomUUID\s*\(/g,
+    message:
+      "actor and use-case code must receive time and identity through injected dependencies, not ambient clocks or randomness.",
+  },
+  {
+    expression: /(?:^|[^\w.])(?:window|document|navigator|localStorage|sessionStorage)\s*\./g,
+    message:
+      "actor and use-case code must receive transport and browser capabilities through injected dependencies.",
+  },
+];
+
 const main = async () => {
   const coreSource = join(repositoryRoot, "packages/core/src");
   const allSourceRoots = [
@@ -60,6 +124,43 @@ const main = async () => {
   const allSourceFiles = sourceFilesByRoot.flat();
   const coreSourceFiles = await filesUnder(coreSource);
 
+  for (const path of allSourceFiles) {
+    if (path.endsWith("/index.ts") || path.endsWith("/index.tsx")) {
+      report(path, 1, "implementation files must not be index.ts barrels; flatten the module or name the boundary.");
+    }
+    await scanText(path, [
+      {
+        expression: /(?:from\s+|import\s*\(\s*)["'][^"']*\/(?:index\.ts|index\.tsx)["']/g,
+        message: "do not import an index.ts module; import the named implementation or .export.ts boundary.",
+      },
+      {
+        expression: /export\s+\*/g,
+        message: "wildcard exports hide the public contract; bind each exported symbol explicitly.",
+      },
+      {
+        expression: /export\s+(?:type\s+)?(?:\*|\{[\s\S]*?\})\s+from\s+["']/g,
+        message: "symbols must be imported and owned locally; export-from forwarding is forbidden.",
+      },
+    ]);
+    if (!path.endsWith(".export.ts") && path.includes("/src/")) await scanForwardingClasses(path);
+    if (path.includes("/src/") && !path.endsWith(".export.ts")) {
+      await scanText(path, [
+        {
+          expression: /(?:from\s+|import\s*\(\s*)["'][.]{1,2}\/[^"']+\.export\.ts["']/g,
+          message: "internal modules must not import a package .export.ts boundary; import the named implementation file.",
+        },
+      ]);
+    }
+    if (!path.includes("/test/fixtures/rewrite-gates/")) {
+      await scanText(path, [
+        {
+          expression: /["']@emi\/core(?:\/src|\/dist)(?:\/|["'])/g,
+          message: "consumers must use a named package export, never @emi/core/src or @emi/core/dist.",
+        },
+      ]);
+    }
+  }
+
   if (await existing(join(repositoryRoot, "packages/core-migration"))) {
     report(
       join(repositoryRoot, "packages/core-migration"),
@@ -69,16 +170,7 @@ const main = async () => {
   }
 
   for (const path of coreSourceFiles) {
-    if (path.endsWith("/index.ts")) report(path, 1, "core implementation files must not be index.ts barrels.");
     await scanText(path, [
-      {
-        expression: /(?:from\s+|import\s*\(\s*)["'][^"']*\/index\.ts["']/g,
-        message: "do not import an index.ts module; import the named implementation or .export.ts boundary.",
-      },
-      {
-        expression: /export\s+(?:type\s+)?(?:\*|\{)[^;\n]*\sfrom\s+["']/g,
-        message: "public bindings must be imported and owned locally; export-from re-exports are forbidden.",
-      },
       {
         expression: /(?:server\/legacy|\bLegacy\w*|\blegacy\b|\bbackward\b)/g,
         message: "legacy/backward-compatibility code is not part of generic core.",
@@ -96,9 +188,33 @@ const main = async () => {
         expression: /["']@emi\/core-migration(?:\/|["'])/g,
         message: "@emi/core-migration is retired; use a named @emi/core boundary or product package.",
       },
+    ]);
+  }
+
+  const genericContractPaths = [
+    join(coreSource, "protocol"),
+    join(coreSource, "server/ports"),
+    join(coreSource, "server/use-cases"),
+    join(coreSource, "server.export.ts"),
+    join(coreSource, "server-effect.export.ts"),
+    join(coreSource, "server-fetch.export.ts"),
+  ];
+  const genericContractFiles = [];
+  for (const path of genericContractPaths) {
+    if (!(await existing(path))) continue;
+    if (path.endsWith(".ts")) {
+      genericContractFiles.push(path);
+      continue;
+    }
+    genericContractFiles.push(...(await filesUnder(path)));
+  }
+  for (const path of genericContractFiles) {
+    await scanText(path, [
       {
-        expression: /(?:from\s+|import\s*\(\s*)["'][^"']*\/index\.ts["']/g,
-        message: "do not import index.ts modules inside a package boundary.",
+        expression:
+          /["'](?:drizzle-orm|kysely|kysely-d1|@cloudflare\/workers-types|ai|@ai-sdk\/[^"']+)(?:\/|["'])/g,
+        message:
+          "generic protocol/server contracts cannot expose database, platform, or AI SDK types; keep those in adapters or the advanced database boundary.",
       },
     ]);
   }
@@ -110,11 +226,21 @@ const main = async () => {
     for (const sourceFile of await filesUnder(path)) {
       await scanText(sourceFile, [
         {
-          expression: /\bconstructor\s*\(/g,
+          expression: /\bconstructor\s*\(\s*[^)]/g,
           message: "server and adapter dependencies must be Effect Context services composed by Layer, not constructor DI.",
         },
       ]);
     }
+  }
+
+  const deterministicPaths = [
+    join(coreSource, "runtime"),
+    join(coreSource, "web/chat-runtime"),
+    join(coreSource, "server/ports"),
+    join(coreSource, "server/use-cases"),
+  ];
+  for (const directory of deterministicPaths) {
+    for (const path of await filesUnder(directory)) await scanText(path, ambientDependencyPatterns);
   }
 
   for (const path of [
@@ -134,6 +260,27 @@ const main = async () => {
         1,
         `${entrypoint} must point to a named .export.ts public boundary, received ${source}.`,
       );
+    }
+    const publicSourcePath = join(repositoryRoot, "packages/core", source);
+    if (!(await existing(publicSourcePath))) continue;
+    const publicSource = await readFile(publicSourcePath, "utf8");
+    const valueExports = collectPublicValueExports(publicSource);
+    if (valueExports.size > 6 && !publicSurfaceExceptions.has(entrypoint)) {
+      report(
+        publicSourcePath,
+        1,
+        `${entrypoint} exposes ${valueExports.size} runtime bindings; group related operations under a named domain owner.`,
+      );
+    }
+    if (entrypoint === "./web") {
+      const rawActorImport = /from\s+["'][^"']*(?:xstate|chat-runtime\/[^"']*(?:actor|machine))[^"]*["']/;
+      if (rawActorImport.test(publicSource)) {
+        report(
+          publicSourcePath,
+          1,
+          "@emi/core/web is a view boundary; raw XState actors and machines belong only in @emi/core/advanced/xstate.",
+        );
+      }
     }
   }
 

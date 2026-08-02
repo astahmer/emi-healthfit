@@ -11,7 +11,7 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { authenticateWorkerFetch, isProtectedPath } from "./core/auth/request-auth.ts";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { handleDiscordAsk } from "./core/http/discord-ask.ts";
 import { handleDiscordCommand } from "./core/http/discord-command.ts";
 import { makeQueryDatabaseClient, narrowQueryDatabaseClient } from "./platform/db/client.ts";
@@ -20,7 +20,7 @@ import {
   handleAiSdkChat,
   handleChatResume,
   handleConversationDiagnostics,
-} from "./core/routes/chat.ts";
+} from "./core/routes/chat-generation-lifecycle.ts";
 import {
   handleIngest,
   handleIngestedDataExport,
@@ -31,13 +31,14 @@ import {
 import { handleAssetRequest, handleCorsPreflight, withCors } from "./platform/http/assets-cors.ts";
 import { registerHttpApi } from "./http-api.ts";
 import {
-  healthFitAppDefinition,
-  executeTool as executeHealthfitTool,
+  HealthFit,
   type HealthfitDatabaseSchema,
   type HealthfitToolsDatabaseSchema,
 } from "@emi/flavor-healthfit";
-import { composeSystemPrompt } from "@emi/core/server";
-import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
+import { ServerDatabase } from "@emi/core/server/database";
+const { definition: healthFitAppDefinition } = HealthFit.app;
+const { execute: executeHealthfitTool } = HealthFit.tools;
+const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 const chatAppDirectory = "../chat";
 
@@ -144,7 +145,9 @@ export default Api.make(
               userId,
               environment,
             }),
-          coachSystemPrompt: composeSystemPrompt(healthFitAppDefinition.promptContributors),
+              coachSystemPrompt: ServerDatabase.app.composeSystemPrompt(
+                healthFitAppDefinition.promptContributors,
+              ),
           tools: healthFitAppDefinition.tools ?? [],
           // Kysely schema invariance: narrow the app DatabaseSchema client to the
           // flavor tools schema at the composition boundary (see narrowQueryDatabaseClient).
@@ -209,11 +212,11 @@ export default Api.make(
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        return yield* authenticateWorkerFetch({
+        return yield* CoreCloudflare.auth.authenticateWorkerFetch({
           db,
           environment: env,
-          isProtectedPath: (pathname) =>
-            isProtectedPath(pathname) &&
+            isProtectedPath: (pathname) =>
+            CoreCloudflare.auth.isProtectedPath(pathname) &&
             pathname !== "/api/discord/ask" &&
             pathname !== "/api/discord/command",
           policy: "google-allowlist",

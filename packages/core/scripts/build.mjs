@@ -34,6 +34,14 @@ const buildJavaScript = (entries) => {
   for (const entry of entries) {
     if (entry.sourcePath.endsWith(".css")) continue;
     const outputPath = join(distDirectory, outputPathFor(entry.sourcePath));
+    const externalSharedModules =
+      entry.entrypoint === "./react"
+        ? ["./react-hooks.ts"]
+        : entry.entrypoint === "./components"
+          ? ["../react-hooks.ts"]
+          : entry.entrypoint === "./components/styled"
+            ? ["../../react-hooks.ts"]
+            : [];
     run([
       "exec",
       "esbuild",
@@ -42,10 +50,25 @@ const buildJavaScript = (entries) => {
       "--format=esm",
       "--platform=neutral",
       "--packages=external",
+      ...externalSharedModules.map((module) => `--external:${module}`),
       `--outfile=${outputPath}`,
       "--log-level=warning",
     ]);
   }
+};
+
+const buildSharedReactModule = () => {
+  run([
+    "exec",
+    "esbuild",
+    "src/react-hooks.ts",
+    "--bundle",
+    "--format=esm",
+    "--platform=neutral",
+    "--packages=external",
+    `--outfile=${join(distDirectory, "react-hooks.js")}`,
+    "--log-level=warning",
+  ]);
 };
 
 const copyStyles = async (entries) => {
@@ -77,13 +100,35 @@ const rewriteDeclarationImports = async (directory) => {
   );
 };
 
+const rewriteJavaScriptImports = async (directory) => {
+  const entries = await readdir(directory, { withFileTypes: true });
+  await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await rewriteJavaScriptImports(path);
+        return;
+      }
+      if (!entry.name.endsWith(".js")) return;
+      const source = await readFile(path, "utf8");
+      const rewritten = source
+        .replaceAll("../../react-hooks.ts", "./react-hooks.js")
+        .replaceAll("../react-hooks.ts", "./react-hooks.js")
+        .replaceAll("./react-hooks.ts", "./react-hooks.js");
+      if (rewritten !== source) await writeFile(path, rewritten);
+    }),
+  );
+};
+
 const main = async () => {
   const packageJson = await readPackage();
   const entries = sourceEntries(packageJson);
   await rm(distDirectory, { recursive: true, force: true });
   await mkdir(distDirectory, { recursive: true });
   buildJavaScript(entries);
+  buildSharedReactModule();
   await copyStyles(entries);
+  await rewriteJavaScriptImports(distDirectory);
   run([
     "exec",
     "tsc",

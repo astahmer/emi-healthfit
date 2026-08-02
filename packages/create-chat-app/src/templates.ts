@@ -71,7 +71,6 @@ export const workspaceConfig = (context?: TemplateContext): string =>
     '  - "core"',
     '  - "web"',
     '  - "worker"',
-    ...(context?.distributionMode === "owned" ? ['  - "migration"'] : []),
     "catalog:",
     '  "@ai-sdk/openai": "3.0.84"',
     '  "@cloudflare/workers-types": "4.20250805.0"',

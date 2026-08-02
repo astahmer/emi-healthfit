@@ -4,17 +4,13 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type { UIMessageChunk } from "ai";
-import type { createChatOperationBudget } from "../chat/generation-budget.ts";
-import {
-  appendGenerationChunks,
-  finishGeneration,
-  markGenerationStreaming,
-  recordChatEvent,
-} from "../chat/generation-store.ts";
-import { resolveGenerationTerminalState } from "../chat/generation-terminal-state.ts";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import { Chat } from "@emi/core/chat";
+import { ServerDatabase } from "@emi/core/server/database";
 
 const chunkBatchSize = 20;
+
+const { appendGenerationChunks, finishGeneration, markGenerationStreaming, recordChatEvent } =
+  ServerDatabase.generations;
 
 export const persistGenerationStream = Effect.fn("chatStream.persist")(function* ({
   db,
@@ -26,14 +22,14 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   stream,
   budget,
 }: {
-  db: QueryDatabaseClient;
+  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>;
   userId: string;
   conversationId: string;
   generationId: string;
   requestId: string;
   traceId: string;
   stream: ReadableStream<UIMessageChunk>;
-  budget: ReturnType<typeof createChatOperationBudget>;
+  budget: ReturnType<typeof Chat.operations.createChatOperationBudget>;
 }) {
   const streamError = yield* Ref.make<string | undefined>(undefined);
   const finishReason = yield* Ref.make<string | undefined>(undefined);
@@ -138,7 +134,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
       onSuccess: () =>
         Effect.all([Ref.get(streamError), Ref.get(finishReason), Ref.get(sawFinish)]).pipe(
           Effect.flatMap(([streamErrorValue, reason, finished]) => {
-            const terminal = resolveGenerationTerminalState({
+  const terminal = Chat.generation.resolveGenerationTerminalState({
               streamError: streamErrorValue,
               sawFinish: finished,
             });

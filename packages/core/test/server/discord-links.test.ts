@@ -4,14 +4,7 @@ import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { Kysely, SqliteDialect, type Compilable } from "kysely";
 import type { SqliteDatabase, SqliteStatement } from "kysely";
-import {
-  consumeDiscordLinkCode,
-  createDiscordLinkCode,
-  getLinkedUserIdForDiscord,
-  hashDiscordLinkCode,
-  listDiscordAccountLinks,
-  unlinkDiscordAccountByDiscordUserId,
-} from "../../src/server/db/discord-links.ts";
+import { DiscordLinkDatabase } from "../../src/server/db/discord-links.ts";
 import type { DiscordDatabaseSchema } from "../../src/server/db/discord-schema.ts";
 import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
 
@@ -110,44 +103,51 @@ const makeInMemoryDb = (): QueryDatabaseClient<DiscordDatabaseSchema, never> => 
 describe("discord link codes", () => {
   it("creates a hashed one-time code, consumes it once, and isolates owners", async () => {
     const db = makeInMemoryDb();
-    const created = await Effect.runPromise(createDiscordLinkCode(db, "user-a"));
+    const created = await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a"));
     assert.ok(created !== null);
-    const hash = await Effect.runPromise(hashDiscordLinkCode(created.code));
+    const hash = await Effect.runPromise(DiscordLinkDatabase.hashLinkCode(created.code));
     assert.notEqual(hash, created.code);
 
     const first = await Effect.runPromise(
-      consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
+      DiscordLinkDatabase.consumeLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
     );
     assert.equal(first.ok, true);
     if (first.ok) assert.equal(first.userId, "user-a");
 
-    const linked = await Effect.runPromise(getLinkedUserIdForDiscord(db, "discord-1"));
+    const linked = await Effect.runPromise(DiscordLinkDatabase.getLinkedUserId(db, "discord-1"));
     assert.equal(linked, "user-a");
 
     const second = await Effect.runPromise(
-      consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-2" }),
+      DiscordLinkDatabase.consumeLinkCode(db, { code: created.code, discordUserId: "discord-2" }),
     );
     assert.deepEqual(second, { ok: false, reason: "consumed" });
 
-    const otherUserLinks = await Effect.runPromise(listDiscordAccountLinks(db, "user-b"));
+    const otherUserLinks = await Effect.runPromise(
+      DiscordLinkDatabase.listAccountLinks(db, "user-b"),
+    );
     assert.deepEqual(otherUserLinks, []);
 
-    const unlinked = await Effect.runPromise(unlinkDiscordAccountByDiscordUserId(db, "discord-1"));
+    const unlinked = await Effect.runPromise(
+      DiscordLinkDatabase.unlinkAccountByDiscordUserId(db, "discord-1"),
+    );
     assert.equal(unlinked, true);
-    assert.equal(await Effect.runPromise(getLinkedUserIdForDiscord(db, "discord-1")), null);
+    assert.equal(
+      await Effect.runPromise(DiscordLinkDatabase.getLinkedUserId(db, "discord-1")),
+      null,
+    );
   });
 
   it("caps active unconsumed codes per user", async () => {
     const db = makeInMemoryDb();
-    assert.ok(await Effect.runPromise(createDiscordLinkCode(db, "user-a")));
-    assert.ok(await Effect.runPromise(createDiscordLinkCode(db, "user-a")));
-    assert.ok(await Effect.runPromise(createDiscordLinkCode(db, "user-a")));
-    assert.equal(await Effect.runPromise(createDiscordLinkCode(db, "user-a")), null);
+    assert.ok(await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a")));
+    assert.ok(await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a")));
+    assert.ok(await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a")));
+    assert.equal(await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a")), null);
   });
 
   it("rejects expired codes", async () => {
     const db = makeInMemoryDb();
-    const created = await Effect.runPromise(createDiscordLinkCode(db, "user-a"));
+    const created = await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a"));
     assert.ok(created !== null);
     const kysely = await Effect.runPromise(db.kysely);
     await kysely
@@ -157,22 +157,22 @@ describe("discord link codes", () => {
       .execute();
 
     const result = await Effect.runPromise(
-      consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
+      DiscordLinkDatabase.consumeLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
     );
     assert.deepEqual(result, { ok: false, reason: "expired" });
   });
 
   it("only one concurrent consume wins the update race", async () => {
     const db = makeInMemoryDb();
-    const created = await Effect.runPromise(createDiscordLinkCode(db, "user-a"));
+    const created = await Effect.runPromise(DiscordLinkDatabase.createLinkCode(db, "user-a"));
     assert.ok(created !== null);
 
     const [first, second] = await Promise.all([
       Effect.runPromise(
-        consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
+        DiscordLinkDatabase.consumeLinkCode(db, { code: created.code, discordUserId: "discord-1" }),
       ),
       Effect.runPromise(
-        consumeDiscordLinkCode(db, { code: created.code, discordUserId: "discord-2" }),
+        DiscordLinkDatabase.consumeLinkCode(db, { code: created.code, discordUserId: "discord-2" }),
       ),
     ]);
 

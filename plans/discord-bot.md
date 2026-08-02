@@ -6,7 +6,7 @@
   application user; never infer ownership from email or guild.
 - Shared domain reads live in `@emi/flavor-healthfit`. Conversation/auth ports live in
   `@emi/core/server`. Discord verify/DTO helpers currently live in the private
-  `@emi/core-migration/discord` boundary.
+  `@emi/core/discord` boundary.
 - `apps/discord-bot` is a thin Alchemy Worker. Skeleton MVP shipped: signature verification, Ping,
   `/healthfit` dispatch with fail-closed “not linked” stubs, boundary tests, dry-run deploy.
 - **No npm publish** for the bot or for `@emi/core` just to run it — workspace packages only.
@@ -23,7 +23,7 @@ cost, and durable follow-up behavior are proven.
 - `apps/discord-bot` with its own Alchemy Worker and least-privilege binding to the shared D1.
 - Health calculations and owner-scoped queries stay in `@emi/flavor-healthfit` / `@emi/core/server`.
 - Discord signature verification and interaction DTOs currently live in
-  `@emi/core-migration/discord` (reusable
+  `@emi/core/discord` (reusable
   subpath; no React / no flavor imports).
 - Link Discord users through a short-lived one-time code generated in authenticated Settings. Store
   `discord_user_id -> application_user_id`; never infer ownership from a Discord email or guild.
@@ -48,7 +48,7 @@ visible responses per command later.
    (via `@emi/core/server` + `@emi/flavor-healthfit`; no separate `packages/data-access`).
 3. `discord_account_links` + `discord_link_codes` migrations. **DONE**
 4. Scaffold `apps/discord-bot`. **DONE**
-5. Verify Ed25519 signature + timestamp before JSON parse. **DONE** (`@emi/core-migration/discord`)
+5. Verify Ed25519 signature + timestamp before JSON parse. **DONE** (`@emi/core/discord`)
 6. Decode interactions with Effect Schema, Ping, dispatch. **DONE**
 7. Resolve Discord user link before every data command. **DONE**
 8. Registration script (guild preview / global prod). **DONE** (`pnpm discord:register`)
@@ -225,7 +225,7 @@ reviewing its plan.
 - 2026-07-15: auth and ownership are prerequisites.
 - 2026-07-15: account linking uses one-time codes from authenticated Settings.
 - 2026-07-15: read-only commands ship before assistant chat; responses default to ephemeral.
-- 2026-07-21: Discord transport moved to the private `@emi/core-migration/discord` boundary while
+- 2026-07-21: Discord transport moved to the explicit `@emi/core/discord` boundary while
   the public core catalog stays provider/platform neutral.
 - 2026-07-21: reusable core unified as `@emi/core` with contract/server/web/cloudflare/discord exports.
 - 2026-07-22: Discord bot resolves API-owned `GymData` through an explicit cross-stack

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
-import { HevyHttpError, createHevyClient } from "../src/healthfit/integrations/hevy/hevy-client.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
+
+const { Http: HevyHttpError } = HealthFit.hevy.errors;
+const { createClient: createHevyClient } = HealthFit.hevy;
 
 const originalFetch = globalThis.fetch;
 

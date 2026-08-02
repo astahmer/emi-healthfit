@@ -24,7 +24,7 @@ import {
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import type { MessageNode, ThreadView } from "./conversation-machine";
-import { getMessageText } from "./conversation-tree";
+import { getMessageText } from "@emi/core/web";
 
 interface ThreadNavigationProps {
   threads: ThreadView[];

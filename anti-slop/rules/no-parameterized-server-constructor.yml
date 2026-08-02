@@ -1,0 +1,13 @@
+id: no-parameterized-server-constructor
+language: TypeScript
+files:
+  - packages/core/src/server/**/*.ts
+  - packages/core/src/server/**/*.tsx
+  - packages/core/src/adapters/**/*.ts
+  - packages/core/src/adapters/**/*.tsx
+message: Server and adapter dependencies belong in Effect Context.Service and Layer, not constructors.
+severity: error
+rule:
+  any:
+    - pattern: class $CLASS { $$$BEFORE constructor($PARAMETER) { $$$BODY } $$$AFTER }
+    - pattern: class $CLASS { $$$BEFORE constructor($PARAMETER, $$$REST) { $$$BODY } $$$AFTER }

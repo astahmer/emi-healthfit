@@ -3,7 +3,7 @@ import { type EventFrom, type SnapshotFrom } from "xstate";
 import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
 import { fetchConversationMessages, type ConversationSnapshot } from "../conversations";
 import { notifyConversationsChanged } from "../conversation-events";
-import { getConversationViewMessages } from "./conversation-tree";
+import { getConversationViewMessages } from "@emi/core/web";
 import { chatRuntimeMachine } from "./chat-runtime-machine";
 import type { ChatRuntimeConfig } from "./chat-runtime-context";
 import { consumeAssistantStream, type ChatTransport } from "./chat-transport";

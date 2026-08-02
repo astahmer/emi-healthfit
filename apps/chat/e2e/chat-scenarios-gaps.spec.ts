@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { createChatMock, sessionOneSnapshot, type MockMessage } from "./mock/install.ts";
+import { type MockMessage, sessionOneSnapshot } from "./mock/app.ts";
+import { createChatMock } from "./mock/install.ts";
 import { openSessionActions } from "./open-session-actions.ts";
 
 const branchA = {

@@ -1,7 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
-import {
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const {
   getAnalyticsOverview,
   getDataSummary,
   getExerciseProgress,
@@ -16,18 +19,16 @@ import {
   getWorkoutHistory,
   getWorkouts,
   getWorkoutStreak,
-} from "../src/healthfit/db/fitness.ts";
-import {
+} = HealthFit.data;
+const { updateSyncCursor } = HealthFit.ingest;
+const {
   insertHealthWorkouts,
-  updateSyncCursor,
   upsertBodyMetrics,
   upsertDailyActivity,
   upsertHevySessions,
   upsertHevySets,
   upsertSleepSessions,
-} from "../src/healthfit/db/ingested-data.ts";
-import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+} = HealthFit.storage;
 
 describe("fitness SQLite integration", () => {
   it("returns owner-scoped history, progress, trends, exports, and analytics from persisted data", async (testContext) => {
@@ -37,7 +38,7 @@ describe("fitness SQLite integration", () => {
     const userId = "user-a";
 
     await run(
-      upsertDailyActivity(db, userId, [
+      upsertDailyActivity(fitnessDb, userId, [
         {
           date: "2026-07-18",
           active_kcal: 300,
@@ -57,7 +58,7 @@ describe("fitness SQLite integration", () => {
       ]),
     );
     await run(
-      insertHealthWorkouts(db, userId, [
+      insertHealthWorkouts(fitnessDb, userId, [
         {
           date: "2026-07-18",
           type: "Run",
@@ -74,7 +75,7 @@ describe("fitness SQLite integration", () => {
       ]),
     );
     await run(
-      upsertSleepSessions(db, userId, [
+      upsertSleepSessions(fitnessDb, userId, [
         {
           date: "2026-07-18",
           start: "2026-07-17T22:00:00Z",
@@ -96,7 +97,7 @@ describe("fitness SQLite integration", () => {
       ]),
     );
     await run(
-      upsertBodyMetrics(db, userId, [
+      upsertBodyMetrics(fitnessDb, userId, [
         {
           date: "2026-07-18",
           weight_kg: 80,
@@ -114,7 +115,7 @@ describe("fitness SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySessions(db, userId, [
+      upsertHevySessions(fitnessDb, userId, [
         {
           session_id: "session-a",
           provider_workout_id: null,
@@ -138,7 +139,7 @@ describe("fitness SQLite integration", () => {
       ]),
     );
     await run(
-      upsertHevySets(db, userId, [
+      upsertHevySets(fitnessDb, userId, [
         {
           session_id: "session-a",
           exercise_template_id: null,
@@ -183,8 +184,8 @@ describe("fitness SQLite integration", () => {
         },
       ]),
     );
-    await run(updateSyncCursor(db, userId, "apple_health", "health-sync"));
-    await run(updateSyncCursor(db, userId, "hevy", "hevy-sync"));
+    await run(updateSyncCursor(fitnessDb, userId, "apple_health", "health-sync"));
+    await run(updateSyncCursor(fitnessDb, userId, "hevy", "hevy-sync"));
 
     assert.deepStrictEqual(await run(getDataSummary(fitnessDb, userId)), {
       dailyActivity: 2,
@@ -410,7 +411,7 @@ describe("fitness SQLite integration", () => {
     const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     await run(
-      upsertHevySessions(db, userId, [
+      upsertHevySessions(fitnessDb, userId, [
         {
           session_id: "streak-yesterday",
           provider_workout_id: null,

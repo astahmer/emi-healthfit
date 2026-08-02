@@ -71,7 +71,7 @@ describe("running the scaffolder into a real temp directory", () => {
 
     assert.equal(webPackageJson.scripts.typecheck, "tsc --noEmit");
     assert.equal(workerPackageJson.scripts.typecheck, "tsc --noEmit");
-    assert.ok(existsSync(join(targetDir, "core/src/chat/index.ts")));
+    assert.ok(existsSync(join(targetDir, "core/src/chat.export.ts")));
     assert.ok(existsSync(join(targetDir, "pnpm-workspace.yaml")));
   });
 

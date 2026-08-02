@@ -9,6 +9,7 @@ import * as protocol from "@emi/core/protocol";
 import * as react from "@emi/core/react";
 import * as runtime from "@emi/core/runtime";
 import * as server from "@emi/core/server";
+import * as serverDatabase from "@emi/core/server/database";
 import * as styled from "@emi/core/components/styled";
 import * as serverEffect from "@emi/core/server/effect";
 import * as serverFetch from "@emi/core/server/fetch";
@@ -26,6 +27,7 @@ const currentPublicModules = [
   react,
   runtime,
   server,
+  serverDatabase,
   styled,
   serverEffect,
   serverFetch,

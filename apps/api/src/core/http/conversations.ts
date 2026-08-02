@@ -12,13 +12,22 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
-import { extractMemories, generateConversationSummary } from "@emi/core/chat";
-import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core/server";
-import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
+import { Chat } from "@emi/core/chat";
+import { ServerDatabase } from "@emi/core/server/database";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { refreshMemorySummary } from "../chat/memory-context.ts";
-import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";
-import {
-  type Conversation,
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
+import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
+import { withInternalError } from "./errors.ts";
+
+type Conversation = ServerDatabase.Conversation;
+type Thread = ServerDatabase.Thread;
+
+const { getGeneration, recordChatEvent } = ServerDatabase.generations;
+
+const MessageRole = Schema.Literals(["user", "assistant", "system", "summary"]);
+
+const {
   cloneConversation,
   createConversation,
   createThread,
@@ -38,20 +47,9 @@ import {
   reviseConversationMessage,
   restoreThread,
   saveConversationMessages,
-  type Thread,
   updateConversationState,
-} from "../db/conversations.ts";
-import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
-import {
-  getMemories,
-  insertMemories,
-  listMemoryIdsForMessage,
-  type MemoryDatabaseSchema,
-} from "../db/memories.ts";
-import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
-import { withInternalError } from "./errors.ts";
-
-const MessageRole = Schema.Literals(["user", "assistant", "system", "summary"]);
+} = ServerDatabase.conversations;
+const { getMemories, insertMemories, listMemoryIdsForMessage } = ServerDatabase.memories;
 
 const toApiConversation = (conversation: Conversation): ApiConversation => ({
   id: conversation.id,
@@ -122,15 +120,15 @@ export const conversationsHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "conversations", (handlers) =>
     handlers
       .handle(
         "list",
         Effect.fn("httpApi.conversations.list")(
           function* ({ query }) {
-            const requestContext = yield* CurrentRequestContext;
-            const store = makeConversationStore({ db: conversationDb, requestContext });
+            const requestContext = yield* CoreCloudflare.request.CurrentRequestContext;
+            const store = ServerDatabase.storeLive.shape({ db: conversationDb, requestContext });
             const conversations = yield* store.list(query.search);
             return { conversations: conversations.map(toApiConversation) };
           },
@@ -142,8 +140,8 @@ export const conversationsHandlers = ({
         "create",
         Effect.fn("httpApi.conversations.create")(
           function* () {
-            const requestContext = yield* CurrentRequestContext;
-            const store = makeConversationStore({ db: conversationDb, requestContext });
+            const requestContext = yield* CoreCloudflare.request.CurrentRequestContext;
+            const store = ServerDatabase.storeLive.shape({ db: conversationDb, requestContext });
             const id = yield* store.create();
             return { id };
           },
@@ -155,7 +153,7 @@ export const conversationsHandlers = ({
         "createWithMessages",
         Effect.fn("httpApi.conversations.createWithMessages")(
           function* ({ payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             if (payload.messages.length === 0) {
               return yield* new BadRequest({
                 message: "Conversation requires at least one message",
@@ -198,7 +196,7 @@ export const conversationsHandlers = ({
         "remove",
         Effect.fn("httpApi.conversations.remove")(
           function* ({ params }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             yield* deleteConversation(conversationDb, user.id, params.id);
             return { success: true } as const;
           },
@@ -210,7 +208,7 @@ export const conversationsHandlers = ({
         "updateState",
         Effect.fn("httpApi.conversations.updateState")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             yield* updateConversationState({
               db: conversationDb,
               userId: user.id,
@@ -232,7 +230,7 @@ export const conversationsHandlers = ({
         "clone",
         Effect.fn("httpApi.conversations.clone")(
           function* ({ params }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const conversation = yield* cloneConversation({
               db: conversationDb,
               userId: user.id,
@@ -251,7 +249,7 @@ export const conversationsHandlers = ({
         "compact",
         Effect.fn("httpApi.conversations.compact")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const conversation = yield* getConversation(conversationDb, user.id, params.id);
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
@@ -268,7 +266,7 @@ export const conversationsHandlers = ({
               return yield* new BadRequest({ message: "Conversation has no text to compact" });
             }
             const summary = yield* Effect.promise(() =>
-              generateConversationSummary({
+              Chat.generation.generateConversationSummary({
                 configuration: {
                   apiKey: payload.apiKey,
                   baseUrl: payload.baseUrl,
@@ -312,7 +310,7 @@ export const conversationsHandlers = ({
         "messages",
         Effect.fn("httpApi.conversations.messages")(
           function* ({ params }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const conversation = yield* getConversation(conversationDb, user.id, params.id);
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
@@ -346,7 +344,7 @@ export const conversationsHandlers = ({
         "rename",
         Effect.fn("httpApi.conversations.rename")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const title = payload.title.trim();
             yield* renameConversation(conversationDb, user.id, params.id, title);
             return { success: true } as const;
@@ -359,7 +357,7 @@ export const conversationsHandlers = ({
         "threads",
         Effect.fn("httpApi.conversations.threads")(
           function* ({ params }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const threads = yield* getThreads(conversationDb, user.id, params.id);
             return { threads: threads.map(toApiThread) };
           },
@@ -371,7 +369,7 @@ export const conversationsHandlers = ({
         "forkThread",
         Effect.fn("httpApi.conversations.forkThread")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const anchor = yield* getMessage(conversationDb, user.id, payload.anchorMessageId);
             if (anchor === null || anchor.conversation_id !== params.id) {
               return yield* new NotFound({ message: "Anchor message not found" });
@@ -414,9 +412,9 @@ export const conversationsHandlers = ({
         "recordDiagnosticEvent",
         Effect.fn("httpApi.conversations.recordDiagnosticEvent")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const generation = yield* getGeneration({
-              db,
+              db: conversationDb,
               userId: user.id,
               generationId: payload.generationId,
             });
@@ -424,7 +422,7 @@ export const conversationsHandlers = ({
               return yield* new NotFound({ message: "Generation not found" });
             }
             yield* recordChatEvent({
-              db,
+              db: conversationDb,
               userId: user.id,
               conversationId: params.id,
               generationId: generation.id,
@@ -443,7 +441,7 @@ export const conversationsHandlers = ({
         "reviseMessage",
         Effect.fn("httpApi.conversations.reviseMessage")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const validated = yield* Effect.promise(() =>
               safeValidateUIMessages({
                 messages: [{ id: params.messageId, role: "user", parts: payload.parts }],
@@ -479,14 +477,14 @@ export const threadsHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "threads", (handlers) =>
     handlers
       .handle(
         "read",
         Effect.fn("httpApi.threads.read")(
           function* ({ params }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             const thread = yield* getThread(conversationDb, user.id, params.id);
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });
@@ -502,7 +500,7 @@ export const threadsHandlers = ({
         "update",
         Effect.fn("httpApi.threads.update")(
           function* ({ params, payload }) {
-            const user = yield* CurrentUser;
+            const user = yield* CoreCloudflare.user.CurrentUser;
             if (payload.title !== undefined && payload.title.trim() !== "") {
               yield* renameThread(conversationDb, user.id, params.id, payload.title.trim());
             }
@@ -531,13 +529,13 @@ export const messagesHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "messages", (handlers) =>
     handlers.handle(
       "read",
       Effect.fn("httpApi.messages.read")(
         function* ({ params }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const message = yield* getMessage(conversationDb, user.id, params.id);
           if (message === null) {
             return yield* new NotFound({ message: "Message not found" });
@@ -558,13 +556,13 @@ export const memoryExtractionHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) => {
-  const memoryDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+  const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
   return HttpApiBuilder.group(CoreApi, "memoryExtraction", (handlers) =>
     handlers.handle(
       "extract",
       Effect.fn("httpApi.memoryExtraction.extract")(
         function* ({ payload }) {
-          const user = yield* CurrentUser;
+          const user = yield* CoreCloudflare.user.CurrentUser;
           const text = payload.text.trim();
           const existingIds =
             payload.messageId === undefined
@@ -573,7 +571,7 @@ export const memoryExtractionHandlers = ({
           if (existingIds.length > 0) return { ids: existingIds, count: 0 };
           const existingMemories = yield* getMemories(memoryDb, user.id, { limit: 60 });
           const snippets = yield* Effect.promise(() =>
-            extractMemories({
+            Chat.memory.extractMemories({
               configuration: payload.config,
               text,
               existingMemories: existingMemories.map((memory) => memory.content),

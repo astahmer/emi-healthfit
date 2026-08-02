@@ -2,7 +2,8 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import { ChatProtocol, type ChatMessage } from "../../protocol.export.ts";
+import { ChatProtocol } from "../../protocol/mappers.ts";
+import type { ChatMessage } from "../../protocol/messages.ts";
 
 const ConversationSchema = Schema.Struct({
   id: Schema.String,

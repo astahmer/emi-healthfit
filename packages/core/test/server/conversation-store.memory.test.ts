@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { Kysely, SqliteDialect, type Compilable } from "kysely";
 import type { SqliteDatabase, SqliteStatement } from "kysely";
-import { makeConversationStore } from "../../src/server/make-conversation-store.ts";
+import { ConversationStoreLive } from "../../src/server/make-conversation-store.ts";
 import { makeRequestContext } from "../../src/server/request-context.ts";
 import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
 import type { ConversationDatabaseSchema } from "../../src/server/db/schema.ts";
@@ -140,11 +140,11 @@ const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effe
 describe("makeConversationStore", () => {
   it("binds userId from RequestContext into every operation and isolates ownership", async () => {
     const db = makeInMemoryDb();
-    const alice = makeConversationStore({
+    const alice = ConversationStoreLive.shape({
       db,
       requestContext: makeRequestContext({ userId: "user-alice" }),
     });
-    const bob = makeConversationStore({
+    const bob = ConversationStoreLive.shape({
       db,
       requestContext: makeRequestContext({ userId: "user-bob" }),
     });

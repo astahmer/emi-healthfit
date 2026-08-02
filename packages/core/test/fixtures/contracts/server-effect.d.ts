@@ -1,7 +1,7 @@
-import type * as Effect from "effect/Effect";
-import type { ChatServer, ChatServerError, ChatServerOptions } from "./server";
+import type * as Layer from "effect/Layer";
+import type { ChatServer } from "./server";
 
 export declare class ChatServerEffect {
-  private constructor();
-  static create(options: ChatServerOptions): Effect.Effect<ChatServer, ChatServerError>;
+  static readonly Server: typeof ChatServer;
+  static readonly Live: Layer.Layer<ChatServer, never, never>;
 }

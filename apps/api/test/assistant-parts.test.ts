@@ -1,10 +1,10 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import { buildAssistantParts } from "../src/core/chat/assistant-parts.ts";
+import { Chat } from "@emi/core/chat";
 
 describe("buildAssistantParts", () => {
   it("preserves tool results from separate tool messages", () => {
-    const parts = buildAssistantParts([
+    const parts = Chat.messages.buildAssistantParts([
       {
         role: "assistant",
         content: [{ type: "tool-call", toolCallId: "call-1", toolName: "get_recovery", input: {} }],
@@ -40,7 +40,7 @@ describe("buildAssistantParts", () => {
   });
 
   it("keeps text and tool-call order from the assistant message", () => {
-    const parts = buildAssistantParts([
+    const parts = Chat.messages.buildAssistantParts([
       {
         role: "assistant",
         content: [
@@ -75,7 +75,7 @@ describe("buildAssistantParts", () => {
   });
 
   it("returns an empty array when there are no assistant messages", () => {
-    const parts = buildAssistantParts([]);
+    const parts = Chat.messages.buildAssistantParts([]);
     assert.strictEqual(parts.length, 0);
   });
 
@@ -84,7 +84,7 @@ describe("buildAssistantParts", () => {
       role: "assistant",
       content: [{ type: "tool-call", toolCallId: "call-3", toolName: "get_recovery", input: {} }],
     };
-    const parts = buildAssistantParts([
+    const parts = Chat.messages.buildAssistantParts([
       assistantMessage,
       {
         role: "tool",
@@ -104,7 +104,7 @@ describe("buildAssistantParts", () => {
   });
 
   it("persists error-text tool outcomes as failed", () => {
-    const parts = buildAssistantParts([
+    const parts = Chat.messages.buildAssistantParts([
       {
         role: "assistant",
         content: [

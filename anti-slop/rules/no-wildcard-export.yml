@@ -1,0 +1,11 @@
+id: no-wildcard-export
+language: TypeScript
+files:
+  - apps/**/*.ts
+  - apps/**/*.tsx
+  - packages/**/*.ts
+  - packages/**/*.tsx
+message: Bind each public symbol explicitly; wildcard exports hide the package contract.
+severity: error
+rule:
+  pattern: export * from '$SOURCE'

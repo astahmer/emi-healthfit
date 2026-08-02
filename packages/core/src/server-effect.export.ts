@@ -6,12 +6,12 @@ import {
   ChatServerConfiguration,
 } from "./server/ports/chat-server.ts";
 
-export {
-  AuthPort,
-  ChatModel,
-  ChatRepositories,
-  ChatServer,
-  ChatServerConfiguration,
-  ChatServerError,
-  ChatServerLive,
-};
+export class ChatServerEffect {
+  static readonly AuthPort = AuthPort;
+  static readonly ChatModel = ChatModel;
+  static readonly ChatRepositories = ChatRepositories;
+  static readonly Configuration = ChatServerConfiguration;
+  static readonly Error = ChatServerError;
+  static readonly Server = ChatServer;
+  static readonly Live = ChatServerLive;
+}

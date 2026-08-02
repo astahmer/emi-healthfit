@@ -1,6 +1,7 @@
 import { createActor, type ActorRefFrom } from "xstate";
 
-import type { ChatMessage, ModelConfiguration } from "../protocol.export.ts";
+import type { ChatMessage } from "../protocol/messages.ts";
+import type { ModelConfiguration } from "../protocol/model.ts";
 import { defaultGenericChatSettings } from "../chat/settings.ts";
 import { genericChatAppMachine } from "../web/chat-runtime/generic-chat-app-machine.ts";
 import {

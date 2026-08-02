@@ -6,6 +6,7 @@ test("keeps the target recipe contained in the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await createGenericE2eApi().install(page);
   await page.goto("/");
+  await page.getByRole("button", { name: "Continue as guest" }).click();
 
   await expect(page.locator(".emi-chat-app")).toBeVisible();
   await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();

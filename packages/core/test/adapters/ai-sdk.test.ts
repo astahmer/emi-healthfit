@@ -3,7 +3,11 @@ import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 import { Effect } from "effect";
 import * as Stream from "effect/Stream";
-import { AiSdkAdapterError, AiSdkModelProvider } from "../../src/adapters/ai-sdk.export.ts";
+import {
+  AiSdkAdapterError,
+  AiSdkModelProvider,
+  type AiSdkModelConfiguration,
+} from "../../src/adapters/ai-sdk.export.ts";
 
 const chunk = ({ text, finishReason }: { text?: string; finishReason?: string }) => ({
   id: "adapter-generation",
@@ -20,6 +24,13 @@ const chunk = ({ text, finishReason }: { text?: string; finishReason?: string })
 });
 
 const toSse = (value: unknown): string => `data: ${JSON.stringify(value)}\n\n`;
+
+const makeProvider = (configuration: AiSdkModelConfiguration) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      return yield* AiSdkModelProvider;
+    }).pipe(Effect.provide(AiSdkModelProvider.layer(configuration))),
+  );
 
 describe("AiSdkModelProvider", () => {
   const server = createServer((request, response) => {
@@ -52,7 +63,7 @@ describe("AiSdkModelProvider", () => {
   });
 
   it("maps a real AI SDK stream into provider-neutral Effect events", async () => {
-    const provider = AiSdkModelProvider.create({
+    const provider = await makeProvider({
       model: "test-model",
       apiKey: "test-key",
       baseUrl,
@@ -91,7 +102,7 @@ describe("AiSdkModelProvider", () => {
   });
 
   it("keeps provider failures in a typed adapter error channel", async () => {
-    const provider = AiSdkModelProvider.create({
+    const provider = await makeProvider({
       model: "test-model",
       apiKey: "test-key",
       baseUrl: baseUrl.replace("/v1", "/failure/v1"),

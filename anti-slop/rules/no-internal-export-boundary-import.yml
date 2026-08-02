@@ -1,0 +1,12 @@
+id: no-internal-export-boundary-import
+language: TypeScript
+files:
+  - packages/**/src/**/*.ts
+  - packages/**/src/**/*.tsx
+message: Internal modules must import named implementation files, not a package .export.ts boundary.
+severity: error
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: "\\.export\\.ts"

@@ -1,11 +1,11 @@
 import type { Compilable } from "kysely";
 import * as Effect from "effect/Effect";
-import { runTransaction, type QueryDatabaseClient } from "@emi/core/server";
+import { ServerDatabase } from "@emi/core/server/database";
 import type { HevySessionRow, HevySetRow, HealthfitDatabaseSchema } from "../../db/schema.ts";
 import { upsertHevySessions, upsertHevySets } from "../../db/ingested-data.ts";
 import type { HevyCredentialEnvelope } from "./credential-crypto.ts";
 
-type HevyDb = QueryDatabaseClient<HealthfitDatabaseSchema>;
+type HevyDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
 const nowIso = () => new Date().toISOString();
 
@@ -115,7 +115,7 @@ export const deleteHevyConnection = Effect.fn("hevy.store.deleteConnection")(fun
   userId: string;
 }) {
   const kysely = yield* db.kysely;
-  yield* runTransaction(db, [
+  yield* ServerDatabase.query.transaction(db, [
     kysely.deleteFrom("hevy_connections").where("user_id", "=", userId),
     kysely.deleteFrom("hevy_sync_state").where("user_id", "=", userId),
   ]);
@@ -297,7 +297,7 @@ export const replaceHevyWorkoutRows = Effect.fn("hevy.store.replaceWorkout")(fun
       .where("user_id", "=", userId)
       .where("session_id", "=", session.session_id),
   ];
-  yield* runTransaction(db, statements);
+  yield* ServerDatabase.query.transaction(db, statements);
   yield* upsertHevySessions(db, userId, [session]);
   yield* upsertHevySets(db, userId, sets);
 });
@@ -322,7 +322,7 @@ export const deleteHevyWorkoutByProviderId = Effect.fn("hevy.store.deleteWorkout
   );
   if (session === undefined) return false;
 
-  yield* runTransaction(db, [
+  yield* ServerDatabase.query.transaction(db, [
     kysely
       .deleteFrom("hevy_sets")
       .where("user_id", "=", userId)
@@ -335,7 +335,7 @@ export const deleteHevyWorkoutByProviderId = Effect.fn("hevy.store.deleteWorkout
   return true;
 });
 
-export const findLegacySessionForReconciliation = Effect.fn("hevy.store.findLegacy")(function* ({
+export const findUnlinkedSessionForReconciliation = Effect.fn("hevy.store.findUnlinked")(function* ({
   db,
   userId,
   title,

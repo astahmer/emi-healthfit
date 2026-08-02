@@ -1,0 +1,10 @@
+id: no-ambient-runtime-dependency
+valid:
+  - "const value = input.now();"
+  - "const response = await input.fetch(url);"
+  - "const id = services.identity.createId();"
+invalid:
+  - "const value = Date.now();"
+  - "const value = new Date();"
+  - "const id = crypto.randomUUID();"
+  - "const response = await globalThis.fetch(url);"

@@ -3,7 +3,7 @@ interface CausalMessage {
   parent_id: string | null;
 }
 
-export const getRevisionDeletionIds = ({
+const getRevisionDeletionIds = ({
   conversationRows,
   scopedRows,
   messageId,
@@ -37,3 +37,9 @@ export const getRevisionDeletionIds = ({
   discoverDescendants();
   return Array.from(deletedMessageIds);
 };
+
+export class ConversationRevision {
+  private constructor() {}
+
+  static readonly getDeletionIds = getRevisionDeletionIds;
+}

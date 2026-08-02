@@ -1,8 +1,10 @@
 id: no-export-from
 language: TypeScript
 files:
-  - packages/core/src/**/*.ts
-  - packages/core/src/**/*.tsx
+  - apps/**/*.ts
+  - apps/**/*.tsx
+  - packages/**/*.ts
+  - packages/**/*.tsx
 message: Public boundaries must own explicit bindings; do not re-export from another file.
 severity: error
 rule:

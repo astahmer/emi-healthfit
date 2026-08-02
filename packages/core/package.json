@@ -67,6 +67,10 @@
       "types": "./dist/types/server-fetch.export.d.ts",
       "import": "./dist/server-fetch.export.js"
     },
+    "./server/database": {
+      "types": "./dist/types/server-database.export.d.ts",
+      "import": "./dist/server-database.export.js"
+    },
     "./adapters/ai-sdk": {
       "types": "./dist/types/adapters/ai-sdk.export.d.ts",
       "import": "./dist/adapters/ai-sdk.export.js"
@@ -117,6 +121,7 @@
     "@cloudflare/workers-types": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/json-schema": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -148,9 +153,15 @@
   },
   "peerDependencies": {
     "@ai-sdk/openai": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
     "ai": "catalog:",
+    "alchemy": "catalog:",
+    "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "drizzle-orm": "catalog:",
+    "kysely": "catalog:",
+    "kysely-d1": "catalog:",
     "lucide-react": "catalog:",
     "radix-ui": "catalog:",
     "react": "catalog:",
@@ -161,13 +172,31 @@
     "@ai-sdk/openai": {
       "optional": true
     },
+    "@cloudflare/workers-types": {
+      "optional": true
+    },
     "ai": {
+      "optional": true
+    },
+    "alchemy": {
+      "optional": true
+    },
+    "better-auth": {
       "optional": true
     },
     "class-variance-authority": {
       "optional": true
     },
     "clsx": {
+      "optional": true
+    },
+    "drizzle-orm": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "kysely-d1": {
       "optional": true
     },
     "lucide-react": {
@@ -204,6 +233,7 @@
         "./components/styled": "styled-components",
         "./styles.css": "styles",
         "./server": "server",
+        "./server/database": "server-database",
         "./server/effect": "server-effect",
         "./server/fetch": "server-fetch",
         "./adapters/ai-sdk": "ai-sdk-adapter",
@@ -227,6 +257,7 @@
         "./components/styled": "./src/components-styled.export.ts",
         "./styles.css": "./src/styles/styles.css",
         "./server": "./src/server.export.ts",
+        "./server/database": "./src/server-database.export.ts",
         "./server/effect": "./src/server-effect.export.ts",
         "./server/fetch": "./src/server-fetch.export.ts",
         "./adapters/ai-sdk": "./src/adapters/ai-sdk.export.ts",
@@ -373,6 +404,24 @@
             "@cloudflare/workers-types"
           ]
         },
+        "./server/database": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [
+            "ai"
+          ],
+          "optional": [
+            "drizzle-orm",
+            "kysely"
+          ],
+          "forbidden": [
+            "react",
+            "xstate",
+            "@ai-sdk/openai",
+            "@cloudflare/workers-types"
+          ]
+        },
         "./server/effect": {
           "runtime": [
             "effect"
@@ -507,7 +556,9 @@
             "effect"
           ],
           "peer": [
-            "@cloudflare/workers-types"
+            "@ai-sdk/openai",
+            "@cloudflare/workers-types",
+            "ai"
           ],
           "optional": [
             "alchemy",
@@ -518,9 +569,7 @@
           ],
           "forbidden": [
             "react",
-            "xstate",
-            "ai",
-            "@ai-sdk/openai"
+            "xstate"
           ]
         },
         "./discord": {
@@ -538,7 +587,6 @@
         },
         "./web": {
           "runtime": [
-            "xstate",
             "effect"
           ],
           "peer": [
@@ -550,6 +598,7 @@
             "lucide-react"
           ],
           "forbidden": [
+            "xstate",
             "@cloudflare/workers-types",
             "drizzle-orm"
           ]

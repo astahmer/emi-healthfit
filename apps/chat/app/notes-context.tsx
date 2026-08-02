@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchNotes, type Note } from "./notes";
+import type { Note } from "@emi/core/contract";
+import { fetchNotes } from "./notes";
 import { queryKeys } from "./query-cache";
 
 interface NotesContextValue {

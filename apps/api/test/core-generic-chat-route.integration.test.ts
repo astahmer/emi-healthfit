@@ -4,17 +4,9 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
-import {
-  makeGenericChatRoutes,
-  type CloudflareQueryDatabaseClient,
-} from "@emi/core/cloudflare";
-import {
-  createConversation,
-  CurrentUser,
-  getConversationMessages,
-  type ConversationDatabaseSchema,
-  type MemoryDatabaseSchema,
-} from "@emi/core/server";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import type { CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
+import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
@@ -103,9 +95,13 @@ const requestFor = ({ conversationId, requestId }: { conversationId: string; req
 describe("generic core chat route", () => {
   it("admits the generation before persisting a concurrent user message", async () => {
     const { db: database } = makeSqliteDatabase();
-    const conversationDatabase = narrowQueryDatabaseClient<ConversationDatabaseSchema>(database);
+    const conversationDatabase = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const conversationId = await run(
-      createConversation(conversationDatabase, user.id, "Concurrent route test"),
+      ServerDatabase.conversations.createConversation(
+        conversationDatabase,
+        user.id,
+        "Concurrent route test",
+      ),
     );
 
     let firstMessageBatch = true;
@@ -132,24 +128,30 @@ describe("generic core chat route", () => {
           return yield* database.batch(statements);
         }),
     };
-    const routes = makeGenericChatRoutes({
+    const routes = CoreCloudflare.routes.makeGenericChatRoutes({
       db: gatedDatabase as unknown as CloudflareQueryDatabaseClient<
-        ConversationDatabaseSchema & MemoryDatabaseSchema
+        ServerDatabase.ConversationDatabaseSchema & ServerDatabase.MemoryDatabaseSchema
       >,
     });
     const pendingTasks: Promise<unknown>[] = [];
     const previousFetch = globalThis.fetch;
     globalThis.fetch = providerResponse;
-    const runChat = (request: ReturnType<typeof requestFor>) =>
-      Effect.runPromise(
-        routes.chat(request).pipe(
-          Effect.provide(RuntimeContext.phantom),
-          Effect.provideService(CurrentUser, user),
-          Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {
-            waitUntil: (promise: Promise<unknown>) => pendingTasks.push(promise),
-          }),
-        ),
+    const runChat = (request: ReturnType<typeof requestFor>) => {
+      const providedChat = routes.chat(request).pipe(
+        Effect.provide(RuntimeContext.phantom),
+        Effect.provideService(CoreCloudflare.user.CurrentUser, user),
+        Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {
+          waitUntil: (promise: Promise<unknown>) => pendingTasks.push(promise),
+        }),
       );
+      return Effect.runPromise(
+        providedChat as Effect.Effect<
+          Effect.Success<typeof providedChat>,
+          Effect.Error<typeof providedChat>,
+          never
+        >,
+      );
+    };
 
     try {
       const firstRequest = runChat(
@@ -185,7 +187,11 @@ describe("generic core chat route", () => {
       await Promise.allSettled(pendingTasks);
 
       const messages = await run(
-        getConversationMessages(conversationDatabase, user.id, conversationId),
+        ServerDatabase.conversations.getConversationMessages(
+          conversationDatabase,
+          user.id,
+          conversationId,
+        ),
       );
       const userMessages = messages.filter((message) => message.role === "user");
       assert.equal(userMessages.length, 1);

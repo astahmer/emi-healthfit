@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { getRevisionDeletionIds } from "./conversation-revision.ts";
+import { ConversationRevision } from "./conversation-revision.ts";
 import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
 
@@ -18,7 +18,7 @@ const requireMappedId = (ids: Map<string, string>, originalId: string): string =
   return id;
 };
 
-export const hashSuggestionsKey = (
+const hashSuggestionsKey = (
   lastAssistantText: string,
   lastUserText?: string,
 ): Effect.Effect<string> =>
@@ -109,16 +109,14 @@ const mapThreadRow = (row: ThreadRow): Thread => ({
   updated_at: row.updated_at,
 });
 
-const nowIso = (): string => new Date().toISOString();
-
-export const createConversation = <TEnvironment>(
+const createConversation = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   title?: string,
 ) =>
   Effect.gen(function* () {
-    const id = crypto.randomUUID();
-    const createdAt = nowIso();
+    const id = db.runtime.createId();
+    const createdAt = db.runtime.now();
     const kysely = yield* db.kysely;
     yield* Effect.promise(() =>
       kysely
@@ -137,7 +135,7 @@ export const createConversation = <TEnvironment>(
     return id;
   });
 
-export const getConversations = <TEnvironment>(
+const getConversations = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   search?: string,
@@ -190,7 +188,7 @@ export const getConversations = <TEnvironment>(
     return result.map(mapConversationRow);
   });
 
-export const getConversation = <TEnvironment>(
+const getConversation = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -208,7 +206,7 @@ export const getConversation = <TEnvironment>(
     return result === undefined ? null : mapConversationRow(result);
   });
 
-export const deleteConversation = <TEnvironment>(
+const deleteConversation = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -224,7 +222,7 @@ export const deleteConversation = <TEnvironment>(
     );
   });
 
-export const updateConversationState = Effect.fn("conversation.updateState")(function* <
+const updateConversationState = Effect.fn("conversation.updateState")(function* <
   TEnvironment,
 >({
   db,
@@ -245,7 +243,7 @@ export const updateConversationState = Effect.fn("conversation.updateState")(fun
     kysely
       .updateTable("conversations")
       .set({
-        updated_at: nowIso(),
+        updated_at: db.runtime.now(),
         ...(status === undefined ? {} : { status }),
         ...(pinned === undefined ? {} : { pinned }),
       })
@@ -255,7 +253,7 @@ export const updateConversationState = Effect.fn("conversation.updateState")(fun
   );
 });
 
-export const cloneConversation = Effect.fn("conversation.clone")(function* <TEnvironment>({
+const cloneConversation = Effect.fn("conversation.clone")(function* <TEnvironment>({
   db,
   userId,
   conversationId,
@@ -280,10 +278,14 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* <TEnv
       .where("t.conversation_id", "=", conversationId)
       .execute(),
   );
-  const clonedConversationId = crypto.randomUUID();
-  const timestamp = nowIso();
-  const messageIds = new Map(originalMessages.map((message) => [message.id, crypto.randomUUID()]));
-  const threadIds = new Map(originalThreads.map((thread) => [thread.id, crypto.randomUUID()]));
+  const clonedConversationId = db.runtime.createId();
+  const timestamp = db.runtime.now();
+  const messageIds = new Map(
+    originalMessages.map((message) => [message.id, db.runtime.createId()]),
+  );
+  const threadIds = new Map(
+    originalThreads.map((thread) => [thread.id, db.runtime.createId()]),
+  );
 
   yield* QueryDatabase.transaction(db, [
     kysely.insertInto("conversations").values({
@@ -340,7 +342,7 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* <TEnv
   return yield* getConversation(db, userId, clonedConversationId);
 });
 
-export const renameConversation = <TEnvironment>(
+const renameConversation = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -351,14 +353,14 @@ export const renameConversation = <TEnvironment>(
     yield* Effect.promise(() =>
       kysely
         .updateTable("conversations")
-        .set({ title, updated_at: nowIso() })
+      .set({ title, updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", conversationId)
         .execute(),
     );
   });
 
-export const getConversationMessages = <TEnvironment>(
+const getConversationMessages = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -387,7 +389,7 @@ export const getConversationMessages = <TEnvironment>(
     );
   });
 
-export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(function* <
+const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(function* <
   TEnvironment,
 >({
   db,
@@ -415,7 +417,7 @@ export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")
   const messageIndex = scopedRows.findIndex((row) => row.id === messageId);
   if (messageIndex < 0) return false;
 
-  const deletedMessageIds = getRevisionDeletionIds({
+    const deletedMessageIds = ConversationRevision.getDeletionIds({
     conversationRows,
     scopedRows,
     messageId,
@@ -443,14 +445,14 @@ export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")
     ),
     kysely
       .updateTable("conversations")
-      .set({ updated_at: nowIso() })
+      .set({ updated_at: db.runtime.now() })
       .where("user_id", "=", userId)
       .where("id", "=", conversationId),
   ]);
   return true;
 });
 
-export const saveConversationMessages = <TEnvironment>(
+const saveConversationMessages = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -474,11 +476,11 @@ export const saveConversationMessages = <TEnvironment>(
       if (parent === null || parent.conversation_id !== conversationId) return [];
     }
 
-    const baseTime = Date.now();
+    const baseTime = db.runtime.nowMilliseconds();
     const ids: string[] = [];
     const kysely = yield* db.kysely;
     const statements = messages.map((message, index) => {
-      const id = message.id ?? crypto.randomUUID();
+      const id = message.id ?? db.runtime.createId();
       ids.push(id);
       return kysely.insertInto("messages").values({
         id,
@@ -499,14 +501,14 @@ export const saveConversationMessages = <TEnvironment>(
       ...statements,
       kysely
         .updateTable("conversations")
-        .set({ updated_at: nowIso() })
+        .set({ updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", conversationId),
     ]);
     return ids;
   });
 
-export const createThread = <TEnvironment>(
+const createThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -520,8 +522,8 @@ export const createThread = <TEnvironment>(
     const anchor = yield* getMessage(db, userId, anchorMessageId);
     if (anchor === null || anchor.conversation_id !== conversationId) return null;
 
-    const id = crypto.randomUUID();
-    const createdAt = nowIso();
+    const id = db.runtime.createId();
+    const createdAt = db.runtime.now();
     const kysely = yield* db.kysely;
     yield* QueryDatabase.transaction(db, [
       kysely.insertInto("threads").values({
@@ -552,7 +554,7 @@ export const createThread = <TEnvironment>(
     ]);
     return id;
   });
-export const getThreads = <TEnvironment>(
+const getThreads = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -573,7 +575,7 @@ export const getThreads = <TEnvironment>(
     return result.map(mapThreadRow);
   });
 
-export const getThreadsIncludingDiscarded = <TEnvironment>(
+const getThreadsIncludingDiscarded = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -593,7 +595,7 @@ export const getThreadsIncludingDiscarded = <TEnvironment>(
     return result.map(mapThreadRow);
   });
 
-export const getThread = <TEnvironment>(
+const getThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -611,7 +613,7 @@ export const getThread = <TEnvironment>(
     return result === undefined ? null : mapThreadRow(result);
   });
 
-export const getThreadByAnchor = <TEnvironment>(
+const getThreadByAnchor = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   conversationId: string,
@@ -634,7 +636,7 @@ export const getThreadByAnchor = <TEnvironment>(
     return result === undefined ? null : mapThreadRow(result);
   });
 
-export const renameThread = <TEnvironment>(
+const renameThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -645,14 +647,14 @@ export const renameThread = <TEnvironment>(
     yield* Effect.promise(() =>
       kysely
         .updateTable("threads")
-        .set({ title, updated_at: nowIso() })
+        .set({ title, updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", threadId)
         .execute(),
     );
   });
 
-export const pinThread = <TEnvironment>(
+const pinThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -663,14 +665,14 @@ export const pinThread = <TEnvironment>(
     yield* Effect.promise(() =>
       kysely
         .updateTable("threads")
-        .set({ pinned, updated_at: nowIso() })
+        .set({ pinned, updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", threadId)
         .execute(),
     );
   });
 
-export const discardThread = <TEnvironment>(
+const discardThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -680,14 +682,14 @@ export const discardThread = <TEnvironment>(
     yield* Effect.promise(() =>
       kysely
         .updateTable("threads")
-        .set({ status: "discarded", updated_at: nowIso() })
+        .set({ status: "discarded", updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", threadId)
         .execute(),
     );
   });
 
-export const restoreThread = <TEnvironment>(
+const restoreThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -695,7 +697,7 @@ export const restoreThread = <TEnvironment>(
   Effect.gen(function* () {
     const thread = yield* getThread(db, userId, threadId);
     if (thread === null) return;
-    const updatedAt = nowIso();
+    const updatedAt = db.runtime.now();
     const kysely = yield* db.kysely;
     yield* QueryDatabase.transaction(db, [
       kysely
@@ -711,7 +713,7 @@ export const restoreThread = <TEnvironment>(
     ]);
   });
 
-export const addThreadMessage = <TEnvironment>(
+const addThreadMessage = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -732,14 +734,14 @@ export const addThreadMessage = <TEnvironment>(
           user_id: userId,
           thread_id: threadId,
           message_id: messageId,
-          included_at: nowIso(),
+          included_at: db.runtime.now(),
         })
         .onConflict((conflict) => conflict.doNothing())
         .execute(),
     );
     return true;
   });
-export const getThreadMessages = <TEnvironment>(
+const getThreadMessages = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -771,7 +773,7 @@ export const getThreadMessages = <TEnvironment>(
     );
   });
 
-export const getMessage = <TEnvironment>(
+const getMessage = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   messageId: string,
@@ -800,7 +802,7 @@ export const getMessage = <TEnvironment>(
     return result ?? null;
   });
 
-export const summarizeThread = <TEnvironment>(
+const summarizeThread = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   threadId: string,
@@ -811,8 +813,8 @@ export const summarizeThread = <TEnvironment>(
     const thread = yield* getThread(db, userId, threadId);
     if (thread === null) return null;
 
-    const id = crypto.randomUUID();
-    const createdAt = nowIso();
+    const id = db.runtime.createId();
+    const createdAt = db.runtime.now();
     const kysely = yield* db.kysely;
     yield* QueryDatabase.transaction(db, [
       kysely.insertInto("messages").values({
@@ -841,7 +843,7 @@ export const summarizeThread = <TEnvironment>(
     return id;
   });
 
-export const getSuggestionsById = <TEnvironment>(
+const getSuggestionsById = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   id: string,
@@ -859,7 +861,7 @@ export const getSuggestionsById = <TEnvironment>(
     return result ?? null;
   });
 
-export const saveSuggestions = <TEnvironment>(
+const saveSuggestions = <TEnvironment>(
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
   userId: string,
   id: string,
@@ -874,9 +876,40 @@ export const saveSuggestions = <TEnvironment>(
           user_id: userId,
           id,
           suggestions: JSON.stringify(suggestions),
-          created_at: nowIso(),
+          created_at: db.runtime.now(),
         })
         .onConflict((conflict) => conflict.doNothing())
         .execute(),
     );
   });
+
+export class ConversationDatabase {
+  private constructor() {}
+
+  static readonly addThreadMessage = addThreadMessage;
+  static readonly cloneConversation = cloneConversation;
+  static readonly createConversation = createConversation;
+  static readonly createThread = createThread;
+  static readonly deleteConversation = deleteConversation;
+  static readonly discardThread = discardThread;
+  static readonly getConversation = getConversation;
+  static readonly getConversationMessages = getConversationMessages;
+  static readonly getConversations = getConversations;
+  static readonly getMessage = getMessage;
+  static readonly getSuggestionsById = getSuggestionsById;
+  static readonly getThread = getThread;
+  static readonly getThreadByAnchor = getThreadByAnchor;
+  static readonly getThreadMessages = getThreadMessages;
+  static readonly getThreads = getThreads;
+  static readonly getThreadsIncludingDiscarded = getThreadsIncludingDiscarded;
+  static readonly hashSuggestionsKey = hashSuggestionsKey;
+  static readonly pinThread = pinThread;
+  static readonly renameConversation = renameConversation;
+  static readonly renameThread = renameThread;
+  static readonly restoreThread = restoreThread;
+  static readonly reviseConversationMessage = reviseConversationMessage;
+  static readonly saveConversationMessages = saveConversationMessages;
+  static readonly saveSuggestions = saveSuggestions;
+  static readonly summarizeThread = summarizeThread;
+  static readonly updateConversationState = updateConversationState;
+}

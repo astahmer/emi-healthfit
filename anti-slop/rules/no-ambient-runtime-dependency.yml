@@ -1,0 +1,18 @@
+id: no-ambient-runtime-dependency
+language: TypeScript
+files:
+  - packages/core/src/runtime/**/*.ts
+  - packages/core/src/runtime/**/*.tsx
+  - packages/core/src/web/chat-runtime/**/*.ts
+  - packages/core/src/web/chat-runtime/**/*.tsx
+  - packages/core/src/server/ports/**/*.ts
+  - packages/core/src/server/use-cases/**/*.ts
+  - packages/core/src/server/use-cases/**/*.tsx
+message: Runtime actors and server use cases must receive time, identity, transport, and browser capabilities through injected dependencies.
+severity: error
+rule:
+  any:
+    - pattern: Date.now()
+    - pattern: new Date()
+    - pattern: crypto.randomUUID()
+    - pattern: globalThis.fetch($$$ARGS)

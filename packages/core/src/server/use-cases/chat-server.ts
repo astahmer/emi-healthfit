@@ -3,8 +3,10 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { ChatProtocol } from "../../protocol.export.ts";
-import type { ChatMessage, Conversation, GenerationEvent } from "../../protocol.export.ts";
+import { ChatProtocol } from "../../protocol/mappers.ts";
+import type { ChatMessage } from "../../protocol/messages.ts";
+import type { Conversation } from "../../protocol/resources.ts";
+import type { GenerationEvent } from "../../protocol/model.ts";
 import {
   AuthPort,
   ChatModel,

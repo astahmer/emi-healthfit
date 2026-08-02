@@ -1,13 +1,13 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
+import type { ChatMessage } from "../../protocol/messages.ts";
+import type { Conversation } from "../../protocol/resources.ts";
 import type {
-  ChatMessage,
-  Conversation,
   GenerationEvent,
   ModelConfiguration,
-} from "../../protocol.export.ts";
-import type { ChatExtension } from "../../extensions.export.ts";
+} from "../../protocol/model.ts";
+import type { ChatExtension } from "../../extensions.ts";
 import type { ChatServerError } from "../use-cases/chat-server.ts";
 
 export interface ChatServerPrincipal {

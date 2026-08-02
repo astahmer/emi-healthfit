@@ -10,6 +10,7 @@ import {
   type StreamTextOnChunkCallback,
   type ToolSet,
   type UIMessage,
+  type UIMessageChunk,
 } from "ai";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -45,7 +46,22 @@ export interface GenerateTextConfiguration {
   model: string;
 }
 
-type ChatStreamResult = ReturnType<typeof streamText>;
+export interface ChatStreamResult {
+  readonly fullStream: AsyncIterable<ChatStreamPart>;
+  readonly toUIMessageStream: (options?: ChatStreamOptions) => ReadableStream<UIMessageChunk>;
+}
+
+export interface ChatStreamPart {
+  readonly type: string;
+  readonly error?: unknown;
+  readonly [key: string]: unknown;
+}
+
+export interface ChatStreamOptions {
+  readonly generateMessageId?: () => string;
+  readonly sendReasoning?: boolean;
+  readonly onError?: (error: unknown) => string;
+}
 
 const decodeGeneratedStrings = (value: string): string[] | undefined => {
   const parsed = Schema.decodeUnknownOption(Json)(value);
@@ -141,7 +157,7 @@ export const createChatStream = async ({
     ? openai.responses(request.configuration.model)
     : openai.chat(request.configuration.model);
 
-  return streamText({
+  const result = streamText({
     model,
     messages: await convertToModelMessages(request.messages),
     ...(system !== undefined && system !== "" ? { system } : {}),
@@ -164,12 +180,21 @@ export const createChatStream = async ({
         response: { messages: event.steps.flatMap((step) => step.response.messages) },
       }),
   });
+  return {
+    fullStream: result.fullStream,
+    toUIMessageStream: (options = {}) =>
+      result.toUIMessageStream({
+        generateMessageId: options.generateMessageId ?? (() => crypto.randomUUID()),
+        sendReasoning: options.sendReasoning ?? true,
+        onError: options.onError ?? ((error) => (error instanceof Error ? error.message : String(error))),
+      }),
+  };
 };
 
 export const toUiMessageStream = ({
   result,
 }: {
-  result: Awaited<ReturnType<typeof createChatStream>>;
+  result: ChatStreamResult;
 }) =>
   result.toUIMessageStream({
     generateMessageId: () => crypto.randomUUID(),

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { Effect } from "effect";
 import { readFile } from "node:fs/promises";
-import { parseHealthExport } from "../src/healthfit/ingest/health.ts";
-import { parseHevyCsv } from "../src/healthfit/ingest/hevy.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
+
+const { parseHealthExport, parseHevyCsv } = HealthFit.ingest;
 
 const run = async () => {
   const healthText = await readFile(

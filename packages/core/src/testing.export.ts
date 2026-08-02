@@ -1,10 +1,12 @@
 import { Effect } from "effect";
 
-import { createChatRuntime } from "./runtime.export.ts";
-import type { ChatRuntime, ChatRuntimeOptions } from "./runtime.export.ts";
-import { ChatServerError } from "./server.export.ts";
-import type { ChatRepositoriesShape } from "./server.export.ts";
-import type { ChatMessage, Conversation, GenerationEvent, Memory } from "./protocol.export.ts";
+import { createChatRuntime } from "./runtime/create-chat-runtime.ts";
+import type { ChatRuntime, ChatRuntimeOptions } from "./runtime/types.ts";
+import { ChatServerError } from "./server/use-cases/chat-server.ts";
+import type { ChatRepositoriesShape } from "./server/ports/chat-server.ts";
+import type { ChatMessage } from "./protocol/messages.ts";
+import type { GenerationEvent } from "./protocol/model.ts";
+import type { Conversation, Memory } from "./protocol/resources.ts";
 
 type SubjectState = {
   readonly conversations: Map<string, Conversation[]>;

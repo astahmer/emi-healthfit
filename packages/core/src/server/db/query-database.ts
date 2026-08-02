@@ -1,11 +1,19 @@
 import * as Effect from "effect/Effect";
 import type { Compilable, Kysely } from "kysely";
 
+export interface DatabaseRuntime {
+  readonly createId: () => string;
+  readonly now: () => string;
+  readonly nowMilliseconds: () => number;
+  readonly randomBytes: (length: number) => Uint8Array;
+}
+
 export interface QueryDatabaseClient<TSchema, TEnvironment = never> {
   readonly kysely: Effect.Effect<Kysely<TSchema>, never, TEnvironment>;
   readonly batch: (
     statements: ReadonlyArray<Compilable<unknown>>,
   ) => Effect.Effect<Array<{ meta: { changes: number } }>, never, TEnvironment>;
+  readonly runtime: DatabaseRuntime;
 }
 
 const batchSize = 100;

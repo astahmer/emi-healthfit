@@ -2,21 +2,13 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import { ServerDatabase } from "@emi/core/server/database";
 import {
-  consumeDiscordLinkCode,
-  getLinkedUserIdForDiscord,
-  secureStringEqual,
-  unlinkDiscordAccountByDiscordUserId,
-  type DiscordDatabaseSchema,
-  type QueryDatabaseClient as GenericQueryDatabaseClient,
-} from "@emi/core/server";
-import {
-  buildChatContext,
-  getDataSummary,
-  getWorkoutHistory,
+  HealthFit,
   type HealthfitDatabaseSchema,
 } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
+import { SecureCompare } from "../auth/secure-compare.ts";
 
 const DiscordCommandEnvironment = Schema.Struct({
   DISCORD_INTERNAL_ASK_SECRET: Schema.String.check(Schema.isMinLength(16)),
@@ -50,8 +42,11 @@ const DiscordCommandBody = Schema.Union([
   }),
 ]);
 
+const { buildContext: buildChatContext } = HealthFit.chat;
+const { getDataSummary, getWorkoutHistory } = HealthFit.data;
+
 const formatSummary = Effect.fn("http.discord.formatSummary")(function* (
-  db: GenericQueryDatabaseClient<HealthfitDatabaseSchema>,
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>,
   userId: string,
 ) {
   const summary = yield* getDataSummary(db, userId);
@@ -75,7 +70,7 @@ const formatSummary = Effect.fn("http.discord.formatSummary")(function* (
 });
 
 const formatLastWorkout = Effect.fn("http.discord.formatLastWorkout")(function* (
-  db: GenericQueryDatabaseClient<HealthfitDatabaseSchema>,
+  db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>,
   userId: string,
 ) {
   const workouts = yield* getWorkoutHistory(db, userId, 1);
@@ -105,7 +100,7 @@ export const handleDiscordCommand = Effect.fn("http.discord.command")(function* 
   const secret = request.headers["x-discord-internal-secret"];
   if (
     typeof secret !== "string" ||
-    !secureStringEqual(secret, configuration.DISCORD_INTERNAL_ASK_SECRET)
+    !SecureCompare.equals(secret, configuration.DISCORD_INTERNAL_ASK_SECRET)
   ) {
     return yield* HttpServerResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -113,24 +108,27 @@ export const handleDiscordCommand = Effect.fn("http.discord.command")(function* 
   const body = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(DiscordCommandBody))(
     rawBody,
   ).pipe(Effect.mapError((error) => new Error(`Invalid Discord command body: ${String(error)}`)));
-  const discordDb = narrowQueryDatabaseClient<DiscordDatabaseSchema>(db);
+  const discordDb = narrowQueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>(db);
   const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
 
   switch (body.operation) {
     case "get-linked-user-id":
       return yield* HttpServerResponse.json({
-        userId: yield* getLinkedUserIdForDiscord(discordDb, body.discordUserId),
+        userId: yield* ServerDatabase.discordLinks.getLinkedUserId(discordDb, body.discordUserId),
       });
     case "consume-link-code":
       return yield* HttpServerResponse.json({
-        result: yield* consumeDiscordLinkCode(discordDb, {
+        result: yield* ServerDatabase.discordLinks.consumeLinkCode(discordDb, {
           code: body.code,
           discordUserId: body.discordUserId,
         }),
       });
     case "unlink-discord-user":
       return yield* HttpServerResponse.json({
-        removed: yield* unlinkDiscordAccountByDiscordUserId(discordDb, body.discordUserId),
+        removed: yield* ServerDatabase.discordLinks.unlinkAccountByDiscordUserId(
+          discordDb,
+          body.discordUserId,
+        ),
       });
     case "summary":
       return yield* HttpServerResponse.json({

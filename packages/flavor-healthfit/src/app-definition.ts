@@ -1,12 +1,8 @@
-import {
-  coreAppDefinition,
-  mergeAppDefinitions,
-  type AppDefinition,
-} from "@emi/core/server";
+import { ServerDatabase } from "@emi/core/server/database";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import { tools } from "./tools/api.ts";
 
-const healthFitOwnDefinition: AppDefinition = {
+const healthFitOwnDefinition: ServerDatabase.AppDefinition = {
   identity: {
     name: "HealthFit",
     description: "Personal fitness coach grounded in Apple Health and Hevy workout data.",
@@ -15,7 +11,7 @@ const healthFitOwnDefinition: AppDefinition = {
   tools,
 };
 
-export const healthFitAppDefinition: AppDefinition = mergeAppDefinitions(
-  coreAppDefinition,
+export const healthFitAppDefinition: ServerDatabase.AppDefinition = ServerDatabase.app.merge(
+  ServerDatabase.app.core,
   healthFitOwnDefinition,
 );

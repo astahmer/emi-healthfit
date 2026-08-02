@@ -10,19 +10,19 @@ export interface ChatFetchHandlersShape {
 export class ChatFetchHandlers extends Context.Service<
   ChatFetchHandlers,
   ChatFetchHandlersShape
->()("@emi/core/server/ChatFetchHandlers") {}
+>()("@emi/core/server/ChatFetchHandlers") {
+  static layer() {
+    return Layer.effect(
+      ChatFetchHandlers,
+      Effect.gen(function* () {
+        const server = yield* ChatServer;
+        return {
+          handle: (request: Request) => server.handle(request),
+        } satisfies ChatFetchHandlersShape;
+      }),
+    );
+  }
 
-export const ChatFetchHandlersLive = Layer.effect(
-  ChatFetchHandlers,
-  Effect.gen(function* () {
-    const server = yield* ChatServer;
-    return {
-      handle: (request: Request) => server.handle(request),
-    } satisfies ChatFetchHandlersShape;
-  }),
-);
-
-export class ChatFetch {
   static handle({
     layer,
     request,
@@ -33,7 +33,7 @@ export class ChatFetch {
     return Effect.runPromise(
       ChatFetchHandlers.use((handlers) => handlers.handle(request)).pipe(
         Effect.provide(layer),
-        Effect.catch((error) => Effect.succeed(ChatFetch.toErrorResponse(error))),
+        Effect.catch((error) => Effect.succeed(ChatFetchHandlers.toErrorResponse(error))),
       ),
     );
   }

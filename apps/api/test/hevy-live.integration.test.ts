@@ -3,14 +3,12 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
-import {
-  connectHevy,
-  getHevyIntegrationStatus,
-  syncHevy,
-} from "../src/healthfit/integrations/hevy/hevy-sync.ts";
+
+const { connect: connectHevy, getIntegrationStatus: getHevyIntegrationStatus, sync: syncHevy } =
+  HealthFit.hevy;
 
 const loadRepoDotEnv = () => {
   const envPath = fileURLToPath(new URL("../../../.env", import.meta.url));

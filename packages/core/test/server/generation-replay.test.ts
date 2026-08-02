@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 import type { UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { createGenerationReplayStream } from "../../src/server/generation-replay.ts";
-import { isGenerationStale } from "../../src/server/db/generations.ts";
+import { GenerationReplay } from "../../src/server/generation-replay.ts";
+import { GenerationDatabase } from "../../src/server/db/generations.ts";
 import type { ChatGeneration } from "../../src/server/db/generations.ts";
 
 const generation = (
@@ -31,15 +31,15 @@ const generation = (
 describe("generation persistence", () => {
   it("expires active generations after five silent minutes", () => {
     assert.equal(
-      isGenerationStale(generation("streaming"), Date.parse("2026-07-14T00:04:00Z")),
+      GenerationDatabase.isGenerationStale(generation("streaming"), Date.parse("2026-07-14T00:04:00Z")),
       false,
     );
     assert.equal(
-      isGenerationStale(generation("streaming"), Date.parse("2026-07-14T00:05:00Z")),
+      GenerationDatabase.isGenerationStale(generation("streaming"), Date.parse("2026-07-14T00:05:00Z")),
       true,
     );
     assert.equal(
-      isGenerationStale(generation("completed"), Date.parse("2026-07-14T01:00:00Z")),
+      GenerationDatabase.isGenerationStale(generation("completed"), Date.parse("2026-07-14T01:00:00Z")),
       false,
     );
   });
@@ -49,7 +49,7 @@ describe("generation persistence", () => {
       { sequence: 0, chunk: { type: "start" } },
       { sequence: 1, chunk: { type: "finish" } },
     ];
-    const stream = createGenerationReplayStream({
+    const stream = GenerationReplay.stream({
       generationId: "generation",
       getChunks: ({ afterSequence }) =>
         Effect.succeed(chunks.filter((item) => item.sequence > afterSequence)),

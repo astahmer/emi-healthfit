@@ -3,10 +3,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
+import type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
 import {
   makeQueryDatabaseClient,
   type QueryDatabaseClient,
-  type RawQueryDatabaseClient,
 } from "../src/platform/db/client.ts";
 
 const migrationsDirectory = fileURLToPath(new URL("../migrations", import.meta.url));

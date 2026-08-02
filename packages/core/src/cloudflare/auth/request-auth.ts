@@ -58,7 +58,7 @@ export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
       return yield* Effect.fail(new Error("Configure at least one allowed email"));
     }
     const configuration: AuthConfiguration = {
-      appName: decoded.AUTH_APP_NAME ?? "Emi HealthFit",
+      appName: decoded.AUTH_APP_NAME ?? "Core Chat",
       baseUrl: decoded.BETTER_AUTH_URL,
       secret: decoded.BETTER_AUTH_SECRET,
       allowedEmails,

@@ -1,11 +1,4 @@
-import type {
-  ApplicationCommandInteraction,
-  DiscordHttpResponse,
-} from "@emi/core/discord";
-import {
-  deferredEphemeralResponse,
-  editDeferredInteractionResponse,
-} from "@emi/core/discord";
+import { Discord } from "@emi/core/discord";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import {
@@ -23,7 +16,7 @@ const DiscordAskApiResponse = Schema.Struct({
 });
 
 export const topLevelOptionString = (
-  interaction: ApplicationCommandInteraction,
+  interaction: Discord.ApplicationCommandInteraction,
   optionName: string,
 ): string | undefined => {
   const entry = interaction.data.options?.find((option) => option.name === optionName);
@@ -42,22 +35,22 @@ export const handleAskCommand = ({
   internalSecret,
   waitUntil,
 }: {
-  interaction: ApplicationCommandInteraction;
+  interaction: Discord.ApplicationCommandInteraction;
   services: HealthfitCommandServices;
   applicationId: string;
   botToken: string;
   apiBaseUrl: string;
   internalSecret: string;
   waitUntil: (promise: Promise<unknown>) => void;
-}): DiscordHttpResponse => {
+}): Discord.HttpResponse => {
   const discordUserId = discordUserIdOf(interaction);
   if (discordUserId === undefined) {
-    return deferredEphemeralResponse();
+    return Discord.responses.deferredEphemeral();
   }
   if (!checkDiscordRateLimit(discordUserId)) {
     waitUntil(
       Effect.runPromise(
-        editDeferredInteractionResponse({
+        Discord.followUp.editDeferred({
           applicationId,
           botToken,
           interactionToken: interaction.token,
@@ -65,7 +58,7 @@ export const handleAskCommand = ({
         }),
       ),
     );
-    return deferredEphemeralResponse();
+    return Discord.responses.deferredEphemeral();
   }
 
   const question = topLevelOptionString(interaction, "question")?.trim() ?? "";
@@ -73,7 +66,7 @@ export const handleAskCommand = ({
     Effect.runPromise(
       Effect.gen(function* () {
         if (question === "" || question.length > DISCORD_ASK_MAX_QUESTION_CHARS) {
-          yield* editDeferredInteractionResponse({
+          yield* Discord.followUp.editDeferred({
             applicationId,
             botToken,
             interactionToken: interaction.token,
@@ -83,7 +76,7 @@ export const handleAskCommand = ({
         }
         const userId = yield* services.getLinkedUserId(discordUserId);
         if (userId === null) {
-          yield* editDeferredInteractionResponse({
+          yield* Discord.followUp.editDeferred({
             applicationId,
             botToken,
             interactionToken: interaction.token,
@@ -116,7 +109,7 @@ export const handleAskCommand = ({
               bodyPreview: bodyText.slice(0, 200),
             }),
           );
-          yield* editDeferredInteractionResponse({
+          yield* Discord.followUp.editDeferred({
             applicationId,
             botToken,
             interactionToken: interaction.token,
@@ -133,7 +126,7 @@ export const handleAskCommand = ({
           parsed.answer !== undefined && parsed.answer.trim() !== ""
             ? parsed.answer.trim()
             : "No answer returned.";
-        yield* editDeferredInteractionResponse({
+        yield* Discord.followUp.editDeferred({
           applicationId,
           botToken,
           interactionToken: interaction.token,
@@ -145,7 +138,7 @@ export const handleAskCommand = ({
             yield* Effect.logWarning("discord.ask.follow_up_failed").pipe(
               Effect.annotateLogs({ error: String(error) }),
             );
-            yield* editDeferredInteractionResponse({
+            yield* Discord.followUp.editDeferred({
               applicationId,
               botToken,
               interactionToken: interaction.token,
@@ -157,5 +150,5 @@ export const handleAskCommand = ({
     ),
   );
 
-  return deferredEphemeralResponse();
+  return Discord.responses.deferredEphemeral();
 };

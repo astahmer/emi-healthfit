@@ -12,21 +12,21 @@ import type {
 import { ChatRepositories } from "../server/ports/chat-server.ts";
 import { ChatServerError } from "../server/use-cases/chat-server.ts";
 
-export interface CloudflareBoundStatement {
+interface CloudflareBoundStatement {
   readonly all: () => Promise<{ readonly results: ReadonlyArray<unknown> }>;
   readonly first: () => Promise<unknown | null>;
   readonly run: () => Promise<{ readonly meta: { readonly changes: number } }>;
 }
 
-export interface CloudflarePreparedStatement {
+interface CloudflarePreparedStatement {
   readonly bind: (...parameters: ReadonlyArray<unknown>) => CloudflareBoundStatement;
 }
 
-export interface CloudflareDatabaseShape {
+interface CloudflareDatabaseShape {
   readonly prepare: (query: string) => CloudflarePreparedStatement;
 }
 
-export class CloudflareDatabase extends Context.Service<
+class CloudflareDatabase extends Context.Service<
   CloudflareDatabase,
   CloudflareDatabaseShape
 >()("@emi/core/adapters/cloudflare/Database") {}
@@ -36,12 +36,12 @@ export interface CloudflareRuntimeShape {
   readonly now: () => string;
 }
 
-export class CloudflareRuntime extends Context.Service<
+class CloudflareRuntime extends Context.Service<
   CloudflareRuntime,
   CloudflareRuntimeShape
 >()("@emi/core/adapters/cloudflare/Runtime") {}
 
-export interface CloudflareAdapterOptions {
+interface CloudflareAdapterOptions {
   readonly database: CloudflareDatabaseShape;
   readonly createId?: () => string;
   readonly now?: () => string;
@@ -270,9 +270,24 @@ const makeMemoryRepository = ({ database }: { readonly database: CloudflareDatab
 export class CloudflareRepositories extends Context.Service<
   CloudflareRepositories,
   ChatRepositoriesShape
->()("@emi/core/adapters/cloudflare/Repositories") {}
+>()("@emi/core/adapters/cloudflare/Repositories") {
+  static layer({
+    database,
+    createId = () => crypto.randomUUID(),
+    now = () => new Date().toISOString(),
+  }: CloudflareAdapterOptions) {
+    const dependencies = Layer.merge(
+      Layer.succeed(CloudflareDatabase, database),
+      Layer.succeed(CloudflareRuntime, { createId, now }),
+    );
+    return Layer.merge(
+      dependencies,
+      cloudflareRepositoriesLive.pipe(Layer.provide(dependencies)),
+    );
+  }
+}
 
-export const CloudflareRepositoriesLive = Layer.effect(
+const cloudflareRepositoriesLive = Layer.effect(
   CloudflareRepositories,
   Effect.gen(function* () {
     const database = yield* CloudflareDatabase;
@@ -289,18 +304,3 @@ export const CloudflareRepositoriesLive = Layer.effect(
     } satisfies ChatRepositoriesShape;
   }),
 );
-
-export const CloudflareAdapterLayer = ({
-  database,
-  createId = () => crypto.randomUUID(),
-  now = () => new Date().toISOString(),
-}: CloudflareAdapterOptions) => {
-  const dependencies = Layer.merge(
-    Layer.succeed(CloudflareDatabase, database),
-    Layer.succeed(CloudflareRuntime, { createId, now }),
-  );
-  return Layer.merge(
-    dependencies,
-    CloudflareRepositoriesLive.pipe(Layer.provide(dependencies)),
-  );
-};

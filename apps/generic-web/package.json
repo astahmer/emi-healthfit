@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@emi/core": "workspace:*",
+    "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "effect": "catalog:",

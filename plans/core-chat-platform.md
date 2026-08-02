@@ -2,7 +2,7 @@
 
 The public API portion of this plan is superseded by
 [`core-api-rewrite-plan.md`](./core-api-rewrite-plan.md). The target `@emi/core` catalog and
-private migration boundary below are current; the remaining product-feature work in this document
+application and adapter boundaries below are current; the remaining product-feature work in this document
 is intentionally separate from the clean-slate package contract.
 
 ## Context

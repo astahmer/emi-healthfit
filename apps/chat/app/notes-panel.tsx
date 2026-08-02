@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createNote, deleteNote, fetchNotes, updateNote, type Note } from "./notes";
+import type { Note } from "@emi/core/contract";
+import { createNote, deleteNote, fetchNotes, updateNote } from "./notes";
 import { notifyQueryResourceChanged, queryKeys } from "./query-cache";
 
 export function NotesPanel() {

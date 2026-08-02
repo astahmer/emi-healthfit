@@ -1,12 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { DiscordHttpResponse } from "@emi/core/discord";
-import {
-  badRequestResponse,
-  DiscordInteractionType,
-  pongResponse,
-  unauthorizedResponse,
-  verifyDiscordRequest,
-} from "@emi/core/discord";
+import { Discord } from "@emi/core/discord";
 import { dispatchApplicationCommand } from "../commands/dispatch.ts";
 import type { HealthfitCommandServices } from "../commands/limits.ts";
 
@@ -26,9 +19,11 @@ export interface HandleInteractionsRequestInput {
 export const handleInteractionsRequest = Effect.fn("discord-bot.handleInteractions")(function* (
   input: HandleInteractionsRequestInput,
 ) {
-  return yield* verifyDiscordRequest(input).pipe(
-    Effect.flatMap((interaction): Effect.Effect<DiscordHttpResponse> => {
-      if (interaction.type === DiscordInteractionType.Ping) return Effect.succeed(pongResponse());
+  return yield* Discord.requests.verify(input).pipe(
+    Effect.flatMap((interaction): Effect.Effect<Discord.HttpResponse> => {
+      if (interaction.type === Discord.interactions.type.Ping) {
+        return Effect.succeed(Discord.responses.pong());
+      }
       return dispatchApplicationCommand({
         interaction,
         services: input.services,
@@ -41,10 +36,13 @@ export const handleInteractionsRequest = Effect.fn("discord-bot.handleInteractio
     }),
     Effect.catchTags({
       MissingSignatureHeaders: () =>
-        Effect.succeed(unauthorizedResponse("missing signature headers")),
-      InvalidSignature: () => Effect.succeed(unauthorizedResponse("invalid request signature")),
-      StaleTimestamp: () => Effect.succeed(unauthorizedResponse("stale request timestamp")),
-      MalformedInteraction: (error) => Effect.succeed(badRequestResponse(error.message)),
+        Effect.succeed(Discord.responses.unauthorized("missing signature headers")),
+      InvalidSignature: () =>
+        Effect.succeed(Discord.responses.unauthorized("invalid request signature")),
+      StaleTimestamp: () =>
+        Effect.succeed(Discord.responses.unauthorized("stale request timestamp")),
+      MalformedInteraction: (error) =>
+        Effect.succeed(Discord.responses.badRequest(error.message)),
     }),
   );
 });

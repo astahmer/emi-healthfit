@@ -8,13 +8,10 @@ import type {
   ChatState,
   Selector,
 } from "./runtime/types.ts";
-import type {
-  ChatMessage,
-  Conversation,
-  MessagePart,
-  ModelConfiguration,
-  Thread,
-} from "./protocol.export.ts";
+import type { ChatMessage } from "./protocol/messages.ts";
+import type { MessagePart } from "./protocol/parts.ts";
+import type { Conversation, Thread } from "./protocol/resources.ts";
+import type { ModelConfiguration } from "./protocol/model.ts";
 
 export { createChatRuntime };
 

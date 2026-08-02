@@ -1,6 +1,18 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import {
+import { HealthFit } from "@emi/flavor-healthfit";
+import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
+import { ServerDatabase } from "@emi/core/server/database";
+import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
+import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
+import { makeSqliteDatabase, run } from "./sqlite.ts";
+
+const { getIngestedDataExport, getWorkoutDetails } = HealthFit.data;
+const { upsertDailyActivity, upsertHevySessions, upsertHevySets } = HealthFit.storage;
+
+const makeDatabase = () => makeSqliteDatabase().db;
+
+const {
   addThreadMessage,
   cloneConversation,
   createConversation,
@@ -13,14 +25,8 @@ import {
   pinThread,
   saveConversationMessages,
   updateConversationState,
-} from "../src/core/db/conversations.ts";
-import { getIngestedDataExport, getWorkoutDetails } from "../src/healthfit/db/fitness.ts";
-import {
-  upsertDailyActivity,
-  upsertHevySessions,
-  upsertHevySets,
-} from "../src/healthfit/db/ingested-data.ts";
-import {
+} = ServerDatabase.conversations;
+const {
   getMemories,
   getNotes,
   insertMemory,
@@ -29,28 +35,21 @@ import {
   searchMemories,
   searchNotes,
   updateNote,
-  type MemoryDatabaseSchema,
-} from "../src/core/db/memories.ts";
-import {
+} = ServerDatabase.memories;
+const {
   appendGenerationChunk,
   createGeneration,
   getGeneration,
   getGenerationChunks,
   getResumableGeneration,
-} from "../src/core/chat/generation-store.ts";
-import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
-import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
-import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
-
-const makeDatabase = () => makeSqliteDatabase().db;
+} = ServerDatabase.generations;
 
 describe("per-user ownership", () => {
   it("isolates guessed conversation, thread, note, memory, and generation ids", async () => {
     const db = makeDatabase();
-    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
-    const memoryDb = narrowQueryDatabaseClient<MemoryDatabaseSchema>(db);
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+    const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
+    const generationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const alice = "user-alice";
     const bob = "user-bob";
     const conversationId = await run(createConversation(conversationDb, alice, "Alice chat"));
@@ -115,11 +114,11 @@ describe("per-user ownership", () => {
     assert.deepStrictEqual(await run(searchMemories(memoryDb, bob, "Alice")), []);
 
     await run(
-      createGeneration({ db, userId: alice, generationId: "generation-1", conversationId }),
+      createGeneration({ db: generationDb, userId: alice, generationId: "generation-1", conversationId }),
     );
     await run(
       appendGenerationChunk({
-        db,
+        db: generationDb,
         userId: alice,
         generationId: "generation-1",
         sequence: 0,
@@ -127,16 +126,16 @@ describe("per-user ownership", () => {
       }),
     );
     assert.strictEqual(
-      await run(getGeneration({ db, userId: bob, generationId: "generation-1" })),
+      await run(getGeneration({ db: generationDb, userId: bob, generationId: "generation-1" })),
       null,
     );
     assert.strictEqual(
-      await run(getResumableGeneration({ db, userId: bob, conversationId })),
+      await run(getResumableGeneration({ db: generationDb, userId: bob, conversationId })),
       null,
     );
     assert.deepStrictEqual(
       await run(
-        getGenerationChunks({ db, userId: bob, generationId: "generation-1", afterSequence: -1 }),
+        getGenerationChunks({ db: generationDb, userId: bob, generationId: "generation-1", afterSequence: -1 }),
       ),
       [],
     );
@@ -157,7 +156,8 @@ describe("per-user ownership", () => {
 
   it("rejects cross-user child inserts against owned parents", async () => {
     const db = makeDatabase();
-    const conversationDb = narrowQueryDatabaseClient<ConversationDatabaseSchema>(db);
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+    const generationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const alice = "user-alice";
     const bob = "user-bob";
     const conversationId = await run(createConversation(conversationDb, alice, "Alice chat"));
@@ -188,7 +188,7 @@ describe("per-user ownership", () => {
     assert.strictEqual(
       await run(
         createGeneration({
-          db,
+          db: generationDb,
           userId: bob,
           generationId: "bob-generation",
           conversationId,
@@ -199,7 +199,7 @@ describe("per-user ownership", () => {
     assert.strictEqual(
       await run(
         appendGenerationChunk({
-          db,
+        db: generationDb,
           userId: bob,
           generationId: "generation-missing",
           sequence: 0,
@@ -215,7 +215,7 @@ describe("per-user ownership", () => {
     );
     assert.ok(await run(getThread(conversationDb, alice, threadId)));
     assert.strictEqual(
-      await run(getGeneration({ db, userId: alice, generationId: "bob-generation" })),
+      await run(getGeneration({ db: generationDb, userId: alice, generationId: "bob-generation" })),
       null,
     );
   });
@@ -230,9 +230,9 @@ describe("per-user ownership", () => {
       exercise_min: null,
       flights_climbed: null,
     };
-    await run(upsertDailyActivity(db, "user-alice", [row]));
-    await run(upsertDailyActivity(db, "user-bob", [{ ...row, steps: 200 }]));
     const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+    await run(upsertDailyActivity(fitnessDb, "user-alice", [row]));
+    await run(upsertDailyActivity(fitnessDb, "user-bob", [{ ...row, steps: 200 }]));
     const alice = await run(getIngestedDataExport({ db: fitnessDb, userId: "user-alice" }));
     const bob = await run(getIngestedDataExport({ db: fitnessDb, userId: "user-bob" }));
     assert.strictEqual(alice.health.dailyActivity[0]?.steps, 100);
@@ -241,8 +241,9 @@ describe("per-user ownership", () => {
 
   it("returns stable owner-scoped workout details with calculated volume", async () => {
     const db = makeDatabase();
+    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     await run(
-      upsertHevySessions(db, "user-alice", [
+      upsertHevySessions(fitnessDb, "user-alice", [
         {
           session_id: "session-1",
           provider_workout_id: null,
@@ -256,7 +257,7 @@ describe("per-user ownership", () => {
       ]),
     );
     await run(
-      upsertHevySets(db, "user-alice", [
+      upsertHevySets(fitnessDb, "user-alice", [
         {
           session_id: "session-1",
           exercise_template_id: null,
@@ -274,7 +275,6 @@ describe("per-user ownership", () => {
       ]),
     );
 
-    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const details = await run(
       getWorkoutDetails({ db: fitnessDb, userId: "user-alice", sessionId: "session-1" }),
     );

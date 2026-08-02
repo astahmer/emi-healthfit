@@ -6,11 +6,11 @@ import { UsageProvider } from "@/app/usage-context";
 import { ActionFeedbackProvider } from "@/app/action-feedback";
 import type { MessageWithUsage } from "@/app/sessions";
 import { chatModels } from "@/app/models";
-import { useChatRuntime } from "@/app/chat/chat-runtime";
+import { useChatRuntime } from "@/app/chat/chat-runtime-context";
 import { extractMemories } from "@/app/memories";
 import { Thread, type ComposerControls } from "./thread";
 
-vi.mock("@/app/chat/chat-runtime", () => ({ useChatRuntime: vi.fn() }));
+vi.mock("@/app/chat/chat-runtime-context", () => ({ useChatRuntime: vi.fn() }));
 vi.mock("@/app/memories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/app/memories")>()),
   extractMemories: vi.fn(),

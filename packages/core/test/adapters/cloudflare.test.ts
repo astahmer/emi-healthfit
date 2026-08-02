@@ -3,12 +3,10 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, it } from "node:test";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import {
-  CloudflareAdapterLayer,
-  CloudflareRepositories,
-  type CloudflareDatabaseShape,
-} from "../../src/adapters/cloudflare.export.ts";
-import { ChatServerError } from "../../src/server-effect.export.ts";
+import { CloudflareRepositories } from "../../src/adapters/cloudflare.export.ts";
+import { ChatServerError } from "../../src/server/use-cases/chat-server.ts";
+
+type CloudflareDatabaseShape = Parameters<typeof CloudflareRepositories.layer>[0]["database"];
 
 const schemaDdl = `
   CREATE TABLE conversations (
@@ -135,7 +133,7 @@ const makeDatabase = (): CloudflareDatabaseShape => {
 
 describe("CloudflareRepositories", () => {
   it("maps D1 rows into provider-neutral repositories", async () => {
-    const layer = CloudflareAdapterLayer({ database: makeDatabase() });
+    const layer = CloudflareRepositories.layer({ database: makeDatabase() });
     const repositories = await Effect.runPromise(
       CloudflareRepositories.use((value) => Effect.succeed(value)).pipe(Effect.provide(layer)),
     );
@@ -174,7 +172,7 @@ describe("CloudflareRepositories", () => {
   });
 
   it("turns a unique active-generation violation into a typed conflict", async () => {
-    const layer = CloudflareAdapterLayer({ database: makeDatabase() });
+    const layer = CloudflareRepositories.layer({ database: makeDatabase() });
     const repositories = await Effect.runPromise(
       CloudflareRepositories.use((value) => Effect.succeed(value)).pipe(Effect.provide(layer)),
     );

@@ -6,6 +6,7 @@ const openGenericChat = async (page: Page) => {
   const api = createGenericE2eApi();
   await api.install(page);
   await page.goto("/");
+  await page.getByRole("button", { name: "Continue as guest" }).click();
   await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();
   return api;
 };

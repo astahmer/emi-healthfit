@@ -238,7 +238,7 @@ const hevySyncSummary = ({
   imported,
   updated,
   deleted,
-  ambiguousLegacy: 0,
+  ambiguousUnlinked: 0,
   startedAt: "2026-07-20T10:00:00.000Z",
   completedAt: "2026-07-20T10:00:01.000Z",
   lastErrorCode: null as string | null,

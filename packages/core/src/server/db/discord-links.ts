@@ -14,7 +14,7 @@ const nowIso = () => new Date().toISOString();
 const bytesToHex = (bytes: ArrayBuffer): string =>
   [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-export const hashDiscordLinkCode = (code: string): Effect.Effect<string> =>
+const hashDiscordLinkCode = (code: string): Effect.Effect<string> =>
   Effect.promise(async () => {
     const digest = await crypto.subtle.digest(
       "SHA-256",
@@ -47,7 +47,7 @@ export interface DiscordAccountLinkView {
   created_at: string;
 }
 
-export const listDiscordLinkCodes = (db: DiscordDb, userId: string) =>
+const listDiscordLinkCodes = (db: DiscordDb, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const rows = yield* Effect.promise(() =>
@@ -61,7 +61,7 @@ export const listDiscordLinkCodes = (db: DiscordDb, userId: string) =>
     return rows satisfies DiscordLinkCodeView[];
   });
 
-export const listDiscordAccountLinks = (db: DiscordDb, userId: string) =>
+const listDiscordAccountLinks = (db: DiscordDb, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const rows = yield* Effect.promise(() =>
@@ -75,7 +75,7 @@ export const listDiscordAccountLinks = (db: DiscordDb, userId: string) =>
     return rows satisfies DiscordAccountLinkView[];
   });
 
-export const createDiscordLinkCode = (db: DiscordDb, userId: string) =>
+const createDiscordLinkCode = (db: DiscordDb, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const active = yield* Effect.promise(() =>
@@ -117,7 +117,7 @@ export const createDiscordLinkCode = (db: DiscordDb, userId: string) =>
     } satisfies CreatedDiscordLinkCode;
   });
 
-export const revokeDiscordLinkCode = (db: DiscordDb, userId: string, codeId: string) =>
+const revokeDiscordLinkCode = (db: DiscordDb, userId: string, codeId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -130,7 +130,7 @@ export const revokeDiscordLinkCode = (db: DiscordDb, userId: string, codeId: str
     return Number(result.numDeletedRows) > 0;
   });
 
-export const unlinkDiscordAccount = (db: DiscordDb, userId: string, discordUserId: string) =>
+const unlinkDiscordAccount = (db: DiscordDb, userId: string, discordUserId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -143,7 +143,7 @@ export const unlinkDiscordAccount = (db: DiscordDb, userId: string, discordUserI
     return Number(result.numDeletedRows) > 0;
   });
 
-export const getLinkedUserIdForDiscord = (db: DiscordDb, discordUserId: string) =>
+const getLinkedUserIdForDiscord = (db: DiscordDb, discordUserId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const row = yield* Effect.promise(() =>
@@ -156,7 +156,7 @@ export const getLinkedUserIdForDiscord = (db: DiscordDb, discordUserId: string) 
     return row?.user_id ?? null;
   });
 
-export const unlinkDiscordAccountByDiscordUserId = (db: DiscordDb, discordUserId: string) =>
+const unlinkDiscordAccountByDiscordUserId = (db: DiscordDb, discordUserId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -175,7 +175,7 @@ export type ConsumeDiscordLinkCodeResult =
       readonly reason: "invalid" | "expired" | "consumed";
     };
 
-export const consumeDiscordLinkCode = (
+const consumeDiscordLinkCode = (
   db: DiscordDb,
   options: { code: string; discordUserId: string },
 ) =>
@@ -224,3 +224,17 @@ export const consumeDiscordLinkCode = (
     );
     return { ok: true, userId: row.user_id } as const;
   });
+
+export class DiscordLinkDatabase {
+  private constructor() {}
+
+  static readonly consumeLinkCode = consumeDiscordLinkCode;
+  static readonly createLinkCode = createDiscordLinkCode;
+  static readonly getLinkedUserId = getLinkedUserIdForDiscord;
+  static readonly hashLinkCode = hashDiscordLinkCode;
+  static readonly listAccountLinks = listDiscordAccountLinks;
+  static readonly listLinkCodes = listDiscordLinkCodes;
+  static readonly revokeLinkCode = revokeDiscordLinkCode;
+  static readonly unlinkAccount = unlinkDiscordAccount;
+  static readonly unlinkAccountByDiscordUserId = unlinkDiscordAccountByDiscordUserId;
+}

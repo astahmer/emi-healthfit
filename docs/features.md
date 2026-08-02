@@ -94,5 +94,5 @@ in `@emi/core`.
 Documented in `plans/` — not available as shipped features:
 
 - **Google Calendar** — separate calendar connect, availability for coaching, optional workout event write-back.
-- **Discord bot** — same ownership-scoped assistant over Discord, without exposing shared legacy data.
+- **Discord bot** — same ownership-scoped assistant over Discord, without exposing another user's data.
 - **Core / flavor extraction** — reusable chat core packages with HealthFit as one flavor.

@@ -2,8 +2,9 @@ import assert from "node:assert";
 import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 import { Effect } from "effect";
-import { assignYears, parseHealthExport } from "../src/healthfit/ingest/health.ts";
-import { parseHevyCsv, parseHevyDate } from "../src/healthfit/ingest/hevy.ts";
+import { HealthFit } from "@emi/flavor-healthfit";
+
+const { assignYears, parseHealthExport, parseHevyCsv, parseHevyDate } = HealthFit.ingest;
 
 describe("HealthExportKit parser", () => {
   it("parses the versioned anonymized health export fixture", async () => {

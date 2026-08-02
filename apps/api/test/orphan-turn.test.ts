@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getProviderMessages, isDuplicateOrphanRetry } from "../src/core/chat/orphan-turn.ts";
+import { Chat } from "@emi/core/chat";
 
 describe("getProviderMessages", () => {
   it("accepts a new turn after an orphan without replaying the orphaned prompt", () => {
-    const messages = getProviderMessages({
+    const messages = Chat.messages.getProviderMessages({
       existingRows: [
         { id: "first-user", role: "user" },
         { id: "first-assistant", role: "assistant" },
@@ -27,7 +27,7 @@ describe("getProviderMessages", () => {
   });
 
   it("replays the orphaned prompt only for an explicit retry", () => {
-    const messages = getProviderMessages({
+    const messages = Chat.messages.getProviderMessages({
       existingRows: [{ id: "orphaned-user", role: "user" }],
       existingMessages: [{ role: "user", text: "Unanswered request" }],
       incomingMessages: [],
@@ -39,7 +39,7 @@ describe("getProviderMessages", () => {
 
   it("recognizes a resubmitted orphaned prompt", () => {
     assert.strictEqual(
-      isDuplicateOrphanRetry({
+      Chat.orphans.isDuplicateOrphanRetry({
         existingRows: [{ id: "orphaned-user", role: "user" }],
         existingMessages: [{ role: "user", parts: [{ type: "text", text: "Retry me" }] }],
         incomingMessages: [{ role: "user", parts: [{ type: "text", text: "Retry me" }] }],

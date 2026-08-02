@@ -1,7 +1,4 @@
-import type {
-  ApplicationCommandInteraction,
-  DiscordHttpResponse,
-} from "@emi/core/discord";
+import { Discord } from "@emi/core/discord";
 import * as Effect from "effect/Effect";
 import {
   checkDiscordRateLimit,
@@ -11,13 +8,15 @@ import {
   type HealthfitCommandServices,
 } from "./limits.ts";
 
-const topLevelSubcommand = (interaction: ApplicationCommandInteraction): string | undefined =>
+const topLevelSubcommand = (
+  interaction: Discord.ApplicationCommandInteraction,
+): string | undefined =>
   interaction.data.options?.[0]?.name;
 
 const requireLinkedUserId = (
   services: HealthfitCommandServices,
   discordUserId: string,
-): Effect.Effect<string | DiscordHttpResponse> =>
+): Effect.Effect<string | Discord.HttpResponse> =>
   Effect.gen(function* () {
     const userId = yield* services.getLinkedUserId(discordUserId);
     if (userId === null) {
@@ -29,9 +28,9 @@ const requireLinkedUserId = (
   });
 
 export const handleHealthfitCommand = (
-  interaction: ApplicationCommandInteraction,
+  interaction: Discord.ApplicationCommandInteraction,
   services: HealthfitCommandServices,
-): Effect.Effect<DiscordHttpResponse> =>
+): Effect.Effect<Discord.HttpResponse> =>
   Effect.gen(function* () {
     const discordUserId = discordUserIdOf(interaction);
     if (discordUserId === undefined) {

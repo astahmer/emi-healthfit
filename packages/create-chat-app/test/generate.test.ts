@@ -26,10 +26,8 @@ describe("buildGeneratedFiles", () => {
       ".oxfmtrc.json",
       "core/package.json",
       "core/source-manifest.json",
-      "core/src/protocol/index.ts",
+      "core/src/protocol.export.ts",
       "core/test/public-api/export-surface.test.ts",
-      "migration/package.json",
-      "migration/src/server.ts",
       "core/tsconfig.json",
       "web/src/app.tsx",
       "web/postcss.config.mjs",
@@ -51,8 +49,8 @@ describe("buildGeneratedFiles", () => {
     };
     assert.equal(corePackage.private, true);
     assert.deepEqual(corePackage.files, ["src", "test", "PUBLISH.md", "source-manifest.json"]);
-    assert.equal(corePackage.exports["."], "./src/index.ts");
-    assert.equal(corePackage.exports["./protocol"], "./src/protocol/index.ts");
+    assert.equal(corePackage.exports["."], "./src/core.export.ts");
+    assert.equal(corePackage.exports["./protocol"], "./src/protocol.export.ts");
     assert.equal(corePackage.exports["./styles.css"], "./src/styles/styles.css");
     assert.equal(corePackage.emi.sourceDistribution?.manifest, "./source-manifest.json");
     assert.match(

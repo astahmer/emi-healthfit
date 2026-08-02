@@ -1,3 +1,5 @@
+import type * as Context from "effect/Context";
+import type * as Layer from "effect/Layer";
 import type { ModelProvider } from "./protocol";
 
 export interface AiSdkModelConfiguration {
@@ -8,7 +10,10 @@ export interface AiSdkModelConfiguration {
   readonly createId?: () => string;
 }
 
-export declare class AiSdkModelProvider {
-  private constructor();
-  static create(configuration: AiSdkModelConfiguration): ModelProvider;
+export declare class AiSdkModelProvider
+  extends Context.Service<AiSdkModelProvider, ModelProvider>()(
+    "@emi/core/adapters/AiSdkModelProvider",
+  )
+{
+  static layer(configuration: AiSdkModelConfiguration): Layer.Layer<AiSdkModelProvider>;
 }

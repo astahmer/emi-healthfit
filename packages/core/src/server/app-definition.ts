@@ -62,7 +62,7 @@ const mergeTools = (definitions: ReadonlyArray<AppDefinition>): AppToolDefinitio
  * tool's earliest position. Prompt contributors are concatenated in
  * argument order, then stably sorted by `order` (undefined sorts last).
  */
-export const mergeAppDefinitions = (
+const mergeAppDefinitions = (
   ...definitions: ReadonlyArray<AppDefinition>
 ): AppDefinition => {
   const identity = definitions.reduce<AppIdentity>(
@@ -76,11 +76,11 @@ export const mergeAppDefinitions = (
   };
 };
 
-export const composeSystemPrompt = (
+const composeSystemPrompt = (
   promptContributors: ReadonlyArray<PromptContributor> | undefined,
 ): string => (promptContributors ?? []).map((contributor) => contributor.text).join("\n\n");
 
-export const coreAppDefinition: AppDefinition = {
+const coreAppDefinition: AppDefinition = {
   identity: {
     name: "Core Chat",
     description: "Reusable chat core: conversations, memory, notes, and auth.",
@@ -88,3 +88,11 @@ export const coreAppDefinition: AppDefinition = {
   promptContributors: [],
   tools: [],
 };
+
+export class AppDefinitions {
+  private constructor() {}
+
+  static readonly core = coreAppDefinition;
+  static readonly composeSystemPrompt = composeSystemPrompt;
+  static readonly merge = mergeAppDefinitions;
+}

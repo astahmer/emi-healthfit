@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import type { UIMessage } from "ai";
-import { validateStoredUIMessages } from "../src/core/chat/ui-messages.ts";
+import { Chat } from "@emi/core/chat";
 
 describe("stored UI messages", () => {
   it("accepts an empty history before the first user message", async () => {
-    assert.deepStrictEqual(await validateStoredUIMessages([]), []);
+    assert.deepStrictEqual(await Chat.messages.validateStoredUIMessages([]), []);
   });
 
   it("validates non-empty persisted history", async () => {
@@ -17,11 +17,11 @@ describe("stored UI messages", () => {
       },
     ];
 
-    assert.deepStrictEqual(await validateStoredUIMessages(messages), messages);
+    assert.deepStrictEqual(await Chat.messages.validateStoredUIMessages(messages), messages);
   });
 
   it("rejects obsolete dynamic tool error payloads", async () => {
-    await assert.rejects(validateStoredUIMessages([
+    await assert.rejects(Chat.messages.validateStoredUIMessages([
       {
         id: "assistant-1",
         role: "assistant",

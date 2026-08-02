@@ -1,11 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import {
-  createChatMock,
-  openMockedChat,
-  sessionOneSnapshot,
-  type MockApi,
-} from "../../mock/install.ts";
+import { sessionOneSnapshot, type MockApi } from "../../mock/app.ts";
+import { createChatMock, openMockedChat } from "../../mock/install.ts";
 
 export const branchThread = {
   id: "branch-1",

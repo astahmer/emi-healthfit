@@ -1,31 +1,15 @@
 import type { Kyselify } from "drizzle-orm/kysely";
-import {
-  authAccount,
-  authSession,
-  authUser,
-  authVerification,
-  chatEvents,
-  chatGenerationChunks,
-  chatGenerations,
-  conversations,
-  discordAccountLinks,
-  discordLinkCodes,
-  memories,
-  memorySummaries,
-  messages,
-  notes,
-  suggestions,
-  threadMessages,
-  threads,
-  type QueryDatabaseClient as GenericQueryDatabaseClient,
-} from "@emi/core/server";
-import {
-  makeD1Kysely as makePlatformD1Kysely,
-  makeQueryDatabaseClient as makePlatformQueryDatabaseClient,
-  type CloudflareQueryDatabaseClient,
-  type RawQueryDatabaseClient,
+import { ServerDatabase } from "@emi/core/server/database";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import type {
+  CloudflareQueryDatabaseClient,
+  RawQueryDatabaseClient,
 } from "@emi/core/cloudflare";
-import {
+import { HealthFit } from "@emi/flavor-healthfit";
+
+const makePlatformD1Kysely = CoreCloudflare.database.makeD1Kysely;
+const makePlatformQueryDatabaseClient = CoreCloudflare.database.makeQueryDatabaseClient;
+const {
   bodyMetrics,
   dailyActivity,
   healthWorkouts,
@@ -36,39 +20,36 @@ import {
   privacyPreferences,
   sleepSessions,
   syncCursors,
-} from "@emi/flavor-healthfit";
-
-export { runTransaction, runBatches } from "@emi/core/server";
-export type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
+} = HealthFit.storage.tables;
 
 export interface DatabaseSchema {
-  auth_account: Kyselify<typeof authAccount>;
-  auth_session: Kyselify<typeof authSession>;
-  auth_user: Kyselify<typeof authUser>;
-  auth_verification: Kyselify<typeof authVerification>;
+  auth_account: Kyselify<typeof ServerDatabase.tables.auth.account>;
+  auth_session: Kyselify<typeof ServerDatabase.tables.auth.session>;
+  auth_user: Kyselify<typeof ServerDatabase.tables.auth.user>;
+  auth_verification: Kyselify<typeof ServerDatabase.tables.auth.verification>;
   body_metrics: Kyselify<typeof bodyMetrics>;
-  chat_events: Kyselify<typeof chatEvents>;
-  chat_generation_chunks: Kyselify<typeof chatGenerationChunks>;
-  chat_generations: Kyselify<typeof chatGenerations>;
-  conversations: Kyselify<typeof conversations>;
+  chat_events: Kyselify<typeof ServerDatabase.tables.chat.events>;
+  chat_generation_chunks: Kyselify<typeof ServerDatabase.tables.chat.generationChunks>;
+  chat_generations: Kyselify<typeof ServerDatabase.tables.chat.generations>;
+  conversations: Kyselify<typeof ServerDatabase.tables.chat.conversations>;
   daily_activity: Kyselify<typeof dailyActivity>;
-  discord_account_links: Kyselify<typeof discordAccountLinks>;
-  discord_link_codes: Kyselify<typeof discordLinkCodes>;
+  discord_account_links: Kyselify<typeof ServerDatabase.tables.discord.accountLinks>;
+  discord_link_codes: Kyselify<typeof ServerDatabase.tables.discord.linkCodes>;
   health_workouts: Kyselify<typeof healthWorkouts>;
   hevy_connections: Kyselify<typeof hevyConnections>;
   hevy_sessions: Kyselify<typeof hevySessions>;
   hevy_sets: Kyselify<typeof hevySets>;
   hevy_sync_state: Kyselify<typeof hevySyncState>;
-  memories: Kyselify<typeof memories>;
-  memory_summaries: Kyselify<typeof memorySummaries>;
-  messages: Kyselify<typeof messages>;
-  notes: Kyselify<typeof notes>;
+  memories: Kyselify<typeof ServerDatabase.tables.chat.memories>;
+  memory_summaries: Kyselify<typeof ServerDatabase.tables.chat.memorySummaries>;
+  messages: Kyselify<typeof ServerDatabase.tables.chat.messages>;
+  notes: Kyselify<typeof ServerDatabase.tables.chat.notes>;
   privacy_preferences: Kyselify<typeof privacyPreferences>;
   sleep_sessions: Kyselify<typeof sleepSessions>;
-  suggestions: Kyselify<typeof suggestions>;
+  suggestions: Kyselify<typeof ServerDatabase.tables.chat.suggestions>;
   sync_cursors: Kyselify<typeof syncCursors>;
-  thread_messages: Kyselify<typeof threadMessages>;
-  threads: Kyselify<typeof threads>;
+  thread_messages: Kyselify<typeof ServerDatabase.tables.chat.threadMessages>;
+  threads: Kyselify<typeof ServerDatabase.tables.chat.threads>;
 }
 
 export type QueryDatabaseClient = CloudflareQueryDatabaseClient<DatabaseSchema>;
@@ -92,4 +73,5 @@ export const makeQueryDatabaseClient = ({
  */
 export const narrowQueryDatabaseClient = <TSchema>(
   db: QueryDatabaseClient,
-): GenericQueryDatabaseClient<TSchema> => db as unknown as GenericQueryDatabaseClient<TSchema>;
+): ServerDatabase.QueryDatabaseClient<TSchema> =>
+  db as unknown as ServerDatabase.QueryDatabaseClient<TSchema>;

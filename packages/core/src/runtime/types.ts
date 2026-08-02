@@ -1,12 +1,8 @@
-import type {
-  Attachment,
-  ChatMessage,
-  Conversation,
-  Memory,
-  ModelConfiguration,
-  Thread,
-} from "../protocol.export.ts";
-import type { ChatExtension } from "../extensions.export.ts";
+import type { ChatMessage } from "../protocol/messages.ts";
+import type { Attachment } from "../protocol/parts.ts";
+import type { Conversation, Memory, Thread } from "../protocol/resources.ts";
+import type { ModelConfiguration } from "../protocol/model.ts";
+import type { ChatExtension } from "../extensions.ts";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;

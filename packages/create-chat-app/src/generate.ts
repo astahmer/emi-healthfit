@@ -88,20 +88,6 @@ const coreSourcePackageJson = (): string => {
   )}\n`;
 };
 
-const migrationSourcePackageJson = (): string => {
-  const packageJson = decodePackageJson("packages/core-migration/package.json");
-  const dependencies = decodeRecord(packageJson.dependencies);
-  return `${JSON.stringify(
-    {
-      ...packageJson,
-      private: true,
-      dependencies: { ...dependencies, "@emi/core": "workspace:*" },
-    },
-    null,
-    2,
-  )}\n`;
-};
-
 const corePackageFiles = ({
   sourcePath,
   targetPath,
@@ -160,11 +146,6 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
           },
           ...corePackageFiles({ sourcePath: "packages/core/src", targetPath: "core/src" }),
           ...corePackageFiles({ sourcePath: "packages/core/test", targetPath: "core/test" }),
-          { path: "migration/package.json", contents: migrationSourcePackageJson() },
-          ...corePackageFiles({
-            sourcePath: "packages/core-migration/src",
-            targetPath: "migration/src",
-          }),
         ]
       : [];
   return [

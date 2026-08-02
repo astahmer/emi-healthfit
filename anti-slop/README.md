@@ -24,11 +24,45 @@ The current checks protect these boundaries:
 - compatibility aliases and migration packages do not re-enter the source tree;
 - `index.ts` is not an internal implementation or import target;
 - public boundaries use explicit `.export.ts` files and do not use export-from barrels;
-- Effect server services are composed with `Context.Service` and `Layer`, not constructor DI;
+- internal modules import named implementation files, never another `.export.ts` boundary;
+- internal classes do not forward static domain members; only a named public `.export.ts` facade may group an owning domain;
+- domain APIs group related operations behind an instantiated class or a static domain class;
+- Effect server services are composed with `Context.Service` and `Layer`, not dependency-bearing constructors;
+- Effect is the canonical implementation surface: Promise helpers are thin outer adapters over typed
+  Effect success and error channels;
+- generic protocol and server contracts do not import raw database, Cloudflare, or AI SDK types;
 - persistence code maps rows explicitly and stays behind ports/adapters;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
 - generic chat rendering, scrolling, and runtime state belong in `@emi/core`, while products supply
   only product renderers, extensions, and configuration.
+
+## Deterministic boundary checks
+
+`check-architecture-boundaries.mjs` owns checks that need package metadata, filesystem topology, or
+cross-file context:
+
+| Check | Violation caught | Required shape |
+| --- | --- | --- |
+| Public domain surface | A new non-exception public entrypoint grows into a flat utility barrel | One named domain class or owned instance; keep helpers private |
+| Public web/XState split | The common web entry imports or exposes an actor/machine | Put raw actor access in `@emi/core/advanced/xstate` |
+| Injected capabilities | Runtime or use-case code reads ambient time, randomness, fetch, or browser globals | Receive capabilities through runtime options, services, or layers |
+| Package self-boundary | A consumer reaches into `@emi/core/src` or `@emi/core/dist` | Import a declared package subpath |
+| Export topology | An implementation imports a boundary, wildcard, forwarding module, or `index.ts` | Import the owning implementation and bind explicit exports only at `.export.ts` |
+
+The grouping check deliberately allows the independently consumable React view/recipe entries,
+HTTP contract items, and explicit advanced XState entrypoint. Those exceptions are contract-shaped,
+not permission to add miscellaneous helpers to a public file. The checked-in `anti-slop/rules/`
+and `anti-slop/tests/` fixtures cover syntax-local cases; this script covers the repository-wide
+cases that ast-grep cannot safely infer.
+
+The grouping rule has deliberate exceptions: independently consumable React view primitives, schema
+types, and a package `.export.ts` boundary may expose several named bindings when each binding is a
+separately discoverable contract item. Internal helpers should remain private to their owning domain.
+
+The Effect-first rule means a use case or adapter should first expose an `Effect` or `Stream` with
+qualified success and error types. A Promise-returning method is allowed only at a browser, HTTP, or
+other platform edge, and should be implemented by running the canonical Effect program rather than
+duplicating its logic.
 
 When a new smell is found, add its human rule with `antislop add`, then add the smallest
 deterministic rule or boundary assertion that can prevent recurrence. Every executable rule must

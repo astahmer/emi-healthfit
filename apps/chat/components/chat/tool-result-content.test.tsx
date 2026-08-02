@@ -118,7 +118,7 @@ describe("ToolResultContent", () => {
                 },
                 metric: {
                   type: "MetricCard",
-                  props: { value: 8742, unit: "steps/day", trend: "stable" },
+                  props: { label: "Steps", value: 8742, unit: "steps/day", trend: "flat" },
                 },
                 sets: {
                   type: "SetList",
@@ -145,7 +145,7 @@ describe("ToolResultContent", () => {
     expect(screen.getByText("Full body")).toBeInTheDocument();
   });
 
-  it("renders persisted component variants and normalizes legacy MetricCard props", () => {
+  it("renders persisted component variants with the current MetricCard contract", () => {
     const view = renderToolResult(
       <div className="h-96 w-96">
         <ToolResultContent
@@ -200,7 +200,7 @@ describe("ToolResultContent", () => {
               elements: {
                 metric: {
                   type: "MetricCard",
-                  props: { value: 8742, unit: "steps/day", trend: "stable" },
+                  props: { label: "Steps", value: 8742, unit: "steps/day", trend: "flat" },
                 },
               },
             },

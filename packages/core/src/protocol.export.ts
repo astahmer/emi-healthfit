@@ -40,8 +40,8 @@ import type {
   ModelGenerationInput,
   ModelProvider,
   ModelProviderError,
-  TransportError,
 } from "./protocol/model.ts";
+import type { TransportError } from "./protocol/errors.ts";
 import { ProtocolDecodeError } from "./protocol/errors.ts";
 import { ChatProtocol } from "./protocol/mappers.ts";
 import type { ProtocolEffect, ProtocolSchemas } from "./protocol/mappers.ts";

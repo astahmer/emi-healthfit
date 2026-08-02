@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { makeGenericChatRoutes, makeQueryDatabaseClient } from "@emi/core/cloudflare";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+
+const { makeGenericChatRoutes } = CoreCloudflare.routes;
+const { makeQueryDatabaseClient } = CoreCloudflare.database;
 
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
 
