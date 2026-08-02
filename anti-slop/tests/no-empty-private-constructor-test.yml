@@ -1,0 +1,16 @@
+id: no-empty-private-constructor
+valid:
+  - |
+    class Chat {
+      static create() { return new Chat(); }
+    }
+  - |
+    class Chat {
+      private constructor(value: string) { this.value = value; }
+      private value: string;
+    }
+invalid:
+  - |
+    class Chat {
+      private constructor() {}
+    }

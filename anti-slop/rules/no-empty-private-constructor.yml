@@ -1,0 +1,9 @@
+id: no-empty-private-constructor
+language: TypeScript
+files:
+  - packages/core/src/**/*.ts
+  - packages/core/src/**/*.tsx
+message: Static-only domain classes do not need an empty private constructor; dependency-bearing services belong in Effect Context.Service and Layer.
+severity: error
+rule:
+  pattern: class $CLASS { $$$BEFORE private constructor() {} $$$AFTER }
