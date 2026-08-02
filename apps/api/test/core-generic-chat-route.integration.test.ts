@@ -8,7 +8,7 @@ import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import type { CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeLayerRunner, makeSqliteDatabase } from "./sqlite.ts";
 
 const user = {
   id: "core-route-user",

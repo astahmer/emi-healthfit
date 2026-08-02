@@ -202,8 +202,6 @@ export const handleConversationDiagnosticEvent = (
     const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const conversationLayer = ConversationDatabase.layer({ db: conversationDb });
     const generationLayer = GenerationDatabase.layer({ db: conversationDb });
-    const provideConversationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      Effect.provide(effect, conversationLayer);
     const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       Effect.provide(effect, generationLayer);
     const conversationId = getConversationIdFromPath(request.url) ?? "";
