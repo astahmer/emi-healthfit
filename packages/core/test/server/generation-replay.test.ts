@@ -7,7 +7,7 @@ import {
   createGenerationReplayStream,
   isGenerationStale,
   type ChatGeneration,
-} from "../../src/server/index.ts";
+} from "../../src/server/legacy/index.ts";
 
 const generation = (
   status: ChatGeneration["status"],

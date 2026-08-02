@@ -19,6 +19,7 @@ const walk = async (directory: string): Promise<string[]> => {
 };
 
 const forbiddenPatterns = ["apps/chat", "apps/api", "healthfit", "flavor-healthfit"];
+const primaryServerEntry = join(srcRoot, "index.ts");
 
 describe("core-server boundary", () => {
   it("never imports the chat app, the API worker, or healthfit flavor code", async () => {
@@ -32,5 +33,11 @@ describe("core-server boundary", () => {
       }
     }
     assert.deepEqual(violations, []);
+  });
+
+  it("keeps the primary server entry curated and platform-neutral", async () => {
+    const source = await readFile(primaryServerEntry, "utf8");
+    assert.doesNotMatch(source, /export \*/);
+    assert.doesNotMatch(source, /(?:database|drizzle|kysely|cloudflare|ai)/i);
   });
 });

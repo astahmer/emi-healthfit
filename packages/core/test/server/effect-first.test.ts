@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Effect } from "effect";
+import * as Exit from "effect/Exit";
 import * as Stream from "effect/Stream";
-import { ChatServer } from "../../src/server/index.ts";
+import { ChatServer, ChatServerError } from "../../src/server/index.ts";
+import type { ChatServerOptions } from "../../src/server/index.ts";
 import { ChatServerEffect } from "../../src/server/effect/index.ts";
 import { ChatFetchHandlers } from "../../src/server/fetch/index.ts";
 
@@ -13,7 +15,7 @@ const message = {
   createdAt: "2026-08-02T00:00:00.000Z",
 };
 
-const makeOptions = (events: Array<string>) => ({
+const makeOptions = (events: Array<string>): ChatServerOptions => ({
   auth: {
     authenticate: () =>
       Effect.sync(() => {
@@ -111,6 +113,61 @@ describe("@emi/core/server Effect-first surface", () => {
     ]);
   });
 
+  it("keeps admission conflicts typed and prevents orphan message persistence", async () => {
+    const events: Array<string> = [];
+    const baseOptions = makeOptions(events);
+    const options: ChatServerOptions = {
+      ...baseOptions,
+      repositories: {
+        ...baseOptions.repositories,
+        generations: {
+          ...baseOptions.repositories.generations,
+          admit: () => {
+            events.push("generations.admit");
+            return Effect.fail(
+              new ChatServerError({
+                kind: "conflict",
+                message: "A generation is already active.",
+              }),
+            );
+          },
+        },
+      },
+    };
+    const server = new ChatServer(options);
+    const exit = await Effect.runPromiseExit(
+      Stream.runCollect(
+        server.generate(new Request("https://example.test/api/chat"), {
+          requestId: "request-1",
+          conversationId: "conversation-1",
+          message,
+        }),
+      ),
+    );
+
+    assert.equal(Exit.isFailure(exit), true);
+    if (Exit.isFailure(exit)) assert.match(String(exit.cause), /ChatServerError/);
+    assert.deepEqual(events, ["auth", "generations.admit"]);
+  });
+
+  it("decodes generation input before calling injected ports", async () => {
+    const events: Array<string> = [];
+    const server = new ChatServer(makeOptions(events));
+    const exit = await Effect.runPromiseExit(
+      Stream.runCollect(
+        server.generate(new Request("https://example.test/api/chat"), {
+          requestId: "",
+          conversationId: "conversation-1",
+          message,
+        }),
+      ),
+    );
+
+    assert.equal(Exit.isFailure(exit), true);
+    if (Exit.isFailure(exit)) assert.match(String(exit.cause), /ChatServerError/);
+    assert.deepEqual(events, []);
+  });
+
   it("derives a Promise Fetch adapter from the server Effect", async () => {
     const server = new ChatServer(makeOptions([]));
     const response = await new ChatFetchHandlers(server).handle(
@@ -128,5 +185,30 @@ describe("@emi/core/server Effect-first surface", () => {
         updatedAt: "2026-08-02T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("maps typed server failures at the Promise adapter boundary", async () => {
+    const baseOptions = makeOptions([]);
+    const options: ChatServerOptions = {
+      ...baseOptions,
+      auth: {
+        ...baseOptions.auth,
+        authenticate: () =>
+          Effect.fail(
+            new ChatServerError({
+              kind: "unauthorized",
+              message: "Sign in required.",
+            }),
+          ),
+      },
+    };
+    const response = await new ChatFetchHandlers(new ChatServer(options)).handle(
+      new Request("https://example.test/api/conversations"),
+    );
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      error: { kind: "unauthorized", message: "Sign in required." },
+    });
   });
 });

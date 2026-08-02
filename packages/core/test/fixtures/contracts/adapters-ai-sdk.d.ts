@@ -6,6 +6,7 @@ export interface AiSdkModelConfiguration {
   readonly baseUrl?: string;
 }
 
-export declare const createAiSdkModelProvider: (
-  configuration: AiSdkModelConfiguration,
-) => ModelProvider;
+export declare class AiSdkModelProvider {
+  private constructor();
+  static create(configuration: AiSdkModelConfiguration): ModelProvider;
+}

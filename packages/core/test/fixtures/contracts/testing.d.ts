@@ -7,6 +7,9 @@ export interface DeterministicDependencies {
   readonly fetch: typeof globalThis.fetch;
 }
 
-export declare const createInMemoryRepositories: () => ChatRepositories;
-export declare const createDeterministicDependencies: () => DeterministicDependencies;
-export declare const createTestChatRuntime: (options: ChatRuntimeOptions) => ChatRuntime;
+export declare class ChatTesting {
+  private constructor();
+  static inMemoryRepositories(): ChatRepositories;
+  static deterministicDependencies(): DeterministicDependencies;
+  static createRuntime(options: ChatRuntimeOptions): ChatRuntime;
+}

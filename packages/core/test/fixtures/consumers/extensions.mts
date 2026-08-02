@@ -1,10 +1,10 @@
 // @ts-ignore R0 target entrypoint is implemented in a later packet.
-import { composeChatExtensions, defineChatExtension } from "@emi/core/extensions";
+import { ChatExtensions } from "@emi/core/extensions";
 
-const extension = defineChatExtension({
+const extension = ChatExtensions.define({
   id: "example",
   parts: { "example.card": {} },
 });
-const extensions = composeChatExtensions([extension]);
+const extensions = ChatExtensions.compose([extension]);
 
 void extensions;

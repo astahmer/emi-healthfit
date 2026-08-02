@@ -13,7 +13,7 @@ import {
   unlinkDiscordAccountByDiscordUserId,
   type DiscordDatabaseSchema,
   type QueryDatabaseClient,
-} from "../../src/server/index.ts";
+} from "../../src/server/legacy/index.ts";
 
 const schemaDdl = `
   CREATE TABLE discord_account_links (

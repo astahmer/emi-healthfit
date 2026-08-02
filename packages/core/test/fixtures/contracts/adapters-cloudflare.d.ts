@@ -10,6 +10,7 @@ export interface CloudflareAdapterOptions {
   readonly database: CloudflareDatabase;
 }
 
-export declare const createCloudflareRepositories: (
-  options: CloudflareAdapterOptions,
-) => ChatRepositories;
+export declare class CloudflareRepositories {
+  private constructor();
+  static fromDatabase(options: CloudflareAdapterOptions): ChatRepositories;
+}

@@ -9,8 +9,8 @@ export interface ChatExtension extends ChatExtensionDefinition {
   readonly namespace: string;
 }
 
-export declare const defineChatExtension: (definition: ChatExtensionDefinition) => ChatExtension;
-
-export declare const composeChatExtensions: (
-  extensions: ReadonlyArray<ChatExtension>,
-) => ReadonlyArray<ChatExtension>;
+export declare class ChatExtensions {
+  private constructor();
+  static define(definition: ChatExtensionDefinition): ChatExtension;
+  static compose(extensions: ReadonlyArray<ChatExtension>): ReadonlyArray<ChatExtension>;
+}

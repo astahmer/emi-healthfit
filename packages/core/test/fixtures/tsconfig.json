@@ -10,6 +10,9 @@
     "skipLibCheck": true,
     "paths": {
       "@emi/core": ["./contracts/root.d.ts"],
+      "@emi/core/server": ["./contracts/server.d.ts"],
+      "@emi/core/server/effect": ["./contracts/server-effect.d.ts"],
+      "@emi/core/server/fetch": ["./contracts/server-fetch.d.ts"],
       "@emi/core/styles.css": ["./contracts/styles.css.d.ts"],
       "@emi/core/*": ["./contracts/*.d.ts"]
     },
