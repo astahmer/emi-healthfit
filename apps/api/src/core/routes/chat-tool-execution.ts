@@ -107,12 +107,10 @@ export const createChatToolExecutor = ({
             args,
             ...(isTemporary ? {} : { conversationId: sessionId }),
             summarize: (messages) =>
-              Effect.promise(() =>
-                Chat.generation.generateConversationSummary({
-                  configuration: { apiKey, baseUrl, model },
-                  messages,
-                }),
-              ),
+              Chat.generation.generateConversationSummaryEffect({
+                configuration: { apiKey, baseUrl, model },
+                messages,
+              }),
           }),
         ),
         Effect.tap((output) =>

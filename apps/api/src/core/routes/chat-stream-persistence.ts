@@ -71,6 +71,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
       new ChatStreamPersistenceError({
         message: cause instanceof Error ? cause.message : String(cause),
       }),
+    releaseLockOnEnd: true,
   }).pipe(
     Stream.zipWithIndex,
     Stream.runForEach(([chunk, sequence]) =>

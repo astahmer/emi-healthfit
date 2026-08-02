@@ -1,4 +1,5 @@
 import { Chat, type OpenAiCompatibleConfiguration } from "@emi/core/chat";
+import * as Effect from "effect/Effect";
 import type { StreamTextOnChunkCallback, ToolSet, UIMessage } from "ai";
 import type { JSONSchema7 } from "json-schema";
 
@@ -18,20 +19,27 @@ export interface ChatStreamRequest {
   requestId?: string | undefined;
 }
 
-export const createChatStream = (options: {
+type ChatStreamOptions = {
   request: ChatStreamRequest;
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
-  onFinish?: Parameters<typeof Chat.stream.createChatStream>[0]["onFinish"];
+  onFinish?: Parameters<typeof Chat.stream.createChatStreamEffect>[0]["onFinish"];
   onChunk?: StreamTextOnChunkCallback<ToolSet>;
   onError?: (error: unknown) => void | Promise<void>;
-}) =>
-  Chat.stream.createChatStream({
-    ...options,
-    request: {
-      messages: options.request.messages,
-      system: options.request.system,
-      tools: options.request.tools,
-      configuration: options.request.config,
-      webSearch: options.request.webSearch,
-    },
-  });
+};
+
+const toCoreOptions = (options: ChatStreamOptions) => ({
+  ...options,
+  request: {
+    messages: options.request.messages,
+    system: options.request.system,
+    tools: options.request.tools,
+    configuration: options.request.config,
+    webSearch: options.request.webSearch,
+  },
+});
+
+export const createChatStreamEffect = (options: ChatStreamOptions) =>
+  Chat.stream.createChatStreamEffect(toCoreOptions(options));
+
+export const createChatStream = (options: ChatStreamOptions) =>
+  Effect.runPromise(createChatStreamEffect(options));

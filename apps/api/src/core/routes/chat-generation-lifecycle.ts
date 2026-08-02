@@ -11,7 +11,7 @@ import { safeValidateUIMessages, type UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { createChatStream, type ChatStreamRequest } from "../chat/ai-sdk.ts";
+import { createChatStreamEffect, type ChatStreamRequest } from "../chat/ai-sdk.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
@@ -442,190 +442,186 @@ export const handleAiSdkChat = (
     let previousProviderChunkAt = requestStartedAt;
     let providerChunkCount = 0;
 
-    const result = yield* Effect.promise(() =>
-      createChatStream({
-        request: {
-          ...requestWithHistory,
-          system: appendMemoryContext({
-            system: requestWithHistory.coachMode
-              ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
-              : requestWithHistory.system,
-            summary: memorySummary,
+    const result = yield* createChatStreamEffect({
+      request: {
+        ...requestWithHistory,
+        system: appendMemoryContext({
+          system: requestWithHistory.coachMode
+            ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
+            : requestWithHistory.system,
+          summary: memorySummary,
+        }),
+      },
+      executeTool: executeToolWithServices,
+      onChunk: ({ chunk }) => {
+        const timestamp = performance.now();
+        Effect.runSync(
+          Effect.logDebug("chat.provider.chunk").pipe(
+            Effect.annotateLogs({
+              sessionId,
+              generationId,
+              requestId,
+              traceId,
+              chunkType: chunk.type,
+              chunkIndex: providerChunkCount,
+              timeToFirstChunkMilliseconds:
+                providerChunkCount === 0 ? Math.round(timestamp - requestStartedAt) : undefined,
+              interChunkLatencyMilliseconds:
+                providerChunkCount === 0
+                  ? undefined
+                  : Math.round(timestamp - previousProviderChunkAt),
+            }),
+          ),
+        );
+        providerChunkCount += 1;
+        previousProviderChunkAt = timestamp;
+      },
+      onError: async (error) => {
+        if (isTemporary) return;
+        await Effect.runPromise(
+          recordEvent("provider.failed", {
+            error: error instanceof Error ? error.message : String(error),
           }),
-        },
-        executeTool: executeToolWithServices,
-        onChunk: ({ chunk }) => {
-          const timestamp = performance.now();
-          Effect.runSync(
-            Effect.logDebug("chat.provider.chunk").pipe(
+        );
+      },
+      onFinish: async (event) => {
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            const structuredAssistantParts = yield* Chat.messages.buildAssistantPartsEffect(
+              event.response?.messages ?? [],
+            );
+            const assistantParts =
+              structuredAssistantParts.length > 0
+                ? structuredAssistantParts
+                : Schema.is(Content)(event.text)
+                  ? [{ type: "text", text: event.text }]
+                  : [];
+
+            yield* Effect.logInfo("chat.generation.finished").pipe(
               Effect.annotateLogs({
                 sessionId,
-                generationId,
-                requestId,
-                traceId,
-                chunkType: chunk.type,
-                chunkIndex: providerChunkCount,
-                timeToFirstChunkMilliseconds:
-                  providerChunkCount === 0 ? Math.round(timestamp - requestStartedAt) : undefined,
-                interChunkLatencyMilliseconds:
-                  providerChunkCount === 0
-                    ? undefined
-                    : Math.round(timestamp - previousProviderChunkAt),
+                assistantParts: assistantParts.length,
+                textLength: event.text.length,
+                promptTokens: event.usage.inputTokens,
+                completionTokens: event.usage.outputTokens,
+                finishReason: event.finishReason,
               }),
-            ),
-          );
-          providerChunkCount += 1;
-          previousProviderChunkAt = timestamp;
-        },
-        onError: async (error) => {
-          if (isTemporary) return;
-          await Effect.runPromise(
-            recordEvent("provider.failed", {
-              error: error instanceof Error ? error.message : String(error),
-            }),
-          );
-        },
-        onFinish: async (event) => {
-          await Effect.runPromise(
-            Effect.gen(function* () {
-              const structuredAssistantParts = Chat.messages.buildAssistantParts(
-                event.response?.messages ?? [],
-              );
-              const assistantParts =
-                structuredAssistantParts.length > 0
-                  ? structuredAssistantParts
-                  : Schema.is(Content)(event.text)
-                    ? [{ type: "text", text: event.text }]
-                    : [];
+            );
 
-              yield* Effect.logInfo("chat.generation.finished").pipe(
-                Effect.annotateLogs({
-                  sessionId,
-                  assistantParts: assistantParts.length,
-                  textLength: event.text.length,
-                  promptTokens: event.usage.inputTokens,
-                  completionTokens: event.usage.outputTokens,
-                  finishReason: event.finishReason,
-                }),
-              );
+            if (!isTemporary && assistantParts.length === 0) {
+              yield* generationDatabase.finishGeneration({
+                userId: user.id,
+                generationId,
+                status: "failed",
+                error: "Provider completed without assistant output",
+                finishReason: event.finishReason,
+              });
+              yield* recordEvent("generation.failed", {
+                error: "Provider completed without assistant output",
+                finishReason: event.finishReason,
+              });
+              return;
+            }
 
-              if (!isTemporary && assistantParts.length === 0) {
-                yield* generationDatabase.finishGeneration({
-                  userId: user.id,
-                  generationId,
-                  status: "failed",
-                  error: "Provider completed without assistant output",
-                  finishReason: event.finishReason,
-                });
-                yield* recordEvent("generation.failed", {
-                  error: "Provider completed without assistant output",
-                  finishReason: event.finishReason,
-                });
-                return;
-              }
-
-              if (!isTemporary) {
-                const assistantIds = yield* conversationDatabase.saveConversationMessages({
-                  userId: user.id,
-                  conversationId: sessionId,
-                  parentId:
-                    thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
-                  messages: [
-                    {
-                      role: "assistant",
-                      parts: assistantParts,
-                      usage: {
-                        prompt_tokens: event.usage.inputTokens,
-                        completion_tokens: event.usage.outputTokens,
-                        total_tokens: event.usage.totalTokens,
-                      },
-                      model: chatRequest.config.model,
+            if (!isTemporary) {
+              const assistantIds = yield* conversationDatabase.saveConversationMessages({
+                userId: user.id,
+                conversationId: sessionId,
+                parentId:
+                  thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
+                messages: [
+                  {
+                    role: "assistant",
+                    parts: assistantParts,
+                    usage: {
+                      prompt_tokens: event.usage.inputTokens,
+                      completion_tokens: event.usage.outputTokens,
+                      total_tokens: event.usage.totalTokens,
                     },
-                  ],
-                });
-                if (thread !== null) {
-                  yield* Effect.forEach(
-                    assistantIds,
-                    (messageId) =>
-                      conversationDatabase.addThreadMessage({
-                        userId: user.id,
-                        threadId: thread.id,
-                        messageId,
-                      }),
-                    { discard: true },
-                  );
-                }
-              }
-
-              if (!isTemporary) {
-                yield* generationDatabase.finishGeneration({
-                  userId: user.id,
-                  generationId,
-                  status: "completed",
-                  finishReason: event.finishReason,
-                  inputTokens: event.usage.inputTokens ?? 0,
-                  outputTokens: event.usage.outputTokens ?? 0,
-                });
-                yield* recordEvent("provider.finished", {
-                  finishReason: event.finishReason,
-                  inputTokens: event.usage.inputTokens,
-                  outputTokens: event.usage.outputTokens,
-                });
-              }
-
-              if (executionContext === undefined) return;
-              const firstUserText = getFirstUserText(incomingMessages);
-              if (firstUserText === undefined) return;
-              executionContext.waitUntil(
-                Effect.runPromise(
-                  Effect.gen(function* () {
-                    const conversation = yield* conversationDatabase.getConversation({
+                    model: chatRequest.config.model,
+                  },
+                ],
+              });
+              if (thread !== null) {
+                yield* Effect.forEach(
+                  assistantIds,
+                  (messageId) =>
+                    conversationDatabase.addThreadMessage({
                       userId: user.id,
-                      conversationId: sessionId,
-                    });
-                    if (
-                      conversation === null ||
-                      (conversation.title !== null && Schema.is(Content)(conversation.title))
-                    )
-                      return;
-                    const title = yield* Effect.promise(() =>
-                      Chat.generation.generateConversationTitle({
-                        configuration: {
-                          apiKey,
-                          baseUrl: chatRequest.config.baseUrl,
-                          model: "gpt-4o-mini",
-                        },
-                        firstUserMessage: firstUserText,
-                      }),
-                    );
-                    yield* conversationDatabase.renameConversation({
-                      userId: user.id,
-                      conversationId: sessionId,
-                      title,
-                    });
-                  }).pipe(
-                    Effect.catchCause((cause) =>
-                      Effect.logError("chat.generation.title.failure").pipe(
-                        Effect.annotateLogs({ sessionId, error: Cause.pretty(cause) }),
-                      ),
+                      threadId: thread.id,
+                      messageId,
+                    }),
+                  { discard: true },
+                );
+              }
+            }
+
+            if (!isTemporary) {
+              yield* generationDatabase.finishGeneration({
+                userId: user.id,
+                generationId,
+                status: "completed",
+                finishReason: event.finishReason,
+                inputTokens: event.usage.inputTokens ?? 0,
+                outputTokens: event.usage.outputTokens ?? 0,
+              });
+              yield* recordEvent("provider.finished", {
+                finishReason: event.finishReason,
+                inputTokens: event.usage.inputTokens,
+                outputTokens: event.usage.outputTokens,
+              });
+            }
+
+            if (executionContext === undefined) return;
+            const firstUserText = getFirstUserText(incomingMessages);
+            if (firstUserText === undefined) return;
+            executionContext.waitUntil(
+              Effect.runPromise(
+                Effect.gen(function* () {
+                  const conversation = yield* conversationDatabase.getConversation({
+                    userId: user.id,
+                    conversationId: sessionId,
+                  });
+                  if (
+                    conversation === null ||
+                    (conversation.title !== null && Schema.is(Content)(conversation.title))
+                  )
+                    return;
+                  const title = yield* Chat.generation.generateConversationTitleEffect({
+                    configuration: {
+                      apiKey,
+                      baseUrl: chatRequest.config.baseUrl,
+                      model: "gpt-4o-mini",
+                    },
+                    firstUserMessage: firstUserText,
+                  });
+                  yield* conversationDatabase.renameConversation({
+                    userId: user.id,
+                    conversationId: sessionId,
+                    title,
+                  });
+                }).pipe(
+                  Effect.catchCause((cause) =>
+                    Effect.logError("chat.generation.title.failure").pipe(
+                      Effect.annotateLogs({ sessionId, error: Cause.pretty(cause) }),
                     ),
                   ),
                 ),
-              );
-            }).pipe(
-              Effect.catchCause((cause) =>
-                Effect.logError("chat.generation.onFinish.failure").pipe(
-                  Effect.annotateLogs({
-                    sessionId,
-                    error: Cause.pretty(cause),
-                  }),
-                ),
+              ),
+            );
+          }).pipe(
+            Effect.catchCause((cause) =>
+              Effect.logError("chat.generation.onFinish.failure").pipe(
+                Effect.annotateLogs({
+                  sessionId,
+                  error: Cause.pretty(cause),
+                }),
               ),
             ),
-          );
-        },
-      }),
-    );
+          ),
+        );
+      },
+    });
 
     const uiMessageStream = Chat.stream.toUiMessageStream({ result });
 

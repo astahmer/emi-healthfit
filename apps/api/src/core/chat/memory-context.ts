@@ -28,12 +28,10 @@ export const refreshMemorySummary = Effect.fn("chatMemory.refreshSummary")(funct
 }) {
   const memories = yield* database.getMemories({ userId, options: { limit: 200 } });
   if (memories.length === 0) return undefined;
-  const content = yield* Effect.promise(() =>
-    Chat.memory.generateMemorySummary({
-      configuration: config,
-      memories: memories.map((memory) => memory.content),
-    }),
-  );
+  const content = yield* Chat.memory.generateMemorySummaryEffect({
+    configuration: config,
+    memories: memories.map((memory) => memory.content),
+  });
   if (content === "") return undefined;
   yield* database.upsertMemorySummary({ userId, content, memoryCount: memories.length });
   return content;

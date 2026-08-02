@@ -228,16 +228,14 @@ export const conversationsHandlers = () => {
             if (messages.length === 0) {
               return yield* new BadRequest({ message: "Conversation has no text to compact" });
             }
-            const summary = yield* Effect.promise(() =>
-              Chat.generation.generateConversationSummary({
-                configuration: {
-                  apiKey: payload.apiKey,
-                  baseUrl: payload.baseUrl,
-                  model: payload.model,
-                },
-                messages,
-              }),
-            );
+            const summary = yield* Chat.generation.generateConversationSummaryEffect({
+              configuration: {
+                apiKey: payload.apiKey,
+                baseUrl: payload.baseUrl,
+                model: payload.model,
+              },
+              messages,
+            });
             const title = conversation.title?.trim() || "New chat";
             const compactedId = yield* ConversationDatabase.createConversation({
               userId: user.id,
@@ -538,13 +536,11 @@ export const memoryExtractionHandlers = () => {
             userId: user.id,
             options: { limit: 60 },
           });
-          const snippets = yield* Effect.promise(() =>
-            Chat.memory.extractMemories({
-              configuration: payload.config,
-              text,
-              existingMemories: existingMemories.map((memory) => memory.content),
-            }),
-          );
+          const snippets = yield* Chat.memory.extractMemoriesEffect({
+            configuration: payload.config,
+            text,
+            existingMemories: existingMemories.map((memory) => memory.content),
+          });
           const ids = yield* MemoryDatabase.insertMemories({
             userId: user.id,
             inputs: snippets.map((content) => ({

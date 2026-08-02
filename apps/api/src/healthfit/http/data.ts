@@ -68,13 +68,11 @@ export const suggestionsHandlers = () =>
           if (cached !== null) {
             return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };
           }
-          const suggestions = yield* Effect.promise(() =>
-            Chat.generation.generateSuggestions({
-              configuration: payload.config,
-              lastAssistantText,
-              lastUserText: payload.lastUserText,
-            }),
-          );
+          const suggestions = yield* Chat.generation.generateSuggestionsEffect({
+            configuration: payload.config,
+            lastAssistantText,
+            lastUserText: payload.lastUserText,
+          });
           yield* conversationDatabase.saveSuggestions({
             userId: user.id,
             id: key,
