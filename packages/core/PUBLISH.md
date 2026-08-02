@@ -141,6 +141,12 @@ injected `DatabaseRuntime`; Cloudflare and application edges construct that runt
 platform capabilities. The primary server export has no wildcard exports and does not import D1,
 Drizzle, Kysely, Cloudflare, or AI SDK types.
 
+Generation persistence follows the same advanced adapter boundary: `GenerationReader`,
+`GenerationWriter`, `GenerationChunkReader`, and `GenerationChunkWriter` are separate Effect
+services, and `GenerationStoreLive` binds them to the database implementation. Their contracts use
+provider-neutral generation records and opaque chunk values; AI SDK chunk validation belongs to the
+replay/provider edge.
+
 ## R4-R7 implementation and distribution
 
 `@emi/core/adapters/ai-sdk` maps AI SDK streams to the provider-neutral `ModelProvider` Effect

@@ -6,6 +6,7 @@ import * as Stream from "effect/Stream";
 import { GenerationReplay } from "../../src/server/generation-replay.ts";
 import { GenerationDatabase } from "../../src/server/db/generations.ts";
 import type { ChatGeneration } from "../../src/server/db/generations.ts";
+import type { GenerationRecord } from "../../src/server/ports/generation-store.ts";
 
 const generation = (
   status: ChatGeneration["status"],
@@ -26,6 +27,17 @@ const generation = (
   finished_at: null,
   created_at: "2026-07-14T00:00:00.000Z",
   updated_at: "2026-07-14T00:00:00.000Z",
+});
+
+const generationRecord = (
+  status: GenerationRecord["status"],
+  error: string | null = null,
+): GenerationRecord => ({
+  id: "generation",
+  conversationId: "conversation",
+  requestId: "request",
+  status,
+  error,
 });
 
 describe("generation persistence", () => {
@@ -62,7 +74,7 @@ describe("generation persistence", () => {
       generationId: "generation",
       getChunks: ({ afterSequence }) =>
         Effect.succeed(chunks.filter((item) => item.sequence > afterSequence)),
-      getGeneration: () => Effect.succeed(generation("completed")),
+      getGeneration: () => Effect.succeed(generationRecord("completed")),
     });
     const output = await Effect.runPromise(Stream.runCollect(stream));
     assert.deepEqual(

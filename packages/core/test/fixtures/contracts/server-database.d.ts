@@ -17,6 +17,11 @@ export declare class ServerDatabase {
   static readonly memories: Record<string, (...arguments_: ReadonlyArray<unknown>) => unknown>;
   static readonly query: Record<string, (...arguments_: ReadonlyArray<unknown>) => unknown>;
   static readonly replay: Record<string, (...arguments_: ReadonlyArray<unknown>) => unknown>;
+  static readonly generationReader: Record<string, unknown>;
+  static readonly generationWriter: Record<string, unknown>;
+  static readonly generationChunkReader: Record<string, unknown>;
+  static readonly generationChunkWriter: Record<string, unknown>;
+  static readonly generationStoreLive: Record<string, unknown>;
   static readonly conversationReader: Record<string, unknown>;
   static readonly conversationWriter: Record<string, unknown>;
   static readonly messageStore: Record<string, unknown>;
@@ -36,6 +41,8 @@ export declare namespace ServerDatabase {
   type ConversationDatabaseSchema = unknown;
   type DiscordDatabaseSchema = unknown;
   type MemoryDatabaseSchema = unknown;
+  type GenerationRecord = unknown;
+  type GenerationChunkRecord = unknown;
   type QueryDatabaseClient<TSchema = unknown, TEnvironment = never> = ServerDatabaseQueryClient<
     TSchema,
     TEnvironment

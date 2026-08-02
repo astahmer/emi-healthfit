@@ -155,6 +155,13 @@ const createGenerationReplayResponse = ({
   services: Context.Context<RuntimeContext>;
 }) => {
   const conversationDb = db;
+  const toReplayGeneration = (current: ChatGeneration): ServerDatabase.GenerationRecord => ({
+    id: current.id,
+    conversationId: current.conversation_id,
+    requestId: current.request_id,
+    status: current.status,
+    error: current.error,
+  });
   const response = Chat.stream.createChatStreamResponse({
     stream: Stream.toReadableStreamWith(
       ServerDatabase.replay.stream({
@@ -165,7 +172,9 @@ const createGenerationReplayResponse = ({
           Effect.gen(function* () {
             const current = yield* getGeneration({ db: conversationDb, userId, generationId });
             const now = yield* Effect.clockWith((clock) => clock.currentTimeMillis);
-            if (current === null || !isGenerationStale(current, now)) return current;
+            if (current === null || !isGenerationStale(current, now)) {
+              return current === null ? null : toReplayGeneration(current);
+            }
             yield* finishGeneration({
               db: conversationDb,
               userId,
@@ -173,7 +182,11 @@ const createGenerationReplayResponse = ({
               status: "failed",
               error: "Generation timed out",
             });
-            return { ...current, status: "failed", error: "Generation timed out" };
+            return toReplayGeneration({
+              ...current,
+              status: "failed",
+              error: "Generation timed out",
+            });
           }),
         poll: Effect.sleep("1 second"),
       }),

@@ -5,36 +5,26 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { ServerDatabase } from "@emi/core/server/database";
 
-type ChatGeneration = ServerDatabase.ChatGeneration;
+type GenerationStatus = ServerDatabase.GenerationRecord["status"];
 
 const generation = (
-  status: ChatGeneration["status"],
+  status: GenerationStatus,
   error: string | null = null,
-): ChatGeneration => ({
+): ServerDatabase.GenerationRecord => ({
   id: "generation",
-  conversation_id: "conversation",
-  request_id: "request",
-  trace_id: "trace",
+  conversationId: "conversation",
+  requestId: "request",
   status,
   error,
-  finish_reason: null,
-  model: null,
-  input_tokens: null,
-  output_tokens: null,
-  retry_count: 0,
-  started_at: "2026-07-14T00:00:00.000Z",
-  finished_at: null,
-  created_at: "2026-07-14T00:00:00.000Z",
-  updated_at: "2026-07-14T00:00:00.000Z",
 });
 
-const readAll = (stream: Stream.Stream<UIMessageChunk>) =>
+const readAll = (stream: Stream.Stream<UIMessageChunk, unknown, never>) =>
   Effect.runPromise(Stream.runCollect(stream));
 
 describe("createGenerationReplayStream", () => {
   it("replays ordered chunks and waits for a running generation to complete", async () => {
     const chunks: Array<{ sequence: number; chunk: UIMessageChunk }> = [];
-    let status: ChatGeneration["status"] = "streaming";
+    let status: GenerationStatus = "streaming";
     let polls = 0;
     const stream = ServerDatabase.replay.stream({
       generationId: "generation",

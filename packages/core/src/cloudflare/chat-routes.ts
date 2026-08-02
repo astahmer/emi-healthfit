@@ -7,26 +7,19 @@ import {
   validateChatAttachments,
 } from "../chat/request.ts";
 import { buildAssistantParts } from "../chat/message-parts.ts";
-import {
-  createChatStream,
-  extractMemories,
-  generateConversationSummary,
-  generateConversationTitle,
-  generateSuggestions,
-  toUiMessageStream,
-} from "../chat/openai.ts";
+import { OpenAiChat, OpenAiCompatibleConfigurationSchema } from "../chat/openai.ts";
 import { createChatStreamResponse } from "../chat/stream-response.ts";
 import { validateStoredUIMessages } from "../chat/ui-messages.ts";
 import { ConversationDatabase } from "../server/db/conversations.ts";
-import { GenerationDatabase } from "../server/db/generations.ts";
-import { GenerationReplay } from "../server/generation-replay.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
+import { GenerationStoreLive } from "../server/make-generation-store.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
+import { GenerationConflictError } from "../server/ports/generation-store.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
+import { ChatRouteGeneration } from "./chat-route-generation.ts";
 import { ChatRouteSupport } from "./chat-route-support.ts";
-import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -55,115 +48,7 @@ const {
   saveConversationMessages,
   updateConversationState,
 } = ConversationDatabase;
-const {
-  appendGenerationChunk,
-  createGeneration,
-  finishGeneration,
-  getGeneration,
-  getGenerationByRequestId,
-  getGenerationChunks,
-  getResumableGeneration,
-  markGenerationStreaming,
-} = GenerationDatabase;
-const createGenerationReplayStream = GenerationReplay.stream;
 type PersistedChatDatabase = ConversationDatabaseSchema & MemoryDatabaseSchema;
-
-const persistGeneration = async ({
-  db,
-  userId,
-  generationId,
-  stream,
-  services,
-}: {
-  db: CloudflareQueryDatabaseClient<ConversationDatabaseSchema>;
-  userId: string;
-  generationId: string;
-  stream: ReadableStream<
-    Awaited<ReturnType<typeof toUiMessageStream>> extends ReadableStream<infer Chunk>
-      ? Chunk
-      : never
-  >;
-  services: Context.Context<RuntimeContext>;
-}) => {
-  const reader = stream.getReader();
-  const run = <Value>(effect: Effect.Effect<Value, never, RuntimeContext>) =>
-    Effect.runPromiseWith(services)(effect);
-  let sequence = 0;
-  let error: string | undefined;
-  let finishReason: string | undefined;
-  let sawFinish = false;
-  try {
-    await run(markGenerationStreaming({ db, userId, generationId }));
-    const persistChunks = async ({
-      sequence: currentSequence,
-      error: currentError,
-      finishReason: currentFinishReason,
-      sawFinish: hasFinish,
-    }: {
-      sequence: number;
-      error: string | undefined;
-      finishReason: string | undefined;
-      sawFinish: boolean;
-    }): Promise<{
-      sequence: number;
-      error: string | undefined;
-      finishReason: string | undefined;
-      sawFinish: boolean;
-    }> => {
-      const next = await reader.read();
-      if (next.done) {
-        return {
-          sequence: currentSequence,
-          error: currentError,
-          finishReason: currentFinishReason,
-          sawFinish: hasFinish,
-        };
-      }
-      await run(
-        appendGenerationChunk({
-          db,
-          userId,
-          generationId,
-          sequence: currentSequence,
-          chunk: next.value,
-        }),
-      );
-      return persistChunks({
-        sequence: currentSequence + 1,
-        error: next.value.type === "error" ? next.value.errorText : currentError,
-        finishReason:
-          next.value.type === "finish"
-            ? "finishReason" in next.value
-              ? next.value.finishReason
-              : undefined
-            : currentFinishReason,
-        sawFinish: hasFinish || next.value.type === "finish",
-      });
-    };
-
-    ({ sequence, error, finishReason, sawFinish } = await persistChunks({
-      sequence,
-      error,
-      finishReason,
-      sawFinish,
-    }));
-    await run(
-      finishGeneration({
-        db,
-        userId,
-        generationId,
-        status: error === undefined && sawFinish ? "completed" : "failed",
-        ...(error === undefined ? {} : { error }),
-        ...(finishReason === undefined ? {} : { finishReason }),
-      }),
-    );
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    await run(finishGeneration({ db, userId, generationId, status: "failed", error: message }));
-  } finally {
-    reader.releaseLock();
-  }
-};
 
 export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
   db,
@@ -175,6 +60,11 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
   const memoryStoreFor = (userId: string) =>
     MemoryStoreLive.shapes({
       db: memoryDb,
+      requestContext: makeRequestContext({ userId }),
+    });
+  const generationStoreFor = (userId: string) =>
+    GenerationStoreLive.shapes({
+      db: conversationDb,
       requestContext: makeRequestContext({ userId }),
     });
 
@@ -304,13 +194,9 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
         { status: 400 },
       );
     }
-    const summary = yield* Effect.tryPromise({
-      try: () =>
-        generateConversationSummary({
-          configuration: decoded.value.config,
-          messages,
-        }),
-      catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
+    const summary = yield* OpenAiChat.generateConversationSummaryEffect({
+      configuration: decoded.value.config,
+      messages,
     });
     if (summary === "") {
       return yield* HttpServerResponse.json(
@@ -382,20 +268,16 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
         { status: 400 },
       );
     }
-    const values = yield* Effect.tryPromise({
-      try: () =>
-        generateSuggestions({
-          configuration: {
-            apiKey: decoded.value.config.apiKey,
-            ...(decoded.value.config.baseUrl === undefined
-              ? {}
-              : { baseUrl: decoded.value.config.baseUrl }),
-            model: decoded.value.config.model,
-          },
-          lastAssistantText: decoded.value.lastAssistantText,
-          lastUserText: decoded.value.lastUserText,
-        }),
-      catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
+    const values = yield* OpenAiChat.generateSuggestionsEffect({
+      configuration: {
+        apiKey: decoded.value.config.apiKey,
+        ...(decoded.value.config.baseUrl === undefined
+          ? {}
+          : { baseUrl: decoded.value.config.baseUrl }),
+        model: decoded.value.config.model,
+      },
+      lastAssistantText: decoded.value.lastAssistantText,
+      lastUserText: decoded.value.lastUserText,
     });
     return yield* HttpServerResponse.json({ suggestions: values });
   });
@@ -528,6 +410,15 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     if (Option.isNone(decoded)) {
       return yield* HttpServerResponse.json({ error: "Invalid chat request" }, { status: 400 });
     }
+    const providerConfiguration = Schema.decodeUnknownOption(OpenAiCompatibleConfigurationSchema)(
+      decoded.value.config,
+    );
+    if (Option.isNone(providerConfiguration)) {
+      return yield* HttpServerResponse.json(
+        { error: `Unsupported model provider: ${decoded.value.config.provider}` },
+        { status: 400 },
+      );
+    }
 
     const attachmentError = validateChatAttachments(
       decoded.value.messages.flatMap((message) =>
@@ -561,6 +452,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       model: decoded.value.memory?.model ?? decoded.value.config.model,
     };
     const memoryStore = memoryStoreFor(user.id);
+    const generationStore = generationStoreFor(user.id);
     const requestId = decoded.value.requestId ?? crypto.randomUUID();
     const conversationId = temporary
       ? "temp_" + crypto.randomUUID()
@@ -571,9 +463,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
       if (existingConversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
-      const existingGeneration = yield* getGenerationByRequestId({
-        db: conversationDb,
-        userId: user.id,
+      const existingGeneration = yield* generationStore.reader.getByRequestId({
         conversationId,
         requestId,
       });
@@ -606,9 +496,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
 
     const generationId = crypto.randomUUID();
     if (!temporary) {
-      yield* createGeneration({
-        db: conversationDb,
-        userId: user.id,
+      yield* generationStore.writer.create({
         generationId,
         conversationId,
         requestId,
@@ -622,13 +510,13 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     const markGenerationFailed = (cause: unknown) =>
       temporary
         ? Effect.void
-        : finishGeneration({
-            db: conversationDb,
-            userId: user.id,
-            generationId,
-            status: "failed",
-            error: cause instanceof Error ? cause.message : String(cause),
-          }).pipe(Effect.catch(() => Effect.void));
+        : generationStore.writer
+            .finish({
+              generationId,
+              status: "failed",
+              error: cause instanceof Error ? cause.message : String(cause),
+            })
+            .pipe(Effect.catch(() => Effect.void));
     if (!temporary && lastMessage?.role === "user") {
       yield* Effect.gen(function* () {
         const savedUserIds = yield* saveConversationMessages(
@@ -658,115 +546,104 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
             summary: memoryStore.summary,
             configuration: memoryConfiguration,
           }).pipe(Effect.catch(() => Effect.succeed(undefined)));
-    const result = yield* Effect.tryPromise({
-      try: () =>
-        createChatStream({
-          request: {
-            messages,
-            system: ChatRouteSupport.appendMemoryContext({
-              system: decoded.value.system,
-              summary: memorySummary,
-            }),
-            configuration: decoded.value.config,
-            webSearch: decoded.value.webSearch,
-          },
-          executeTool: async () => {
-            throw new Error("No tools are configured for this chat.");
-          },
-          onFinish: async (event) => {
-            if (temporary) return;
-            const parts = buildAssistantParts(event.response?.messages ?? []);
-            const assistantParts = parts.length > 0 ? parts : [{ type: "text", text: event.text }];
-            const savedAssistantIds = await Effect.runPromiseWith(services)(
-              saveConversationMessages(conversationDb, user.id, conversationId, assistantParentId, [
-                {
-                  role: "assistant",
-                  parts: assistantParts,
-                  model: decoded.value.config.model,
-                  usage: {
-                    prompt_tokens: event.usage.inputTokens,
-                    completion_tokens: event.usage.outputTokens,
-                    total_tokens: event.usage.totalTokens,
-                  },
-                },
-              ]),
-            );
-            if (existingThread !== null) {
-              await Effect.runPromiseWith(services)(
-                Effect.forEach(
-                  savedAssistantIds,
-                  (messageId) =>
-                    addThreadMessage(conversationDb, user.id, existingThread.id, messageId),
-                  { discard: true },
-                ),
-              );
-            }
-            if (memoryEnabled && event.text.trim() !== "") {
-              await Effect.runPromiseWith(services)(
-                Effect.gen(function* () {
-                  const existingMemories = yield* memoryStore.reader.list({ limit: 60 });
-                  const snippets = yield* Effect.tryPromise({
-                    try: () =>
-                      extractMemories({
-                        configuration: memoryConfiguration,
-                        text: event.text,
-                        existingMemories: existingMemories.map(
-                          (memoryRecord) => memoryRecord.content,
-                        ),
-                      }),
-                    catch: (cause) =>
-                      new Error(cause instanceof Error ? cause.message : String(cause)),
-                  });
-                  const ids = yield* memoryStore.writer.insertMany(
-                    snippets.map((content) => ({
-                      content,
-                      source: "auto",
-                      threadId: existingThread?.id,
-                      messageId: savedAssistantIds.at(-1),
-                    })),
-                  );
-                  if (ids.length === 0) return;
-                  yield* ChatRouteSupport.refreshMemorySummary({
-                    reader: memoryStore.reader,
-                    summary: memoryStore.summary,
-                    configuration: memoryConfiguration,
-                  });
-                }).pipe(Effect.catch(() => Effect.void)),
-              );
-            }
-            if (titleSource !== undefined) {
-              const storedConversation = await Effect.runPromiseWith(services)(
-                getConversation(conversationDb, user.id, conversationId),
-              );
-              if (storedConversation?.title === null) {
-                const title = await generateConversationTitle({
-                  configuration: {
-                    apiKey: decoded.value.config.apiKey,
-                    baseUrl: decoded.value.config.baseUrl,
-                    model: decoded.value.title?.model ?? "gpt-4o-mini",
-                  },
-                  firstUserMessage: titleSource,
-                  prompt: decoded.value.title?.prompt,
-                });
-                if (title !== "") {
-                  await Effect.runPromiseWith(services)(
-                    renameConversation(conversationDb, user.id, conversationId, title),
-                  );
-                }
-              }
-            }
-          },
+    const result = yield* OpenAiChat.createChatStreamEffect({
+      request: {
+        messages,
+        system: ChatRouteSupport.appendMemoryContext({
+          system: decoded.value.system,
+          summary: memorySummary,
         }),
-      catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
+        configuration: providerConfiguration.value,
+        webSearch: decoded.value.webSearch,
+      },
+      executeTool: async () => {
+        throw new Error("No tools are configured for this chat.");
+      },
+      onFinish: async (event) => {
+        if (temporary) return;
+        const parts = buildAssistantParts(event.response?.messages ?? []);
+        const assistantParts = parts.length > 0 ? parts : [{ type: "text", text: event.text }];
+        const savedAssistantIds = await Effect.runPromiseWith(services)(
+          saveConversationMessages(conversationDb, user.id, conversationId, assistantParentId, [
+            {
+              role: "assistant",
+              parts: assistantParts,
+              model: decoded.value.config.model,
+              usage: {
+                prompt_tokens: event.usage.inputTokens,
+                completion_tokens: event.usage.outputTokens,
+                total_tokens: event.usage.totalTokens,
+              },
+            },
+          ]),
+        );
+        if (existingThread !== null) {
+          await Effect.runPromiseWith(services)(
+            Effect.forEach(
+              savedAssistantIds,
+              (messageId) =>
+                addThreadMessage(conversationDb, user.id, existingThread.id, messageId),
+              { discard: true },
+            ),
+          );
+        }
+        if (memoryEnabled && event.text.trim() !== "") {
+          await Effect.runPromiseWith(services)(
+            Effect.gen(function* () {
+              const existingMemories = yield* memoryStore.reader.list({ limit: 60 });
+              const snippets = yield* OpenAiChat.extractMemoriesEffect({
+                configuration: memoryConfiguration,
+                text: event.text,
+                existingMemories: existingMemories.map((memoryRecord) => memoryRecord.content),
+              });
+              const ids = yield* memoryStore.writer.insertMany(
+                snippets.map((content) => ({
+                  content,
+                  source: "auto",
+                  threadId: existingThread?.id,
+                  messageId: savedAssistantIds.at(-1),
+                })),
+              );
+              if (ids.length === 0) return;
+              yield* ChatRouteSupport.refreshMemorySummary({
+                reader: memoryStore.reader,
+                summary: memoryStore.summary,
+                configuration: memoryConfiguration,
+              });
+            }).pipe(Effect.catch(() => Effect.void)),
+          );
+        }
+        if (titleSource !== undefined) {
+          const storedConversation = await Effect.runPromiseWith(services)(
+            getConversation(conversationDb, user.id, conversationId),
+          );
+          if (storedConversation?.title === null) {
+            const title = await OpenAiChat.generateConversationTitle({
+              configuration: {
+                apiKey: decoded.value.config.apiKey,
+                baseUrl: decoded.value.config.baseUrl,
+                model: decoded.value.title?.model ?? "gpt-4o-mini",
+              },
+              firstUserMessage: titleSource,
+              prompt: decoded.value.title?.prompt,
+            });
+            if (title !== "") {
+              await Effect.runPromiseWith(services)(
+                renameConversation(conversationDb, user.id, conversationId, title),
+              );
+            }
+          }
+        }
+      },
     }).pipe(Effect.tapError(markGenerationFailed));
-    const stream = toUiMessageStream({ result });
+    const stream = OpenAiChat.toUiMessageStream({ result });
     if (!temporary) {
       const streams = stream.tee();
       const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
       executionContext.waitUntil(
-        persistGeneration({
-          db: conversationDb,
-          userId: user.id,
+        ChatRouteGeneration.persist({
+          writer: generationStore.writer,
+          chunkWriter: generationStore.chunkWriter,
           generationId,
           stream: streams[1],
           services,
@@ -795,8 +672,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
   const chat = (request: HttpServerRequest) =>
     chatEffect(request).pipe(
       Effect.catchIf(
-        (error): error is InstanceType<typeof GenerationDatabase.GenerationAlreadyActiveError> =>
-          error instanceof GenerationDatabase.GenerationAlreadyActiveError,
+        (error): error is GenerationConflictError => error instanceof GenerationConflictError,
         (error) =>
           HttpServerResponse.json(
             { error: "A generation is already running", generationId: error.generationId },
@@ -808,26 +684,20 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
   const resume = ({ conversationId }: { conversationId: string }) =>
     Effect.fn("core.chat.resume")(function* () {
       const user = yield* CurrentUser;
-      const generation = yield* getResumableGeneration({
-        db: conversationDb,
-        userId: user.id,
-        conversationId,
-      });
+      const generationStore = generationStoreFor(user.id);
+      const generation = yield* generationStore.reader.getResumable(conversationId);
       if (generation === null) return HttpServerResponse.empty({ status: 204 });
 
       const services = yield* Effect.context<RuntimeContext>();
       const stream = Stream.toReadableStreamWith(
-        createGenerationReplayStream({
+        ChatRouteGeneration.replay({
           generationId: generation.id,
           getChunks: ({ generationId, afterSequence }) =>
-            getGenerationChunks({
-              db: conversationDb,
-              userId: user.id,
+            generationStore.chunkReader.getChunks({
               generationId,
               afterSequence,
             }),
-          getGeneration: (generationId) =>
-            getGeneration({ db: conversationDb, userId: user.id, generationId }),
+          getGeneration: (generationId) => generationStore.reader.get(generationId),
         }),
         services,
       );
@@ -837,7 +707,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
           headers: {
             "x-conversation-id": conversationId,
             "x-generation-id": generation.id,
-            "x-request-id": generation.request_id,
+            "x-request-id": generation.requestId,
           },
         }),
       );

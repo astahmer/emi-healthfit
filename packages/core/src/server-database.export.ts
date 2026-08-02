@@ -50,6 +50,27 @@ import type {
   StoredGenerationChunk as StoredGenerationChunkRecord,
 } from "./server/db/generations.ts";
 import { GenerationReplay } from "./server/generation-replay.ts";
+import { GenerationStoreLive } from "./server/make-generation-store.ts";
+import {
+  GenerationChunkReader,
+  GenerationChunkWriter,
+  GenerationConflictError,
+  GenerationReader,
+  GenerationWriter,
+} from "./server/ports/generation-store.ts";
+import type {
+  CreateGenerationInput as CreateGenerationRecord,
+  FinishGenerationInput as FinishGenerationRecord,
+  GenerationChunkReaderShape as GenerationChunkReaderRecord,
+  GenerationChunkRecord as GenerationChunkRecordType,
+  GenerationChunkWriterShape as GenerationChunkWriterRecord,
+  GenerationError as GenerationErrorRecord,
+  GenerationReaderShape as GenerationReaderRecord,
+  GenerationRecord as GenerationRecordType,
+  GenerationStatus as GenerationStatusRecord,
+  GenerationStoreError as GenerationStoreErrorRecord,
+  GenerationWriterShape as GenerationWriterRecord,
+} from "./server/ports/generation-store.ts";
 import { MemoryDatabase } from "./server/db/memories.ts";
 import type {
   MemoryInput as MemoryInputRecord,
@@ -104,6 +125,11 @@ export class ServerDatabase {
   static readonly memories = MemoryDatabase;
   static readonly query = QueryDatabase;
   static readonly replay = GenerationReplay;
+  static readonly generationReader = GenerationReader;
+  static readonly generationWriter = GenerationWriter;
+  static readonly generationChunkReader = GenerationChunkReader;
+  static readonly generationChunkWriter = GenerationChunkWriter;
+  static readonly generationStoreLive = GenerationStoreLive;
   static readonly conversationReader = ConversationReader;
   static readonly conversationWriter = ConversationWriter;
   static readonly messageStore = MessageStore;
@@ -115,6 +141,7 @@ export class ServerDatabase {
   static readonly memoryStoreLive = MemoryStoreLive;
   static readonly errors = {
     generationAlreadyActive: GenerationAlreadyActiveError,
+    generationConflict: GenerationConflictError,
   } as const;
   static readonly tables = {
     auth: {
@@ -150,6 +177,7 @@ export namespace ServerDatabase {
   export type AppIdentity = AppIdentityRecord;
   export type AuthDatabaseSchema = AuthDatabaseSchemaRecord;
   export type ChatGeneration = ChatGenerationRecord;
+  export type CreateGenerationInput = CreateGenerationRecord;
   export type ConsumeDiscordLinkCodeResult = ConsumeDiscordLinkCodeRecord;
   export type Conversation = ConversationRecord;
   export type ConversationDatabaseSchema = ConversationDatabaseSchemaRecord;
@@ -186,6 +214,18 @@ export namespace ServerDatabase {
   export type SaveMessagesInput = SaveMessagesRecord;
   export type MessageStoreShape<TEnvironment = never> = MessageStoreRecord<TEnvironment>;
   export type StoredGenerationChunk = StoredGenerationChunkRecord;
+  export type FinishGenerationInput = FinishGenerationRecord;
+  export type GenerationChunkReaderShape<TEnvironment = never> =
+    GenerationChunkReaderRecord<TEnvironment>;
+  export type GenerationChunkRecord = GenerationChunkRecordType;
+  export type GenerationChunkWriterShape<TEnvironment = never> =
+    GenerationChunkWriterRecord<TEnvironment>;
+  export type GenerationError = GenerationErrorRecord;
+  export type GenerationReaderShape<TEnvironment = never> = GenerationReaderRecord<TEnvironment>;
+  export type GenerationRecord = GenerationRecordType;
+  export type GenerationStatus = GenerationStatusRecord;
+  export type GenerationStoreError = GenerationStoreErrorRecord;
+  export type GenerationWriterShape<TEnvironment = never> = GenerationWriterRecord<TEnvironment>;
   export type SuggestionsRow = SuggestionsRowRecord;
   export type Thread = ThreadRecord;
   export type ThreadStoreShape<TEnvironment = never> = ThreadStoreRecord<TEnvironment>;

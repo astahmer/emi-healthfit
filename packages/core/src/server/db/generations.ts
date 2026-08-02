@@ -60,6 +60,11 @@ const isUniqueConstraintError = (error: unknown): boolean => {
   return /unique|constraint failed/i.test(message);
 };
 
+type GenerationChunkInput = {
+  sequence: number;
+  chunk: unknown;
+};
+
 const createGeneration = Effect.fn("chatGeneration.create")(function* <TEnvironment>({
   db,
   userId,
@@ -174,7 +179,7 @@ const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* 
   userId: string;
   generationId: string;
   sequence: number;
-  chunk: UIMessageChunk;
+  chunk: unknown;
 }) {
   return yield* appendGenerationChunks({
     db,
@@ -193,7 +198,7 @@ const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function
   db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>;
   userId: string;
   generationId: string;
-  chunks: ReadonlyArray<StoredGenerationChunk>;
+  chunks: ReadonlyArray<GenerationChunkInput>;
 }) {
   if (chunks.length === 0) return true;
   const generation = yield* getGeneration({ db, userId, generationId });

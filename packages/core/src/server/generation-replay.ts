@@ -1,8 +1,9 @@
 import type { UIMessageChunk } from "ai";
+import { uiMessageChunkSchema } from "ai";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import type { ChatGeneration, StoredGenerationChunk } from "./db/generations.ts";
+import type { GenerationChunkRecord, GenerationRecord } from "./ports/generation-store.ts";
 
 interface ReplayState {
   afterSequence: number;
@@ -18,17 +19,33 @@ const createGenerationReplayStream = <E, R>({
   getChunks: (options: {
     generationId: string;
     afterSequence: number;
-  }) => Effect.Effect<StoredGenerationChunk[], E, R>;
-  getGeneration: (generationId: string) => Effect.Effect<ChatGeneration | null, E, R>;
+  }) => Effect.Effect<ReadonlyArray<GenerationChunkRecord>, E, R>;
+  getGeneration: (generationId: string) => Effect.Effect<GenerationRecord | null, E, R>;
   poll?: Effect.Effect<void, E, R>;
-}): Stream.Stream<UIMessageChunk, E, R> =>
-  Stream.paginate<ReplayState, UIMessageChunk, E, R>({ afterSequence: -1 }, (state) =>
+}): Stream.Stream<UIMessageChunk, E | Error, R> =>
+  Stream.paginate<ReplayState, UIMessageChunk, E | Error, R>({ afterSequence: -1 }, (state) =>
     Effect.gen(function* () {
       const chunks = yield* getChunks({ generationId, afterSequence: state.afterSequence });
       if (chunks.length > 0) {
+        const decodedChunks = yield* Effect.forEach(chunks, (item) =>
+          Effect.tryPromise({
+            try: async () => {
+              const validate = uiMessageChunkSchema().validate;
+              if (validate === undefined) {
+                throw new Error("UI message chunk validator is unavailable");
+              }
+              const result = await validate(item.chunk);
+              if (!result.success) throw result.error;
+              return { sequence: item.sequence, chunk: result.value };
+            },
+            catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+          }),
+        );
         return [
-          chunks.map((item) => item.chunk),
-          Option.some({ afterSequence: chunks.at(-1)?.sequence ?? state.afterSequence }),
+          decodedChunks.map((item) => item.chunk),
+          Option.some({
+            afterSequence: decodedChunks.at(-1)?.sequence ?? state.afterSequence,
+          }),
         ];
       }
 
