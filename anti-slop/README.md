@@ -41,6 +41,8 @@ The current checks protect these boundaries:
 - each advanced database domain keeps low-level query functions private and exposes one named
   `Context.Service` with a `Layer`; the layer yields the implementation once, and callers yield
   that service once instead of rebuilding or re-providing it per operation;
+- fallible database queries use `QueryDatabase.tryPromise` or a tagged `Effect.tryPromise`; generic
+  database clients never erase query failures with `Effect.promise` or a `never` error channel;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
 - `Stream.fromReadableStream` and `Stream.fromAsyncIterable` map external causes into tagged
   domain errors instead of returning the raw `unknown` cause;
@@ -83,13 +85,19 @@ static operation facade. Use `Effect.catch` or `Effect.catchTag` for tagged fail
 when they have no environment or fallible boundary; wrapping them in Effect solely for appearance
 is also slop.
 
+Database-specific rule: `Effect.promise` is not a database error boundary. Kysely, D1, and other
+fallible query calls must pass through `QueryDatabase.tryPromise` (or an equivalent tagged
+`Effect.tryPromise`) so the failure remains visible in the Effect error channel. A higher-level
+port may map `DatabaseQueryError` to its own domain error, but it must not erase the failure as
+`never`.
+
 ## Oxlint contextual rules
 
 `scripts/oxlint/emi-plugin.mjs` complements ast-grep with ESLint-compatible rules that need source
 context. It rejects abstract core domain classes, empty private constructors, export forwarding,
 raw provider/platform imports in generic protocol and server contracts, `Effect.run*` inside
 generic domain code, context capture/re-provision, predicate-based handling of tagged errors,
-static service-operation facades, and identity `onError` callbacks passed to
+static service-operation facades, fallible database `Effect.promise` calls, and identity `onError` callbacks passed to
 `Stream.fromReadableStream`. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise the
 plugin; `pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
 Filesystem-aware boundary checks additionally reject legacy source paths, internal `index.ts`

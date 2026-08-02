@@ -62,11 +62,13 @@ const scanForwardingClasses = async (path) => {
       (match) => match[1],
     ),
   );
-  const classPattern = /(?:export\s+)?class\s+([A-Z][A-Za-z0-9_]*)\b([\s\S]*?)(?=(?:\n|^)\s*(?:export\s+)?class\s+[A-Z][A-Za-z0-9_]*\b|$)/g;
+  const classPattern =
+    /(?:export\s+)?class\s+([A-Z][A-Za-z0-9_]*)\b([\s\S]*?)(?=(?:\n|^)\s*(?:export\s+)?class\s+[A-Z][A-Za-z0-9_]*\b|$)/g;
   for (const classMatch of source.matchAll(classPattern)) {
     const className = classMatch[1];
     const classBody = classMatch[2];
-    const aliasPattern = /(?:^|\n)[\t ]*(?!(?:private|protected)\s+)static\s+(?:readonly\s+)?[A-Za-z_$][\w$]*\s*=\s*([A-Z][A-Za-z0-9_]*)\.[A-Za-z_$][\w$]*/gm;
+    const aliasPattern =
+      /(?:^|\n)[\t ]*(?!(?:private|protected)\s+)static\s+(?:readonly\s+)?[A-Za-z_$][\w$]*\s*=\s*([A-Z][A-Za-z0-9_]*)\.[A-Za-z_$][\w$]*/gm;
     for (const aliasMatch of classBody.matchAll(aliasPattern)) {
       if (aliasMatch[1] === className || namespaceImports.has(aliasMatch[1])) continue;
       report(
@@ -96,7 +98,11 @@ const collectPublicValueExports = (source) => {
   }
   for (const match of source.matchAll(/(?:^|\n)\s*export\s*\{([\s\S]*?)\}\s*;/g)) {
     for (const item of match[1].split(",")) {
-      const name = item.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0]?.trim();
+      const name = item
+        .trim()
+        .replace(/^type\s+/, "")
+        .split(/\s+as\s+/)[0]
+        ?.trim();
       if (name !== undefined && /^[A-Za-z_$][\w$]*$/.test(name)) names.add(name);
     }
   }
@@ -105,7 +111,8 @@ const collectPublicValueExports = (source) => {
 
 const ambientDependencyPatterns = [
   {
-    expression: /Date\.now\s*\(\s*\)|new\s+Date\s*\(\s*\)|Math\.random\s*\(|crypto\.randomUUID\s*\(/g,
+    expression:
+      /Date\.now\s*\(\s*\)|new\s+Date\s*\(\s*\)|Math\.random\s*\(|crypto\.randomUUID\s*\(/g,
     message:
       "actor and use-case code must receive time and identity through injected dependencies, not ambient clocks or randomness.",
   },
@@ -118,10 +125,7 @@ const ambientDependencyPatterns = [
 
 const main = async () => {
   const coreSource = join(repositoryRoot, "packages/core/src");
-  const allSourceRoots = [
-    join(repositoryRoot, "apps"),
-    join(repositoryRoot, "packages"),
-  ];
+  const allSourceRoots = [join(repositoryRoot, "apps"), join(repositoryRoot, "packages")];
   const sourceFilesByRoot = [];
   for (const path of allSourceRoots) {
     if (await existing(path)) sourceFilesByRoot.push(await filesUnder(path));
@@ -131,12 +135,17 @@ const main = async () => {
 
   for (const path of allSourceFiles) {
     if (path.endsWith("/index.ts") || path.endsWith("/index.tsx")) {
-      report(path, 1, "implementation files must not be index.ts barrels; flatten the module or name the boundary.");
+      report(
+        path,
+        1,
+        "implementation files must not be index.ts barrels; flatten the module or name the boundary.",
+      );
     }
     await scanText(path, [
       {
         expression: /(?:from\s+|import\s*\(\s*)["'][^"']*\/(?:index\.ts|index\.tsx)["']/g,
-        message: "do not import an index.ts module; import the named implementation or .export.ts boundary.",
+        message:
+          "do not import an index.ts module; import the named implementation or .export.ts boundary.",
       },
       {
         expression: /export\s+\*/g,
@@ -152,7 +161,8 @@ const main = async () => {
       await scanText(path, [
         {
           expression: /(?:from\s+|import\s*\(\s*)["'][.]{1,2}\/[^"']+\.export\.ts["']/g,
-          message: "internal modules must not import a package .export.ts boundary; import the named implementation file.",
+          message:
+            "internal modules must not import a package .export.ts boundary; import the named implementation file.",
         },
       ]);
     }
@@ -160,7 +170,8 @@ const main = async () => {
       await scanText(path, [
         {
           expression: /["']@emi\/core(?:\/src|\/dist)(?:\/|["'])/g,
-          message: "consumers must use a named package export, never @emi/core/src or @emi/core/dist.",
+          message:
+            "consumers must use a named package export, never @emi/core/src or @emi/core/dist.",
         },
       ]);
     }
@@ -191,7 +202,8 @@ const main = async () => {
     await scanText(path, [
       {
         expression: /["']@emi\/core-migration(?:\/|["'])/g,
-        message: "@emi/core-migration is retired; use a named @emi/core boundary or product package.",
+        message:
+          "@emi/core-migration is retired; use a named @emi/core boundary or product package.",
       },
     ]);
   }
@@ -232,7 +244,8 @@ const main = async () => {
       await scanText(sourceFile, [
         {
           expression: /\bconstructor\s*\(\s*[^)]/g,
-          message: "server and adapter dependencies must be Effect Context services composed by Layer, not constructor DI.",
+          message:
+            "server and adapter dependencies must be Effect Context services composed by Layer, not constructor DI.",
         },
       ]);
     }
@@ -249,6 +262,29 @@ const main = async () => {
     for (const path of await filesUnder(directory)) await scanText(path, ambientDependencyPatterns);
   }
 
+  for (const path of await filesUnder(join(coreSource, "server/db"))) {
+    await scanText(path, [
+      {
+        expression: /\bEffect\.promise\s*\(/g,
+        message:
+          "fallible database operations must use QueryDatabase.tryPromise or another tagged Effect.tryPromise boundary; Effect.promise erases the query failure channel.",
+      },
+    ]);
+  }
+
+  const queryDatabasePath = join(coreSource, "server/db/query-database.ts");
+  const queryDatabaseSource = await readFile(queryDatabasePath, "utf8");
+  const queryDatabaseClient = queryDatabaseSource.match(
+    /export interface QueryDatabaseClient[\s\S]*?\n}\n/,
+  )?.[0];
+  if (queryDatabaseClient === undefined || !queryDatabaseClient.includes("DatabaseQueryError")) {
+    report(
+      queryDatabasePath,
+      1,
+      "QueryDatabaseClient must expose a tagged DatabaseQueryError failure channel instead of never.",
+    );
+  }
+
   for (const path of [
     join(repositoryRoot, "apps/chat/components/chat/message-rail.tsx"),
     join(repositoryRoot, "apps/chat/hooks/use-thread-viewport-scroll.ts"),
@@ -257,7 +293,9 @@ const main = async () => {
     if (await existing(path)) report(path, 1, "generic chat UI/runtime code belongs in @emi/core.");
   }
 
-  const packageJson = JSON.parse(await readFile(join(repositoryRoot, "packages/core/package.json"), "utf8"));
+  const packageJson = JSON.parse(
+    await readFile(join(repositoryRoot, "packages/core/package.json"), "utf8"),
+  );
   for (const [entrypoint, source] of Object.entries(packageJson.emi.publicApi.entrypointPaths)) {
     if (entrypoint === "./styles.css") continue;
     if (!source.endsWith(".export.ts")) {
@@ -279,7 +317,8 @@ const main = async () => {
       );
     }
     if (entrypoint === "./web") {
-      const rawActorImport = /from\s+["'][^"']*(?:xstate|chat-runtime\/[^"']*(?:actor|machine))[^"]*["']/;
+      const rawActorImport =
+        /from\s+["'][^"']*(?:xstate|chat-runtime\/[^"']*(?:actor|machine))[^"]*["']/;
       if (rawActorImport.test(publicSource)) {
         report(
           publicSourcePath,

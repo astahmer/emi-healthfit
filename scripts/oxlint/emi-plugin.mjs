@@ -32,6 +32,9 @@ const isCoreEffectImplementation = (filename) => {
   );
 };
 
+const isDatabaseDomain = (filename) =>
+  normalizePath(filename).includes("/packages/core/src/server/db/");
+
 const isRepositorySource = (filename) => {
   const normalizedFilename = normalizePath(filename);
   return isCoreSource(filename) || normalizedFilename.includes("/apps/");
@@ -149,7 +152,8 @@ const plugin = {
             if (!isCoreEffectImplementation(context.getFilename())) return;
             if (node.callee?.type !== "MemberExpression") return;
             if (node.callee.object?.type !== "Identifier") return;
-            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "catchIf") return;
+            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "catchIf")
+              return;
             const predicate = node.arguments[0];
             if (predicate === undefined) return;
             if (!context.sourceCode.getText(predicate).includes("instanceof")) return;
@@ -169,7 +173,8 @@ const plugin = {
             if (!isCoreEffectImplementation(context.getFilename())) return;
             if (node.callee?.type !== "MemberExpression") return;
             if (node.callee.object?.type !== "Identifier") return;
-            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "flatMap") return;
+            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "flatMap")
+              return;
             const service = node.arguments[0];
             if (service?.type !== "Identifier") return;
             if (!/(?:Database|Reader|Writer|Store)$/.test(service.name)) return;
@@ -177,6 +182,25 @@ const plugin = {
               node,
               message:
                 "Yield Effect services once and call their implementation methods; do not build static operation facades with Effect.flatMap(ServiceKey, ...).",
+            });
+          },
+        };
+      },
+    },
+    "no-fallible-database-promise": {
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (!isDatabaseDomain(context.getFilename())) return;
+            if (node.callee?.type !== "MemberExpression") return;
+            if (node.callee.object?.type !== "Identifier") return;
+            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "promise") {
+              return;
+            }
+            context.report({
+              node,
+              message:
+                "Fallible database operations must use QueryDatabase.tryPromise or another tagged Effect.tryPromise boundary; do not erase query failures with Effect.promise.",
             });
           },
         };
@@ -218,11 +242,7 @@ const plugin = {
               return;
             const source = context.sourceCode.getText(node);
             if (!/fromReadableStream\s*\(\s*\{/s.test(source)) return;
-            if (
-              !/onError\s*:\s*(?:\(\s*)?([A-Za-z_$][\w$]*)(?:\s*\))?\s*=>\s*\1\b/s.test(
-                source,
-              )
-            )
+            if (!/onError\s*:\s*(?:\(\s*)?([A-Za-z_$][\w$]*)(?:\s*\))?\s*=>\s*\1\b/s.test(source))
               return;
             context.report({
               node,

@@ -74,6 +74,23 @@ const main = async () => {
         `invalid ${fixtureName} fixture ${relative(repositoryRoot, invalidEffectPath)}`,
       );
     }
+
+    const databaseDirectory = join(temporaryRoot, "packages/core/src/server/db");
+    const validDatabasePath = join(databaseDirectory, "valid-database-promise.ts");
+    const invalidDatabasePath = join(databaseDirectory, "invalid-database-promise.ts");
+    await mkdir(databaseDirectory, { recursive: true });
+    await writeFile(validDatabasePath, await fixture("no-fallible-database-promise.valid.ts"));
+    await writeFile(invalidDatabasePath, await fixture("no-fallible-database-promise.invalid.ts"));
+    assertExit(
+      runOxlint([validDatabasePath]),
+      0,
+      `valid database promise fixture ${relative(repositoryRoot, validDatabasePath)}`,
+    );
+    assertExit(
+      runOxlint([invalidDatabasePath]),
+      1,
+      `invalid database promise fixture ${relative(repositoryRoot, invalidDatabasePath)}`,
+    );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
