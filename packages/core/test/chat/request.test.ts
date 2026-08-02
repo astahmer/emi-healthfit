@@ -28,6 +28,15 @@ describe("chat request", () => {
     assert.equal(decoded.title?.prompt, "Give this chat a compact project name.");
   });
 
+  it("accepts provider-neutral model identifiers at the chat boundary", () => {
+    const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+      messages: [],
+      config: { provider: "custom-provider", apiKey: "key", model: "chat-model" },
+    });
+
+    assert.equal(decoded.config.provider, "custom-provider");
+  });
+
   it("accepts an optional branch thread identifier", () => {
     const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
       messages: [],
