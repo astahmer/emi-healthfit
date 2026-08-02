@@ -54,10 +54,11 @@ describe("ChatRouteGeneration", () => {
         stream: completedStream,
       }),
     );
-    assert.deepEqual(appended.map((item) => item.sequence), [0, 1]);
-    assert.deepEqual(finished, [
-      { generationId: "generation-1", status: "completed" },
-    ]);
+    assert.deepEqual(
+      appended.map((item) => item.sequence),
+      [0, 1],
+    );
+    assert.deepEqual(finished, [{ generationId: "generation-1", status: "completed" }]);
 
     const failedStream = new ReadableStream<UIMessageChunk>({
       start(controller) {
@@ -78,7 +79,10 @@ describe("ChatRouteGeneration", () => {
       (error: unknown) =>
         error instanceof ChatRouteGenerationError && error.message === "provider stream failed",
     );
-    assert.deepEqual(appended.map((item) => item.sequence), [0, 1]);
+    assert.deepEqual(
+      appended.map((item) => item.sequence),
+      [0, 1],
+    );
     assert.deepEqual(finished.at(-1), {
       generationId: "generation-1",
       status: "failed",

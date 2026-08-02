@@ -225,10 +225,7 @@ describe("@emi/core/protocol", () => {
       message: "The configured model is unavailable.",
       retryable: true,
     };
-    assert.deepEqual(
-      decode(ChatProtocol.schemas.modelProviderError, providerError),
-      providerError,
-    );
+    assert.deepEqual(decode(ChatProtocol.schemas.modelProviderError, providerError), providerError);
     assert.deepEqual(
       await ChatProtocol.runPromise(ChatProtocol.decodeModelProviderError(providerError)),
       providerError,
