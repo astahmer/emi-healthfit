@@ -1,21 +1,22 @@
 import * as Cloudflare from "alchemy/Cloudflare";
-import { RuntimeContext } from "alchemy";
 import {
   ChatStreamRequestSchema,
   firstUserText,
   validateChatAttachments,
 } from "../chat/request.ts";
-import { buildAssistantParts } from "../chat/message-parts.ts";
+import { ChatMessageParts } from "../chat/message-parts.ts";
 import { OpenAiChat, OpenAiCompatibleConfigurationSchema } from "../adapters/ai-sdk/openai-chat.ts";
 import { createChatStreamResponse } from "../chat/stream-response.ts";
 import { ChatUiMessages } from "../chat/ui-messages.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
+import { ConversationDatabase } from "../server/db/conversations.ts";
+import { GenerationDatabase } from "../server/db/generations.ts";
+import { MemoryDatabase } from "../server/db/memories.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { GenerationStoreLive } from "../server/make-generation-store.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
-import { GenerationConflictError } from "../server/ports/generation-store.ts";
 import { ChatRouteGeneration } from "./chat-route-generation.ts";
 import { ChatRouteSupport } from "./chat-route-support.ts";
 import * as Effect from "effect/Effect";
@@ -26,6 +27,11 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
 
+class ChatRouteStreamError extends Schema.TaggedErrorClass<ChatRouteStreamError>()(
+  "ChatRouteStreamError",
+  { message: Schema.String },
+) {}
+
 export class ChatRouteStream {
   static make({
     conversationDb,
@@ -34,25 +40,25 @@ export class ChatRouteStream {
     readonly conversationDb: CloudflareQueryDatabaseClient<ConversationDatabaseSchema>;
     readonly memoryDb: CloudflareQueryDatabaseClient<MemoryDatabaseSchema>;
   }) {
+    const conversationDatabaseLayer = ConversationDatabase.layer({ db: conversationDb });
+    const generationDatabaseLayer = GenerationDatabase.layer({ db: conversationDb });
+    const memoryDatabaseLayer = MemoryDatabase.layer({ db: memoryDb });
     const memoryStoreFor = (userId: string) =>
-      MemoryStoreLive.shapes({
-        db: memoryDb,
+      MemoryStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
-      });
+      }).pipe(Effect.provide(memoryDatabaseLayer));
     const conversationStoreFor = (userId: string) =>
-      ConversationStoreLive.shapes({
-        db: conversationDb,
+      ConversationStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
-      });
+      }).pipe(Effect.provide(conversationDatabaseLayer));
     const generationStoreFor = (userId: string) =>
-      GenerationStoreLive.shapes({
-        db: conversationDb,
+      GenerationStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
-      });
+      }).pipe(Effect.provide(generationDatabaseLayer));
 
     const chatEffect = Effect.fn("core.chat.stream")(function* (request: HttpServerRequest) {
       const user = yield* CurrentUser;
-      const conversationStore = conversationStoreFor(user.id);
+      const conversationStore = yield* conversationStoreFor(user.id);
       const decoded = Schema.decodeUnknownOption(ChatStreamRequestSchema)(yield* request.json);
       if (Option.isNone(decoded)) {
         return yield* HttpServerResponse.json({ error: "Invalid chat request" }, { status: 400 });
@@ -95,8 +101,8 @@ export class ChatRouteStream {
           : { baseUrl: decoded.value.config.baseUrl }),
         model: decoded.value.memory?.model ?? decoded.value.config.model,
       };
-      const memoryStore = memoryStoreFor(user.id);
-      const generationStore = generationStoreFor(user.id);
+      const memoryStore = yield* memoryStoreFor(user.id);
+      const generationStore = yield* generationStoreFor(user.id);
       const requestId = decoded.value.requestId ?? crypto.randomUUID();
       const conversationId = temporary
         ? "temp_" + crypto.randomUUID()
@@ -187,7 +193,6 @@ export class ChatRouteStream {
         }).pipe(Effect.tapError(markGenerationFailed));
       }
 
-      const services = yield* Effect.context<RuntimeContext>();
       const memorySummary =
         temporary || !memoryEnabled
           ? undefined
@@ -206,14 +211,17 @@ export class ChatRouteStream {
           configuration: providerConfiguration.value,
           webSearch: decoded.value.webSearch,
         },
-        executeTool: async () => {
-          throw new Error("No tools are configured for this chat.");
-        },
+        executeTool: () =>
+          Effect.runPromise(
+            Effect.fail(
+              new ChatRouteStreamError({ message: "No tools are configured for this chat." }),
+            ),
+          ),
         onFinish: async (event) => {
           if (temporary) return;
-          const parts = buildAssistantParts(event.response?.messages ?? []);
+          const parts = ChatMessageParts.buildAssistantParts(event.response?.messages ?? []);
           const assistantParts = parts.length > 0 ? parts : [{ type: "text", text: event.text }];
-          const savedAssistantIds = await Effect.runPromiseWith(services)(
+          const savedAssistantIds = await Effect.runPromise(
             conversationStore.messageStore.saveMessages({
               conversationId,
               parentId: assistantParentId,
@@ -232,7 +240,7 @@ export class ChatRouteStream {
             }),
           );
           if (existingThread !== null) {
-            await Effect.runPromiseWith(services)(
+            await Effect.runPromise(
               Effect.forEach(
                 savedAssistantIds,
                 (messageId) =>
@@ -245,7 +253,7 @@ export class ChatRouteStream {
             );
           }
           if (memoryEnabled && event.text.trim() !== "") {
-            await Effect.runPromiseWith(services)(
+            await Effect.runPromise(
               Effect.gen(function* () {
                 const existingMemories = yield* memoryStore.reader.list({ limit: 60 });
                 const snippets = yield* OpenAiChat.extractMemoriesEffect({
@@ -271,7 +279,7 @@ export class ChatRouteStream {
             );
           }
           if (titleSource !== undefined) {
-            const storedConversation = await Effect.runPromiseWith(services)(
+            const storedConversation = await Effect.runPromise(
               conversationStore.conversationReader.get(conversationId),
             );
             if (storedConversation?.title === null) {
@@ -285,7 +293,7 @@ export class ChatRouteStream {
                 prompt: decoded.value.title?.prompt,
               });
               if (title !== "") {
-                await Effect.runPromiseWith(services)(
+                await Effect.runPromise(
                   conversationStore.conversationWriter.rename({ conversationId, title }),
                 );
               }
@@ -298,13 +306,14 @@ export class ChatRouteStream {
         const streams = stream.tee();
         const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
         executionContext.waitUntil(
-          ChatRouteGeneration.persist({
-            writer: generationStore.writer,
-            chunkWriter: generationStore.chunkWriter,
-            generationId,
-            stream: streams[1],
-            services,
-          }),
+          Effect.runPromise(
+            ChatRouteGeneration.persist({
+              writer: generationStore.writer,
+              chunkWriter: generationStore.chunkWriter,
+              generationId,
+              stream: streams[1],
+            }),
+          ).catch(() => undefined),
         );
         return HttpServerResponse.fromWeb(
           createChatStreamResponse({
@@ -328,25 +337,22 @@ export class ChatRouteStream {
 
     const chat = (request: HttpServerRequest) =>
       chatEffect(request).pipe(
-        Effect.catchIf(
-          (error): error is GenerationConflictError => error instanceof GenerationConflictError,
-          (error) =>
-            HttpServerResponse.json(
-              { error: "A generation is already running", generationId: error.generationId },
-              { status: 409 },
-            ),
+        Effect.catchTag("GenerationConflictError", (error) =>
+          HttpServerResponse.json(
+            { error: "A generation is already running", generationId: error.generationId },
+            { status: 409 },
+          ),
         ),
       );
 
     const resume = ({ conversationId }: { readonly conversationId: string }) =>
       Effect.fn("core.chat.resume")(function* () {
         const user = yield* CurrentUser;
-        const generationStore = generationStoreFor(user.id);
+        const generationStore = yield* generationStoreFor(user.id);
         const generation = yield* generationStore.reader.getResumable(conversationId);
         if (generation === null) return HttpServerResponse.empty({ status: 204 });
 
-        const services = yield* Effect.context<RuntimeContext>();
-        const stream = Stream.toReadableStreamWith(
+        const stream = Stream.toReadableStream(
           ChatRouteGeneration.replay({
             generationId: generation.id,
             getChunks: ({ generationId, afterSequence }) =>
@@ -356,7 +362,6 @@ export class ChatRouteStream {
               }),
             getGeneration: (generationId) => generationStore.reader.get(generationId),
           }),
-          services,
         );
         return HttpServerResponse.fromWeb(
           createChatStreamResponse({

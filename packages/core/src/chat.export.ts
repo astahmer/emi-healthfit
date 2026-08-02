@@ -68,7 +68,7 @@ export class Chat {
   } as const;
 
   static readonly messages = {
-    buildAssistantParts: MessageParts.buildAssistantParts,
+    buildAssistantParts: MessageParts.ChatMessageParts.buildAssistantParts,
     firstUserText: ChatRequest.firstUserText,
     getProviderMessages: OrphanTurn.getProviderMessages,
     validateStoredUIMessages: UiMessages.ChatUiMessages.validateStoredUIMessages,

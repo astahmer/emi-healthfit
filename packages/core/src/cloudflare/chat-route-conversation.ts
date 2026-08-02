@@ -1,6 +1,7 @@
 import { CompactConversationRequestSchema } from "../chat/request.ts";
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
+import { ConversationDatabase } from "../server/db/conversations.ts";
 import type { ConversationDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
@@ -15,17 +16,17 @@ import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
 
 export class ChatRouteConversation {
   static make({ db }: { readonly db: CloudflareQueryDatabaseClient<ConversationDatabaseSchema> }) {
+    const databaseLayer = ConversationDatabase.layer({ db });
     const storeFor = (userId: string) =>
-      ConversationStoreLive.shapes({
-        db,
+      ConversationStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
-      });
+      }).pipe(Effect.provide(databaseLayer));
 
     const conversations = Effect.fn("core.chat.conversations")(function* (
       request: HttpServerRequest,
     ) {
       const user = yield* CurrentUser;
-      const store = storeFor(user.id);
+      const store = yield* storeFor(user.id);
       if (request.method === "POST") {
         const id = yield* store.conversationWriter.create();
         return yield* HttpServerResponse.json({ id }, { status: 201 });
@@ -42,7 +43,7 @@ export class ChatRouteConversation {
       request: HttpServerRequest,
     ) {
       const user = yield* CurrentUser;
-      const store = storeFor(user.id);
+      const store = yield* storeFor(user.id);
       const params = yield* HttpRouter.params;
       const conversationId = params.conversationId;
       if (conversationId === undefined) {
@@ -95,7 +96,7 @@ export class ChatRouteConversation {
 
     const clone = Effect.fn("core.chat.conversation.clone")(function* () {
       const user = yield* CurrentUser;
-      const store = storeFor(user.id);
+      const store = yield* storeFor(user.id);
       const params = yield* HttpRouter.params;
       const conversationId = params.conversationId;
       if (conversationId === undefined) {
@@ -115,7 +116,7 @@ export class ChatRouteConversation {
       request: HttpServerRequest,
     ) {
       const user = yield* CurrentUser;
-      const store = storeFor(user.id);
+      const store = yield* storeFor(user.id);
       const params = yield* HttpRouter.params;
       const conversationId = params.conversationId;
       if (conversationId === undefined) {
@@ -189,7 +190,7 @@ export class ChatRouteConversation {
 
     const threads = Effect.fn("core.chat.threads")(function* (request: HttpServerRequest) {
       const user = yield* CurrentUser;
-      const store = storeFor(user.id);
+      const store = yield* storeFor(user.id);
       const params = yield* HttpRouter.params;
       const conversationId = params.conversationId;
       if (conversationId === undefined) {
@@ -234,7 +235,7 @@ export class ChatRouteConversation {
 
     const thread = Effect.fn("core.chat.thread")(function* (request: HttpServerRequest) {
       const user = yield* CurrentUser;
-      const store = storeFor(user.id);
+      const store = yield* storeFor(user.id);
       const params = yield* HttpRouter.params;
       const conversationId = params.conversationId;
       const threadId = params.threadId;

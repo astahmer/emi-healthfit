@@ -1,6 +1,12 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { Conversation, Message, MessageUsage, Thread } from "../db/conversations.ts";
+import type {
+  Conversation,
+  ConversationCloneError,
+  Message,
+  MessageUsage,
+  Thread,
+} from "../db/conversations.ts";
 
 export interface SaveMessagesInput {
   conversationId: string;
@@ -58,7 +64,7 @@ export interface ConversationWriterShape<TEnvironment = never> {
   ) => Effect.Effect<void, never, TEnvironment>;
   readonly clone: (
     conversationId: string,
-  ) => Effect.Effect<Conversation | null, never, TEnvironment>;
+  ) => Effect.Effect<Conversation | null, ConversationCloneError, TEnvironment>;
 }
 
 export interface MessageStoreShape<TEnvironment = never> {

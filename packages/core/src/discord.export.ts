@@ -27,7 +27,7 @@ import {
   unauthorizedResponse,
 } from "./discord/responses.ts";
 import type { DiscordHttpResponse as DiscordHttpResponseType } from "./discord/responses.ts";
-import { editDeferredInteractionResponse } from "./discord/follow-up.ts";
+import { DiscordFollowUpError, editDeferredInteractionResponse } from "./discord/follow-up.ts";
 import {
   InvalidSignature,
   MalformedInteraction,
@@ -80,6 +80,9 @@ export class Discord {
 
   static readonly followUp = {
     editDeferred: editDeferredInteractionResponse,
+    errors: {
+      DiscordFollowUpError,
+    },
   } as const;
 }
 

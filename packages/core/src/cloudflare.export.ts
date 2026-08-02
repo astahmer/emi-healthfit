@@ -1,7 +1,10 @@
 import {
   anonymousSignInPath,
+  AnonymousSessionError,
   createAnonymousSessionResponse,
+  createAnonymousSessionResponseEffect,
   createSessionCookie,
+  createSessionCookieEffect,
   isTrustedAuthOrigin,
 } from "./cloudflare/auth/anonymous-session.ts";
 import { makeAuth, type AuthConfiguration } from "./cloudflare/auth/make-auth.ts";
@@ -11,6 +14,7 @@ import {
   getAuthConfiguration,
   handleAuthRequest,
   readDemoPrincipalFromHeader,
+  AuthError,
   type AuthDatabaseClient,
   type AuthPolicy,
 } from "./cloudflare/auth/request-auth.ts";
@@ -47,7 +51,9 @@ export class Cloudflare {
     authenticateWorkerFetch,
     createAnonymousEmail,
     createAnonymousSessionResponse,
+    createAnonymousSessionResponseEffect,
     createSessionCookie,
+    createSessionCookieEffect,
     getAuthConfiguration,
     handleAuthRequest,
     isAnonymousEmail,
@@ -60,6 +66,10 @@ export class Cloudflare {
     parseAllowedEmails,
     readDemoPrincipalFromHeader,
     withCurrentUser,
+    errors: {
+      AnonymousSessionError,
+      AuthError,
+    },
   } as const;
 
   static readonly database = CloudflareDatabase;

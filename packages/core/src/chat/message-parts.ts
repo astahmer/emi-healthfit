@@ -89,76 +89,78 @@ const messageParts = (content: unknown): (typeof ProviderPart.Type)[] => {
   });
 };
 
-export const buildAssistantParts = (messages: unknown[]): Schema.Json[] => {
-  const assistantParts: Schema.Json[] = [];
-  const toolCalls = new Map<string, { toolName: string; input: Schema.Json }>();
-  const toolResults = new Map<string, { output: Schema.Json; outcome: "success" | "error" }>();
-  const emittedToolCalls = new Set<string>();
+export class ChatMessageParts {
+  static readonly buildAssistantParts = (messages: unknown[]): Schema.Json[] => {
+    const assistantParts: Schema.Json[] = [];
+    const toolCalls = new Map<string, { toolName: string; input: Schema.Json }>();
+    const toolResults = new Map<string, { output: Schema.Json; outcome: "success" | "error" }>();
+    const emittedToolCalls = new Set<string>();
 
-  for (const candidate of messages) {
-    const decoded = decodeProviderMessage(candidate);
-    if (Option.isNone(decoded)) continue;
-    const message = decoded.value;
-    for (const part of messageParts(message.content)) {
-      if (
-        message.role === "assistant" &&
-        part.type === "tool-call" &&
-        part.toolCallId !== undefined
-      ) {
-        toolCalls.set(part.toolCallId, {
-          toolName: part.toolName ?? "",
-          input: part.input ?? {},
-        });
-      } else if (
-        message.role === "tool" &&
-        part.type === "tool-result" &&
-        part.toolCallId !== undefined
-      ) {
-        const rawOutput = part.output;
-        toolResults.set(part.toolCallId, {
-          output: normalizeToolOutput(rawOutput),
-          outcome: isErrorOutput(rawOutput) ? "error" : "success",
-        });
+    for (const candidate of messages) {
+      const decoded = decodeProviderMessage(candidate);
+      if (Option.isNone(decoded)) continue;
+      const message = decoded.value;
+      for (const part of messageParts(message.content)) {
+        if (
+          message.role === "assistant" &&
+          part.type === "tool-call" &&
+          part.toolCallId !== undefined
+        ) {
+          toolCalls.set(part.toolCallId, {
+            toolName: part.toolName ?? "",
+            input: part.input ?? {},
+          });
+        } else if (
+          message.role === "tool" &&
+          part.type === "tool-result" &&
+          part.toolCallId !== undefined
+        ) {
+          const rawOutput = part.output;
+          toolResults.set(part.toolCallId, {
+            output: normalizeToolOutput(rawOutput),
+            outcome: isErrorOutput(rawOutput) ? "error" : "success",
+          });
+        }
       }
     }
-  }
 
-  for (const candidate of messages) {
-    const decoded = decodeProviderMessage(candidate);
-    if (Option.isNone(decoded) || decoded.value.role !== "assistant") continue;
-    for (const part of messageParts(decoded.value.content)) {
-      if (part.type === "text") {
-        if (part.text !== undefined && part.text !== "") {
-          assistantParts.push({ type: "text", text: part.text });
-        }
-      } else if (part.type === "tool-call" && part.toolCallId !== undefined) {
-        if (emittedToolCalls.has(part.toolCallId)) continue;
-        const call = toolCalls.get(part.toolCallId);
-        if (call === undefined) continue;
-        const result = toolResults.get(part.toolCallId);
-        emittedToolCalls.add(part.toolCallId);
-        if (result?.outcome === "success") {
+    for (const candidate of messages) {
+      const decoded = decodeProviderMessage(candidate);
+      if (Option.isNone(decoded) || decoded.value.role !== "assistant") continue;
+      for (const part of messageParts(decoded.value.content)) {
+        if (part.type === "text") {
+          if (part.text !== undefined && part.text !== "") {
+            assistantParts.push({ type: "text", text: part.text });
+          }
+        } else if (part.type === "tool-call" && part.toolCallId !== undefined) {
+          if (emittedToolCalls.has(part.toolCallId)) continue;
+          const call = toolCalls.get(part.toolCallId);
+          if (call === undefined) continue;
+          const result = toolResults.get(part.toolCallId);
+          emittedToolCalls.add(part.toolCallId);
+          if (result?.outcome === "success") {
+            assistantParts.push({
+              type: "tool-invocation",
+              toolName: call.toolName,
+              toolCallId: part.toolCallId,
+              input: call.input,
+              state: "output-available",
+              output: result.output,
+            });
+            continue;
+          }
           assistantParts.push({
             type: "tool-invocation",
             toolName: call.toolName,
             toolCallId: part.toolCallId,
             input: call.input,
-            state: "output-available",
-            output: result.output,
+            errorText: errorTextFrom(result?.output),
+            state: "output-error",
           });
-          continue;
         }
-        assistantParts.push({
-          type: "tool-invocation",
-          toolName: call.toolName,
-          toolCallId: part.toolCallId,
-          input: call.input,
-          errorText: errorTextFrom(result?.output),
-          state: "output-error",
-        });
       }
     }
-  }
 
-  return assistantParts;
-};
+    return assistantParts;
+  };
+}

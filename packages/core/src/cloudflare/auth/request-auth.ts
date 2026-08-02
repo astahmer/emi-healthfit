@@ -15,12 +15,17 @@ import {
   type RequestContext,
 } from "../../server/request-context.ts";
 import type { CloudflareQueryDatabaseClient } from "../db/client.ts";
-import { anonymousSignInPath, createAnonymousSessionResponse } from "./anonymous-session.ts";
+import { anonymousSignInPath, createAnonymousSessionResponseEffect } from "./anonymous-session.ts";
 import { makeAuth, type AuthConfiguration } from "./make-auth.ts";
 
 export type AuthPolicy = "google-allowlist" | "anonymous";
 
 export type AuthDatabaseClient = Pick<CloudflareQueryDatabaseClient<unknown>, "raw">;
+
+export class AuthError extends Schema.TaggedErrorClass<AuthError>()("AuthError", {
+  phase: Schema.Literals(["configuration", "request", "session"]),
+  message: Schema.String,
+}) {}
 
 const GoogleAllowlistEnvironment = Schema.Struct({
   BETTER_AUTH_SECRET: Schema.String.check(Schema.isMinLength(32)),
@@ -48,10 +53,23 @@ export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
   policy: AuthPolicy;
 }) {
   if (policy === "google-allowlist") {
-    const decoded = yield* Schema.decodeUnknownEffect(GoogleAllowlistEnvironment)(environment);
+    const decoded = yield* Schema.decodeUnknownEffect(GoogleAllowlistEnvironment)(environment).pipe(
+      Effect.mapError(
+        (error) =>
+          new AuthError({
+            phase: "configuration",
+            message: String(error),
+          }),
+      ),
+    );
     const allowedEmails = parseAllowedEmails(decoded.ALLOWED_EMAILS);
     if (allowedEmails.size === 0) {
-      return yield* Effect.fail(new Error("Configure at least one allowed email"));
+      return yield* Effect.fail(
+        new AuthError({
+          phase: "configuration",
+          message: "Configure at least one allowed email",
+        }),
+      );
     }
     const configuration: AuthConfiguration = {
       appName: decoded.AUTH_APP_NAME ?? "Core Chat",
@@ -66,7 +84,15 @@ export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
     return configuration;
   }
 
-  const decoded = yield* Schema.decodeUnknownEffect(AnonymousAuthEnvironment)(environment);
+  const decoded = yield* Schema.decodeUnknownEffect(AnonymousAuthEnvironment)(environment).pipe(
+    Effect.mapError(
+      (error) =>
+        new AuthError({
+          phase: "configuration",
+          message: String(error),
+        }),
+    ),
+  );
   const allowedEmails = parseAllowedEmails(decoded.ALLOWED_EMAILS ?? "");
   const hasGoogle =
     decoded.GOOGLE_CLIENT_ID !== undefined &&
@@ -74,7 +100,12 @@ export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
     decoded.GOOGLE_CLIENT_SECRET !== undefined &&
     decoded.GOOGLE_CLIENT_SECRET !== "";
   if (hasGoogle && allowedEmails.size === 0) {
-    return yield* Effect.fail(new Error("Configure ALLOWED_EMAILS when Google auth is enabled"));
+    return yield* Effect.fail(
+      new AuthError({
+        phase: "configuration",
+        message: "Configure ALLOWED_EMAILS when Google auth is enabled",
+      }),
+    );
   }
   const configuration: AuthConfiguration = {
     appName: decoded.AUTH_APP_NAME ?? "Core Chat",
@@ -104,7 +135,15 @@ const getRequestAuth = Effect.fn("auth.request")(function* ({
 }) {
   const database = yield* db.raw;
   const configuration = yield* getAuthConfiguration({ environment, policy });
-  const webRequest = yield* requestToWeb(request);
+  const webRequest = yield* requestToWeb(request).pipe(
+    Effect.mapError(
+      (error) =>
+        new AuthError({
+          phase: "request",
+          message: String(error),
+        }),
+    ),
+  );
   return {
     auth: makeAuth({ database, configuration }),
     configuration,
@@ -125,24 +164,28 @@ export const handleAuthRequest = Effect.fn("auth.handler")(function* ({
   request: HttpServerRequest;
 }) {
   const requestAuth = yield* getRequestAuth({ db, environment, policy, request });
-  const response = yield* Effect.tryPromise({
-    try: () =>
-      new URL(requestAuth.webRequest.url).pathname === anonymousSignInPath
-        ? createAnonymousSessionResponse({
-            baseUrl: requestAuth.configuration.baseUrl,
-            database: requestAuth.database,
-            request: requestAuth.webRequest,
-            secret: requestAuth.configuration.secret,
-          })
-        : requestAuth.auth.handler(requestAuth.webRequest),
-    catch: (error) => new Error(`Authentication request failed: ${String(error)}`),
-  }).pipe(
-    Effect.tapError((error) =>
-      Effect.logError("Auth handler error").pipe(
-        Effect.annotateLogs({ path: request.url, error: String(error) }),
-      ),
-    ),
-  );
+  const isAnonymousSignIn = new URL(requestAuth.webRequest.url).pathname === anonymousSignInPath;
+  const response = isAnonymousSignIn
+    ? yield* createAnonymousSessionResponseEffect({
+        baseUrl: requestAuth.configuration.baseUrl,
+        database: requestAuth.database,
+        request: requestAuth.webRequest,
+        secret: requestAuth.configuration.secret,
+      })
+    : yield* Effect.tryPromise({
+        try: () => requestAuth.auth.handler(requestAuth.webRequest),
+        catch: (error) =>
+          new AuthError({
+            phase: "request",
+            message: `Authentication request failed: ${String(error)}`,
+          }),
+      }).pipe(
+        Effect.tapError((error) =>
+          Effect.logError("Auth handler error").pipe(
+            Effect.annotateLogs({ path: request.url, error: String(error) }),
+          ),
+        ),
+      );
   return HttpServerResponse.fromWeb(response);
 });
 
@@ -184,7 +227,11 @@ export const authenticateRequest = Effect.fn("auth.session")(function* ({
   const requestAuth = yield* getRequestAuth({ db, environment, policy, request });
   const session = yield* Effect.tryPromise({
     try: () => requestAuth.auth.api.getSession({ headers: requestAuth.webRequest.headers }),
-    catch: (error) => new Error(`Session lookup failed: ${String(error)}`),
+    catch: (error) =>
+      new AuthError({
+        phase: "session",
+        message: `Session lookup failed: ${String(error)}`,
+      }),
   });
   if (session === null) return null;
   const email = session.user.email.trim().toLowerCase();

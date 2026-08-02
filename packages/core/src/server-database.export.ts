@@ -14,6 +14,7 @@ import type {
 import { ConversationDatabase } from "./server/db/conversations.ts";
 import type {
   Conversation as ConversationRecord,
+  ConversationDatabaseShape as ConversationDatabaseShapeRecord,
   Message as MessageRecord,
   MessageUsage as MessageUsageRecord,
   Thread as ThreadRecord,
@@ -40,6 +41,7 @@ import type {
   ConsumeDiscordLinkCodeResult as ConsumeDiscordLinkCodeRecord,
   CreatedDiscordLinkCode as CreatedDiscordLinkCodeRecord,
   DiscordAccountLinkView as DiscordAccountLinkViewRecord,
+  DiscordLinkDatabaseShape as DiscordLinkDatabaseShapeRecord,
   DiscordLinkCodeView as DiscordLinkCodeViewRecord,
 } from "./server/db/discord-links.ts";
 import { discordAccountLinks, discordLinkCodes } from "./server/db/discord-schema.ts";
@@ -47,6 +49,7 @@ import type { DiscordDatabaseSchema as DiscordDatabaseSchemaRecord } from "./ser
 import { GenerationAlreadyActiveError, GenerationDatabase } from "./server/db/generations.ts";
 import type {
   ChatGeneration as ChatGenerationRecord,
+  GenerationDatabaseShape as GenerationDatabaseShapeRecord,
   StoredGenerationChunk as StoredGenerationChunkRecord,
 } from "./server/db/generations.ts";
 import { GenerationReplay } from "./server/generation-replay.ts";
@@ -74,6 +77,7 @@ import type {
 import { MemoryDatabase } from "./server/db/memories.ts";
 import type {
   MemoryInput as MemoryInputRecord,
+  MemoryDatabaseShape as MemoryDatabaseShapeRecord,
   MemorySearchResult as MemorySearchResultRecord,
   MemorySummary as MemorySummaryRecord,
 } from "./server/db/memories.ts";
@@ -180,6 +184,7 @@ export namespace ServerDatabase {
   export type CreateGenerationInput = CreateGenerationRecord;
   export type ConsumeDiscordLinkCodeResult = ConsumeDiscordLinkCodeRecord;
   export type Conversation = ConversationRecord;
+  export type ConversationDatabaseShape = ConversationDatabaseShapeRecord;
   export type ConversationDatabaseSchema = ConversationDatabaseSchemaRecord;
   export type ConversationRow = ConversationRowRecord;
   export type ConversationReaderShape<TEnvironment = never> =
@@ -190,9 +195,11 @@ export namespace ServerDatabase {
   export type CreatedDiscordLinkCode = CreatedDiscordLinkCodeRecord;
   export type DiscordAccountLinkView = DiscordAccountLinkViewRecord;
   export type DiscordDatabaseSchema = DiscordDatabaseSchemaRecord;
+  export type DiscordLinkDatabaseShape = DiscordLinkDatabaseShapeRecord;
   export type DiscordLinkCodeView = DiscordLinkCodeViewRecord;
   export type MemoryDatabaseSchema = MemoryDatabaseSchemaRecord;
   export type MemoryInput = MemoryInputRecord;
+  export type MemoryDatabaseShape = MemoryDatabaseShapeRecord;
   export type MemoryReaderShape<TEnvironment = never> = MemoryReaderRecord<TEnvironment>;
   export type MemoryRow = MemoryRowRecord;
   export type MemorySearchResult = MemorySearchResultRecord;
@@ -221,6 +228,7 @@ export namespace ServerDatabase {
   export type GenerationChunkWriterShape<TEnvironment = never> =
     GenerationChunkWriterRecord<TEnvironment>;
   export type GenerationError = GenerationErrorRecord;
+  export type GenerationDatabaseShape = GenerationDatabaseShapeRecord;
   export type GenerationReaderShape<TEnvironment = never> = GenerationReaderRecord<TEnvironment>;
   export type GenerationRecord = GenerationRecordType;
   export type GenerationStatus = GenerationStatusRecord;

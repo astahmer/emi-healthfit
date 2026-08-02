@@ -1,14 +1,15 @@
-import { RuntimeContext } from "alchemy";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type { UIMessageChunk } from "ai";
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
+import type { UiMessageChunkDecodeError } from "../server/decode-ui-message-chunk.ts";
 import { GenerationReplay } from "../server/generation-replay.ts";
 import type {
   GenerationChunkRecord,
   GenerationChunkWriterShape,
   GenerationRecord,
+  GenerationStoreError,
   GenerationWriterShape,
 } from "../server/ports/generation-store.ts";
 
@@ -31,102 +32,70 @@ export class ChatRouteGeneration {
     }) => Effect.Effect<ReadonlyArray<GenerationChunkRecord>, E, R>;
     getGeneration: (generationId: string) => Effect.Effect<GenerationRecord | null, E, R>;
     poll?: Effect.Effect<void, E, R>;
-  }): Stream.Stream<UIMessageChunk, E | Error, R> {
+  }): Stream.Stream<UIMessageChunk, E | UiMessageChunkDecodeError, R> {
     return GenerationReplay.stream({ generationId, getChunks, getGeneration, poll });
   }
 
-  static readonly persist = async ({
+  static readonly persist = Effect.fn("core.chat.generation.persist")(function* ({
     writer,
     chunkWriter,
     generationId,
     stream,
-    services,
   }: {
-    writer: GenerationWriterShape<RuntimeContext>;
-    chunkWriter: GenerationChunkWriterShape<RuntimeContext>;
+    writer: GenerationWriterShape;
+    chunkWriter: GenerationChunkWriterShape;
     generationId: string;
     stream: ReadableStream<UiMessageChunk>;
-    services: Context.Context<RuntimeContext>;
-  }) => {
+  }) {
     const reader = stream.getReader();
-    const run = <Value>(effect: Effect.Effect<Value, unknown, RuntimeContext>) =>
-      Effect.runPromiseWith(services)(effect);
     let sequence = 0;
     let error: string | undefined;
     let finishReason: string | undefined;
     let sawFinish = false;
-    try {
-      await run(writer.markStreaming(generationId));
-      const persistChunks = async ({
-        sequence: currentSequence,
-        error: currentError,
-        finishReason: currentFinishReason,
-        sawFinish: hasFinish,
-      }: {
-        sequence: number;
-        error: string | undefined;
-        finishReason: string | undefined;
-        sawFinish: boolean;
-      }): Promise<{
-        sequence: number;
-        error: string | undefined;
-        finishReason: string | undefined;
-        sawFinish: boolean;
-      }> => {
-        const next = await reader.read();
-        if (next.done) {
-          return {
-            sequence: currentSequence,
-            error: currentError,
-            finishReason: currentFinishReason,
-            sawFinish: hasFinish,
-          };
-        }
-        await run(
-          chunkWriter.append({
-            generationId,
-            sequence: currentSequence,
-            chunk: next.value,
-          }),
-        );
-        return persistChunks({
-          sequence: currentSequence + 1,
-          error: next.value.type === "error" ? next.value.errorText : currentError,
-          finishReason:
-            next.value.type === "finish"
-              ? "finishReason" in next.value
-                ? next.value.finishReason
-                : undefined
-              : currentFinishReason,
-          sawFinish: hasFinish || next.value.type === "finish",
+    const readChunk = Effect.tryPromise({
+      try: () => reader.read(),
+      catch: (cause) =>
+        new ChatRouteGenerationError({
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+    });
+    const persist = Effect.gen(function* () {
+      yield* writer.markStreaming(generationId);
+      while (true) {
+        const next = yield* readChunk;
+        if (next.done) break;
+        yield* chunkWriter.append({
+          generationId,
+          sequence,
+          chunk: next.value,
         });
-      };
-
-      ({ sequence, error, finishReason, sawFinish } = await persistChunks({
-        sequence,
-        error,
-        finishReason,
-        sawFinish,
-      }));
-      await run(
-        writer.finish({
-          generationId,
-          status: error === undefined && sawFinish ? "completed" : "failed",
-          ...(error === undefined ? {} : { error }),
-          ...(finishReason === undefined ? {} : { finishReason }),
-        }),
-      );
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      await run(
-        writer.finish({
-          generationId,
-          status: "failed",
-          error: message,
-        }),
-      );
-    } finally {
-      reader.releaseLock();
-    }
-  };
+        if (next.value.type === "error") error = next.value.errorText;
+        if (next.value.type === "finish") {
+          sawFinish = true;
+          finishReason = "finishReason" in next.value ? next.value.finishReason : undefined;
+        }
+        sequence += 1;
+      }
+      yield* writer.finish({
+        generationId,
+        status: error === undefined && sawFinish ? "completed" : "failed",
+        ...(error === undefined ? {} : { error }),
+        ...(finishReason === undefined ? {} : { finishReason }),
+      });
+    });
+    yield* persist.pipe(
+      Effect.catch((cause: GenerationStoreError | ChatRouteGenerationError) =>
+        writer.finish({ generationId, status: "failed", error: cause.message }).pipe(
+          Effect.catch(() => Effect.void),
+          Effect.andThen(Effect.fail(cause)),
+        ),
+      ),
+      Effect.ensuring(Effect.sync(() => reader.releaseLock())),
+    );
+  });
 }
+
+export class ChatRouteGenerationError extends Schema.TaggedErrorClass<ChatRouteGenerationError>()(
+  "ChatRouteGenerationError",
+  { message: Schema.String },
+) {}

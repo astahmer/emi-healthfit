@@ -1,6 +1,16 @@
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 const discordApiBase = "https://discord.com/api/v10";
+
+export class DiscordFollowUpError extends Schema.TaggedErrorClass<DiscordFollowUpError>()(
+  "DiscordFollowUpError",
+  {
+    phase: Schema.Literals(["request", "body", "response"]),
+    message: Schema.String,
+    status: Schema.optional(Schema.Number),
+  },
+) {}
 
 export const editDeferredInteractionResponse = Effect.fn("discord.editDeferred")(function* ({
   applicationId,
@@ -23,15 +33,27 @@ export const editDeferredInteractionResponse = Effect.fn("discord.editDeferred")
         },
         body: JSON.stringify({ content }),
       }),
-    catch: (error) => new Error(`Discord deferred edit failed: ${String(error)}`),
+    catch: (error) =>
+      new DiscordFollowUpError({
+        phase: "request",
+        message: `Discord deferred edit failed: ${String(error)}`,
+      }),
   });
   if (!response.ok) {
     const bodyText = yield* Effect.tryPromise({
       try: () => response.text(),
-      catch: (error) => new Error(`Could not read Discord edit body: ${String(error)}`),
+      catch: (error) =>
+        new DiscordFollowUpError({
+          phase: "body",
+          message: `Could not read Discord edit body: ${String(error)}`,
+        }),
     });
     return yield* Effect.fail(
-      new Error(`Discord deferred edit HTTP ${response.status}: ${bodyText}`),
+      new DiscordFollowUpError({
+        phase: "response",
+        message: `Discord deferred edit HTTP ${response.status}: ${bodyText}`,
+        status: response.status,
+      }),
     );
   }
 });

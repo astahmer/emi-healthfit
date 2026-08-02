@@ -1,5 +1,6 @@
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
+import { MemoryDatabase } from "../server/db/memories.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
 import type { MemoryDatabaseSchema } from "../server/db/schema.ts";
@@ -14,15 +15,15 @@ import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
 
 export class ChatRouteMemory {
   static make({ db }: { readonly db: CloudflareQueryDatabaseClient<MemoryDatabaseSchema> }) {
+    const databaseLayer = MemoryDatabase.layer({ db });
     const memoryStoreFor = (userId: string) =>
-      MemoryStoreLive.shapes({
-        db,
+      MemoryStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
-      });
+      }).pipe(Effect.provide(databaseLayer));
 
     const memories = Effect.fn("core.chat.memories")(function* (request: HttpServerRequest) {
       const user = yield* CurrentUser;
-      const memoryStore = memoryStoreFor(user.id);
+      const memoryStore = yield* memoryStoreFor(user.id);
       if (request.method === "POST") {
         const decoded = Schema.decodeUnknownOption(ChatRouteSupport.createMemorySchema)(
           yield* request.json,
@@ -74,7 +75,7 @@ export class ChatRouteMemory {
 
     const memory = Effect.fn("core.chat.memory")(function* () {
       const user = yield* CurrentUser;
-      const memoryStore = memoryStoreFor(user.id);
+      const memoryStore = yield* memoryStoreFor(user.id);
       const params = yield* HttpRouter.params;
       const memoryId = params.memoryId;
       if (memoryId === undefined) {

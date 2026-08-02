@@ -1,4 +1,5 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import { RuntimeContext } from "alchemy";
 import type { D1Database } from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import { Kysely, type Compilable } from "kysely";
@@ -12,20 +13,8 @@ export type DatabaseRuntime = DatabaseRuntimeRecord;
 
 export type RawQueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
 
-type QueryDatabaseEnvironment =
-  ReturnType<RawQueryDatabaseClient["batch"]> extends Effect.Effect<
-    unknown,
-    unknown,
-    infer Environment
-  >
-    ? Environment
-    : never;
-
-export interface CloudflareQueryDatabaseClient<TSchema> extends QueryDatabaseClient<
-  TSchema,
-  QueryDatabaseEnvironment
-> {
-  readonly raw: RawQueryDatabaseClient["raw"];
+export interface CloudflareQueryDatabaseClient<TSchema> extends QueryDatabaseClient<TSchema> {
+  readonly raw: Effect.Effect<Effect.Success<RawQueryDatabaseClient["raw"]>>;
 }
 
 const isTransientD1Error = (error: unknown): boolean =>
@@ -44,9 +33,10 @@ export class CloudflareDatabase {
     runtime: DatabaseRuntime;
   }): CloudflareQueryDatabaseClient<TSchema> {
     return {
-      raw: query.raw,
+      raw: query.raw.pipe(Effect.provide(RuntimeContext.phantom)),
       runtime,
       kysely: query.raw.pipe(
+        Effect.provide(RuntimeContext.phantom),
         Effect.map((database) => CloudflareDatabase.makeD1Kysely<TSchema>(database)),
       ),
       batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
@@ -58,6 +48,7 @@ export class CloudflareDatabase {
             }),
           )
           .pipe(
+            Effect.provide(RuntimeContext.phantom),
             Effect.retry({ times: 2, while: isTransientD1Error }),
             Effect.map((results) =>
               results.map((result) => ({ meta: { changes: Number(result.meta.changes) } })),

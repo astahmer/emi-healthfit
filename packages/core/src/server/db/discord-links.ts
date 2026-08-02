@@ -273,62 +273,19 @@ export class DiscordLinkDatabase extends Context.Service<
   DiscordLinkDatabase,
   DiscordLinkDatabaseShape
 >()("@emi/core/server/database/DiscordLinkDatabase") {
-  static readonly consumeLinkCode = (input: {
-    readonly code: string;
-    readonly discordUserId: string;
-  }) => Effect.flatMap(DiscordLinkDatabase, (database) => database.consumeLinkCode(input));
-
-  static readonly createLinkCode = (input: { readonly userId: string }) =>
-    Effect.flatMap(DiscordLinkDatabase, (database) => database.createLinkCode(input));
-
-  static readonly getLinkedUserId = (input: { readonly discordUserId: string }) =>
-    Effect.flatMap(DiscordLinkDatabase, (database) => database.getLinkedUserId(input));
-
   static readonly hashLinkCode = hashDiscordLinkCode;
 
-  static readonly listAccountLinks = (input: { readonly userId: string }) =>
-    Effect.flatMap(DiscordLinkDatabase, (database) => database.listAccountLinks(input));
-
-  static readonly listLinkCodes = (input: { readonly userId: string }) =>
-    Effect.flatMap(DiscordLinkDatabase, (database) => database.listLinkCodes(input));
-
-  static readonly revokeLinkCode = (input: { readonly userId: string; readonly codeId: string }) =>
-    Effect.flatMap(DiscordLinkDatabase, (database) => database.revokeLinkCode(input));
-
-  static readonly unlinkAccount = (input: {
-    readonly userId: string;
-    readonly discordUserId: string;
-  }) => Effect.flatMap(DiscordLinkDatabase, (database) => database.unlinkAccount(input));
-
-  static readonly unlinkAccountByDiscordUserId = (input: { readonly discordUserId: string }) =>
-    Effect.flatMap(DiscordLinkDatabase, (database) => database.unlinkAccountByDiscordUserId(input));
-
-  static layer<Environment>({
-    db,
-  }: {
-    readonly db: DiscordDb<Environment>;
-  }): Layer.Layer<DiscordLinkDatabase, never, Environment> {
-    return Layer.effect(
-      DiscordLinkDatabase,
-      Effect.gen(function* () {
-        const context = yield* Effect.context<Environment>();
-        const provide = <A>(effect: Effect.Effect<A, never, Environment>) =>
-          Effect.provideContext(effect, context);
-        return {
-          consumeLinkCode: (input) => provide(consumeDiscordLinkCode(db, input)),
-          createLinkCode: ({ userId }) => provide(createDiscordLinkCode(db, userId)),
-          getLinkedUserId: ({ discordUserId }) =>
-            provide(getLinkedUserIdForDiscord(db, discordUserId)),
-          listAccountLinks: ({ userId }) => provide(listDiscordAccountLinks(db, userId)),
-          listLinkCodes: ({ userId }) => provide(listDiscordLinkCodes(db, userId)),
-          revokeLinkCode: ({ userId, codeId }) =>
-            provide(revokeDiscordLinkCode(db, userId, codeId)),
-          unlinkAccount: ({ userId, discordUserId }) =>
-            provide(unlinkDiscordAccount(db, userId, discordUserId)),
-          unlinkAccountByDiscordUserId: ({ discordUserId }) =>
-            provide(unlinkDiscordAccountByDiscordUserId(db, discordUserId)),
-        } satisfies DiscordLinkDatabaseShape;
-      }),
-    );
+  static layer({ db }: { readonly db: DiscordDb }): Layer.Layer<DiscordLinkDatabase> {
+    return Layer.succeed(DiscordLinkDatabase, {
+      consumeLinkCode: (input) => consumeDiscordLinkCode(db, input),
+      createLinkCode: ({ userId }) => createDiscordLinkCode(db, userId),
+      getLinkedUserId: ({ discordUserId }) => getLinkedUserIdForDiscord(db, discordUserId),
+      listAccountLinks: ({ userId }) => listDiscordAccountLinks(db, userId),
+      listLinkCodes: ({ userId }) => listDiscordLinkCodes(db, userId),
+      revokeLinkCode: ({ userId, codeId }) => revokeDiscordLinkCode(db, userId, codeId),
+      unlinkAccount: ({ userId, discordUserId }) => unlinkDiscordAccount(db, userId, discordUserId),
+      unlinkAccountByDiscordUserId: ({ discordUserId }) =>
+        unlinkDiscordAccountByDiscordUserId(db, discordUserId),
+    });
   }
 }

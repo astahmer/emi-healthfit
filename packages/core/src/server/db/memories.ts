@@ -444,106 +444,26 @@ export interface MemoryDatabaseShape {
 export class MemoryDatabase extends Context.Service<MemoryDatabase, MemoryDatabaseShape>()(
   "@emi/core/server/database/MemoryDatabase",
 ) {
-  static readonly deleteMemoriesByMessage = (input: {
-    readonly userId: string;
-    readonly messageId: string;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.deleteMemoriesByMessage(input));
-
-  static readonly deleteMemory = (input: { readonly userId: string; readonly id: string }) =>
-    Effect.flatMap(MemoryDatabase, (database) => database.deleteMemory(input));
-
-  static readonly deleteNote = (input: { readonly userId: string; readonly id: string }) =>
-    Effect.flatMap(MemoryDatabase, (database) => database.deleteNote(input));
-
-  static readonly getMemories = (input: {
-    readonly userId: string;
-    readonly options?: { readonly limit?: number };
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.getMemories(input));
-
-  static readonly getMemorySummary = (input: { readonly userId: string }) =>
-    Effect.flatMap(MemoryDatabase, (database) => database.getMemorySummary(input));
-
-  static readonly getNotes = (input: { readonly userId: string; readonly limit?: number }) =>
-    Effect.flatMap(MemoryDatabase, (database) => database.getNotes(input));
-
-  static readonly insertMemories = (input: {
-    readonly userId: string;
-    readonly inputs: ReadonlyArray<MemoryInput>;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.insertMemories(input));
-
-  static readonly insertMemory = (input: {
-    readonly userId: string;
-    readonly content: string;
-    readonly source?: string;
-    readonly threadId?: string;
-    readonly messageId?: string;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.insertMemory(input));
-
-  static readonly insertNote = (input: { readonly userId: string; readonly content: string }) =>
-    Effect.flatMap(MemoryDatabase, (database) => database.insertNote(input));
-
-  static readonly listMemoryIdsForMessage = (input: {
-    readonly userId: string;
-    readonly messageId: string;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.listMemoryIdsForMessage(input));
-
-  static readonly searchMemories = (input: {
-    readonly userId: string;
-    readonly query: string;
-    readonly options?: { readonly limit?: number };
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.searchMemories(input));
-
-  static readonly searchNotes = (input: {
-    readonly userId: string;
-    readonly query: string;
-    readonly limit?: number;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.searchNotes(input));
-
-  static readonly updateNote = (input: {
-    readonly userId: string;
-    readonly id: string;
-    readonly content: string;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.updateNote(input));
-
-  static readonly upsertMemorySummary = (input: {
-    readonly userId: string;
-    readonly content: string;
-    readonly memoryCount: number;
-  }) => Effect.flatMap(MemoryDatabase, (database) => database.upsertMemorySummary(input));
-
-  static layer<Environment>({
-    db,
-  }: {
-    readonly db: MemoriesDb<Environment>;
-  }): Layer.Layer<MemoryDatabase, never, Environment> {
-    return Layer.effect(
-      MemoryDatabase,
-      Effect.gen(function* () {
-        const context = yield* Effect.context<Environment>();
-        const provide = <A>(effect: Effect.Effect<A, never, Environment>) =>
-          Effect.provideContext(effect, context);
-        return {
-          deleteMemoriesByMessage: ({ userId, messageId }) =>
-            provide(deleteMemoriesByMessage(db, userId, messageId)),
-          deleteMemory: ({ userId, id }) => provide(deleteMemory(db, userId, id)),
-          deleteNote: ({ userId, id }) => provide(deleteNote(db, userId, id)),
-          getMemories: ({ userId, options }) => provide(getMemories(db, userId, options)),
-          getMemorySummary: ({ userId }) => provide(getMemorySummary(db, userId)),
-          getNotes: ({ userId, limit }) => provide(getNotes(db, userId, limit)),
-          insertMemories: ({ userId, inputs }) => provide(insertMemories(db, userId, [...inputs])),
-          insertMemory: ({ userId, content, source, threadId, messageId }) =>
-            provide(insertMemory(db, userId, content, source, threadId, messageId)),
-          insertNote: ({ userId, content }) => provide(insertNote(db, userId, content)),
-          listMemoryIdsForMessage: ({ userId, messageId }) =>
-            provide(listMemoryIdsForMessage(db, userId, messageId)),
-          searchMemories: ({ userId, query, options }) =>
-            provide(searchMemories(db, userId, query, options)),
-          searchNotes: ({ userId, query, limit }) => provide(searchNotes(db, userId, query, limit)),
-          updateNote: ({ userId, id, content }) => provide(updateNote(db, userId, id, content)),
-          upsertMemorySummary: ({ userId, content, memoryCount }) =>
-            provide(upsertMemorySummary(db, userId, content, memoryCount)),
-        } satisfies MemoryDatabaseShape;
-      }),
-    );
+  static layer({ db }: { readonly db: MemoriesDb }): Layer.Layer<MemoryDatabase> {
+    return Layer.succeed(MemoryDatabase, {
+      deleteMemoriesByMessage: ({ userId, messageId }) =>
+        deleteMemoriesByMessage(db, userId, messageId),
+      deleteMemory: ({ userId, id }) => deleteMemory(db, userId, id),
+      deleteNote: ({ userId, id }) => deleteNote(db, userId, id),
+      getMemories: ({ userId, options }) => getMemories(db, userId, options),
+      getMemorySummary: ({ userId }) => getMemorySummary(db, userId),
+      getNotes: ({ userId, limit }) => getNotes(db, userId, limit),
+      insertMemories: ({ userId, inputs }) => insertMemories(db, userId, [...inputs]),
+      insertMemory: ({ userId, content, source, threadId, messageId }) =>
+        insertMemory(db, userId, content, source, threadId, messageId),
+      insertNote: ({ userId, content }) => insertNote(db, userId, content),
+      listMemoryIdsForMessage: ({ userId, messageId }) =>
+        listMemoryIdsForMessage(db, userId, messageId),
+      searchMemories: ({ userId, query, options }) => searchMemories(db, userId, query, options),
+      searchNotes: ({ userId, query, limit }) => searchNotes(db, userId, query, limit),
+      updateNote: ({ userId, id, content }) => updateNote(db, userId, id, content),
+      upsertMemorySummary: ({ userId, content, memoryCount }) =>
+        upsertMemorySummary(db, userId, content, memoryCount),
+    });
   }
 }

@@ -1,6 +1,7 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import { ConversationRevision } from "./conversation-revision.ts";
 import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
@@ -14,10 +15,19 @@ const arrayBufferToHex = (buffer: ArrayBuffer): string => {
     .join("");
 };
 
-const requireMappedId = (ids: Map<string, string>, originalId: string): string => {
+export class ConversationCloneError extends Schema.TaggedErrorClass<ConversationCloneError>()(
+  "ConversationCloneError",
+  { message: Schema.String },
+) {}
+
+const requireMappedId = (
+  ids: Map<string, string>,
+  originalId: string,
+): Effect.Effect<string, ConversationCloneError> => {
   const id = ids.get(originalId);
-  if (id === undefined) throw new Error(`Missing cloned id for ${originalId}`);
-  return id;
+  return id === undefined
+    ? Effect.fail(new ConversationCloneError({ message: `Missing cloned id for ${originalId}` }))
+    : Effect.succeed(id);
 };
 
 const hashSuggestionsKey = (
@@ -293,6 +303,56 @@ const cloneConversation = Effect.fn("conversation.clone")(function* <TEnvironmen
   );
   const threadIds = new Map(originalThreads.map((thread) => [thread.id, db.runtime.createId()]));
 
+  const messageQueries = yield* Effect.forEach(originalMessages, (message) =>
+    Effect.gen(function* () {
+      const id = yield* requireMappedId(messageIds, message.id);
+      const parentId =
+        message.parent_id === null ? null : yield* requireMappedId(messageIds, message.parent_id);
+      return kysely.insertInto("messages").values({
+        id,
+        user_id: userId,
+        conversation_id: clonedConversationId,
+        parent_id: parentId,
+        role: message.role,
+        parts: message.parts,
+        prompt_tokens: message.prompt_tokens,
+        completion_tokens: message.completion_tokens,
+        total_tokens: message.total_tokens,
+        model: message.model,
+        created_at: message.created_at,
+      });
+    }),
+  );
+  const threadQueries = yield* Effect.forEach(originalThreads, (thread) =>
+    Effect.gen(function* () {
+      const id = yield* requireMappedId(threadIds, thread.id);
+      const anchorMessageId = yield* requireMappedId(messageIds, thread.anchor_message_id);
+      return kysely.insertInto("threads").values({
+        id,
+        user_id: userId,
+        conversation_id: clonedConversationId,
+        anchor_message_id: anchorMessageId,
+        title: thread.title,
+        status: thread.status,
+        pinned: thread.pinned,
+        created_at: thread.created_at,
+        updated_at: thread.updated_at,
+      });
+    }),
+  );
+  const threadMessageQueries = yield* Effect.forEach(threadMessageRows, (row) =>
+    Effect.gen(function* () {
+      const threadId = yield* requireMappedId(threadIds, row.thread_id);
+      const messageId = yield* requireMappedId(messageIds, row.message_id);
+      return kysely.insertInto("thread_messages").values({
+        user_id: userId,
+        thread_id: threadId,
+        message_id: messageId,
+        included_at: row.included_at,
+      });
+    }),
+  );
+
   yield* QueryDatabase.transaction(db, [
     kysely.insertInto("conversations").values({
       id: clonedConversationId,
@@ -303,47 +363,9 @@ const cloneConversation = Effect.fn("conversation.clone")(function* <TEnvironmen
       created_at: timestamp,
       updated_at: timestamp,
     }),
-    ...originalMessages.map((message) =>
-      kysely.insertInto("messages").values({
-        id: requireMappedId(messageIds, message.id),
-        user_id: userId,
-        conversation_id: clonedConversationId,
-        parent_id: message.parent_id === null ? null : (messageIds.get(message.parent_id) ?? null),
-        role: message.role,
-        parts: message.parts,
-        prompt_tokens: message.prompt_tokens,
-        completion_tokens: message.completion_tokens,
-        total_tokens: message.total_tokens,
-        model: message.model,
-        created_at: message.created_at,
-      }),
-    ),
-    ...originalThreads.map((thread) =>
-      kysely.insertInto("threads").values({
-        id: requireMappedId(threadIds, thread.id),
-        user_id: userId,
-        conversation_id: clonedConversationId,
-        anchor_message_id: requireMappedId(messageIds, thread.anchor_message_id),
-        title: thread.title,
-        status: thread.status,
-        pinned: thread.pinned,
-        created_at: thread.created_at,
-        updated_at: thread.updated_at,
-      }),
-    ),
-    ...threadMessageRows.flatMap((row) => {
-      const threadId = threadIds.get(row.thread_id);
-      const messageId = messageIds.get(row.message_id);
-      if (threadId === undefined || messageId === undefined) return [];
-      return [
-        kysely.insertInto("thread_messages").values({
-          user_id: userId,
-          thread_id: threadId,
-          message_id: messageId,
-          included_at: row.included_at,
-        }),
-      ];
-    }),
+    ...messageQueries,
+    ...threadQueries,
+    ...threadMessageQueries,
   ]);
   return yield* getConversation(db, userId, clonedConversationId);
 });
@@ -896,7 +918,7 @@ export interface ConversationDatabaseShape {
   readonly cloneConversation: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<Conversation | null>;
+  }) => Effect.Effect<Conversation | null, ConversationCloneError>;
   readonly createConversation: (input: {
     readonly userId: string;
     readonly title?: string;
@@ -1017,228 +1039,67 @@ export class ConversationDatabase extends Context.Service<
   ConversationDatabase,
   ConversationDatabaseShape
 >()("@emi/core/server/database/ConversationDatabase") {
-  static readonly addThreadMessage = (input: {
-    readonly userId: string;
-    readonly threadId: string;
-    readonly messageId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.addThreadMessage(input));
-
-  static readonly cloneConversation = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.cloneConversation(input));
-
-  static readonly createConversation = (input: {
-    readonly userId: string;
-    readonly title?: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.createConversation(input));
-
-  static readonly createThread = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-    readonly anchorMessageId: string;
-    readonly title?: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.createThread(input));
-
-  static readonly deleteConversation = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.deleteConversation(input));
-
-  static readonly discardThread = (input: { readonly userId: string; readonly threadId: string }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.discardThread(input));
-
-  static readonly getConversation = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.getConversation(input));
-
-  static readonly getConversationMessages = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.getConversationMessages(input));
-
-  static readonly getConversations = (input: {
-    readonly userId: string;
-    readonly search?: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.getConversations(input));
-
-  static readonly getMessage = (input: { readonly userId: string; readonly messageId: string }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.getMessage(input));
-
-  static readonly getSuggestionsById = (input: { readonly userId: string; readonly id: string }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.getSuggestionsById(input));
-
-  static readonly getThread = (input: { readonly userId: string; readonly threadId: string }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.getThread(input));
-
-  static readonly getThreadByAnchor = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-    readonly anchorMessageId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.getThreadByAnchor(input));
-
-  static readonly getThreadMessages = (input: {
-    readonly userId: string;
-    readonly threadId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.getThreadMessages(input));
-
-  static readonly getThreads = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.getThreads(input));
-
-  static readonly getThreadsIncludingDiscarded = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-  }) =>
-    Effect.flatMap(ConversationDatabase, (database) =>
-      database.getThreadsIncludingDiscarded(input),
-    );
-
   static readonly hashSuggestionsKey = hashSuggestionsKey;
-
-  static readonly pinThread = (input: {
-    readonly userId: string;
-    readonly threadId: string;
-    readonly pinned: boolean;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.pinThread(input));
-
-  static readonly renameConversation = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-    readonly title: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.renameConversation(input));
-
-  static readonly renameThread = (input: {
-    readonly userId: string;
-    readonly threadId: string;
-    readonly title: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.renameThread(input));
-
-  static readonly restoreThread = (input: { readonly userId: string; readonly threadId: string }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.restoreThread(input));
-
-  static readonly reviseConversationMessage = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-    readonly messageId: string;
-    readonly parts: ReadonlyArray<unknown>;
-    readonly threadId?: string;
-  }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.reviseConversationMessage(input));
-
-  static readonly saveConversationMessages = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-    readonly parentId: string | null;
-    readonly messages: ReadonlyArray<{
-      readonly id?: string;
-      readonly role: Message["role"];
-      readonly parts: ReadonlyArray<unknown>;
-      readonly usage?: MessageUsage;
-      readonly model?: string;
-    }>;
-  }) =>
-    Effect.flatMap(ConversationDatabase, (database) => database.saveConversationMessages(input));
-
-  static readonly saveSuggestions = (input: {
-    readonly userId: string;
-    readonly id: string;
-    readonly suggestions: ReadonlyArray<string>;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.saveSuggestions(input));
-
-  static readonly summarizeThread = (input: {
-    readonly userId: string;
-    readonly threadId: string;
-    readonly summaryText: string;
-    readonly targetMessageId?: string;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.summarizeThread(input));
-
-  static readonly updateConversationState = (input: {
-    readonly userId: string;
-    readonly conversationId: string;
-    readonly status?: "regular" | "archived";
-    readonly pinned?: boolean;
-  }) => Effect.flatMap(ConversationDatabase, (database) => database.updateConversationState(input));
-
-  static layer<Environment>({
+  static layer({
     db,
   }: {
-    readonly db: QueryDatabaseClient<ConversationDatabaseSchema, Environment>;
-  }): Layer.Layer<ConversationDatabase, never, Environment> {
-    return Layer.effect(
-      ConversationDatabase,
-      Effect.gen(function* () {
-        const context = yield* Effect.context<Environment>();
-        const provide = <A>(effect: Effect.Effect<A, never, Environment>) =>
-          Effect.provideContext(effect, context);
-        return {
-          addThreadMessage: ({ userId, threadId, messageId }) =>
-            provide(addThreadMessage(db, userId, threadId, messageId)),
-          cloneConversation: ({ userId, conversationId }) =>
-            provide(cloneConversation({ db, userId, conversationId })),
-          createConversation: ({ userId, title }) => provide(createConversation(db, userId, title)),
-          createThread: ({ userId, conversationId, anchorMessageId, title }) =>
-            provide(createThread(db, userId, conversationId, anchorMessageId, title)),
-          deleteConversation: ({ userId, conversationId }) =>
-            provide(deleteConversation(db, userId, conversationId)),
-          discardThread: ({ userId, threadId }) => provide(discardThread(db, userId, threadId)),
-          getConversation: ({ userId, conversationId }) =>
-            provide(getConversation(db, userId, conversationId)),
-          getConversationMessages: ({ userId, conversationId }) =>
-            provide(getConversationMessages(db, userId, conversationId)),
-          getConversations: ({ userId, search }) => provide(getConversations(db, userId, search)),
-          getMessage: ({ userId, messageId }) => provide(getMessage(db, userId, messageId)),
-          getSuggestionsById: ({ userId, id }) => provide(getSuggestionsById(db, userId, id)),
-          getThread: ({ userId, threadId }) => provide(getThread(db, userId, threadId)),
-          getThreadByAnchor: ({ userId, conversationId, anchorMessageId }) =>
-            provide(getThreadByAnchor(db, userId, conversationId, anchorMessageId)),
-          getThreadMessages: ({ userId, threadId }) =>
-            provide(getThreadMessages(db, userId, threadId)),
-          getThreads: ({ userId, conversationId }) =>
-            provide(getThreads(db, userId, conversationId)),
-          getThreadsIncludingDiscarded: ({ userId, conversationId }) =>
-            provide(getThreadsIncludingDiscarded(db, userId, conversationId)),
-          pinThread: ({ userId, threadId, pinned }) =>
-            provide(pinThread(db, userId, threadId, pinned)),
-          renameConversation: ({ userId, conversationId, title }) =>
-            provide(renameConversation(db, userId, conversationId, title)),
-          renameThread: ({ userId, threadId, title }) =>
-            provide(renameThread(db, userId, threadId, title)),
-          restoreThread: ({ userId, threadId }) => provide(restoreThread(db, userId, threadId)),
-          reviseConversationMessage: ({ userId, conversationId, messageId, parts, threadId }) =>
-            provide(
-              reviseConversationMessage({
-                db,
-                userId,
-                conversationId,
-                messageId,
-                parts: [...parts],
-                threadId,
-              }),
-            ),
-          saveConversationMessages: ({ userId, conversationId, parentId, messages }) =>
-            provide(
-              saveConversationMessages(
-                db,
-                userId,
-                conversationId,
-                parentId,
-                messages.map((message) => ({
-                  ...message,
-                  parts: [...message.parts],
-                })),
-              ),
-            ),
-          saveSuggestions: ({ userId, id, suggestions }) =>
-            provide(saveSuggestions(db, userId, id, [...suggestions])),
-          summarizeThread: ({ userId, threadId, summaryText, targetMessageId }) =>
-            provide(summarizeThread(db, userId, threadId, summaryText, targetMessageId)),
-          updateConversationState: ({ userId, conversationId, status, pinned }) =>
-            provide(updateConversationState({ db, userId, conversationId, status, pinned })),
-        } satisfies ConversationDatabaseShape;
-      }),
-    );
+    readonly db: QueryDatabaseClient<ConversationDatabaseSchema>;
+  }): Layer.Layer<ConversationDatabase> {
+    return Layer.succeed(ConversationDatabase, {
+      addThreadMessage: ({ userId, threadId, messageId }) =>
+        addThreadMessage(db, userId, threadId, messageId),
+      cloneConversation: ({ userId, conversationId }) =>
+        cloneConversation({ db, userId, conversationId }),
+      createConversation: ({ userId, title }) => createConversation(db, userId, title),
+      createThread: ({ userId, conversationId, anchorMessageId, title }) =>
+        createThread(db, userId, conversationId, anchorMessageId, title),
+      deleteConversation: ({ userId, conversationId }) =>
+        deleteConversation(db, userId, conversationId),
+      discardThread: ({ userId, threadId }) => discardThread(db, userId, threadId),
+      getConversation: ({ userId, conversationId }) => getConversation(db, userId, conversationId),
+      getConversationMessages: ({ userId, conversationId }) =>
+        getConversationMessages(db, userId, conversationId),
+      getConversations: ({ userId, search }) => getConversations(db, userId, search),
+      getMessage: ({ userId, messageId }) => getMessage(db, userId, messageId),
+      getSuggestionsById: ({ userId, id }) => getSuggestionsById(db, userId, id),
+      getThread: ({ userId, threadId }) => getThread(db, userId, threadId),
+      getThreadByAnchor: ({ userId, conversationId, anchorMessageId }) =>
+        getThreadByAnchor(db, userId, conversationId, anchorMessageId),
+      getThreadMessages: ({ userId, threadId }) => getThreadMessages(db, userId, threadId),
+      getThreads: ({ userId, conversationId }) => getThreads(db, userId, conversationId),
+      getThreadsIncludingDiscarded: ({ userId, conversationId }) =>
+        getThreadsIncludingDiscarded(db, userId, conversationId),
+      pinThread: ({ userId, threadId, pinned }) => pinThread(db, userId, threadId, pinned),
+      renameConversation: ({ userId, conversationId, title }) =>
+        renameConversation(db, userId, conversationId, title),
+      renameThread: ({ userId, threadId, title }) => renameThread(db, userId, threadId, title),
+      restoreThread: ({ userId, threadId }) => restoreThread(db, userId, threadId),
+      reviseConversationMessage: ({ userId, conversationId, messageId, parts, threadId }) =>
+        reviseConversationMessage({
+          db,
+          userId,
+          conversationId,
+          messageId,
+          parts: [...parts],
+          threadId,
+        }),
+      saveConversationMessages: ({ userId, conversationId, parentId, messages }) =>
+        saveConversationMessages(
+          db,
+          userId,
+          conversationId,
+          parentId,
+          messages.map((message) => ({
+            ...message,
+            parts: [...message.parts],
+          })),
+        ),
+      saveSuggestions: ({ userId, id, suggestions }) =>
+        saveSuggestions(db, userId, id, [...suggestions]),
+      summarizeThread: ({ userId, threadId, summaryText, targetMessageId }) =>
+        summarizeThread(db, userId, threadId, summaryText, targetMessageId),
+      updateConversationState: ({ userId, conversationId, status, pinned }) =>
+        updateConversationState({ db, userId, conversationId, status, pinned }),
+    });
   }
 }
