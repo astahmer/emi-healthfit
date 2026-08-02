@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@emi/core": "workspace:*",
+    "@emi/core-migration": "workspace:*",
     "@emi/flavor-healthfit": "workspace:*",
     "@json-render/core": "0.19.0",
     "@json-render/react": "0.19.0",

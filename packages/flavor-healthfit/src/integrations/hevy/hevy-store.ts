@@ -1,6 +1,6 @@
 import type { Compilable } from "kysely";
 import * as Effect from "effect/Effect";
-import { runTransaction, type QueryDatabaseClient } from "@emi/core/server/legacy";
+import { runTransaction, type QueryDatabaseClient } from "@emi/core-migration/server";
 import type { HevySessionRow, HevySetRow, HealthfitDatabaseSchema } from "../../db/schema.ts";
 import { upsertHevySessions, upsertHevySets } from "../../db/ingested-data.ts";
 import type { HevyCredentialEnvelope } from "./credential-crypto.ts";

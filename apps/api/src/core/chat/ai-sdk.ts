@@ -3,7 +3,7 @@ import {
   normalizeGeneratedStrings,
   toUiMessageStream,
   type OpenAiCompatibleConfiguration,
-} from "@emi/core/chat";
+} from "@emi/core-migration/chat";
 import type { StreamTextOnChunkCallback, ToolSet, UIMessage } from "ai";
 import type { JSONSchema7 } from "json-schema";
 

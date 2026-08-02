@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@emi/core": "workspace:*",
+    "@emi/core-migration": "workspace:*",
     "alchemy": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",

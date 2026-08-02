@@ -3,4 +3,4 @@ export {
   makeAuth,
   parseAllowedEmails,
   type AuthConfiguration,
-} from "@emi/core/cloudflare";
+} from "@emi/core-migration/cloudflare";

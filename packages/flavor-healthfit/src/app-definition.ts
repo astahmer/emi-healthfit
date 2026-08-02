@@ -2,7 +2,7 @@ import {
   coreAppDefinition,
   mergeAppDefinitions,
   type AppDefinition,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import { tools } from "./tools/api.ts";
 

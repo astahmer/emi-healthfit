@@ -1,5 +1,5 @@
 import { FlaskConicalIcon } from "lucide-react";
-import type { CoreWebContributions } from "@emi/core/web";
+import type { CoreWebContributions } from "@emi/core-migration/web";
 import { healthFitWebContributions } from "@emi/flavor-healthfit/web";
 
 export const healthFitContributions: CoreWebContributions = {

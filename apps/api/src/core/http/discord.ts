@@ -1,4 +1,4 @@
-import { BadRequest, CoreApi, NotFound } from "@emi/core/contract";
+import { BadRequest, CoreApi, NotFound } from "@emi/core-migration/contract";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
@@ -9,7 +9,7 @@ import {
   revokeDiscordLinkCode,
   unlinkDiscordAccount,
   type DiscordDatabaseSchema,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 import { CurrentUser } from "../auth/request-auth.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 

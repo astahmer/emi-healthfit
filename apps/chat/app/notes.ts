@@ -1,7 +1,7 @@
-import type { Note } from "@emi/core/contract";
+import type { Note } from "@emi/core-migration/contract";
 import { runApi } from "./api-client";
 
-export type { Note } from "@emi/core/contract";
+export type { Note } from "@emi/core-migration/contract";
 
 export const fetchNotes = async (search?: string, limit = 100): Promise<Note[]> => {
   const normalizedSearch = search?.trim();

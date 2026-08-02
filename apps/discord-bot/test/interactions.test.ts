@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import * as Effect from "effect/Effect";
-import { DiscordInteractionType, DiscordInteractionResponseType } from "@emi/core/discord";
+import {
+  DiscordInteractionType,
+  DiscordInteractionResponseType,
+} from "@emi/core-migration/discord";
 import { handleInteractionsRequest } from "../src/routes/interactions.ts";
 import {
   resetDiscordRateLimitsForTests,

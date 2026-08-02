@@ -19,7 +19,7 @@ import {
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
   type QueryDatabaseClient,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 import { buildChatContext } from "../chat/context.ts";
 import {
   getDataSummary,

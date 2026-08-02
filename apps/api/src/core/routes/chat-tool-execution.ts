@@ -1,5 +1,5 @@
 import { RuntimeContext } from "alchemy";
-import { generateConversationSummary } from "@emi/core/chat";
+import { generateConversationSummary } from "@emi/core-migration/chat";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type { createChatOperationBudget } from "../chat/generation-budget.ts";

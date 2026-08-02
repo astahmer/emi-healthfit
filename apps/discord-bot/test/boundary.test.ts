@@ -19,10 +19,10 @@ const walk = async (directory: string): Promise<string[]> => {
   return files;
 };
 
-const forbiddenPatterns = ["@emi/core/web", "apps/chat", "apps/api"];
+const forbiddenPatterns = ["@emi/core-migration/web", "apps/chat", "apps/api"];
 
 describe("discord-bot boundary", () => {
-  it("never imports @emi/core/web or another app's source from src/", async () => {
+  it("never imports @emi/core-migration/web or another app's source from src/", async () => {
     const files = await walk(srcRoot);
     const violations: string[] = [];
     for (const file of files) {
@@ -35,13 +35,13 @@ describe("discord-bot boundary", () => {
     assert.deepEqual(violations, []);
   });
 
-  it("does not declare @emi/core/web as a dependency and keeps package deps on @emi/core", async () => {
+  it("does not declare @emi/core-migration/web as a dependency and keeps package deps on @emi/core", async () => {
     const packageJson = JSON.parse(await readFile(join(appRoot, "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
     const declared = { ...packageJson.dependencies, ...packageJson.devDependencies };
-    assert.equal("@emi/core/web" in declared, false);
+    assert.equal("@emi/core-migration/web" in declared, false);
     assert.ok("@emi/core" in declared);
     assert.ok("@emi/flavor-healthfit" in declared);
   });

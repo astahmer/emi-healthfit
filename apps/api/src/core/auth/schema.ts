@@ -4,4 +4,4 @@ export {
   authSession,
   authUser,
   authVerification,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";

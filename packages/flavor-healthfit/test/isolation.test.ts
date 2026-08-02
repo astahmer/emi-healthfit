@@ -37,14 +37,14 @@ describe("@emi/flavor-healthfit isolation", () => {
     expect(source).toContain("./ingest/data-transfer.ts");
   });
 
-  it("does not import @emi/core/web from non-web entry sources", async () => {
+  it("does not import @emi/core-migration/web from non-web entry sources", async () => {
     const files = await walk(join(packageRoot, "src"));
     const violations: string[] = [];
     for (const file of files) {
       if (file.endsWith("contributions.tsx") || file.includes("/components/")) continue;
       if (file.endsWith("web.ts")) continue;
       const source = await readFile(file, "utf8");
-      if (source.includes("@emi/core/web")) {
+      if (source.includes("@emi/core-migration/web")) {
         violations.push(file.replace(packageRoot + "/", ""));
       }
     }

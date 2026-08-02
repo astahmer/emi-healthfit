@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { makeGenericChatRoutes, makeQueryDatabaseClient } from "@emi/core/cloudflare";
+import { makeGenericChatRoutes, makeQueryDatabaseClient } from "@emi/core-migration/cloudflare";
 
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -29,7 +29,7 @@ describe("generic-worker chat composition", () => {
     assert.match(source, /makeGenericChatRoutes/);
   });
 
-  it("resolves the D1 query client factory through @emi/core/cloudflare", () => {
+  it("resolves the D1 query client factory through @emi/core-migration/cloudflare", () => {
     assert.equal(typeof makeQueryDatabaseClient, "function");
     assert.equal(typeof makeGenericChatRoutes, "function");
   });

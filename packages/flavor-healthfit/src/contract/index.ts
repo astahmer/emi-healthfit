@@ -1,6 +1,12 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
-import { Content, CoreApi, Deleted, Identifier, StandardErrors } from "@emi/core/contract";
+import {
+  Content,
+  CoreApi,
+  Deleted,
+  Identifier,
+  StandardErrors,
+} from "@emi/core-migration/contract";
 
 const NullableNumber = Schema.NullOr(Schema.Number);
 

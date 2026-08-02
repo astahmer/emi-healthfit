@@ -11,13 +11,13 @@ import {
   makeGenericChatRoutes,
   makeQueryDatabaseClient,
   type CloudflareQueryDatabaseClient,
-} from "@emi/core/cloudflare";
+} from "@emi/core-migration/cloudflare";
 import {
   isGenericProtectedPath,
   type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 import { genericWorkerAppConfig } from "./app-config.ts";
 
 const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {

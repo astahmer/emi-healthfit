@@ -18,13 +18,13 @@ import {
   threadMessages,
   threads,
   type QueryDatabaseClient as GenericQueryDatabaseClient,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 import {
   makeD1Kysely as makePlatformD1Kysely,
   makeQueryDatabaseClient as makePlatformQueryDatabaseClient,
   type CloudflareQueryDatabaseClient,
   type RawQueryDatabaseClient,
-} from "@emi/core/cloudflare";
+} from "@emi/core-migration/cloudflare";
 import {
   bodyMetrics,
   dailyActivity,
@@ -38,8 +38,8 @@ import {
   syncCursors,
 } from "@emi/flavor-healthfit";
 
-export { runTransaction, runBatches } from "@emi/core/server/legacy";
-export type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
+export { runTransaction, runBatches } from "@emi/core-migration/server";
+export type { RawQueryDatabaseClient } from "@emi/core-migration/cloudflare";
 
 export interface DatabaseSchema {
   auth_account: Kyselify<typeof authAccount>;

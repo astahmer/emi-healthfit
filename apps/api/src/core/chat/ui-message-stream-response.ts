@@ -1,1 +1,1 @@
-export { createChatStreamResponse } from "@emi/core/chat";
+export { createChatStreamResponse } from "@emi/core-migration/chat";

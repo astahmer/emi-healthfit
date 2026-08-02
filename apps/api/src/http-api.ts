@@ -1,4 +1,8 @@
-import { CoreApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
+import {
+  CoreApi,
+  type Memory as ApiMemory,
+  type Note as ApiNote,
+} from "@emi/core-migration/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Context from "effect/Context";
@@ -9,7 +13,7 @@ import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
-import type { MemoryDatabaseSchema } from "@emi/core/server/legacy";
+import type { MemoryDatabaseSchema } from "@emi/core-migration/server";
 import { CurrentUser } from "./core/auth/request-auth.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "./platform/db/client.ts";
 import {

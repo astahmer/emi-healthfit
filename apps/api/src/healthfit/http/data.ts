@@ -1,11 +1,11 @@
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
-import { generateSuggestions, normalizeGeneratedStrings } from "@emi/core/chat";
+import { generateSuggestions, normalizeGeneratedStrings } from "@emi/core-migration/chat";
 import * as Cloudflare from "alchemy/Cloudflare";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { CurrentUser } from "../../core/auth/request-auth.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server/legacy";
+import type { ConversationDatabaseSchema } from "@emi/core-migration/server";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import {
   getSuggestionsById,

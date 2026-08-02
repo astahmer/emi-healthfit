@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type { ConversationDatabaseSchema } from "@emi/core/server/legacy";
+import type { ConversationDatabaseSchema } from "@emi/core-migration/server";
 import { getConversations, getConversationMessages } from "../src/core/db/conversations.ts";
 import { handleDiscordAsk } from "../src/core/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";

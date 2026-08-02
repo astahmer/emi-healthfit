@@ -1,1 +1,1 @@
-export { validateStoredUIMessages } from "@emi/core/chat";
+export { validateStoredUIMessages } from "@emi/core-migration/chat";

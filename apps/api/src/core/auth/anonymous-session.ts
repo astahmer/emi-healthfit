@@ -5,4 +5,4 @@ export {
   createSessionCookie,
   isAnonymousEmail,
   isTrustedAuthOrigin,
-} from "@emi/core/cloudflare";
+} from "@emi/core-migration/cloudflare";

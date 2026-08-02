@@ -27,7 +27,7 @@ import {
   summarizeThread,
   updateConversationState,
 } from "../src/core/db/conversations.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server/legacy";
+import type { ConversationDatabaseSchema } from "@emi/core-migration/server";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 

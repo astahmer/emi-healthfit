@@ -17,13 +17,13 @@ export {
   type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 
 import type {
   AuthDatabaseSchema,
   ConversationDatabaseSchema,
   MemoryDatabaseSchema,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 
 export type GenericDatabaseSchema = ConversationDatabaseSchema &
   AuthDatabaseSchema &

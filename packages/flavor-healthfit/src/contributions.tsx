@@ -7,7 +7,7 @@ import {
   SettingsIcon,
   UploadIcon,
 } from "lucide-react";
-import type { CoreWebContributions } from "@emi/core/web";
+import type { CoreWebContributions } from "@emi/core-migration/web";
 import {
   ExerciseProgressToolRenderer,
   GoalProgressToolRenderer,

@@ -1,1 +1,1 @@
-export { createToolCircuitBreaker } from "@emi/core/chat";
+export { createToolCircuitBreaker } from "@emi/core-migration/chat";

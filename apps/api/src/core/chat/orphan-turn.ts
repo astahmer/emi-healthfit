@@ -2,4 +2,4 @@ export {
   getOrphanUserMessageId,
   getProviderMessages,
   isDuplicateOrphanRetry,
-} from "@emi/core/chat";
+} from "@emi/core-migration/chat";

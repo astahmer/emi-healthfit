@@ -28,4 +28,4 @@ export {
   isGenericProtectedPath,
   isProtectedPath,
   parseAllowedEmails,
-} from "@emi/core/server/legacy";
+} from "../../server/legacy/index.ts";

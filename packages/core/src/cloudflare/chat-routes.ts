@@ -14,7 +14,7 @@ import {
   toUiMessageStream,
   validateChatAttachments,
   validateStoredUIMessages,
-} from "@emi/core/chat";
+} from "../chat/index.ts";
 import {
   CurrentUser,
   GenerationAlreadyActiveError,
@@ -55,7 +55,7 @@ import {
   pinThread,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core/server/legacy";
+} from "../server/legacy/index.ts";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";

@@ -1,5 +1,11 @@
-import type { ApplicationCommandInteraction, DiscordHttpResponse } from "@emi/core/discord";
-import { deferredEphemeralResponse, editDeferredInteractionResponse } from "@emi/core/discord";
+import type {
+  ApplicationCommandInteraction,
+  DiscordHttpResponse,
+} from "@emi/core-migration/discord";
+import {
+  deferredEphemeralResponse,
+  editDeferredInteractionResponse,
+} from "@emi/core-migration/discord";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import {

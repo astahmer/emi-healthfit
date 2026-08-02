@@ -4,14 +4,17 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
-import { makeGenericChatRoutes, type CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
+import {
+  makeGenericChatRoutes,
+  type CloudflareQueryDatabaseClient,
+} from "@emi/core-migration/cloudflare";
 import {
   createConversation,
   CurrentUser,
   getConversationMessages,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core/server/legacy";
+} from "@emi/core-migration/server";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
