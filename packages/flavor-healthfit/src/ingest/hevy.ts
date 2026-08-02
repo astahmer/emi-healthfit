@@ -22,6 +22,11 @@ type HevyRow = typeof HevyRow.Type;
 
 const HEVY_DATE_FORMAT = /^\d{1,2} [A-Za-z]{3} \d{4}, \d{2}:\d{2}$/;
 
+export class HevyParseError extends Schema.TaggedErrorClass<HevyParseError>()("HevyParseError", {
+  phase: Schema.Literals(["date", "schema"]),
+  message: Schema.String,
+}) {}
+
 const monthNames = [
   "Jan",
   "Feb",
@@ -37,10 +42,15 @@ const monthNames = [
   "Dec",
 ];
 
-export const parseHevyDate = (value: string): Effect.Effect<Date, Error> =>
+export const parseHevyDate = (value: string): Effect.Effect<Date, HevyParseError> =>
   Effect.gen(function* () {
     if (!HEVY_DATE_FORMAT.test(value)) {
-      return yield* Effect.fail(new Error(`Unexpected Hevy date format: ${value}`));
+      return yield* Effect.fail(
+        new HevyParseError({
+          phase: "date",
+          message: `Unexpected Hevy date format: ${value}`,
+        }),
+      );
     }
 
     const [day, month, year, time] = value.replace(",", "").split(/\s+/);
@@ -48,7 +58,12 @@ export const parseHevyDate = (value: string): Effect.Effect<Date, Error> =>
     const monthIndex = monthNames.indexOf(month);
 
     if (monthIndex === -1) {
-      return yield* Effect.fail(new Error(`Unknown Hevy month: ${month}`));
+      return yield* Effect.fail(
+        new HevyParseError({
+          phase: "date",
+          message: `Unknown Hevy month: ${month}`,
+        }),
+      );
     }
 
     return new Date(Number(year), monthIndex, Number(day), hour, minute);
@@ -92,7 +107,7 @@ export const parseHevyCsv = (
     sessions: HevySessionRow[];
     sets: HevySetRow[];
   },
-  Error
+  HevyParseError
 > =>
   Effect.gen(function* () {
     const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
@@ -111,7 +126,13 @@ export const parseHevyCsv = (
       });
 
       const decoded = yield* Schema.decodeUnknownEffect(HevyRow)(record).pipe(
-        Effect.mapError((error) => new Error(`Hevy CSV schema error: ${JSON.stringify(error)}`)),
+        Effect.mapError(
+          (error) =>
+            new HevyParseError({
+              phase: "schema",
+              message: `Hevy CSV schema error: ${JSON.stringify(error)}`,
+            }),
+        ),
       );
       rows.push(decoded);
     }

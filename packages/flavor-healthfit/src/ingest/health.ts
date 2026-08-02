@@ -9,6 +9,11 @@ import type {
 } from "../db/schema.ts";
 import { decodeJson } from "../lib/json-codec.ts";
 
+export class HealthExportParseError extends Schema.TaggedErrorClass<HealthExportParseError>()(
+  "HealthExportParseError",
+  { phase: Schema.Literals(["json", "schema"]), message: Schema.String },
+) {}
+
 const HealthDailyActivity = Schema.Struct({
   date: Schema.String,
   activeEnergyKcal: Schema.OptionFromOptional(Schema.Number),
@@ -142,16 +147,26 @@ export const parseHealthExport = (
     sleep: SleepSessionRow[];
     body: BodyMetricRow[];
   },
-  Error
+  HealthExportParseError
 > =>
   Effect.gen(function* () {
     const raw = yield* Effect.try({
       try: () => decodeJson(text),
-      catch: (error) => new Error(`Failed to parse health JSON: ${error}`),
+      catch: (error) =>
+        new HealthExportParseError({
+          phase: "json",
+          message: `Failed to parse health JSON: ${error}`,
+        }),
     });
 
     const parsed = yield* Schema.decodeUnknownEffect(HealthExport)(raw).pipe(
-      Effect.mapError((error) => new Error(`Health export schema error: ${JSON.stringify(error)}`)),
+      Effect.mapError(
+        (error) =>
+          new HealthExportParseError({
+            phase: "schema",
+            message: `Health export schema error: ${JSON.stringify(error)}`,
+          }),
+      ),
     );
 
     const daily: DailyActivityRow[] = parsed.activity.daily.map((day) => ({
