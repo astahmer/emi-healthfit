@@ -39,8 +39,19 @@ const DiscordCommandBody = Schema.Union([
   }),
 ]);
 
+class DiscordCommandError extends Schema.TaggedErrorClass<DiscordCommandError>()(
+  "DiscordCommandError",
+  { message: Schema.String },
+) {}
+
 const { buildContext: buildChatContext } = HealthFit.chat;
 const { getDataSummary, getWorkoutHistory } = HealthFit.data;
+
+type DiscordCommandInput = {
+  db: QueryDatabaseClient;
+  environment: Record<string, unknown>;
+  request: HttpServerRequest;
+};
 
 const formatSummary = Effect.fn("http.discord.formatSummary")(function* (
   db: ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>,
@@ -84,15 +95,12 @@ const formatLastWorkout = Effect.fn("http.discord.formatLastWorkout")(function* 
   ].join("\n");
 });
 
-export const handleDiscordCommand = Effect.fn("http.discord.command")(function* ({
+const handleDiscordCommandEffect = Effect.fn("http.discord.command")(function* ({
   db,
   environment,
   request,
-}: {
-  db: QueryDatabaseClient;
-  environment: Record<string, unknown>;
-  request: HttpServerRequest;
-}) {
+}: DiscordCommandInput) {
+  const discordDatabase = yield* ServerDatabase.discordLinks;
   const configuration = yield* Schema.decodeUnknownEffect(DiscordCommandEnvironment)(environment);
   const secret = request.headers["x-discord-internal-secret"];
   if (
@@ -104,36 +112,33 @@ export const handleDiscordCommand = Effect.fn("http.discord.command")(function* 
   const rawBody = yield* request.text;
   const body = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(DiscordCommandBody))(
     rawBody,
-  ).pipe(Effect.mapError((error) => new Error(`Invalid Discord command body: ${String(error)}`)));
-  const discordDb = narrowQueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>(db);
+  ).pipe(
+    Effect.mapError(
+      (error) =>
+        new DiscordCommandError({
+          message: `Invalid Discord command body: ${String(error)}`,
+        }),
+    ),
+  );
   const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
-  const discordLayer = ServerDatabase.discordLinks.layer({ db: discordDb });
-  const provideDiscordDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    effect.pipe(Effect.provide(discordLayer));
 
   switch (body.operation) {
     case "get-linked-user-id":
       return yield* HttpServerResponse.json({
-        userId: yield* provideDiscordDatabase(
-          ServerDatabase.discordLinks.getLinkedUserId({ discordUserId: body.discordUserId }),
-        ),
+        userId: yield* discordDatabase.getLinkedUserId({ discordUserId: body.discordUserId }),
       });
     case "consume-link-code":
       return yield* HttpServerResponse.json({
-        result: yield* provideDiscordDatabase(
-          ServerDatabase.discordLinks.consumeLinkCode({
-            code: body.code,
-            discordUserId: body.discordUserId,
-          }),
-        ),
+        result: yield* discordDatabase.consumeLinkCode({
+          code: body.code,
+          discordUserId: body.discordUserId,
+        }),
       });
     case "unlink-discord-user":
       return yield* HttpServerResponse.json({
-        removed: yield* provideDiscordDatabase(
-          ServerDatabase.discordLinks.unlinkAccountByDiscordUserId({
-            discordUserId: body.discordUserId,
-          }),
-        ),
+        removed: yield* discordDatabase.unlinkAccountByDiscordUserId({
+          discordUserId: body.discordUserId,
+        }),
       });
     case "summary":
       return yield* HttpServerResponse.json({
@@ -151,3 +156,10 @@ export const handleDiscordCommand = Effect.fn("http.discord.command")(function* 
     }
   }
 });
+
+export const handleDiscordCommand = (input: DiscordCommandInput) => {
+  const discordDb = narrowQueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>(input.db);
+  return handleDiscordCommandEffect(input).pipe(
+    Effect.provide(ServerDatabase.discordLinks.layer({ db: discordDb })),
+  );
+};

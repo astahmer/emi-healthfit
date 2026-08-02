@@ -1,7 +1,6 @@
 import { BadRequest } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
-import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import * as Cloudflare from "alchemy/Cloudflare";
@@ -48,93 +47,71 @@ export const hevyHandlers = ({
   bucket,
   db,
   environment,
-  runtimeContext,
 }: {
   bucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
   environment: Record<string, unknown>;
-  runtimeContext: Context.Context<never>;
 }) => {
   const hevyDb = toHealthfitDb(db);
   return HttpApiBuilder.group(HealthFitApi, "hevy", (handlers) =>
     handlers
       .handle(
         "status",
-        Effect.fn("httpApi.hevy.status")(
-          function* () {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            return yield* getHevyIntegrationStatus({ db: hevyDb, userId: user.id });
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.hevy.status")(function* () {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          return yield* getHevyIntegrationStatus({ db: hevyDb, userId: user.id });
+        }, withInternalError),
       )
       .handle(
         "connect",
-        Effect.fn("httpApi.hevy.connect")(
-          function* ({ payload }) {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            const connected = yield* connectHevy({
-              db: hevyDb,
-              userId: user.id,
-              apiKey: payload.apiKey,
-              environment,
-            }).pipe(Effect.mapError(mapHevyError));
-            const status = yield* getHevyIntegrationStatus({ db: hevyDb, userId: user.id });
-            const { providerUserName, ...sync } = connected;
-            return {
-              status,
-              sync,
-              providerUserName,
-            };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.hevy.connect")(function* ({ payload }) {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          const connected = yield* connectHevy({
+            db: hevyDb,
+            userId: user.id,
+            apiKey: payload.apiKey,
+            environment,
+          }).pipe(Effect.mapError(mapHevyError));
+          const status = yield* getHevyIntegrationStatus({ db: hevyDb, userId: user.id });
+          const { providerUserName, ...sync } = connected;
+          return {
+            status,
+            sync,
+            providerUserName,
+          };
+        }, withInternalError),
       )
       .handle(
         "sync",
-        Effect.fn("httpApi.hevy.sync")(
-          function* () {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            return yield* syncHevy({
-              db: hevyDb,
-              userId: user.id,
-              environment,
-              force: true,
-            }).pipe(Effect.mapError(mapHevyError));
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.hevy.sync")(function* () {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          return yield* syncHevy({
+            db: hevyDb,
+            userId: user.id,
+            environment,
+            force: true,
+          }).pipe(Effect.mapError(mapHevyError));
+        }, withInternalError),
       )
       .handle(
         "disconnect",
-        Effect.fn("httpApi.hevy.disconnect")(
-          function* () {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            yield* disconnectHevy({ db: hevyDb, userId: user.id });
-            return { success: true as const };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.hevy.disconnect")(function* () {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          yield* disconnectHevy({ db: hevyDb, userId: user.id });
+          return { success: true as const };
+        }, withInternalError),
       )
       .handle(
         "removeData",
-        Effect.fn("httpApi.hevy.removeData")(
-          function* () {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            yield* deleteIngestedSource({ db: toHealthfitDb(db), userId: user.id, source: "hevy" });
-            const deletedRawUploads = yield* deleteRawUploads({
-              bucket,
-              prefix: `${user.id}/hevy/`,
-            });
-            return { deletedRawUploads };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.hevy.removeData")(function* () {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          yield* deleteIngestedSource({ db: toHealthfitDb(db), userId: user.id, source: "hevy" });
+          const deletedRawUploads = yield* deleteRawUploads({
+            bucket,
+            prefix: `${user.id}/hevy/`,
+          });
+          return { deletedRawUploads };
+        }, withInternalError),
       ),
   );
 };

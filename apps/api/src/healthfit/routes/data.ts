@@ -41,6 +41,11 @@ const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
+class IngestFileError extends Schema.TaggedErrorClass<IngestFileError>()("IngestFileError", {
+  phase: Schema.Literals(["form", "health", "hevy"]),
+  message: Schema.String,
+}) {}
+
 const toHealthfitDb = (db: QueryDatabaseClient) =>
   narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
 
@@ -97,7 +102,11 @@ export const handleIngest = (
     const nativeRequest = yield* requestToWeb(request);
     const formData = yield* Effect.tryPromise({
       try: () => nativeRequest.formData(),
-      catch: (error) => new Error(`Failed to read form data: ${error}`),
+      catch: (error) =>
+        new IngestFileError({
+          phase: "form",
+          message: `Failed to read form data: ${error}`,
+        }),
     });
 
     const healthEntry = formData.get("health_export");
@@ -119,7 +128,11 @@ export const handleIngest = (
     if (healthFile !== null) {
       const healthText = yield* Effect.tryPromise({
         try: () => healthFile.text(),
-        catch: (error) => new Error(`Failed to read health file: ${error}`),
+        catch: (error) =>
+          new IngestFileError({
+            phase: "health",
+            message: `Failed to read health file: ${error}`,
+          }),
       });
 
       yield* bucket.put(`${user.id}/health/${timestamp}_${healthFile.name}`, healthText, {
@@ -146,7 +159,11 @@ export const handleIngest = (
     if (hevyFile !== null) {
       const hevyText = yield* Effect.tryPromise({
         try: () => hevyFile.text(),
-        catch: (error) => new Error(`Failed to read hevy file: ${error}`),
+        catch: (error) =>
+          new IngestFileError({
+            phase: "hevy",
+            message: `Failed to read hevy file: ${error}`,
+          }),
       });
 
       yield* bucket.put(`${user.id}/hevy/${timestamp}_${hevyFile.name}`, hevyText, {

@@ -1,10 +1,9 @@
-import { RuntimeContext } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import { Content } from "@emi/core/contract";
 import { Chat } from "@emi/core/chat";
 import * as Cause from "effect/Cause";
-import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -28,10 +27,14 @@ import type { ChatLifecycleHooks } from "./chat-hooks.ts";
 
 type ChatGeneration = ServerDatabase.ChatGeneration;
 
-const ConversationDatabase = ServerDatabase.conversations;
 const GenerationDatabase = ServerDatabase.generations;
-const GenerationAlreadyActiveError = ServerDatabase.errors.generationAlreadyActive;
+const GenerationConflictError = ServerDatabase.errors.generationConflict;
 const isGenerationStale = GenerationDatabase.isGenerationStale;
+
+class NoChatToolExecutorError extends Schema.TaggedErrorClass<NoChatToolExecutorError>()(
+  "NoChatToolExecutorError",
+  { message: Schema.String },
+) {}
 const getConversationIdFromPath = (urlOrPath: string): string | undefined => {
   const pathname = urlOrPath.startsWith("http") ? new URL(urlOrPath).pathname : urlOrPath;
   return pathname.match(/\/api\/conversations\/([^/]+)/)?.[1];
@@ -53,8 +56,9 @@ export const handleMessageRevision = ({
   request: HttpServerRequest;
   conversationId: string;
   messageId: string;
-}) =>
-  Effect.gen(function* () {
+}) => {
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  return Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
     const body = yield* request.json;
     const decoded = Schema.decodeUnknownOption(MessageRevisionSchema)(body);
@@ -69,20 +73,20 @@ export const handleMessageRevision = ({
     if (!validated.success) {
       return yield* HttpServerResponse.json({ error: validated.error.message }, { status: 400 });
     }
-    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const conversationLayer = ConversationDatabase.layer({ db: conversationDb });
-    const revised = yield* ConversationDatabase.reviseConversationMessage({
+    const conversationDatabase = yield* ServerDatabase.conversations;
+    const revised = yield* conversationDatabase.reviseConversationMessage({
       userId: user.id,
       conversationId,
       messageId,
       parts: validated.data[0]?.parts ?? [],
       threadId: decoded.value.threadId,
-    }).pipe(Effect.provide(conversationLayer));
+    });
     if (!revised) {
       return yield* HttpServerResponse.json({ error: "Message not found" }, { status: 404 });
     }
     return yield* HttpServerResponse.json({ ok: true });
-  });
+  }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db: conversationDb })));
+};
 
 export const handleConversationDiagnostics = (
   db: QueryDatabaseClient,
@@ -122,24 +126,18 @@ const DiagnosticEventRequest = Schema.Struct({
 });
 
 const createGenerationReplayResponse = ({
-  db,
+  generationDatabase,
   userId,
   conversationId,
   generation,
   request,
-  services,
 }: {
-  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>;
+  generationDatabase: ServerDatabase.GenerationDatabaseShape;
   userId: string;
   conversationId: string;
   generation: ChatGeneration;
   request: HttpServerRequest;
-  services: Context.Context<RuntimeContext>;
 }) => {
-  const conversationDb = db;
-  const generationLayer = GenerationDatabase.layer({ db: conversationDb });
-  const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    Effect.provide(effect, generationLayer);
   const toReplayGeneration = (current: ChatGeneration): ServerDatabase.GenerationRecord => ({
     id: current.id,
     conversationId: current.conversation_id,
@@ -148,30 +146,24 @@ const createGenerationReplayResponse = ({
     error: current.error,
   });
   const response = Chat.stream.createChatStreamResponse({
-    stream: Stream.toReadableStreamWith(
+    stream: Stream.toReadableStream(
       ServerDatabase.replay.stream({
         generationId: generation.id,
         getChunks: ({ generationId, afterSequence }) =>
-          provideGenerationDatabase(
-            GenerationDatabase.getGenerationChunks({ userId, generationId, afterSequence }),
-          ),
+          generationDatabase.getGenerationChunks({ userId, generationId, afterSequence }),
         getGeneration: (generationId) =>
           Effect.gen(function* () {
-            const current = yield* provideGenerationDatabase(
-              GenerationDatabase.getGeneration({ userId, generationId }),
-            );
+            const current = yield* generationDatabase.getGeneration({ userId, generationId });
             const now = yield* Effect.clockWith((clock) => clock.currentTimeMillis);
             if (current === null || !isGenerationStale(current, now)) {
               return current === null ? null : toReplayGeneration(current);
             }
-            yield* provideGenerationDatabase(
-              GenerationDatabase.finishGeneration({
-                userId,
-                generationId,
-                status: "failed",
-                error: "Generation timed out",
-              }),
-            );
+            yield* generationDatabase.finishGeneration({
+              userId,
+              generationId,
+              status: "failed",
+              error: "Generation timed out",
+            });
             return toReplayGeneration({
               ...current,
               status: "failed",
@@ -180,7 +172,6 @@ const createGenerationReplayResponse = ({
           }),
         poll: Effect.sleep("1 second"),
       }),
-      services,
     ),
     headers: {
       "x-thread-id": conversationId,
@@ -196,13 +187,11 @@ const createGenerationReplayResponse = ({
 export const handleConversationDiagnosticEvent = (
   db: QueryDatabaseClient,
   request: HttpServerRequest,
-) =>
-  Effect.gen(function* () {
+) => {
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  return Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
-    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const generationLayer = GenerationDatabase.layer({ db: conversationDb });
-    const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      Effect.provide(effect, generationLayer);
+    const generationDatabase = yield* ServerDatabase.generations;
     const conversationId = getConversationIdFromPath(request.url) ?? "";
     const body = yield* request.json;
     const decoded = yield* Schema.decodeUnknownEffect(DiagnosticEventRequest)(body).pipe(
@@ -211,12 +200,10 @@ export const handleConversationDiagnosticEvent = (
     if (Option.isNone(decoded)) {
       return yield* HttpServerResponse.json({ error: "Invalid diagnostic event" }, { status: 400 });
     }
-    const generation = yield* provideGenerationDatabase(
-      GenerationDatabase.getGeneration({
-        userId: user.id,
-        generationId: decoded.value.generationId,
-      }),
-    );
+    const generation = yield* generationDatabase.getGeneration({
+      userId: user.id,
+      generationId: decoded.value.generationId,
+    });
     if (generation === null || generation.conversation_id !== conversationId) {
       return yield* HttpServerResponse.json({ error: "Generation not found" }, { status: 404 });
     }
@@ -224,45 +211,45 @@ export const handleConversationDiagnosticEvent = (
       decoded.value.type === "client.stopped" &&
       (generation.status === "pending" || generation.status === "streaming")
     ) {
-      yield* provideGenerationDatabase(
-        GenerationDatabase.finishGeneration({
-          userId: user.id,
-          generationId: generation.id,
-          status: "cancelled",
-          finishReason: "client_stopped",
-          error: "Stopped by client",
-        }),
-      );
-    }
-    yield* provideGenerationDatabase(
-      GenerationDatabase.recordChatEvent({
+      yield* generationDatabase.finishGeneration({
         userId: user.id,
-        conversationId,
         generationId: generation.id,
-        requestId: generation.request_id,
-        traceId: generation.trace_id,
-        type: decoded.value.type,
-        payload: decoded.value.payload ?? {},
-      }),
-    );
+        status: "cancelled",
+        finishReason: "client_stopped",
+        error: "Stopped by client",
+      });
+    }
+    yield* generationDatabase.recordChatEvent({
+      userId: user.id,
+      conversationId,
+      generationId: generation.id,
+      requestId: generation.request_id,
+      traceId: generation.trace_id,
+      type: decoded.value.type,
+      payload: decoded.value.payload ?? {},
+    });
     return yield* HttpServerResponse.json({ recorded: true }, { status: 201 });
-  });
+  }).pipe(Effect.provide(ServerDatabase.generations.layer({ db: conversationDb })));
+};
 
 export const handleAiSdkChat = (
   db: QueryDatabaseClient,
   request: HttpServerRequest,
   environment: Record<string, unknown>,
   hooks: ChatLifecycleHooks = {},
-) =>
-  Effect.gen(function* () {
+) => {
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
+  const databaseLayer = Layer.mergeAll(
+    ServerDatabase.conversations.layer({ db: conversationDb }),
+    ServerDatabase.generations.layer({ db: conversationDb }),
+    ServerDatabase.memories.layer({ db: memoryDb }),
+  );
+  return Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
-    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const conversationLayer = ConversationDatabase.layer({ db: conversationDb });
-    const generationLayer = GenerationDatabase.layer({ db: conversationDb });
-    const provideConversationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      Effect.provide(effect, conversationLayer);
-    const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      Effect.provide(effect, generationLayer);
+    const conversationDatabase = yield* ServerDatabase.conversations;
+    const generationDatabase = yield* ServerDatabase.generations;
+    const memoryDatabase = yield* ServerDatabase.memories;
     const requestStartedAt = performance.now();
     const text = yield* request.text;
     if (isRequestBodyTooLarge({ body: text })) {
@@ -303,26 +290,22 @@ export const handleAiSdkChat = (
       chatRequest.sessionId ??
       (isTemporary
         ? `temp_${crypto.randomUUID()}`
-        : yield* provideConversationDatabase(
-            ConversationDatabase.createConversation({ userId: user.id }),
-          ));
+        : yield* conversationDatabase.createConversation({ userId: user.id }));
 
     if (!isTemporary) {
-      const conversation = yield* provideConversationDatabase(
-        ConversationDatabase.getConversation({ userId: user.id, conversationId: sessionId }),
-      );
+      const conversation = yield* conversationDatabase.getConversation({
+        userId: user.id,
+        conversationId: sessionId,
+      });
       if (conversation === null) {
         return yield* HttpServerResponse.json({ error: "Conversation not found" }, { status: 404 });
       }
-      const existingGeneration = yield* provideGenerationDatabase(
-        GenerationDatabase.getGenerationByRequestId({
-          userId: user.id,
-          conversationId: sessionId,
-          requestId,
-        }),
-      );
+      const existingGeneration = yield* generationDatabase.getGenerationByRequestId({
+        userId: user.id,
+        conversationId: sessionId,
+        requestId,
+      });
       if (existingGeneration !== null) {
-        const services = yield* Effect.context<RuntimeContext>();
         yield* Effect.logInfo("chat.generation.idempotent-replay").pipe(
           Effect.annotateLogs({
             sessionId,
@@ -332,18 +315,17 @@ export const handleAiSdkChat = (
           }),
         );
         return createGenerationReplayResponse({
-          db: conversationDb,
+          generationDatabase,
           userId: user.id,
           conversationId: sessionId,
           generation: existingGeneration,
           request,
-          services,
         });
       }
     }
 
     const preparedHistory = yield* prepareChatHistory({
-      db,
+      database: conversationDatabase,
       userId: user.id,
       chatRequest,
       sessionId,
@@ -364,16 +346,14 @@ export const handleAiSdkChat = (
       isInitialContext,
     } = preparedHistory;
 
-    const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
     const memorySummary = isInitialContext
       ? yield* loadMemorySummary({
-          db: memoryDb,
+          database: memoryDatabase,
           userId: user.id,
           config: chatRequest.config,
         }).pipe(Effect.catch(() => Effect.succeed(undefined)))
       : undefined;
 
-    const services = yield* Effect.context<RuntimeContext>();
     const executionContext = isTemporary
       ? undefined
       : yield* Cloudflare.Workers.WorkerExecutionContext;
@@ -385,10 +365,13 @@ export const handleAiSdkChat = (
 
     const executeTool =
       hooks.executeTool ??
-      (({ name }): Effect.Effect<unknown, Error, RuntimeContext> =>
-        Effect.fail(new Error(`No tool executor registered for ${name}`)));
+      (({ name }): Effect.Effect<unknown, NoChatToolExecutorError> =>
+        Effect.fail(
+          new NoChatToolExecutorError({ message: `No tool executor registered for ${name}` }),
+        ));
     const { recordEvent, executeToolWithServices } = createChatToolExecutor({
       db,
+      generationDatabase,
       userId: user.id,
       sessionId,
       generationId,
@@ -398,55 +381,61 @@ export const handleAiSdkChat = (
       apiKey,
       baseUrl: chatRequest.config.baseUrl,
       model: chatRequest.config.model,
-      services,
       executeTool,
       budget,
     });
 
     if (!isTemporary) {
-      const cancelledGenerations = yield* provideGenerationDatabase(
-        GenerationDatabase.cancelRunningGenerations({
-          userId: user.id,
-          conversationId: sessionId,
-          reason: "superseded",
-          error: "Superseded by a newer request",
-        }),
-      );
+      const cancelledGenerations = yield* generationDatabase.cancelRunningGenerations({
+        userId: user.id,
+        conversationId: sessionId,
+        reason: "superseded",
+        error: "Superseded by a newer request",
+      });
       if (cancelledGenerations > 0) {
         yield* Effect.logInfo("chat.generation.superseded").pipe(
           Effect.annotateLogs({ sessionId, cancelledGenerations }),
         );
       }
-      yield* provideGenerationDatabase(
-        GenerationDatabase.createGeneration({
+      const generationConflict = yield* generationDatabase
+        .createGeneration({
           userId: user.id,
           generationId,
           conversationId: sessionId,
           requestId,
           traceId,
           model: chatRequest.config.model,
-        }).pipe(
-          Effect.catchIf(
-            (error): error is InstanceType<typeof GenerationAlreadyActiveError> =>
-              error instanceof GenerationAlreadyActiveError,
-            (error) =>
-              Effect.gen(function* () {
-                const running = yield* provideGenerationDatabase(
-                  GenerationDatabase.getRunningGeneration({
-                    userId: user.id,
-                    conversationId: sessionId,
-                  }),
-                );
-                return yield* Effect.fail(
-                  new GenerationAlreadyActiveError({
-                    conversationId: error.conversationId,
-                    generationId: running?.id ?? error.generationId,
-                  }),
-                );
-              }),
+        })
+        .pipe(
+          Effect.map(() => undefined as InstanceType<typeof GenerationConflictError> | undefined),
+          Effect.catchTag("GenerationAlreadyActiveError", (error) =>
+            generationDatabase
+              .getRunningGeneration({
+                userId: user.id,
+                conversationId: sessionId,
+              })
+              .pipe(
+                Effect.flatMap((running) =>
+                  Effect.succeed(
+                    new GenerationConflictError({
+                      conversationId: error.conversationId,
+                      generationId: running?.id ?? error.generationId,
+                      message: "A generation is already running",
+                    }),
+                  ),
+                ),
+              ),
           ),
-        ),
-      );
+        );
+      if (generationConflict !== undefined) {
+        return yield* HttpServerResponse.json(
+          {
+            error: "A generation is already running",
+            generationId: generationConflict.generationId,
+          },
+          { status: 409 },
+        );
+      }
       yield* recordEvent("generation.created", { threadId: chatRequest.threadId ?? null });
     }
 
@@ -490,14 +479,14 @@ export const handleAiSdkChat = (
         },
         onError: async (error) => {
           if (isTemporary) return;
-          await Effect.runPromiseWith(services)(
+          await Effect.runPromise(
             recordEvent("provider.failed", {
               error: error instanceof Error ? error.message : String(error),
             }),
           );
         },
         onFinish: async (event) => {
-          await Effect.runPromiseWith(services)(
+          await Effect.runPromise(
             Effect.gen(function* () {
               const structuredAssistantParts = Chat.messages.buildAssistantParts(
                 event.response?.messages ?? [],
@@ -521,15 +510,13 @@ export const handleAiSdkChat = (
               );
 
               if (!isTemporary && assistantParts.length === 0) {
-                yield* provideGenerationDatabase(
-                  GenerationDatabase.finishGeneration({
-                    userId: user.id,
-                    generationId,
-                    status: "failed",
-                    error: "Provider completed without assistant output",
-                    finishReason: event.finishReason,
-                  }),
-                );
+                yield* generationDatabase.finishGeneration({
+                  userId: user.id,
+                  generationId,
+                  status: "failed",
+                  error: "Provider completed without assistant output",
+                  finishReason: event.finishReason,
+                });
                 yield* recordEvent("generation.failed", {
                   error: "Provider completed without assistant output",
                   finishReason: event.finishReason,
@@ -538,53 +525,47 @@ export const handleAiSdkChat = (
               }
 
               if (!isTemporary) {
-                const assistantIds = yield* provideConversationDatabase(
-                  ConversationDatabase.saveConversationMessages({
-                    userId: user.id,
-                    conversationId: sessionId,
-                    parentId:
-                      thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
-                    messages: [
-                      {
-                        role: "assistant",
-                        parts: assistantParts,
-                        usage: {
-                          prompt_tokens: event.usage.inputTokens,
-                          completion_tokens: event.usage.outputTokens,
-                          total_tokens: event.usage.totalTokens,
-                        },
-                        model: chatRequest.config.model,
+                const assistantIds = yield* conversationDatabase.saveConversationMessages({
+                  userId: user.id,
+                  conversationId: sessionId,
+                  parentId:
+                    thread === null ? null : (lastIncomingMessageId ?? thread.anchor_message_id),
+                  messages: [
+                    {
+                      role: "assistant",
+                      parts: assistantParts,
+                      usage: {
+                        prompt_tokens: event.usage.inputTokens,
+                        completion_tokens: event.usage.outputTokens,
+                        total_tokens: event.usage.totalTokens,
                       },
-                    ],
-                  }),
-                );
+                      model: chatRequest.config.model,
+                    },
+                  ],
+                });
                 if (thread !== null) {
                   yield* Effect.forEach(
                     assistantIds,
                     (messageId) =>
-                      provideConversationDatabase(
-                        ConversationDatabase.addThreadMessage({
-                          userId: user.id,
-                          threadId: thread.id,
-                          messageId,
-                        }),
-                      ),
+                      conversationDatabase.addThreadMessage({
+                        userId: user.id,
+                        threadId: thread.id,
+                        messageId,
+                      }),
                     { discard: true },
                   );
                 }
               }
 
               if (!isTemporary) {
-                yield* provideGenerationDatabase(
-                  GenerationDatabase.finishGeneration({
-                    userId: user.id,
-                    generationId,
-                    status: "completed",
-                    finishReason: event.finishReason,
-                    inputTokens: event.usage.inputTokens ?? 0,
-                    outputTokens: event.usage.outputTokens ?? 0,
-                  }),
-                );
+                yield* generationDatabase.finishGeneration({
+                  userId: user.id,
+                  generationId,
+                  status: "completed",
+                  finishReason: event.finishReason,
+                  inputTokens: event.usage.inputTokens ?? 0,
+                  outputTokens: event.usage.outputTokens ?? 0,
+                });
                 yield* recordEvent("provider.finished", {
                   finishReason: event.finishReason,
                   inputTokens: event.usage.inputTokens,
@@ -596,14 +577,12 @@ export const handleAiSdkChat = (
               const firstUserText = getFirstUserText(incomingMessages);
               if (firstUserText === undefined) return;
               executionContext.waitUntil(
-                Effect.runPromiseWith(services)(
+                Effect.runPromise(
                   Effect.gen(function* () {
-                    const conversation = yield* provideConversationDatabase(
-                      ConversationDatabase.getConversation({
-                        userId: user.id,
-                        conversationId: sessionId,
-                      }),
-                    );
+                    const conversation = yield* conversationDatabase.getConversation({
+                      userId: user.id,
+                      conversationId: sessionId,
+                    });
                     if (
                       conversation === null ||
                       (conversation.title !== null && Schema.is(Content)(conversation.title))
@@ -619,13 +598,11 @@ export const handleAiSdkChat = (
                         firstUserMessage: firstUserText,
                       }),
                     );
-                    yield* provideConversationDatabase(
-                      ConversationDatabase.renameConversation({
-                        userId: user.id,
-                        conversationId: sessionId,
-                        title,
-                      }),
-                    );
+                    yield* conversationDatabase.renameConversation({
+                      userId: user.id,
+                      conversationId: sessionId,
+                      title,
+                    });
                   }).pipe(
                     Effect.catchCause((cause) =>
                       Effect.logError("chat.generation.title.failure").pipe(
@@ -658,9 +635,9 @@ export const handleAiSdkChat = (
       const streams = uiMessageStream.tee();
       responseStream = streams[0];
       executionContext.waitUntil(
-        Effect.runPromiseWith(services)(
+        Effect.runPromise(
           persistGenerationStream({
-            db: conversationDb,
+            generationDatabase,
             userId: user.id,
             conversationId: sessionId,
             generationId,
@@ -669,7 +646,7 @@ export const handleAiSdkChat = (
             stream: streams[1],
             budget,
           }),
-        ),
+        ).catch(() => undefined),
       );
     }
 
@@ -688,40 +665,28 @@ export const handleAiSdkChat = (
       corsHeaders(request),
     );
   }).pipe(
-    Effect.catchIf(
-      (error): error is InstanceType<typeof GenerationAlreadyActiveError> =>
-        error instanceof GenerationAlreadyActiveError,
-      (error) =>
-        HttpServerResponse.json(
-          {
-            error: "A generation is already running",
-            generationId: error.generationId,
-          },
-          { status: 409 },
-        ),
-    ),
+    Effect.provide(databaseLayer),
     Effect.catch(() =>
       HttpServerResponse.json({ error: "Internal server error" }, { status: 500 }),
     ),
   );
+};
 
 export const handleChatResume = (
   db: QueryDatabaseClient,
   conversationId: string,
   request: HttpServerRequest,
-) =>
-  Effect.gen(function* () {
+) => {
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  return Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
-    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const generationLayer = GenerationDatabase.layer({ db: conversationDb });
-    const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      Effect.provide(effect, generationLayer);
-    const reconciledGenerations = yield* provideGenerationDatabase(
-      GenerationDatabase.reconcileFinishedGenerations({ userId: user.id }),
-    );
-    const abandonedGenerations = yield* provideGenerationDatabase(
-      GenerationDatabase.expireStaleGenerations({ userId: user.id }),
-    );
+    const generationDatabase = yield* ServerDatabase.generations;
+    const reconciledGenerations = yield* generationDatabase.reconcileFinishedGenerations({
+      userId: user.id,
+    });
+    const abandonedGenerations = yield* generationDatabase.expireStaleGenerations({
+      userId: user.id,
+    });
     yield* Effect.logInfo("chat.generation.reconnect").pipe(
       Effect.annotateLogs({
         conversationId,
@@ -730,26 +695,23 @@ export const handleChatResume = (
         abandonedGenerations,
       }),
     );
-    const generation = yield* provideGenerationDatabase(
-      GenerationDatabase.getResumableGeneration({
-        userId: user.id,
-        conversationId,
-      }),
-    );
+    const generation = yield* generationDatabase.getResumableGeneration({
+      userId: user.id,
+      conversationId,
+    });
     if (generation === null) {
       return HttpServerResponse.empty({ status: 204, headers: corsHeaders(request) });
     }
 
-    const services = yield* Effect.context<RuntimeContext>();
     return createGenerationReplayResponse({
-      db: conversationDb,
+      generationDatabase,
       userId: user.id,
       conversationId,
       generation,
       request,
-      services,
     });
   }).pipe(
+    Effect.provide(ServerDatabase.generations.layer({ db: conversationDb })),
     Effect.catch((error) =>
       HttpServerResponse.json(
         { error: String(error) },
@@ -757,3 +719,4 @@ export const handleChatResume = (
       ),
     ),
   );
+};

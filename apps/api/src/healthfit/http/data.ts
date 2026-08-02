@@ -1,7 +1,6 @@
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import { Chat } from "@emi/core/chat";
 import * as Cloudflare from "alchemy/Cloudflare";
-import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
@@ -23,8 +22,6 @@ const {
 } = HealthFit.data;
 const { deleteIngestedSource, updateRawUploadRetentionDays } = HealthFit.ingest;
 const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
-
-const ConversationDatabase = ServerDatabase.conversations;
 
 export const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
@@ -51,211 +48,162 @@ export const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* 
   return deleted;
 });
 
-export const suggestionsHandlers = ({
-  db,
-  runtimeContext,
-}: {
-  db: QueryDatabaseClient;
-  runtimeContext: Context.Context<never>;
-}) =>
-  (() => {
-    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const databaseLayer = ConversationDatabase.layer({ db: conversationDb });
-    const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-      effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
-    return HttpApiBuilder.group(HealthFitApi, "suggestions", (handlers) =>
-      handlers.handle(
+export const suggestionsHandlers = () =>
+  HttpApiBuilder.group(HealthFitApi, "suggestions", (handlers) =>
+    Effect.gen(function* () {
+      const conversationDatabase = yield* ServerDatabase.conversations;
+      return handlers.handle(
         "generate",
-        Effect.fn("httpApi.suggestions.generate")(
-          function* ({ payload }) {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            const lastAssistantText = payload.lastAssistantText.trim();
-            const key = yield* ConversationDatabase.hashSuggestionsKey(
+        Effect.fn("httpApi.suggestions.generate")(function* ({ payload }) {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          const lastAssistantText = payload.lastAssistantText.trim();
+          const key = yield* ServerDatabase.conversations.hashSuggestionsKey(
+            lastAssistantText,
+            payload.lastUserText,
+          );
+          const cached = yield* conversationDatabase.getSuggestionsById({
+            userId: user.id,
+            id: key,
+          });
+          if (cached !== null) {
+            return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };
+          }
+          const suggestions = yield* Effect.promise(() =>
+            Chat.generation.generateSuggestions({
+              configuration: payload.config,
               lastAssistantText,
-              payload.lastUserText,
-            );
-            const cached = yield* ConversationDatabase.getSuggestionsById({
-              userId: user.id,
-              id: key,
-            });
-            if (cached !== null) {
-              return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };
-            }
-            const suggestions = yield* Effect.promise(() =>
-              Chat.generation.generateSuggestions({
-                configuration: payload.config,
-                lastAssistantText,
-                lastUserText: payload.lastUserText,
-              }),
-            );
-            yield* ConversationDatabase.saveSuggestions({
-              userId: user.id,
-              id: key,
-              suggestions,
-            });
-            return { suggestions };
-          },
-          withInternalError,
-          provideDatabase,
-        ),
-      ),
-    );
-  })();
+              lastUserText: payload.lastUserText,
+            }),
+          );
+          yield* conversationDatabase.saveSuggestions({
+            userId: user.id,
+            id: key,
+            suggestions,
+          });
+          return { suggestions };
+        }, withInternalError),
+      );
+    }),
+  );
 
 export const analyticsHandlers = ({
   db,
   environment,
-  runtimeContext,
 }: {
   db: QueryDatabaseClient;
   environment: Record<string, unknown>;
-  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(HealthFitApi, "analytics", (handlers) =>
     handlers.handle(
       "overview",
-      Effect.fn("httpApi.analytics.overview")(
-        function* ({ query }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* ensureHevyFresh({
-            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
-            userId: user.id,
-            environment,
-          });
-          return yield* getAnalyticsOverview({
-            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
-            userId: user.id,
-            days: query.days ?? 90,
-          });
-        },
-        withInternalError,
-        Effect.provide(runtimeContext),
-      ),
+      Effect.fn("httpApi.analytics.overview")(function* ({ query }) {
+        const user = yield* CoreCloudflare.user.CurrentUser;
+        yield* ensureHevyFresh({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: user.id,
+          environment,
+        });
+        return yield* getAnalyticsOverview({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: user.id,
+          days: query.days ?? 90,
+        });
+      }, withInternalError),
     ),
   );
 
-export const dataHandlers = ({
-  db,
-  runtimeContext,
-}: {
-  db: QueryDatabaseClient;
-  runtimeContext: Context.Context<never>;
-}) =>
+export const dataHandlers = ({ db }: { db: QueryDatabaseClient }) =>
   HttpApiBuilder.group(HealthFitApi, "data", (handlers) =>
     handlers.handle(
       "exportSummary",
-      Effect.fn("httpApi.data.exportSummary")(
-        function* () {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          const summary = yield* getIngestedDataExportSummary({
-            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
-            userId: user.id,
-          });
-          return { summary };
-        },
-        withInternalError,
-        Effect.provide(runtimeContext),
-      ),
+      Effect.fn("httpApi.data.exportSummary")(function* () {
+        const user = yield* CoreCloudflare.user.CurrentUser;
+        const summary = yield* getIngestedDataExportSummary({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: user.id,
+        });
+        return { summary };
+      }, withInternalError),
     ),
   );
 
 export const privacyHandlers = ({
   bucket,
   db,
-  runtimeContext,
 }: {
   bucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
-  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(HealthFitApi, "privacy", (handlers) =>
     handlers
       .handle(
         "read",
-        Effect.fn("httpApi.privacy.read")(
-          function* () {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            const rawUploadRetentionDays = yield* getRawUploadRetentionDays({
-              db: toHealthfitDb(db),
-              userId: user.id,
-            });
-            return { rawUploadRetentionDays };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.privacy.read")(function* () {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          const rawUploadRetentionDays = yield* getRawUploadRetentionDays({
+            db: toHealthfitDb(db),
+            userId: user.id,
+          });
+          return { rawUploadRetentionDays };
+        }, withInternalError),
       )
       .handle(
         "update",
-        Effect.fn("httpApi.privacy.update")(
-          function* ({ payload }) {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            yield* updateRawUploadRetentionDays({
-              db: toHealthfitDb(db),
-              userId: user.id,
-              days: payload.rawUploadRetentionDays,
-            });
-            const deletedRawUploads = yield* deleteRawUploads({
-              bucket,
-              prefix: `${user.id}/`,
-              olderThan: new Date(Date.now() - payload.rawUploadRetentionDays * 86_400_000),
-            });
-            return { rawUploadRetentionDays: payload.rawUploadRetentionDays, deletedRawUploads };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.privacy.update")(function* ({ payload }) {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          yield* updateRawUploadRetentionDays({
+            db: toHealthfitDb(db),
+            userId: user.id,
+            days: payload.rawUploadRetentionDays,
+          });
+          const deletedRawUploads = yield* deleteRawUploads({
+            bucket,
+            prefix: `${user.id}/`,
+            olderThan: new Date(Date.now() - payload.rawUploadRetentionDays * 86_400_000),
+          });
+          return { rawUploadRetentionDays: payload.rawUploadRetentionDays, deletedRawUploads };
+        }, withInternalError),
       )
       .handle(
         "removeSource",
-        Effect.fn("httpApi.privacy.removeSource")(
-          function* ({ params }) {
-            const user = yield* CoreCloudflare.user.CurrentUser;
-            yield* deleteIngestedSource({
-              db: toHealthfitDb(db),
-              userId: user.id,
-              source: params.source,
-            });
-            const deletedRawUploads = yield* deleteRawUploads({
-              bucket,
-              prefix: `${user.id}/${params.source}/`,
-            });
-            return { source: params.source, deletedRawUploads };
-          },
-          withInternalError,
-          Effect.provide(runtimeContext),
-        ),
+        Effect.fn("httpApi.privacy.removeSource")(function* ({ params }) {
+          const user = yield* CoreCloudflare.user.CurrentUser;
+          yield* deleteIngestedSource({
+            db: toHealthfitDb(db),
+            userId: user.id,
+            source: params.source,
+          });
+          const deletedRawUploads = yield* deleteRawUploads({
+            bucket,
+            prefix: `${user.id}/${params.source}/`,
+          });
+          return { source: params.source, deletedRawUploads };
+        }, withInternalError),
       ),
   );
 
 export const workoutsHandlers = ({
   db,
   environment,
-  runtimeContext,
 }: {
   db: QueryDatabaseClient;
   environment: Record<string, unknown>;
-  runtimeContext: Context.Context<never>;
 }) =>
   HttpApiBuilder.group(HealthFitApi, "workouts", (handlers) =>
     handlers.handle(
       "list",
-      Effect.fn("httpApi.workouts.list")(
-        function* () {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* ensureHevyFresh({
-            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
-            userId: user.id,
-            environment,
-          });
-          const workouts = yield* getWorkouts(
-            narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
-            user.id,
-          );
-          return { workouts };
-        },
-        withInternalError,
-        Effect.provide(runtimeContext),
-      ),
+      Effect.fn("httpApi.workouts.list")(function* () {
+        const user = yield* CoreCloudflare.user.CurrentUser;
+        yield* ensureHevyFresh({
+          db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          userId: user.id,
+          environment,
+        });
+        const workouts = yield* getWorkouts(
+          narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+          user.id,
+        );
+        return { workouts };
+      }, withInternalError),
     ),
   );

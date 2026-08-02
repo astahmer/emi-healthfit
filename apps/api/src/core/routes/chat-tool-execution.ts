@@ -1,13 +1,21 @@
-import { RuntimeContext } from "alchemy";
 import { Chat } from "@emi/core/chat";
-import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { ServerDatabase } from "@emi/core/server/database";
-import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
+import type { QueryDatabaseClient } from "../../platform/db/client.ts";
 import type { ChatToolExecutor } from "./chat-hooks.ts";
+
+class ChatToolBlockedError extends Schema.TaggedErrorClass<ChatToolBlockedError>()(
+  "ChatToolBlockedError",
+  {
+    reason: Schema.Literals(["repeated-failure", "budget-exhausted"]),
+    message: Schema.String,
+  },
+) {}
 
 export const createChatToolExecutor = ({
   db,
+  generationDatabase,
   userId,
   sessionId,
   generationId,
@@ -17,11 +25,11 @@ export const createChatToolExecutor = ({
   apiKey,
   baseUrl,
   model,
-  services,
   executeTool,
   budget,
 }: {
   db: QueryDatabaseClient;
+  generationDatabase: ServerDatabase.GenerationDatabaseShape;
   userId: string;
   sessionId: string;
   generationId: string;
@@ -31,12 +39,9 @@ export const createChatToolExecutor = ({
   apiKey: string;
   baseUrl: string | undefined;
   model: string;
-  services: Context.Context<RuntimeContext>;
   executeTool: ChatToolExecutor;
   budget: ReturnType<typeof Chat.operations.createChatOperationBudget>;
 }) => {
-  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-  const generationLayer = ServerDatabase.generations.layer({ db: conversationDb });
   const toolCircuitBreaker = Chat.tools.createToolCircuitBreaker();
   const recordEvent = (type: string, payload: Record<string, unknown> = {}) =>
     isTemporary
@@ -52,46 +57,47 @@ export const createChatToolExecutor = ({
               ...budget.snapshot(),
             }),
           )
-        : ServerDatabase.generations
-            .recordChatEvent({
-              userId,
-              conversationId: sessionId,
-              generationId,
-              requestId,
-              traceId,
-              type,
-              payload,
-            })
-            .pipe(Effect.provide(generationLayer));
+        : generationDatabase.recordChatEvent({
+            userId,
+            conversationId: sessionId,
+            generationId,
+            requestId,
+            traceId,
+            type,
+            payload,
+          });
   const executeToolWithServices = (name: string, args: Record<string, unknown>) => {
     const toolStartedAt = performance.now();
     if (toolCircuitBreaker.isBlocked({ name, args })) {
-      return Effect.runPromiseWith(services)(
+      return Effect.runPromise(
         recordEvent("tool.blocked", { tool: name, args, code: "REPEATED_FAILED_CALL" }).pipe(
           Effect.andThen(
             Effect.fail(
-              new Error(
-                `Repeated failed ${name} call blocked. Use another tool or report the observed error.`,
-              ),
+              new ChatToolBlockedError({
+                reason: "repeated-failure",
+                message: `Repeated failed ${name} call blocked. Use another tool or report the observed error.`,
+              }),
             ),
           ),
         ),
       );
     }
     if (!budget.tryStartToolCall()) {
-      return Effect.runPromiseWith(services)(
+      return Effect.runPromise(
         recordEvent("tool.blocked", { tool: name, args, code: "TOOL_BUDGET_EXHAUSTED" }).pipe(
           Effect.andThen(
             Effect.fail(
-              new Error(
-                "Tool-call budget exhausted. Answer from available context or ask the user to retry.",
-              ),
+              new ChatToolBlockedError({
+                reason: "budget-exhausted",
+                message:
+                  "Tool-call budget exhausted. Answer from available context or ask the user to retry.",
+              }),
             ),
           ),
         ),
       );
     }
-    return Effect.runPromiseWith(services)(
+    return Effect.runPromise(
       recordEvent("tool.started", { tool: name, args }).pipe(
         Effect.andThen(
           executeTool({

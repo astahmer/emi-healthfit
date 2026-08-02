@@ -18,18 +18,15 @@ export const appendMemoryContext = ({
 };
 
 export const refreshMemorySummary = Effect.fn("chatMemory.refreshSummary")(function* ({
-  db,
+  database,
   userId,
   config,
 }: {
-  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>;
+  database: ServerDatabase.MemoryDatabaseShape;
   userId: string;
   config: { apiKey: string; baseUrl?: string; model: string };
 }) {
-  const databaseLayer = ServerDatabase.memories.layer({ db });
-  const memories = yield* ServerDatabase.memories
-    .getMemories({ userId, options: { limit: 200 } })
-    .pipe(Effect.provide(databaseLayer));
+  const memories = yield* database.getMemories({ userId, options: { limit: 200 } });
   if (memories.length === 0) return undefined;
   const content = yield* Effect.promise(() =>
     Chat.memory.generateMemorySummary({
@@ -38,25 +35,20 @@ export const refreshMemorySummary = Effect.fn("chatMemory.refreshSummary")(funct
     }),
   );
   if (content === "") return undefined;
-  yield* ServerDatabase.memories
-    .upsertMemorySummary({ userId, content, memoryCount: memories.length })
-    .pipe(Effect.provide(databaseLayer));
+  yield* database.upsertMemorySummary({ userId, content, memoryCount: memories.length });
   return content;
 });
 
 export const loadMemorySummary = Effect.fn("chatMemory.loadSummary")(function* ({
-  db,
+  database,
   userId,
   config,
 }: {
-  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>;
+  database: ServerDatabase.MemoryDatabaseShape;
   userId: string;
   config: { apiKey: string; baseUrl?: string; model: string };
 }) {
-  const databaseLayer = ServerDatabase.memories.layer({ db });
-  const summary = yield* ServerDatabase.memories
-    .getMemorySummary({ userId })
-    .pipe(Effect.provide(databaseLayer));
+  const summary = yield* database.getMemorySummary({ userId });
   if (summary !== undefined) return summary.content;
-  return yield* refreshMemorySummary({ db, userId, config });
+  return yield* refreshMemorySummary({ database, userId, config });
 });

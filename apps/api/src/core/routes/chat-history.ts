@@ -4,7 +4,6 @@ import type { UIMessage } from "ai";
 import type { ChatStreamRequest } from "../chat/ai-sdk.ts";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
-import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { decodeMessageParts } from "../http/codecs.ts";
 import { validateAttachments } from "./chat-request-codec.ts";
 import type { ChatToolDefinition } from "./chat-hooks.ts";
@@ -12,33 +11,27 @@ import type { ChatToolDefinition } from "./chat-hooks.ts";
 const providerMessageRole = Schema.Literals(["system", "user", "assistant"]);
 
 export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
-  db,
+  database,
   userId,
   chatRequest,
   sessionId,
   isTemporary,
   tools: toolDefinitions = [],
 }: {
-  db: QueryDatabaseClient;
+  database: ServerDatabase.ConversationDatabaseShape;
   userId: string;
   chatRequest: Omit<ChatStreamRequest, "messages"> & { messages: UIMessage[] };
   sessionId: string;
   isTemporary: boolean;
   tools?: ReadonlyArray<ChatToolDefinition>;
 }) {
-  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-  const databaseLayer = ServerDatabase.conversations.layer({ db: conversationDb });
-  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    Effect.provide(effect, databaseLayer);
   const thread =
     isTemporary || chatRequest.threadId === undefined
       ? null
-      : yield* provideDatabase(
-          ServerDatabase.conversations.getThread({
-            userId,
-            threadId: chatRequest.threadId,
-          }),
-        );
+      : yield* database.getThread({
+          userId,
+          threadId: chatRequest.threadId,
+        });
   if (
     chatRequest.threadId !== undefined &&
     (thread === null || thread.conversation_id !== sessionId || thread.status !== "regular")
@@ -48,22 +41,18 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
 
   const conversationRows = isTemporary
     ? []
-    : yield* provideDatabase(
-        ServerDatabase.conversations.getConversationMessages({
-          userId,
-          conversationId: sessionId,
-        }),
-      );
+    : yield* database.getConversationMessages({
+        userId,
+        conversationId: sessionId,
+      });
   const existingRows =
     thread === null
       ? conversationRows
       : yield* Effect.gen(function* () {
-          const branchRows = yield* provideDatabase(
-            ServerDatabase.conversations.getThreadMessages({
-              userId,
-              threadId: thread.id,
-            }),
-          );
+          const branchRows = yield* database.getThreadMessages({
+            userId,
+            threadId: thread.id,
+          });
           const anchor = conversationRows.find((row) => row.id === thread.anchor_message_id);
           const contextRows =
             anchor === undefined
@@ -136,14 +125,12 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     const incomingIds: Array<string> =
       chatRequest.replaceMessageId === undefined
         ? [
-            ...(yield* provideDatabase(
-              ServerDatabase.conversations.saveConversationMessages({
-                userId,
-                conversationId: sessionId,
-                parentId: branchParentId,
-                messages: [...incomingMessages],
-              }),
-            )),
+            ...(yield* database.saveConversationMessages({
+              userId,
+              conversationId: sessionId,
+              parentId: branchParentId,
+              messages: [...incomingMessages],
+            })),
           ]
         : [];
     if (chatRequest.replaceMessageId === undefined) {
@@ -153,13 +140,11 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
       yield* Effect.forEach(
         incomingIds,
         (messageId) =>
-          provideDatabase(
-            ServerDatabase.conversations.addThreadMessage({
-              userId,
-              threadId: thread.id,
-              messageId,
-            }),
-          ),
+          database.addThreadMessage({
+            userId,
+            threadId: thread.id,
+            messageId,
+          }),
         { discard: true },
       );
     }

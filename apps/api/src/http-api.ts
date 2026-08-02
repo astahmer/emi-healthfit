@@ -1,7 +1,6 @@
 import { CoreApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import * as Cloudflare from "alchemy/Cloudflare";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -30,7 +29,6 @@ import { hevyHandlers } from "./healthfit/http/hevy.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
-const MemoryDatabase = ServerDatabase.memories;
 const HttpApiHandler = Schema.Struct({
   routes: Schema.declare<Array<HttpRouter.Route<never, never>>>(Array.isArray),
 });
@@ -56,131 +54,117 @@ const toApiMemory = (memory: ApiMemory): ApiMemory => ({
   rank: memory.rank,
 });
 
-const notesHandlers = ({
-  db,
-  runtimeContext,
-}: {
-  db: QueryDatabaseClient;
-  runtimeContext: Context.Context<never>;
-}) => {
-  const notesDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
-  const databaseLayer = MemoryDatabase.layer({ db: notesDb });
-  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
+const notesHandlers = () => {
   return HttpApiBuilder.group(CoreApi, "notes", (handlers) =>
-    handlers
-      .handle(
-        "list",
-        Effect.fn("httpApi.notes.list")(function* ({ query }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          const limit = query.limit ?? 100;
-          const notes =
-            query.search === undefined
-              ? yield* MemoryDatabase.getNotes({ userId: user.id, limit })
-              : yield* MemoryDatabase.searchNotes({
-                  userId: user.id,
-                  query: query.search,
-                  limit,
-                });
-          return { notes: notes.map(toApiNote) };
-        }, provideDatabase),
-      )
-      .handle(
-        "create",
-        Effect.fn("httpApi.notes.create")(function* ({ payload }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          const id = yield* MemoryDatabase.insertNote({
-            userId: user.id,
-            content: payload.content,
-          });
-          return { id: requireIdentifier(id) };
-        }, provideDatabase),
-      )
-      .handle(
-        "update",
-        Effect.fn("httpApi.notes.update")(function* ({ params, payload }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* MemoryDatabase.updateNote({
-            userId: user.id,
-            id: params.id,
-            content: payload.content,
-          });
-          return { success: true } satisfies { success: true };
-        }, provideDatabase),
-      )
-      .handle(
-        "remove",
-        Effect.fn("httpApi.notes.remove")(function* ({ params }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* MemoryDatabase.deleteNote({ userId: user.id, id: params.id });
-          return { success: true } satisfies { success: true };
-        }, provideDatabase),
-      ),
+    Effect.gen(function* () {
+      const MemoryDatabase = yield* ServerDatabase.memories;
+      return handlers
+        .handle(
+          "list",
+          Effect.fn("httpApi.notes.list")(function* ({ query }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const limit = query.limit ?? 100;
+            const notes =
+              query.search === undefined
+                ? yield* MemoryDatabase.getNotes({ userId: user.id, limit })
+                : yield* MemoryDatabase.searchNotes({
+                    userId: user.id,
+                    query: query.search,
+                    limit,
+                  });
+            return { notes: notes.map(toApiNote) };
+          }),
+        )
+        .handle(
+          "create",
+          Effect.fn("httpApi.notes.create")(function* ({ payload }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const id = yield* MemoryDatabase.insertNote({
+              userId: user.id,
+              content: payload.content,
+            });
+            return { id: requireIdentifier(id) };
+          }),
+        )
+        .handle(
+          "update",
+          Effect.fn("httpApi.notes.update")(function* ({ params, payload }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            yield* MemoryDatabase.updateNote({
+              userId: user.id,
+              id: params.id,
+              content: payload.content,
+            });
+            return { success: true } satisfies { success: true };
+          }),
+        )
+        .handle(
+          "remove",
+          Effect.fn("httpApi.notes.remove")(function* ({ params }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            yield* MemoryDatabase.deleteNote({ userId: user.id, id: params.id });
+            return { success: true } satisfies { success: true };
+          }),
+        );
+    }),
   );
 };
 
-const memoriesHandlers = ({
-  db,
-  runtimeContext,
-}: {
-  db: QueryDatabaseClient;
-  runtimeContext: Context.Context<never>;
-}) => {
-  const memoriesDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
-  const databaseLayer = MemoryDatabase.layer({ db: memoriesDb });
-  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
+const memoriesHandlers = () => {
   return HttpApiBuilder.group(CoreApi, "memories", (handlers) =>
-    handlers
-      .handle(
-        "list",
-        Effect.fn("httpApi.memories.list")(function* ({ query }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          const limit = query.limit ?? 100;
-          const memories =
-            query.search === undefined
-              ? yield* MemoryDatabase.getMemories({ userId: user.id, options: { limit } })
-              : yield* MemoryDatabase.searchMemories({
-                  userId: user.id,
-                  query: query.search,
-                  options: { limit },
-                });
-          return { memories: memories.map(toApiMemory) };
-        }, provideDatabase),
-      )
-      .handle(
-        "create",
-        Effect.fn("httpApi.memories.create")(function* ({ payload }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          const id = yield* MemoryDatabase.insertMemory({
-            userId: user.id,
-            content: payload.content,
-            source: payload.source,
-            threadId: payload.threadId,
-            messageId: payload.messageId,
-          });
-          return { id: requireIdentifier(id) };
-        }, provideDatabase),
-      )
-      .handle(
-        "remove",
-        Effect.fn("httpApi.memories.remove")(function* ({ params }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* MemoryDatabase.deleteMemory({ userId: user.id, id: params.id });
-          return { success: true } satisfies { success: true };
-        }, provideDatabase),
-      )
-      .handle(
-        "removeByMessage",
-        Effect.fn("httpApi.memories.removeByMessage")(function* ({ params }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* MemoryDatabase.deleteMemoriesByMessage({
-            userId: user.id,
-            messageId: params.messageId,
-          });
-          return { success: true } satisfies { success: true };
-        }, provideDatabase),
-      ),
+    Effect.gen(function* () {
+      const MemoryDatabase = yield* ServerDatabase.memories;
+      return handlers
+        .handle(
+          "list",
+          Effect.fn("httpApi.memories.list")(function* ({ query }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const limit = query.limit ?? 100;
+            const memories =
+              query.search === undefined
+                ? yield* MemoryDatabase.getMemories({ userId: user.id, options: { limit } })
+                : yield* MemoryDatabase.searchMemories({
+                    userId: user.id,
+                    query: query.search,
+                    options: { limit },
+                  });
+            return { memories: memories.map(toApiMemory) };
+          }),
+        )
+        .handle(
+          "create",
+          Effect.fn("httpApi.memories.create")(function* ({ payload }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const id = yield* MemoryDatabase.insertMemory({
+              userId: user.id,
+              content: payload.content,
+              source: payload.source,
+              threadId: payload.threadId,
+              messageId: payload.messageId,
+            });
+            return { id: requireIdentifier(id) };
+          }),
+        )
+        .handle(
+          "remove",
+          Effect.fn("httpApi.memories.remove")(function* ({ params }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            yield* MemoryDatabase.deleteMemory({ userId: user.id, id: params.id });
+            return { success: true } satisfies { success: true };
+          }),
+        )
+        .handle(
+          "removeByMessage",
+          Effect.fn("httpApi.memories.removeByMessage")(function* ({ params }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            yield* MemoryDatabase.deleteMemoriesByMessage({
+              userId: user.id,
+              messageId: params.messageId,
+            });
+            return { success: true } satisfies { success: true };
+          }),
+        );
+    }),
   );
 };
 
@@ -195,23 +179,31 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   environment: Record<string, unknown>;
   router: HttpRouter.HttpRouter;
 }) {
-  const runtimeContext = Context.empty();
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
+  const discordDb = narrowQueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>(db);
+  const databaseLayers = Layer.mergeAll(
+    ServerDatabase.conversations.layer({ db: conversationDb }),
+    ServerDatabase.generations.layer({ db: conversationDb }),
+    ServerDatabase.memories.layer({ db: memoryDb }),
+    ServerDatabase.discordLinks.layer({ db: discordDb }),
+  );
   const handlerContext = yield* Layer.build(
     Layer.mergeAll(
-      notesHandlers({ db, runtimeContext }),
-      memoriesHandlers({ db, runtimeContext }),
-      conversationsHandlers({ db, runtimeContext }),
-      threadsHandlers({ db, runtimeContext }),
-      messagesHandlers({ db, runtimeContext }),
-      memoryExtractionHandlers({ db, runtimeContext }),
-      suggestionsHandlers({ db, runtimeContext }),
-      analyticsHandlers({ db, environment, runtimeContext }),
-      dataHandlers({ db, runtimeContext }),
-      privacyHandlers({ bucket, db, runtimeContext }),
-      workoutsHandlers({ db, environment, runtimeContext }),
-      hevyHandlers({ bucket, db, environment, runtimeContext }),
-      discordHandlers({ db, runtimeContext }),
-    ),
+      notesHandlers(),
+      memoriesHandlers(),
+      conversationsHandlers(),
+      threadsHandlers(),
+      messagesHandlers(),
+      memoryExtractionHandlers(),
+      suggestionsHandlers(),
+      analyticsHandlers({ db, environment }),
+      dataHandlers({ db }),
+      privacyHandlers({ bucket, db }),
+      workoutsHandlers({ db, environment }),
+      hevyHandlers({ bucket, db, environment }),
+      discordHandlers(),
+    ).pipe(Layer.provide(databaseLayers)),
   ).pipe(Effect.scoped);
   const routes = Object.values(HealthFitApi.groups).flatMap((group) => {
     const service = handlerContext.mapUnsafe.get(group.key);

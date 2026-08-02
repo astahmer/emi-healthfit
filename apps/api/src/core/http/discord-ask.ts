@@ -24,8 +24,20 @@ const DiscordAskEnvironment = Schema.Struct({
 const DISCORD_ASK_TITLE = "[Discord] /ask";
 const DISCORD_ASK_MAX_OUTPUT_TOKENS = 600;
 
+class DiscordAskError extends Schema.TaggedErrorClass<DiscordAskError>()("DiscordAskError", {
+  phase: Schema.Literals(["generation", "configuration", "body"]),
+  message: Schema.String,
+}) {}
+
 const { buildContext: buildChatContext, renderContextPrompt } = HealthFit.chat;
 const { definition: healthFitAppDefinition } = HealthFit.app;
+
+type DiscordAskInput = {
+  db: QueryDatabaseClient;
+  environment: Record<string, unknown>;
+  request: HttpServerRequest;
+  generateAnswer?: DiscordAskGenerateAnswer;
+};
 
 export type DiscordAskGenerateAnswer = (input: {
   system: string;
@@ -34,7 +46,7 @@ export type DiscordAskGenerateAnswer = (input: {
   apiKey: string;
   baseURL: string | undefined;
   maxOutputTokens: number;
-}) => Effect.Effect<string, Error>;
+}) => Effect.Effect<string, DiscordAskError>;
 
 export const defaultDiscordAskGenerateAnswer: DiscordAskGenerateAnswer = (input) =>
   Effect.tryPromise({
@@ -51,7 +63,11 @@ export const defaultDiscordAskGenerateAnswer: DiscordAskGenerateAnswer = (input)
       });
       return result.text.trim();
     },
-    catch: (error) => new Error(`Discord ask generation failed: ${String(error)}`),
+    catch: (error) =>
+      new DiscordAskError({
+        phase: "generation",
+        message: `Discord ask generation failed: ${String(error)}`,
+      }),
   });
 
 /**
@@ -59,19 +75,21 @@ export const defaultDiscordAskGenerateAnswer: DiscordAskGenerateAnswer = (input)
  * `x-discord-internal-secret`; the JSON `userId` is trusted once that secret
  * matches. Never expose the secret to browsers; rotate if leaked.
  */
-export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
+const handleDiscordAskEffect = Effect.fn("http.discord.ask")(function* ({
   db,
   environment,
   request,
   generateAnswer = defaultDiscordAskGenerateAnswer,
-}: {
-  db: QueryDatabaseClient;
-  environment: Record<string, unknown>;
-  request: HttpServerRequest;
-  generateAnswer?: DiscordAskGenerateAnswer;
-}) {
+}: DiscordAskInput) {
+  const conversationDatabase = yield* ServerDatabase.conversations;
   const config = yield* Schema.decodeUnknownEffect(DiscordAskEnvironment)(environment).pipe(
-    Effect.mapError((error) => new Error(`Discord ask env invalid: ${String(error)}`)),
+    Effect.mapError(
+      (error) =>
+        new DiscordAskError({
+          phase: "configuration",
+          message: `Discord ask env invalid: ${String(error)}`,
+        }),
+    ),
   );
   const provided = request.headers["x-discord-internal-secret"];
   if (
@@ -84,25 +102,25 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
   const rawBody = yield* request.text;
   const body = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(DiscordAskBody))(
     rawBody,
-  ).pipe(Effect.mapError((error) => new Error(`Invalid ask body: ${String(error)}`)));
-
-  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-  const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
-  const conversationLayer = ServerDatabase.conversations.layer({ db: conversationDb });
-  const provideConversationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    effect.pipe(Effect.provide(conversationLayer));
-  const conversations = yield* provideConversationDatabase(
-    ServerDatabase.conversations.getConversations({ userId: body.userId }),
+  ).pipe(
+    Effect.mapError(
+      (error) =>
+        new DiscordAskError({
+          phase: "body",
+          message: `Invalid ask body: ${String(error)}`,
+        }),
+    ),
   );
+
+  const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+  const conversations = yield* conversationDatabase.getConversations({ userId: body.userId });
   const existing = conversations.find((conversation) => conversation.title === DISCORD_ASK_TITLE);
   const conversationId =
     existing?.id ??
-    (yield* provideConversationDatabase(
-      ServerDatabase.conversations.createConversation({
-        userId: body.userId,
-        title: DISCORD_ASK_TITLE,
-      }),
-    ));
+    (yield* conversationDatabase.createConversation({
+      userId: body.userId,
+      title: DISCORD_ASK_TITLE,
+    }));
 
   const fitnessContext = yield* buildChatContext(healthfitDb, body.userId);
   const model = config.DISCORD_ASK_MODEL ?? "gpt-4o-mini";
@@ -123,17 +141,24 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     maxOutputTokens: DISCORD_ASK_MAX_OUTPUT_TOKENS,
   });
 
-  yield* provideConversationDatabase(
-    ServerDatabase.conversations.saveConversationMessages({
-      userId: body.userId,
-      conversationId,
-      parentId: null,
-      messages: [
-        { role: "user", parts: [{ type: "text", text: body.question }] },
-        { role: "assistant", parts: [{ type: "text", text: answer }] },
-      ],
-    }),
-  );
+  yield* conversationDatabase.saveConversationMessages({
+    userId: body.userId,
+    conversationId,
+    parentId: null,
+    messages: [
+      { role: "user", parts: [{ type: "text", text: body.question }] },
+      { role: "assistant", parts: [{ type: "text", text: answer }] },
+    ],
+  });
 
   return yield* HttpServerResponse.json({ answer, conversationId });
 });
+
+export const handleDiscordAsk = (input: DiscordAskInput) => {
+  const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(
+    input.db,
+  );
+  return handleDiscordAskEffect(input).pipe(
+    Effect.provide(ServerDatabase.conversations.layer({ db: conversationDb })),
+  );
+};
