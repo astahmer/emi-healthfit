@@ -9,6 +9,11 @@ import { ServerDatabase } from "@emi/core/server/database";
 
 const chunkBatchSize = 20;
 
+class ChatStreamPersistenceError extends Schema.TaggedErrorClass<ChatStreamPersistenceError>()(
+  "ChatStreamPersistenceError",
+  { message: Schema.String },
+) {}
+
 export const persistGenerationStream = Effect.fn("chatStream.persist")(function* ({
   generationDatabase,
   userId,
@@ -62,7 +67,10 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
     });
   const persist = Stream.fromReadableStream({
     evaluate: () => stream,
-    onError: (error) => error,
+    onError: (cause) =>
+      new ChatStreamPersistenceError({
+        message: cause instanceof Error ? cause.message : String(cause),
+      }),
   }).pipe(
     Stream.zipWithIndex,
     Stream.runForEach(([chunk, sequence]) =>
@@ -112,7 +120,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
     Effect.matchEffect({
       onFailure: (error) =>
         Effect.gen(function* () {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = error.message;
           yield* Effect.logError("chat.generation.failure").pipe(
             Effect.annotateLogs({ generationId, error: message }),
           );
