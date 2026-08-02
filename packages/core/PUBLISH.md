@@ -125,7 +125,9 @@ Do not capture and re-provide context, create local `provideDatabase` helpers, o
 failures; reserve `Effect.catchIf` for genuine predicates. Pure synchronous transformations may
 stay synchronous when they have no environment or fallible boundary. The runtime's synchronous
 command methods are an intentional actor dispatch boundary, not a reason to flatten Effect-based
-server or protocol work into throws.
+server or protocol work into throws. Stream boundaries use `Stream.fromReadableStream` or
+`Stream.fromAsyncIterable`, map external causes into tagged domain errors, and release stream
+locks when the consumer owns the stream.
 
 ## R3 Effect-first server boundary
 
@@ -174,8 +176,10 @@ The provider-bound `@emi/core/chat` boundary also owns the UI message conversion
 AI SDK applications. `Chat.messages.toProtocolPartsEffect` is the canonical conversion with a
 typed Effect failure channel; `Chat.messages.toProtocolParts` is its Promise-derived outer
 wrapper, and `Chat.messages.fromProtocolMessage` converts persisted protocol messages back to UI
-parts for rendering. Generic protocol and server consumers never need these AI SDK-facing
-methods.
+parts for rendering. Assistant message-part normalization follows the same rule:
+`Chat.messages.buildAssistantPartsEffect` is canonical and
+`Chat.messages.buildAssistantParts` is its Promise-derived outer wrapper. Generic protocol and
+server consumers never need these AI SDK-facing methods.
 
 `@emi/core/components` contains controlled and connected view primitives. `ChatApp` and
 `ChatShell` are opt-in recipes under `components/styled`; they render runtime selectors and send
