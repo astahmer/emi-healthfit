@@ -70,7 +70,6 @@ describe("buildGeneratedFiles", () => {
     for (const dependency of [
       "@ai-sdk/openai",
       "@playwright/test",
-      "@xstate/react",
       "alchemy",
       "better-auth",
       "playwright-bdd",
@@ -132,19 +131,25 @@ describe("buildGeneratedFiles", () => {
       scripts: Record<string, string>;
     };
 
-    assert.match(app, /genericChatAppMachine/);
-    assert.match(app, /\/api\/chat/);
+    assert.match(app, /createChatRuntime/);
+    assert.match(app, /ChatProvider/);
+    assert.match(app, /@emi\/core\/react/);
+    assert.match(app, /baseUrl: `\$\{apiOrigin\}\/api`/);
     assert.match(app, /@emi\/core\/web\/styled/);
     assert.match(app, /ChatComposer/);
     assert.match(styledSidebar, /Temporary chat/);
     assert.match(styledContent, /Queued follow-ups/);
-    assert.match(app, /conversation-store-event/);
-    assert.match(app, /conversation-load-requested/);
+    assert.match(app, /actions\.selectConversation/);
+    assert.match(app, /actions\.setConversationSearch/);
     assert.match(styledContent, /Add attachments/);
     assert.match(styledSidebar, /Search conversations/);
-    assert.match(app, /draft is saved locally/);
-    assert.match(app, /createConversationClient/);
+    assert.doesNotMatch(
+      app,
+      /genericChatAppMachine|conversation-store-event|createConversationClient/,
+    );
+    assert.doesNotMatch(app, /@xstate\/react|useActorRef|useSelector/);
     assert.equal(packageJson.dependencies.ai, "catalog:");
+    assert.equal(packageJson.dependencies["@xstate/react"], undefined);
     assert.equal(packageJson.dependencies["class-variance-authority"], "catalog:");
     assert.equal(packageJson.dependencies["lucide-react"], "catalog:");
     assert.equal(packageJson.dependencies["radix-ui"], "catalog:");
