@@ -43,9 +43,9 @@ describe("generic-web boundary", () => {
     expect("@emi/flavor-healthfit" in (packageJson.devDependencies ?? {})).toBe(false);
   });
 
-  it("keeps application state in composed actors and opts into styled core", async () => {
+  it("keeps application state in composed actors and opts into the target styled entrypoint", async () => {
     const source = await readFile(join(srcRoot, "app.tsx"), "utf8");
-    expect(source).toMatch(/@emi\/core\/web\/styled/);
+    expect(source).toMatch(/@emi\/core\/components\/styled/);
     expect(source).not.toMatch(/\buseState\b|\buseEffect\b/);
   });
 });

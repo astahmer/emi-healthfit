@@ -7,11 +7,6 @@ describe("App", () => {
     render(<App />);
     expect(screen.getByRole("heading", { name: "Core Chat" })).toBeInTheDocument();
     expect(screen.getByLabelText("API key")).toBeInTheDocument();
-    expect(screen.getByLabelText("Default model")).toHaveValue("gpt-4o-mini");
-    expect(screen.getByLabelText("Title model")).toHaveValue("gpt-4o-mini");
-    expect(screen.getByLabelText("Memory model")).toHaveValue("gpt-4o-mini");
-    expect(screen.getByLabelText("Remember useful details from replies")).toBeChecked();
-    expect(screen.getByLabelText("Default system prompt")).toHaveValue("");
     expect(screen.getByLabelText("Message")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });

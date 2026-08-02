@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { describe, expect, it } from "vitest";
 import * as Schema from "effect/Schema";
 
-import { createConversationClient } from "@emi/core/web";
+import { CoreApiClient, CoreApiClientError } from "@emi/core/api";
 
 const apiOrigin = process.env.GENERIC_API_ORIGIN ?? "http://localhost:3233";
 const expectedWorkerName = process.env.GENERIC_EXPECTED_APP_NAME ?? "Core Chat";
@@ -114,10 +114,10 @@ describe("generic web and worker local API topology", () => {
     expect(healthResponse.headers.get("content-type")).toContain("application/json");
     expect(await healthResponse.json()).toEqual({ name: expectedWorkerName });
 
-    const client = createConversationClient({ apiOrigin, fetch });
-    await expect(client.listConversations({ search: "" })).rejects.toThrow(
-      "Authentication required",
-    );
+    const client = CoreApiClient.create({ baseUrl: `${apiOrigin}/api`, fetch });
+    await expect(CoreApiClient.runPromise(client.conversations.list())).rejects.toMatchObject({
+      kind: "http",
+    } satisfies Partial<CoreApiClientError>);
   });
 
   it("creates an anonymous session and exercises generic Worker persistence routes", async () => {
