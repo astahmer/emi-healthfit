@@ -179,7 +179,10 @@ wrapper, and `Chat.messages.fromProtocolMessage` converts persisted protocol mes
 parts for rendering. Assistant message-part normalization follows the same rule:
 `Chat.messages.buildAssistantPartsEffect` is canonical and
 `Chat.messages.buildAssistantParts` is its Promise-derived outer wrapper. Generic protocol and
-server consumers never need these AI SDK-facing methods.
+server consumers never need these AI SDK-facing methods. Provider-bound generation, memory, and
+streaming operations expose the same paired shape under `Chat.generation`, `Chat.memory`, and
+`Chat.stream`; server code should yield the `*Effect` member directly and use the Promise member
+only at a callback or host boundary.
 
 `@emi/core/components` contains controlled and connected view primitives. `ChatApp` and
 `ChatShell` are opt-in recipes under `components/styled`; they render runtime selectors and send
