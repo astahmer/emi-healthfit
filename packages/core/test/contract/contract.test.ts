@@ -132,6 +132,9 @@ describe("@emi/core/contract", () => {
       ...contractFiles.map((file) => readFile(file, "utf8")),
       readFile(messagePartsPath, "utf8"),
     ]);
-    assert.equal(sources.some((source) => source.includes("Schema.Unknown")), false);
+    assert.equal(
+      sources.some((source) => source.includes("Schema.Unknown")),
+      false,
+    );
   });
 });
