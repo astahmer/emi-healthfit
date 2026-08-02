@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": false,
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "outDir": "./dist/types",
+    "rootDir": "./src",
+    "sourceMap": false
+  },
+  "include": [
+    "src/index.ts",
+    "src/protocol/index.ts",
+    "src/api/index.ts",
+    "src/runtime/index.ts",
+    "src/react/index.ts",
+    "src/components/index.ts",
+    "src/components/styled/index.ts",
+    "src/server/index.ts",
+    "src/server/effect/index.ts",
+    "src/server/fetch/index.ts",
+    "src/adapters/ai-sdk/index.ts",
+    "src/adapters/cloudflare/index.ts",
+    "src/extensions/index.ts",
+    "src/testing/index.ts",
+    "src/advanced/xstate/index.ts"
+  ]
+}

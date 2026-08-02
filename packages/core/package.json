@@ -1,47 +1,111 @@
 {
   "name": "@emi/core",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "files": [
+    "dist",
     "src",
-    "PUBLISH.md"
+    "PUBLISH.md",
+    "source-manifest.json"
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./protocol": "./src/protocol/index.ts",
-    "./api": "./src/api/index.ts",
-    "./runtime": "./src/runtime/index.ts",
-    "./react": "./src/react/index.ts",
-    "./components": "./src/components/index.ts",
-    "./components/styled": "./src/components/styled/index.ts",
-    "./styles.css": "./src/styles/styles.css",
-    "./server/effect": "./src/server/effect/index.ts",
-    "./server/fetch": "./src/server/fetch/index.ts",
-    "./server/legacy": "./src/server/legacy/index.ts",
-    "./adapters/ai-sdk": "./src/adapters/ai-sdk/index.ts",
-    "./adapters/cloudflare": "./src/adapters/cloudflare/index.ts",
-    "./extensions": "./src/extensions/index.ts",
-    "./testing": "./src/testing/index.ts",
-    "./advanced/xstate": "./src/advanced/xstate/index.ts",
-    "./contract": "./src/contract/index.ts",
-    "./chat": "./src/chat/index.ts",
-    "./chat/settings": "./src/chat/settings.ts",
-    "./chat/ui-messages": "./src/chat/ui-messages.ts",
-    "./server": "./src/server/index.ts",
-    "./web": "./src/web/index.ts",
-    "./web/contributions": "./src/web/contributions.tsx",
-    "./web/styled": "./src/web/styled/index.ts",
-    "./web/styled/styles.css": "./src/web/styled/styles.css",
-    "./cloudflare": "./src/cloudflare/index.ts",
-    "./discord": "./src/discord/index.ts"
+    ".": { "types": "./dist/types/index.d.ts", "import": "./dist/index.js" },
+    "./protocol": {
+      "types": "./dist/types/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
+    "./api": { "types": "./dist/types/api/index.d.ts", "import": "./dist/api/index.js" },
+    "./runtime": {
+      "types": "./dist/types/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./react": { "types": "./dist/types/react/index.d.ts", "import": "./dist/react/index.js" },
+    "./components": {
+      "types": "./dist/types/components/index.d.ts",
+      "import": "./dist/components/index.js"
+    },
+    "./components/styled": {
+      "types": "./dist/types/components/styled/index.d.ts",
+      "import": "./dist/components/styled/index.js"
+    },
+    "./styles.css": "./dist/styles/styles.css",
+    "./server/effect": {
+      "types": "./dist/types/server/effect/index.d.ts",
+      "import": "./dist/server/effect/index.js"
+    },
+    "./server/fetch": {
+      "types": "./dist/types/server/fetch/index.d.ts",
+      "import": "./dist/server/fetch/index.js"
+    },
+    "./server/legacy": {
+      "types": "./src/server/legacy/index.ts",
+      "import": "./dist/server/legacy/index.js"
+    },
+    "./adapters/ai-sdk": {
+      "types": "./dist/types/adapters/ai-sdk/index.d.ts",
+      "import": "./dist/adapters/ai-sdk/index.js"
+    },
+    "./adapters/cloudflare": {
+      "types": "./dist/types/adapters/cloudflare/index.d.ts",
+      "import": "./dist/adapters/cloudflare/index.js"
+    },
+    "./extensions": {
+      "types": "./dist/types/extensions/index.d.ts",
+      "import": "./dist/extensions/index.js"
+    },
+    "./testing": {
+      "types": "./dist/types/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
+    "./advanced/xstate": {
+      "types": "./dist/types/advanced/xstate/index.d.ts",
+      "import": "./dist/advanced/xstate/index.js"
+    },
+    "./contract": {
+      "types": "./src/contract/index.ts",
+      "import": "./dist/contract/index.js"
+    },
+    "./chat": { "types": "./src/chat/index.ts", "import": "./dist/chat/index.js" },
+    "./chat/settings": {
+      "types": "./src/chat/settings.ts",
+      "import": "./dist/chat/settings.js"
+    },
+    "./chat/ui-messages": {
+      "types": "./src/chat/ui-messages.ts",
+      "import": "./dist/chat/ui-messages.js"
+    },
+    "./server": {
+      "types": "./dist/types/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./web": { "types": "./src/web/index.ts", "import": "./dist/web/index.js" },
+    "./web/contributions": {
+      "types": "./src/web/contributions.tsx",
+      "import": "./dist/web/contributions.js"
+    },
+    "./web/styled": {
+      "types": "./src/web/styled/index.ts",
+      "import": "./dist/web/styled/index.js"
+    },
+    "./web/styled/styles.css": "./dist/web/styled/styles.css",
+    "./cloudflare": {
+      "types": "./src/cloudflare/index.ts",
+      "import": "./dist/cloudflare/index.js"
+    },
+    "./discord": {
+      "types": "./src/discord/index.ts",
+      "import": "./dist/discord/index.js"
+    }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "source:manifest": "node scripts/source-manifest.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/public-api/fixtures.test.ts test/public-api/contract-catalog.test.ts test/protocol/**/*.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts && vitest run",
+    "test": "node --test --experimental-strip-types test/entry-isolation.test.ts test/public-api/fixtures.test.ts test/public-api/contract-catalog.test.ts test/protocol/**/*.test.ts test/contract/**/*.test.ts test/server/**/*.test.ts test/discord/**/*.test.ts test/cloudflare/**/*.test.ts test/adapters/**/*.test.ts test/api/**/*.test.ts test/advanced/**/*.test.ts test/extensions/**/*.test.ts test/pack/**/*.test.ts test/testing/**/*.test.ts && vitest run",
     "test:public-api": "node --test --experimental-strip-types test/public-api/fixtures.test.ts test/public-api/contract-catalog.test.ts",
     "test:protocol": "node --test --experimental-strip-types test/protocol/**/*.test.ts",
     "test:watch": "vitest",
@@ -73,6 +137,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "esbuild": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
@@ -235,7 +300,7 @@
           ]
         },
         "./components": {
-          "runtime": [],
+          "runtime": ["effect"],
           "peer": [
             "react"
           ],
@@ -248,7 +313,7 @@
           ]
         },
         "./components/styled": {
-          "runtime": [],
+          "runtime": ["effect"],
           "peer": [
             "react"
           ],
@@ -394,9 +459,11 @@
         }
       },
       "legacySourceEntrypoints": [
+        "./contract",
         "./chat",
         "./chat/settings",
         "./chat/ui-messages",
+        "./server/legacy",
         "./web",
         "./web/contributions",
         "./web/styled",
@@ -404,6 +471,19 @@
         "./cloudflare",
         "./discord"
       ],
+      "legacyEntrypointPaths": {
+        "./contract": "./src/contract/index.ts",
+        "./chat": "./src/chat/index.ts",
+        "./chat/settings": "./src/chat/settings.ts",
+        "./chat/ui-messages": "./src/chat/ui-messages.ts",
+        "./server/legacy": "./src/server/legacy/index.ts",
+        "./web": "./src/web/index.ts",
+        "./web/contributions": "./src/web/contributions.tsx",
+        "./web/styled": "./src/web/styled/index.ts",
+        "./web/styled/styles.css": "./src/web/styled/styles.css",
+        "./cloudflare": "./src/cloudflare/index.ts",
+        "./discord": "./src/discord/index.ts"
+      },
       "rewriteGates": [
         "common-consumer",
         "target-subpaths",

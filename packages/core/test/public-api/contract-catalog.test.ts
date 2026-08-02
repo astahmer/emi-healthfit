@@ -84,13 +84,13 @@ const dependencyMatrix = {
     forbidden: ["ai", "@ai-sdk/openai", "drizzle-orm", "@cloudflare/workers-types"],
   },
   "./components": {
-    runtime: [],
+    runtime: ["effect"],
     peer: ["react"],
     optional: [],
     forbidden: ["xstate", "ai", "drizzle-orm", "@cloudflare/workers-types"],
   },
   "./components/styled": {
-    runtime: [],
+    runtime: ["effect"],
     peer: ["react"],
     optional: ["class-variance-authority", "clsx", "lucide-react", "radix-ui", "tailwind-merge"],
     forbidden: ["ai", "drizzle-orm", "@cloudflare/workers-types"],
@@ -170,7 +170,13 @@ const advancedEntrypoints = {
   effect: "./server/effect",
 } as const;
 
-const StringMap = Schema.Record(Schema.String, Schema.String);
+const ExportValue = Schema.Union([
+  Schema.String,
+  Schema.Struct({
+    types: Schema.String,
+    import: Schema.String,
+  }),
+]);
 const DependencyEntry = Schema.Struct({
   runtime: Schema.Array(Schema.String),
   peer: Schema.Array(Schema.String),
@@ -178,15 +184,16 @@ const DependencyEntry = Schema.Struct({
   forbidden: Schema.Array(Schema.String),
 });
 const PackageJson = Schema.Struct({
-  exports: StringMap,
+  exports: Schema.Record(Schema.String, ExportValue),
   emi: Schema.Struct({
     publicApi: Schema.Struct({
       version: Schema.Literal("r0"),
-      entrypoints: StringMap,
-      entrypointPaths: StringMap,
-      advancedEntrypoints: StringMap,
+      entrypoints: Schema.Record(Schema.String, Schema.String),
+      entrypointPaths: Schema.Record(Schema.String, Schema.String),
+      advancedEntrypoints: Schema.Record(Schema.String, Schema.String),
       dependencyMatrix: Schema.Record(Schema.String, DependencyEntry),
       legacySourceEntrypoints: Schema.Array(Schema.String),
+      legacyEntrypointPaths: Schema.Record(Schema.String, Schema.String),
       rewriteGates: Schema.Array(Schema.String),
     }),
   }),
@@ -199,8 +206,17 @@ describe("@emi/core R0 public catalog", () => {
     );
 
     const exports = packageJson.exports;
-    for (const [entrypoint, sourcePath] of Object.entries(targetEntrypointPaths)) {
-      assert.equal(exports[entrypoint], sourcePath);
+    for (const entrypoint of Object.keys(targetEntrypointPaths)) {
+      const exportValue = exports[entrypoint];
+      assert.ok(exportValue !== undefined);
+      if (entrypoint === "./styles.css") {
+        assert.equal(exportValue, "./dist/styles/styles.css");
+        continue;
+      }
+      assert.deepEqual(exportValue, {
+        types: `./dist/types/${entrypoint === "." ? "index" : `${entrypoint.slice(2)}/index`}.d.ts`,
+        import: `./dist/${entrypoint === "." ? "index" : `${entrypoint.slice(2)}/index`}.js`,
+      });
     }
     assert.equal(
       Object.keys(exports).some((entrypoint) => entrypoint.includes("*")),
@@ -210,5 +226,21 @@ describe("@emi/core R0 public catalog", () => {
     assert.deepEqual(packageJson.emi.publicApi.entrypointPaths, targetEntrypointPaths);
     assert.deepEqual(packageJson.emi.publicApi.dependencyMatrix, dependencyMatrix);
     assert.deepEqual(packageJson.emi.publicApi.advancedEntrypoints, advancedEntrypoints);
+    assert.deepEqual(
+      packageJson.emi.publicApi.legacyEntrypointPaths,
+      {
+        "./contract": "./src/contract/index.ts",
+        "./chat": "./src/chat/index.ts",
+        "./chat/settings": "./src/chat/settings.ts",
+        "./chat/ui-messages": "./src/chat/ui-messages.ts",
+        "./server/legacy": "./src/server/legacy/index.ts",
+        "./web": "./src/web/index.ts",
+        "./web/contributions": "./src/web/contributions.tsx",
+        "./web/styled": "./src/web/styled/index.ts",
+        "./web/styled/styles.css": "./src/web/styled/styles.css",
+        "./cloudflare": "./src/cloudflare/index.ts",
+        "./discord": "./src/discord/index.ts",
+      },
+    );
   });
 });

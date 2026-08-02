@@ -6,6 +6,7 @@ import type {
   GenerationEvent,
   ModelConfiguration,
 } from "../../protocol/index.ts";
+import type { ChatExtension } from "../../extensions/index.ts";
 import type { ChatServerError } from "../use-cases/chat-server.ts";
 
 export interface ChatServerPrincipal {
@@ -71,5 +72,5 @@ export interface ChatServerOptions {
   readonly repositories: ChatRepositories;
   readonly model: ChatModel;
   readonly configuration: ModelConfiguration;
-  readonly extensions?: ReadonlyArray<unknown>;
+  readonly extensions?: ReadonlyArray<ChatExtension>;
 }

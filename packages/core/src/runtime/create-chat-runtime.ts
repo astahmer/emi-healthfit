@@ -140,7 +140,7 @@ const buildDefaults = (model: ModelConfiguration | undefined): GenericChatSettin
 
 const defaultSettingsStorageKey = "emi-core-chat-settings";
 
-export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
+export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActor => {
   const settingsStorage = createStorageAdapter(options.storage.settings);
   const draftsStorage = createStorageAdapter(options.storage.drafts);
   const settingsStorageKey = options.storage.keys?.settings ?? defaultSettingsStorageKey;
@@ -150,7 +150,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     apiOrigin: originFromBaseUrl(normalizedBaseUrl),
     fetch: options.transport.fetch,
   });
-  const actor = createActor(genericChatAppMachine, {
+  return createActor(genericChatAppMachine, {
     input: {
       api: chatApiFromBaseUrl(normalizedBaseUrl),
       fetch: options.transport.fetch,
@@ -167,6 +167,10 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       draftStorageKey,
     },
   });
+};
+
+export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
+  const actor = createChatRuntimeActor(options);
 
   const listeners = new Set<() => void>();
   const childSubscriptions = new Map<string, { unsubscribe: () => void }>();
