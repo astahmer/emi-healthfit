@@ -1,4 +1,3 @@
-// @ts-ignore R4 AI SDK adapter is implemented in a later packet.
 import { AiSdkModelProvider } from "@emi/core/adapters/ai-sdk";
 import { CloudflareRepositories } from "@emi/core/adapters/cloudflare";
 

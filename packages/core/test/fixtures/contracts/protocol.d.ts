@@ -130,10 +130,19 @@ export interface ModelGenerationInput {
 }
 
 export interface ModelProvider {
-  readonly generate: (input: ModelGenerationInput) => AsyncIterable<GenerationEvent>;
+  readonly generate: (
+    input: ModelGenerationInput,
+  ) => Stream.Stream<GenerationEvent, ModelProviderError>;
+}
+
+export interface ModelProviderError {
+  readonly code: string;
+  readonly message: string;
+  readonly retryable: boolean;
 }
 
 import type * as Effect from "effect/Effect";
+import type * as Stream from "effect/Stream";
 
 export declare class ProtocolDecodeError extends Error {}
 
