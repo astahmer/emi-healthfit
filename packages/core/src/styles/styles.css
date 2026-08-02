@@ -1,0 +1,25 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+.emi-chat-app {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+.emi-chat-app main {
+  min-width: 0;
+}
+
+.emi-chat-app textarea {
+  min-height: 4rem;
+  width: 100%;
+}
+
+.emi-chat-app form {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+}
