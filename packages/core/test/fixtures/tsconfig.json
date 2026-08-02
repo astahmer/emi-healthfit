@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@emi/core": ["./contracts/root.d.ts"],
+      "@emi/core/styles.css": ["./contracts/styles.css.d.ts"],
+      "@emi/core/*": ["./contracts/*.d.ts"]
+    },
+    "types": ["node"]
+  },
+  "include": ["consumers/**/*.ts", "consumers/**/*.tsx", "rewrite-gates/**/*.mts"]
+}
