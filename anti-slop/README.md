@@ -38,6 +38,9 @@ The current checks protect these boundaries:
 - persistence code maps rows explicitly and stays behind ports/adapters;
 - raw SQL domains may exist only as advanced adapter implementations; generic handlers consume
   granular Effect services supplied through `Layer`;
+- each advanced database domain keeps low-level query functions private and exposes one named
+  `Context.Service` with a `Layer`; static accessors are discovery/scoping aids, not a second
+  unprovided API;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
 - generic chat rendering, scrolling, and runtime state belong in `@emi/core`, while products supply
   only product renderers, extensions, and configuration.

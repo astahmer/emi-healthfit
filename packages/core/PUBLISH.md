@@ -76,7 +76,9 @@ Its rules are:
 - `server/database` is an explicit advanced persistence boundary; its raw rows and optional AI
   chunk decoder never enter `protocol`, `runtime`, React, or the primary `server` entry;
   its `QueryDatabaseClient` requires an injected `DatabaseRuntime` for IDs, clocks, and random
-  bytes so persistence code has no ambient time or identity dependency;
+  bytes so persistence code has no ambient time or identity dependency. Each database domain is
+  an Effect `Context.Service` with a `Layer` constructor; its static accessors are only a
+  discoverable facade over the service tag and cannot run until the domain layer is provided;
 - `cloudflare` is an explicit platform route/auth boundary and may require the optional platform
   and provider peers listed in its matrix; common consumers do not import it;
 - `adapters/ai-sdk` is the only AI SDK boundary; its AI SDK packages are optional peers, so
@@ -138,11 +140,14 @@ advanced `@emi/core/server/database` subpath. The generic `@emi/core/server` con
 port- and use-case-oriented, while HealthFit and platform workers own their product-specific
 schemas and adapters. The advanced database operations accept a `QueryDatabaseClient` with an
 injected `DatabaseRuntime`; Cloudflare and application edges construct that runtime from their
-platform capabilities. The static SQL domains in `server/db` are implementation details of that
-advanced adapter, not generic use-case contracts. Generic route composition uses
+platform capabilities. The database domain modules in `server/db` are implementation details of
+that advanced adapter, not generic use-case contracts. Their raw query functions remain private,
+while named service classes expose only the smallest domain grouping needed by advanced
+composition. `QueryDatabase` remains a small low-level transaction/batch utility rather than a
+domain service. Generic route composition uses
 `ConversationStoreLive`, `MemoryStoreLive`, and `GenerationStoreLive` to provide granular
 `Context.Service` ports through `Layer`; new server code must use those services instead of
-calling raw SQL domains directly. The primary server export has no wildcard exports and does not
+calling raw SQL functions directly. The primary server export has no wildcard exports and does not
 import D1, Drizzle, Kysely, Cloudflare, or AI SDK types.
 
 Generation persistence follows the same advanced adapter boundary: `GenerationReader`,
