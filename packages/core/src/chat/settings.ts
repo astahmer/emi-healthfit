@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 
 export const GenericChatSettingsSchema = Schema.Struct({
-  provider: Schema.Literal("openai"),
+  provider: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
   apiKey: Schema.String,
   baseUrl: Schema.String,
   model: Schema.String,
@@ -15,7 +15,7 @@ export const GenericChatSettingsSchema = Schema.Struct({
 });
 
 export const PersistedGenericChatSettingsSchema = Schema.Struct({
-  provider: Schema.Literal("openai"),
+  provider: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
   apiKey: Schema.String,
   baseUrl: Schema.String,
   model: Schema.String,

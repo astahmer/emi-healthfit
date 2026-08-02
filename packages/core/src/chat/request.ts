@@ -2,7 +2,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 export const ChatModelConfigurationSchema = Schema.Struct({
-  provider: Schema.Literal("openai"),
+  provider: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
   baseUrl: Schema.optional(Schema.String),
   apiKey: Schema.String.check(Schema.isMinLength(1)),
   model: Schema.String.check(Schema.isMinLength(1)),

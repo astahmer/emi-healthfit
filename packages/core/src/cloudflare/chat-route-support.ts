@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { ChatModelConfigurationSchema } from "../chat/request.ts";
-import { generateMemorySummary } from "../chat/openai.ts";
+import { OpenAiChat } from "../chat/openai.ts";
 import type { MemoryReaderShape, MemorySummaryStoreShape } from "../server/ports/memory-store.ts";
 
 export class ChatRouteSupport {
@@ -115,7 +115,7 @@ export class ChatRouteSupport {
   }
 
   static storedMessageText({ parts }: { readonly parts: string }): string {
-    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(
+    const decoded = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Json)))(
       parts,
     );
     if (Option.isNone(decoded)) return "";
@@ -161,13 +161,9 @@ export class ChatRouteSupport {
     return Effect.gen(function* () {
       const memories = yield* reader.list({ limit: 200 });
       if (memories.length === 0) return undefined;
-      const content = yield* Effect.tryPromise({
-        try: () =>
-          generateMemorySummary({
-            configuration,
-            memories: memories.map((memory) => memory.content),
-          }),
-        catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
+      const content = yield* OpenAiChat.generateMemorySummaryEffect({
+        configuration,
+        memories: memories.map((memory) => memory.content),
       });
       if (content === "") return undefined;
       yield* summary.upsert({ content, memoryCount: memories.length });

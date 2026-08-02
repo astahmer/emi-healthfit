@@ -25,15 +25,41 @@ const ProviderMessage = Schema.Struct({
   content: Schema.optional(Schema.Json),
 });
 
-const decodeProviderPart = Schema.decodeUnknownOption(ProviderPart);
-const decodeProviderMessage = Schema.decodeUnknownOption(ProviderMessage);
-const decodeToolOutput = Schema.decodeUnknownOption(ToolOutput);
-const decodeErrorOutput = Schema.decodeUnknownOption(ErrorOutput);
+const JsonString = Schema.fromJsonString(Schema.Json);
+
+const decodeJson = (value: unknown) => {
+  const serialized = JSON.stringify(value);
+  return serialized === undefined
+    ? Option.none()
+    : Schema.decodeUnknownOption(JsonString)(serialized);
+};
+
+const decodeProviderPart = (value: unknown) => {
+  const json = decodeJson(value);
+  return Option.isNone(json) ? Option.none() : Schema.decodeUnknownOption(ProviderPart)(json.value);
+};
+
+const decodeProviderMessage = (value: unknown) => {
+  const json = decodeJson(value);
+  return Option.isNone(json)
+    ? Option.none()
+    : Schema.decodeUnknownOption(ProviderMessage)(json.value);
+};
+
+const decodeToolOutput = (value: unknown) => {
+  const json = decodeJson(value);
+  return Option.isNone(json) ? Option.none() : Schema.decodeUnknownOption(ToolOutput)(json.value);
+};
+
+const decodeErrorOutput = (value: unknown) => {
+  const json = decodeJson(value);
+  return Option.isNone(json) ? Option.none() : Schema.decodeUnknownOption(ErrorOutput)(json.value);
+};
 
 const normalizeToolOutput = (output: unknown): Schema.Json => {
   const decoded = decodeToolOutput(output);
   if (Option.isSome(decoded)) return decoded.value.value;
-  const json = Schema.decodeUnknownOption(Schema.Json)(output);
+  const json = decodeJson(output);
   return Option.isSome(json) ? json.value : null;
 };
 

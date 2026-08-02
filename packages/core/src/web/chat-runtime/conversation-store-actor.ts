@@ -54,7 +54,7 @@ export type ConversationStoreActorEvent =
   | {
       type: "conversation-compact-requested";
       conversationId: string;
-      config: { provider: "openai"; apiKey: string; baseUrl?: string; model: string };
+      config: { provider: string; apiKey: string; baseUrl?: string; model: string };
     }
   | { type: "memory-load-requested"; search: string }
   | { type: "memory-create-requested"; content: string; search: string }

@@ -1,6 +1,13 @@
 import * as GenerationTerminalState from "./chat/generation-terminal-state.ts";
 import * as MessageParts from "./chat/message-parts.ts";
-import * as OpenAiChat from "./chat/openai.ts";
+import {
+  OpenAiChat,
+  type OpenAiCompatibleConfiguration as OpenAiCompatibleConfigurationType,
+  type ChatStreamRequest as ChatStreamRequestType,
+  type ChatStreamOptions as ChatStreamOptionsType,
+  type ChatStreamPart as ChatStreamPartType,
+  type GenerateTextConfiguration as GenerateTextConfigurationType,
+} from "./chat/openai.ts";
 import * as OperationBudget from "./chat/operation-budget.ts";
 import * as OrphanTurn from "./chat/orphan-turn.ts";
 import * as ChatRequest from "./chat/request.ts";
@@ -8,13 +15,6 @@ import * as ChatSettings from "./chat/settings.ts";
 import * as StreamResponse from "./chat/stream-response.ts";
 import * as ToolCircuitBreaker from "./chat/tool-circuit-breaker.ts";
 import * as UiMessages from "./chat/ui-messages.ts";
-import type {
-  OpenAiCompatibleConfiguration as OpenAiCompatibleConfigurationType,
-  ChatStreamRequest as ChatStreamRequestType,
-  ChatStreamOptions as ChatStreamOptionsType,
-  ChatStreamPart as ChatStreamPartType,
-  GenerateTextConfiguration as GenerateTextConfigurationType,
-} from "./chat/openai.ts";
 import type {
   ChatOperationBudgetSnapshot as ChatOperationBudgetSnapshotType,
   ChatOperationCategory as ChatOperationCategoryType,
@@ -28,6 +28,7 @@ export class Chat {
     chatStreamRequest: ChatRequest.ChatStreamRequestSchema,
     compactConversationRequest: ChatRequest.CompactConversationRequestSchema,
     genericChatSettings: ChatSettings.GenericChatSettingsSchema,
+    openAiCompatibleConfiguration: OpenAiChat.configurationSchema,
   } as const;
 
   static readonly settings = {

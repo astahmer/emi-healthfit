@@ -217,7 +217,7 @@ export const createConversationClient = ({
     config,
   }: {
     conversationId: string;
-    config: { provider: "openai"; apiKey: string; baseUrl?: string; model: string };
+    config: { provider: string; apiKey: string; baseUrl?: string; model: string };
   }): Promise<Conversation> => {
     const response = await fetch(apiUrl(`/api/conversations/${conversationId}/compact`), {
       method: "POST",

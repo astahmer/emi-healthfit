@@ -76,7 +76,7 @@ export interface SuggestionsState {
 }
 
 export interface ChatSettingsState {
-  readonly provider: "openai";
+  readonly provider: string;
   readonly apiKey: string;
   readonly baseUrl: string;
   readonly model: string;

@@ -71,7 +71,7 @@ const asSettings = (settings: GenericChatSettings): ChatSettingsState => ({ ...s
 
 const settingsPatchFromModel = (model: ModelConfiguration): Partial<GenericChatSettings> => ({
   model: model.model,
-  ...(model.provider === undefined || model.provider === "openai" ? { provider: "openai" } : {}),
+  ...(model.provider === undefined ? {} : { provider: model.provider }),
 });
 
 const conversationToProtocol = (conversation: Conversation) => ({
