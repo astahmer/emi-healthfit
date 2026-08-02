@@ -33,9 +33,8 @@ export type HealthfitToolsDatabaseSchema = ToolsDatabaseSchema;
 
 type ToolsDb = ServerDatabase.QueryDatabaseClient<ToolsDatabaseSchema>;
 
-const { createThread, getMessage, getThread, getThreadMessages, getThreads, summarizeThread } =
-  ServerDatabase.conversations;
-const { searchMemories } = ServerDatabase.memories;
+const ConversationDatabase = ServerDatabase.conversations;
+const MemoryDatabase = ServerDatabase.memories;
 
 /**
  * Kysely's `Transaction`/`withRecursive` typings make `Kysely<T>` (and thus
@@ -461,6 +460,16 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   threadTools: ThreadToolOptions;
 }) {
   const services = yield* Effect.context<RuntimeContext>();
+  const conversationLayer = ConversationDatabase.layer({
+    db: narrow<ServerDatabase.ConversationDatabaseSchema>(db),
+  });
+  const memoryLayer = MemoryDatabase.layer({
+    db: narrow<ServerDatabase.MemoryDatabaseSchema>(db),
+  });
+  const provideConversationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(conversationLayer), Effect.provideContext(services));
+  const provideMemoryDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(memoryLayer), Effect.provideContext(services));
   const requireConversationId = Effect.fn("FitnessToolkit.requireConversationId")(function* ({
     tool,
   }: {
@@ -479,11 +488,9 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     threadId: string;
   }) {
     const conversationId = yield* requireConversationId({ tool });
-    const thread = yield* getThread(
-      narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-      userId,
-      threadId,
-    ).pipe(Effect.provideContext(services));
+    const thread = yield* provideConversationDatabase(
+      ConversationDatabase.getThread({ userId, threadId }),
+    );
     if (thread === null || thread.conversation_id !== conversationId) {
       return yield* toolError({ tool, message: "Thread not found." });
     }
@@ -502,11 +509,9 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     if (threadTools.summarize === undefined) {
       return yield* toolError({ tool, message: "Summarization is unavailable." });
     }
-    const rows = yield* getThreadMessages(
-      narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-      userId,
-      threadId,
-    ).pipe(Effect.provideContext(services));
+    const rows = yield* provideConversationDatabase(
+      ConversationDatabase.getThreadMessages({ userId, threadId }),
+    );
     const messages = rows.map((row) => ({
       role: row.role,
       text: Schema.decodeUnknownSync(StoredParts)(row.parts)
@@ -523,13 +528,14 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         .join("\n"),
     }));
     const summary = yield* threadTools.summarize(messages);
-    const messageId = yield* summarizeThread(
-      narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-      userId,
-      threadId,
-      summary,
-      targetMessageId,
-    ).pipe(Effect.provideContext(services));
+    const messageId = yield* provideConversationDatabase(
+      ConversationDatabase.summarizeThread({
+        userId,
+        threadId,
+        summaryText: summary,
+        targetMessageId,
+      }),
+    );
     return { messageId, summary };
   });
 
@@ -617,28 +623,25 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       ),
     ),
     search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
-      searchMemories(narrow<ServerDatabase.MemoryDatabaseSchema>(db), userId, query, {
-        limit: limit ?? 10,
-      }).pipe(
-        Effect.provideContext(services),
-        Effect.map((results) => ({ results })),
-      ),
+      provideMemoryDatabase(
+        MemoryDatabase.searchMemories({
+          userId,
+          query,
+          options: { limit: limit ?? 10 },
+        }),
+      ).pipe(Effect.map((results) => ({ results }))),
     ),
     get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
       const conversationId = yield* requireConversationId({ tool: "get_threads" });
-      return yield* getThreads(
-        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-        userId,
-        conversationId,
-      ).pipe(Effect.provideContext(services));
+      return yield* provideConversationDatabase(
+        ConversationDatabase.getThreads({ userId, conversationId }),
+      );
     }),
     read_thread: Effect.fn("FitnessToolkit.readThread")(function* ({ thread_id }) {
       yield* requireThread({ tool: "read_thread", threadId: thread_id });
-      const rows = yield* getThreadMessages(
-        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-        userId,
-        thread_id,
-      ).pipe(Effect.provideContext(services));
+      const rows = yield* provideConversationDatabase(
+        ConversationDatabase.getThreadMessages({ userId, threadId: thread_id }),
+      );
       return rows.map((row) => ({
         ...row,
         parts: Schema.decodeUnknownSync(StoredParts)(row.parts),
@@ -646,11 +649,9 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     }),
     read_message: Effect.fn("FitnessToolkit.readMessage")(function* ({ message_id }) {
       const conversationId = yield* requireConversationId({ tool: "read_message" });
-      const message = yield* getMessage(
-        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-        userId,
-        message_id,
-      ).pipe(Effect.provideContext(services));
+      const message = yield* provideConversationDatabase(
+        ConversationDatabase.getMessage({ userId, messageId: message_id }),
+      );
       if (message === null || message.conversation_id !== conversationId) {
         return yield* toolError({ tool: "read_message", message: "Message not found." });
       }
@@ -661,29 +662,26 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       title,
     }) {
       const conversationId = yield* requireConversationId({ tool: "create_thread" });
-      const anchor = yield* getMessage(
-        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-        userId,
-        anchor_message_id,
-      ).pipe(Effect.provideContext(services));
+      const anchor = yield* provideConversationDatabase(
+        ConversationDatabase.getMessage({ userId, messageId: anchor_message_id }),
+      );
       if (anchor === null || anchor.conversation_id !== conversationId) {
         return yield* toolError({ tool: "create_thread", message: "Anchor message not found." });
       }
-      const threadId = yield* createThread(
-        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-        userId,
-        conversationId,
-        anchor_message_id,
-        title,
-      ).pipe(Effect.provideContext(services));
+      const threadId = yield* provideConversationDatabase(
+        ConversationDatabase.createThread({
+          userId,
+          conversationId,
+          anchorMessageId: anchor_message_id,
+          title,
+        }),
+      );
       if (threadId === null) {
         return yield* toolError({ tool: "create_thread", message: "Thread not found." });
       }
-      return yield* getThread(
-        narrow<ServerDatabase.ConversationDatabaseSchema>(db),
-        userId,
-        threadId,
-      ).pipe(Effect.provideContext(services));
+      return yield* provideConversationDatabase(
+        ConversationDatabase.getThread({ userId, threadId }),
+      );
     }),
     summarize_thread: Effect.fn("FitnessToolkit.summarizeThreadTool")(({ thread_id }) =>
       summarize({ threadId: thread_id, tool: "summarize_thread" }),

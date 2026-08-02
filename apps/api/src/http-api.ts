@@ -30,18 +30,7 @@ import { hevyHandlers } from "./healthfit/http/hevy.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
-const {
-  deleteMemory,
-  deleteMemoriesByMessage,
-  deleteNote,
-  getMemories,
-  getNotes,
-  insertMemory,
-  insertNote,
-  searchMemories,
-  searchNotes,
-  updateNote,
-} = ServerDatabase.memories;
+const MemoryDatabase = ServerDatabase.memories;
 const HttpApiHandler = Schema.Struct({
   routes: Schema.declare<Array<HttpRouter.Route<never, never>>>(Array.isArray),
 });
@@ -75,6 +64,9 @@ const notesHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const notesDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
+  const databaseLayer = MemoryDatabase.layer({ db: notesDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
   return HttpApiBuilder.group(CoreApi, "notes", (handlers) =>
     handlers
       .handle(
@@ -84,34 +76,45 @@ const notesHandlers = ({
           const limit = query.limit ?? 100;
           const notes =
             query.search === undefined
-              ? yield* getNotes(notesDb, user.id, limit)
-              : yield* searchNotes(notesDb, user.id, query.search, limit);
+              ? yield* MemoryDatabase.getNotes({ userId: user.id, limit })
+              : yield* MemoryDatabase.searchNotes({
+                  userId: user.id,
+                  query: query.search,
+                  limit,
+                });
           return { notes: notes.map(toApiNote) };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       )
       .handle(
         "create",
         Effect.fn("httpApi.notes.create")(function* ({ payload }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          const id = yield* insertNote(notesDb, user.id, payload.content);
+          const id = yield* MemoryDatabase.insertNote({
+            userId: user.id,
+            content: payload.content,
+          });
           return { id: requireIdentifier(id) };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       )
       .handle(
         "update",
         Effect.fn("httpApi.notes.update")(function* ({ params, payload }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* updateNote(notesDb, user.id, params.id, payload.content);
+          yield* MemoryDatabase.updateNote({
+            userId: user.id,
+            id: params.id,
+            content: payload.content,
+          });
           return { success: true } satisfies { success: true };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       )
       .handle(
         "remove",
         Effect.fn("httpApi.notes.remove")(function* ({ params }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* deleteNote(notesDb, user.id, params.id);
+          yield* MemoryDatabase.deleteNote({ userId: user.id, id: params.id });
           return { success: true } satisfies { success: true };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       ),
   );
 };
@@ -124,6 +127,9 @@ const memoriesHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const memoriesDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
+  const databaseLayer = MemoryDatabase.layer({ db: memoriesDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
   return HttpApiBuilder.group(CoreApi, "memories", (handlers) =>
     handlers
       .handle(
@@ -133,41 +139,47 @@ const memoriesHandlers = ({
           const limit = query.limit ?? 100;
           const memories =
             query.search === undefined
-              ? yield* getMemories(memoriesDb, user.id, { limit })
-              : yield* searchMemories(memoriesDb, user.id, query.search, { limit });
+              ? yield* MemoryDatabase.getMemories({ userId: user.id, options: { limit } })
+              : yield* MemoryDatabase.searchMemories({
+                  userId: user.id,
+                  query: query.search,
+                  options: { limit },
+                });
           return { memories: memories.map(toApiMemory) };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       )
       .handle(
         "create",
         Effect.fn("httpApi.memories.create")(function* ({ payload }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          const id = yield* insertMemory(
-            memoriesDb,
-            user.id,
-            payload.content,
-            payload.source,
-            payload.threadId,
-            payload.messageId,
-          );
+          const id = yield* MemoryDatabase.insertMemory({
+            userId: user.id,
+            content: payload.content,
+            source: payload.source,
+            threadId: payload.threadId,
+            messageId: payload.messageId,
+          });
           return { id: requireIdentifier(id) };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       )
       .handle(
         "remove",
         Effect.fn("httpApi.memories.remove")(function* ({ params }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* deleteMemory(memoriesDb, user.id, params.id);
+          yield* MemoryDatabase.deleteMemory({ userId: user.id, id: params.id });
           return { success: true } satisfies { success: true };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       )
       .handle(
         "removeByMessage",
         Effect.fn("httpApi.memories.removeByMessage")(function* ({ params }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          yield* deleteMemoriesByMessage(memoriesDb, user.id, params.messageId);
+          yield* MemoryDatabase.deleteMemoriesByMessage({
+            userId: user.id,
+            messageId: params.messageId,
+          });
           return { success: true } satisfies { success: true };
-        }, Effect.provide(runtimeContext)),
+        }, provideDatabase),
       ),
   );
 };

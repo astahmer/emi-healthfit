@@ -9,9 +9,6 @@ import { ServerDatabase } from "@emi/core/server/database";
 
 const chunkBatchSize = 20;
 
-const { appendGenerationChunks, finishGeneration, markGenerationStreaming, recordChatEvent } =
-  ServerDatabase.generations;
-
 export const persistGenerationStream = Effect.fn("chatStream.persist")(function* ({
   db,
   userId,
@@ -31,6 +28,9 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   stream: ReadableStream<UIMessageChunk>;
   budget: ReturnType<typeof Chat.operations.createChatOperationBudget>;
 }) {
+  const generationLayer = ServerDatabase.generations.layer({ db });
+  const provideGenerationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    Effect.provide(effect, generationLayer);
   const streamError = yield* Ref.make<string | undefined>(undefined);
   const finishReason = yield* Ref.make<string | undefined>(undefined);
   const sawFinish = yield* Ref.make(false);
@@ -39,16 +39,17 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
   const previousChunkAt = yield* Ref.make(persistenceStartedAt);
   const recordEvent = (type: string, payload: Record<string, unknown>) =>
     budget.tryReserve({ category: "telemetry" })
-      ? recordChatEvent({
-          db,
-          userId,
-          conversationId,
-          generationId,
-          requestId,
-          traceId,
-          type,
-          payload,
-        })
+      ? ServerDatabase.generations
+          .recordChatEvent({
+            userId,
+            conversationId,
+            generationId,
+            requestId,
+            traceId,
+            type,
+            payload,
+          })
+          .pipe(Effect.provide(generationLayer))
       : Effect.logWarning("chat.operation-budget.telemetry-skipped").pipe(
           Effect.annotateLogs({ generationId, requestId, traceId, type, ...budget.snapshot() }),
         );
@@ -62,7 +63,9 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
         );
         return;
       }
-      yield* appendGenerationChunks({ db, userId, generationId, chunks });
+      yield* provideGenerationDatabase(
+        ServerDatabase.generations.appendGenerationChunks({ userId, generationId, chunks }),
+      );
     });
   const persist = Stream.fromReadableStream({
     evaluate: () => stream,
@@ -77,7 +80,9 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
         if (sequence === 0) {
           yield* flushChunks();
           if (budget.tryReserve({ category: "persistence", essential: true })) {
-            yield* markGenerationStreaming({ db, userId, generationId });
+            yield* provideGenerationDatabase(
+              ServerDatabase.generations.markGenerationStreaming({ userId, generationId }),
+            );
           }
           yield* recordEvent("provider.first_chunk", {
             timeToFirstChunkMilliseconds: Math.round(timestamp - persistenceStartedAt),
@@ -122,13 +127,14 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
           );
           yield* recordEvent("persistence.failed", { error: message });
           if (budget.tryReserve({ category: "persistence", essential: true })) {
-            yield* finishGeneration({
-              db,
-              userId,
-              generationId,
-              status: "failed",
-              error: message,
-            });
+            yield* provideGenerationDatabase(
+              ServerDatabase.generations.finishGeneration({
+                userId,
+                generationId,
+                status: "failed",
+                error: message,
+              }),
+            );
           }
         }),
       onSuccess: () =>
@@ -142,14 +148,15 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
               category: "persistence",
               essential: true,
             })
-              ? finishGeneration({
-                  db,
-                  userId,
-                  generationId,
-                  status: terminal.status,
-                  error: terminal.error,
-                  finishReason: reason,
-                })
+              ? provideGenerationDatabase(
+                  ServerDatabase.generations.finishGeneration({
+                    userId,
+                    generationId,
+                    status: terminal.status,
+                    error: terminal.error,
+                    finishReason: reason,
+                  }),
+                )
               : Effect.logError("chat.operation-budget.terminal-persistence-exhausted").pipe(
                   Effect.annotateLogs({ generationId, ...budget.snapshot() }),
                 );

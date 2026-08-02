@@ -125,8 +125,6 @@ import { executeTool, tools } from "./tools/api.ts";
 import type { HealthfitToolsDatabaseSchema, ToolDefinition } from "./tools/api.ts";
 
 export class HealthFit {
-  private constructor() {}
-
   static readonly app = {
     definition: healthFitAppDefinition,
     extension: healthFitExtension,

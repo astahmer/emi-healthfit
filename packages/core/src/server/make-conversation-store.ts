@@ -1,4 +1,5 @@
 import { ConversationDatabase } from "./db/conversations.ts";
+import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { QueryDatabaseClient } from "./db/query-database.ts";
 import type { ConversationDatabaseSchema } from "./db/schema.ts";
@@ -30,54 +31,84 @@ export class ConversationStoreLive {
     threadStore: ThreadStoreShape<TEnvironment>;
   } {
     const userId = requestContext.userId;
+    const databaseLayer = ConversationDatabase.layer({ db });
+    const provideDatabase = <A>(effect: Effect.Effect<A, never, ConversationDatabase>) =>
+      Effect.provide(effect, databaseLayer);
     return {
       conversationReader: {
-        get: (conversationId) => ConversationDatabase.getConversation(db, userId, conversationId),
-        list: (search) => ConversationDatabase.getConversations(db, userId, search),
+        get: (conversationId) =>
+          provideDatabase(ConversationDatabase.getConversation({ userId, conversationId })),
+        list: (search) =>
+          provideDatabase(ConversationDatabase.getConversations({ userId, search })).pipe(
+            Effect.map((conversations) => [...conversations]),
+          ),
       },
       conversationWriter: {
-        create: (title) => ConversationDatabase.createConversation(db, userId, title),
+        create: (title) =>
+          provideDatabase(ConversationDatabase.createConversation({ userId, title })),
         delete: (conversationId) =>
-          ConversationDatabase.deleteConversation(db, userId, conversationId),
+          provideDatabase(ConversationDatabase.deleteConversation({ userId, conversationId })),
         rename: ({ conversationId, title }) =>
-          ConversationDatabase.renameConversation(db, userId, conversationId, title),
+          provideDatabase(
+            ConversationDatabase.renameConversation({ userId, conversationId, title }),
+          ),
         updateState: ({ conversationId, status, pinned }) =>
-          ConversationDatabase.updateConversationState({
-            db,
-            userId,
-            conversationId,
-            status,
-            pinned,
-          }),
+          provideDatabase(
+            ConversationDatabase.updateConversationState({
+              userId,
+              conversationId,
+              status,
+              pinned,
+            }),
+          ),
         clone: (conversationId) =>
-          ConversationDatabase.cloneConversation({ db, userId, conversationId }),
+          provideDatabase(ConversationDatabase.cloneConversation({ userId, conversationId })),
       },
       messageStore: {
         saveMessages: ({ conversationId, parentId, messages }) =>
-          ConversationDatabase.saveConversationMessages(
-            db,
-            userId,
-            conversationId,
-            parentId,
-            messages,
-          ),
+          provideDatabase(
+            ConversationDatabase.saveConversationMessages({
+              userId,
+              conversationId,
+              parentId,
+              messages,
+            }),
+          ).pipe(Effect.map((ids) => [...ids])),
         getMessages: (conversationId) =>
-          ConversationDatabase.getConversationMessages(db, userId, conversationId),
+          provideDatabase(
+            ConversationDatabase.getConversationMessages({ userId, conversationId }),
+          ).pipe(Effect.map((messages) => [...messages])),
       },
       threadStore: {
         createThread: ({ conversationId, anchorMessageId, title }) =>
-          ConversationDatabase.createThread(db, userId, conversationId, anchorMessageId, title),
+          provideDatabase(
+            ConversationDatabase.createThread({
+              userId,
+              conversationId,
+              anchorMessageId,
+              title,
+            }),
+          ),
         addThreadMessage: ({ threadId, messageId }) =>
-          ConversationDatabase.addThreadMessage(db, userId, threadId, messageId),
-        list: (conversationId) => ConversationDatabase.getThreads(db, userId, conversationId),
-        getThread: (threadId) => ConversationDatabase.getThread(db, userId, threadId),
-        getMessages: (threadId) => ConversationDatabase.getThreadMessages(db, userId, threadId),
+          provideDatabase(ConversationDatabase.addThreadMessage({ userId, threadId, messageId })),
+        list: (conversationId) =>
+          provideDatabase(ConversationDatabase.getThreads({ userId, conversationId })).pipe(
+            Effect.map((threads) => [...threads]),
+          ),
+        getThread: (threadId) =>
+          provideDatabase(ConversationDatabase.getThread({ userId, threadId })),
+        getMessages: (threadId) =>
+          provideDatabase(ConversationDatabase.getThreadMessages({ userId, threadId })).pipe(
+            Effect.map((messages) => [...messages]),
+          ),
         rename: ({ threadId, title }) =>
-          ConversationDatabase.renameThread(db, userId, threadId, title),
+          provideDatabase(ConversationDatabase.renameThread({ userId, threadId, title })),
         setPinned: ({ threadId, pinned }) =>
-          ConversationDatabase.pinThread(db, userId, threadId, pinned),
-        discard: (threadId) => ConversationDatabase.discardThread(db, userId, threadId),
-        restore: (threadId) => ConversationDatabase.restoreThread(db, userId, threadId),
+          provideDatabase(ConversationDatabase.pinThread({ userId, threadId, pinned })),
+        discard: (threadId) =>
+          provideDatabase(ConversationDatabase.discardThread({ userId, threadId })),
+        restore: (threadId) =>
+          provideDatabase(ConversationDatabase.restoreThread({ userId, threadId })),
       },
     };
   }

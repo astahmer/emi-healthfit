@@ -1,8 +1,10 @@
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import type { QueryDatabaseClient } from "./query-database.ts";
 import type { DiscordDatabaseSchema } from "./discord-schema.ts";
 
-type DiscordDb = QueryDatabaseClient<DiscordDatabaseSchema>;
+type DiscordDb<Environment = never> = QueryDatabaseClient<DiscordDatabaseSchema, Environment>;
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 8;
@@ -45,7 +47,7 @@ export interface DiscordAccountLinkView {
   created_at: string;
 }
 
-const listDiscordLinkCodes = (db: DiscordDb, userId: string) =>
+const listDiscordLinkCodes = <Environment>(db: DiscordDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const rows = yield* Effect.promise(() =>
@@ -59,7 +61,7 @@ const listDiscordLinkCodes = (db: DiscordDb, userId: string) =>
     return rows satisfies DiscordLinkCodeView[];
   });
 
-const listDiscordAccountLinks = (db: DiscordDb, userId: string) =>
+const listDiscordAccountLinks = <Environment>(db: DiscordDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const rows = yield* Effect.promise(() =>
@@ -73,7 +75,7 @@ const listDiscordAccountLinks = (db: DiscordDb, userId: string) =>
     return rows satisfies DiscordAccountLinkView[];
   });
 
-const createDiscordLinkCode = (db: DiscordDb, userId: string) =>
+const createDiscordLinkCode = <Environment>(db: DiscordDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const active = yield* Effect.promise(() =>
@@ -115,7 +117,11 @@ const createDiscordLinkCode = (db: DiscordDb, userId: string) =>
     } satisfies CreatedDiscordLinkCode;
   });
 
-const revokeDiscordLinkCode = (db: DiscordDb, userId: string, codeId: string) =>
+const revokeDiscordLinkCode = <Environment>(
+  db: DiscordDb<Environment>,
+  userId: string,
+  codeId: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -128,7 +134,11 @@ const revokeDiscordLinkCode = (db: DiscordDb, userId: string, codeId: string) =>
     return Number(result.numDeletedRows) > 0;
   });
 
-const unlinkDiscordAccount = (db: DiscordDb, userId: string, discordUserId: string) =>
+const unlinkDiscordAccount = <Environment>(
+  db: DiscordDb<Environment>,
+  userId: string,
+  discordUserId: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -141,7 +151,10 @@ const unlinkDiscordAccount = (db: DiscordDb, userId: string, discordUserId: stri
     return Number(result.numDeletedRows) > 0;
   });
 
-const getLinkedUserIdForDiscord = (db: DiscordDb, discordUserId: string) =>
+const getLinkedUserIdForDiscord = <Environment>(
+  db: DiscordDb<Environment>,
+  discordUserId: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const row = yield* Effect.promise(() =>
@@ -154,7 +167,10 @@ const getLinkedUserIdForDiscord = (db: DiscordDb, discordUserId: string) =>
     return row?.user_id ?? null;
   });
 
-const unlinkDiscordAccountByDiscordUserId = (db: DiscordDb, discordUserId: string) =>
+const unlinkDiscordAccountByDiscordUserId = <Environment>(
+  db: DiscordDb<Environment>,
+  discordUserId: string,
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const result = yield* Effect.promise(() =>
@@ -173,7 +189,10 @@ export type ConsumeDiscordLinkCodeResult =
       readonly reason: "invalid" | "expired" | "consumed";
     };
 
-const consumeDiscordLinkCode = (db: DiscordDb, options: { code: string; discordUserId: string }) =>
+const consumeDiscordLinkCode = <Environment>(
+  db: DiscordDb<Environment>,
+  options: { code: string; discordUserId: string },
+) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const codeHash = yield* hashDiscordLinkCode(options.code);
@@ -220,14 +239,96 @@ const consumeDiscordLinkCode = (db: DiscordDb, options: { code: string; discordU
     return { ok: true, userId: row.user_id } as const;
   });
 
-export class DiscordLinkDatabase {
-  static readonly consumeLinkCode = consumeDiscordLinkCode;
-  static readonly createLinkCode = createDiscordLinkCode;
-  static readonly getLinkedUserId = getLinkedUserIdForDiscord;
+export interface DiscordLinkDatabaseShape {
+  readonly consumeLinkCode: (input: {
+    readonly code: string;
+    readonly discordUserId: string;
+  }) => Effect.Effect<ConsumeDiscordLinkCodeResult>;
+  readonly createLinkCode: (input: {
+    readonly userId: string;
+  }) => Effect.Effect<CreatedDiscordLinkCode | null>;
+  readonly getLinkedUserId: (input: {
+    readonly discordUserId: string;
+  }) => Effect.Effect<string | null>;
+  readonly listAccountLinks: (input: {
+    readonly userId: string;
+  }) => Effect.Effect<ReadonlyArray<DiscordAccountLinkView>>;
+  readonly listLinkCodes: (input: {
+    readonly userId: string;
+  }) => Effect.Effect<ReadonlyArray<DiscordLinkCodeView>>;
+  readonly revokeLinkCode: (input: {
+    readonly userId: string;
+    readonly codeId: string;
+  }) => Effect.Effect<boolean>;
+  readonly unlinkAccount: (input: {
+    readonly userId: string;
+    readonly discordUserId: string;
+  }) => Effect.Effect<boolean>;
+  readonly unlinkAccountByDiscordUserId: (input: {
+    readonly discordUserId: string;
+  }) => Effect.Effect<boolean>;
+}
+
+export class DiscordLinkDatabase extends Context.Service<
+  DiscordLinkDatabase,
+  DiscordLinkDatabaseShape
+>()("@emi/core/server/database/DiscordLinkDatabase") {
+  static readonly consumeLinkCode = (input: {
+    readonly code: string;
+    readonly discordUserId: string;
+  }) => Effect.flatMap(DiscordLinkDatabase, (database) => database.consumeLinkCode(input));
+
+  static readonly createLinkCode = (input: { readonly userId: string }) =>
+    Effect.flatMap(DiscordLinkDatabase, (database) => database.createLinkCode(input));
+
+  static readonly getLinkedUserId = (input: { readonly discordUserId: string }) =>
+    Effect.flatMap(DiscordLinkDatabase, (database) => database.getLinkedUserId(input));
+
   static readonly hashLinkCode = hashDiscordLinkCode;
-  static readonly listAccountLinks = listDiscordAccountLinks;
-  static readonly listLinkCodes = listDiscordLinkCodes;
-  static readonly revokeLinkCode = revokeDiscordLinkCode;
-  static readonly unlinkAccount = unlinkDiscordAccount;
-  static readonly unlinkAccountByDiscordUserId = unlinkDiscordAccountByDiscordUserId;
+
+  static readonly listAccountLinks = (input: { readonly userId: string }) =>
+    Effect.flatMap(DiscordLinkDatabase, (database) => database.listAccountLinks(input));
+
+  static readonly listLinkCodes = (input: { readonly userId: string }) =>
+    Effect.flatMap(DiscordLinkDatabase, (database) => database.listLinkCodes(input));
+
+  static readonly revokeLinkCode = (input: { readonly userId: string; readonly codeId: string }) =>
+    Effect.flatMap(DiscordLinkDatabase, (database) => database.revokeLinkCode(input));
+
+  static readonly unlinkAccount = (input: {
+    readonly userId: string;
+    readonly discordUserId: string;
+  }) => Effect.flatMap(DiscordLinkDatabase, (database) => database.unlinkAccount(input));
+
+  static readonly unlinkAccountByDiscordUserId = (input: { readonly discordUserId: string }) =>
+    Effect.flatMap(DiscordLinkDatabase, (database) => database.unlinkAccountByDiscordUserId(input));
+
+  static layer<Environment>({
+    db,
+  }: {
+    readonly db: DiscordDb<Environment>;
+  }): Layer.Layer<DiscordLinkDatabase, never, Environment> {
+    return Layer.effect(
+      DiscordLinkDatabase,
+      Effect.gen(function* () {
+        const context = yield* Effect.context<Environment>();
+        const provide = <A>(effect: Effect.Effect<A, never, Environment>) =>
+          Effect.provideContext(effect, context);
+        return {
+          consumeLinkCode: (input) => provide(consumeDiscordLinkCode(db, input)),
+          createLinkCode: ({ userId }) => provide(createDiscordLinkCode(db, userId)),
+          getLinkedUserId: ({ discordUserId }) =>
+            provide(getLinkedUserIdForDiscord(db, discordUserId)),
+          listAccountLinks: ({ userId }) => provide(listDiscordAccountLinks(db, userId)),
+          listLinkCodes: ({ userId }) => provide(listDiscordLinkCodes(db, userId)),
+          revokeLinkCode: ({ userId, codeId }) =>
+            provide(revokeDiscordLinkCode(db, userId, codeId)),
+          unlinkAccount: ({ userId, discordUserId }) =>
+            provide(unlinkDiscordAccount(db, userId, discordUserId)),
+          unlinkAccountByDiscordUserId: ({ discordUserId }) =>
+            provide(unlinkDiscordAccountByDiscordUserId(db, discordUserId)),
+        } satisfies DiscordLinkDatabaseShape;
+      }),
+    );
+  }
 }

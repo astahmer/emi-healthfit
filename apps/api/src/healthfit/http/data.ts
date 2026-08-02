@@ -24,7 +24,7 @@ const {
 const { deleteIngestedSource, updateRawUploadRetentionDays } = HealthFit.ingest;
 const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
 
-const { getSuggestionsById, hashSuggestionsKey, saveSuggestions } = ServerDatabase.conversations;
+const ConversationDatabase = ServerDatabase.conversations;
 
 export const deleteRawUploads = Effect.fn("privacy.deleteRawUploads")(function* ({
   bucket,
@@ -58,35 +58,49 @@ export const suggestionsHandlers = ({
   db: QueryDatabaseClient;
   runtimeContext: Context.Context<never>;
 }) =>
-  HttpApiBuilder.group(HealthFitApi, "suggestions", (handlers) =>
-    handlers.handle(
-      "generate",
-      Effect.fn("httpApi.suggestions.generate")(
-        function* ({ payload }) {
-          const user = yield* CoreCloudflare.user.CurrentUser;
-          const lastAssistantText = payload.lastAssistantText.trim();
-          const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
-          const conversationDb =
-            narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-          const cached = yield* getSuggestionsById(conversationDb, user.id, key);
-          if (cached !== null) {
-            return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };
-          }
-          const suggestions = yield* Effect.promise(() =>
-            Chat.generation.generateSuggestions({
-              configuration: payload.config,
+  (() => {
+    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+    const databaseLayer = ConversationDatabase.layer({ db: conversationDb });
+    const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+      effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
+    return HttpApiBuilder.group(HealthFitApi, "suggestions", (handlers) =>
+      handlers.handle(
+        "generate",
+        Effect.fn("httpApi.suggestions.generate")(
+          function* ({ payload }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const lastAssistantText = payload.lastAssistantText.trim();
+            const key = yield* ConversationDatabase.hashSuggestionsKey(
               lastAssistantText,
-              lastUserText: payload.lastUserText,
-            }),
-          );
-          yield* saveSuggestions(conversationDb, user.id, key, suggestions);
-          return { suggestions };
-        },
-        withInternalError,
-        Effect.provide(runtimeContext),
+              payload.lastUserText,
+            );
+            const cached = yield* ConversationDatabase.getSuggestionsById({
+              userId: user.id,
+              id: key,
+            });
+            if (cached !== null) {
+              return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };
+            }
+            const suggestions = yield* Effect.promise(() =>
+              Chat.generation.generateSuggestions({
+                configuration: payload.config,
+                lastAssistantText,
+                lastUserText: payload.lastUserText,
+              }),
+            );
+            yield* ConversationDatabase.saveSuggestions({
+              userId: user.id,
+              id: key,
+              suggestions,
+            });
+            return { suggestions };
+          },
+          withInternalError,
+          provideDatabase,
+        ),
       ),
-    ),
-  );
+    );
+  })();
 
 export const analyticsHandlers = ({
   db,

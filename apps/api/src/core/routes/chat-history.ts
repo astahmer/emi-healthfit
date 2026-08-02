@@ -27,10 +27,18 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   tools?: ReadonlyArray<ChatToolDefinition>;
 }) {
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const databaseLayer = ServerDatabase.conversations.layer({ db: conversationDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    Effect.provide(effect, databaseLayer);
   const thread =
     isTemporary || chatRequest.threadId === undefined
       ? null
-      : yield* ServerDatabase.conversations.getThread(conversationDb, userId, chatRequest.threadId);
+      : yield* provideDatabase(
+          ServerDatabase.conversations.getThread({
+            userId,
+            threadId: chatRequest.threadId,
+          }),
+        );
   if (
     chatRequest.threadId !== undefined &&
     (thread === null || thread.conversation_id !== sessionId || thread.status !== "regular")
@@ -40,19 +48,21 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
 
   const conversationRows = isTemporary
     ? []
-    : yield* ServerDatabase.conversations.getConversationMessages(
-        conversationDb,
-        userId,
-        sessionId,
+    : yield* provideDatabase(
+        ServerDatabase.conversations.getConversationMessages({
+          userId,
+          conversationId: sessionId,
+        }),
       );
   const existingRows =
     thread === null
       ? conversationRows
       : yield* Effect.gen(function* () {
-          const branchRows = yield* ServerDatabase.conversations.getThreadMessages(
-            conversationDb,
-            userId,
-            thread.id,
+          const branchRows = yield* provideDatabase(
+            ServerDatabase.conversations.getThreadMessages({
+              userId,
+              threadId: thread.id,
+            }),
           );
           const anchor = conversationRows.find((row) => row.id === thread.anchor_message_id);
           const contextRows =
@@ -75,7 +85,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   const validatedExistingMessages = yield* Effect.promise(() =>
     Chat.messages.validateStoredUIMessages(storedMessages),
   );
-  const existingMessages = validatedExistingMessages;
+  const existingMessages = [...validatedExistingMessages];
   const requestedMessages = chatRequest.messages;
   const attachmentError = validateAttachments(requestedMessages);
   if (attachmentError !== undefined) return { error: attachmentError, status: 400 as const };
@@ -93,9 +103,9 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   const requestedIncomingMessages =
     chatRequest.replaceMessageId === undefined ? requestedMessages : [];
   const duplicateOrphanRetry = Chat.orphans.isDuplicateOrphanRetry({
-    existingRows,
-    existingMessages,
-    incomingMessages: requestedIncomingMessages,
+    existingRows: [...existingRows],
+    existingMessages: [...existingMessages],
+    incomingMessages: [...requestedIncomingMessages],
   });
   const incomingMessages = duplicateOrphanRetry ? [] : requestedIncomingMessages;
   const toolRecord = Object.fromEntries(
@@ -108,9 +118,9 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     ...chatRequest,
     messages: Chat.messages
       .getProviderMessages({
-        existingRows,
-        existingMessages,
-        incomingMessages,
+        existingRows: [...existingRows],
+        existingMessages: [...existingMessages],
+        incomingMessages: [...incomingMessages],
         replaceMessageId: chatRequest.replaceMessageId,
       })
       .map(({ id: _id, ...message }) => message),
@@ -123,15 +133,18 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   if (!isTemporary) {
     const branchParentId =
       thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);
-    const incomingIds =
+    const incomingIds: Array<string> =
       chatRequest.replaceMessageId === undefined
-        ? yield* ServerDatabase.conversations.saveConversationMessages(
-            conversationDb,
-            userId,
-            sessionId,
-            branchParentId,
-            incomingMessages,
-          )
+        ? [
+            ...(yield* provideDatabase(
+              ServerDatabase.conversations.saveConversationMessages({
+                userId,
+                conversationId: sessionId,
+                parentId: branchParentId,
+                messages: [...incomingMessages],
+              }),
+            )),
+          ]
         : [];
     if (chatRequest.replaceMessageId === undefined) {
       lastIncomingMessageId = incomingIds.at(-1) ?? null;
@@ -140,11 +153,12 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
       yield* Effect.forEach(
         incomingIds,
         (messageId) =>
-          ServerDatabase.conversations.addThreadMessage(
-            conversationDb,
-            userId,
-            thread.id,
-            messageId,
+          provideDatabase(
+            ServerDatabase.conversations.addThreadMessage({
+              userId,
+              threadId: thread.id,
+              messageId,
+            }),
           ),
         { discard: true },
       );

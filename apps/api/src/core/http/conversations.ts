@@ -23,33 +23,11 @@ import { withInternalError } from "./errors.ts";
 type Conversation = ServerDatabase.Conversation;
 type Thread = ServerDatabase.Thread;
 
-const { getGeneration, recordChatEvent } = ServerDatabase.generations;
+const ConversationDatabase = ServerDatabase.conversations;
+const GenerationDatabase = ServerDatabase.generations;
+const MemoryDatabase = ServerDatabase.memories;
 
 const MessageRole = Schema.Literals(["user", "assistant", "system", "summary"]);
-
-const {
-  cloneConversation,
-  createConversation,
-  createThread,
-  deleteConversation,
-  discardThread,
-  getConversation,
-  getConversationMessages,
-  getMessage,
-  getThread,
-  getThreadByAnchor,
-  getThreadMessages,
-  getThreads,
-  getThreadsIncludingDiscarded,
-  pinThread,
-  renameConversation,
-  renameThread,
-  reviseConversationMessage,
-  restoreThread,
-  saveConversationMessages,
-  updateConversationState,
-} = ServerDatabase.conversations;
-const { getMemories, insertMemories, listMemoryIdsForMessage } = ServerDatabase.memories;
 
 const toApiConversation = (conversation: Conversation): ApiConversation => ({
   id: conversation.id,
@@ -121,6 +99,9 @@ export const conversationsHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const databaseLayer = ServerDatabase.conversations.layer({ db: conversationDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
   return HttpApiBuilder.group(CoreApi, "conversations", (handlers) =>
     handlers
       .handle(
@@ -133,7 +114,7 @@ export const conversationsHandlers = ({
             return { conversations: conversations.map(toApiConversation) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -146,7 +127,7 @@ export const conversationsHandlers = ({
             return { id };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -175,25 +156,30 @@ export const conversationsHandlers = ({
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
-            const id = yield* createConversation(conversationDb, user.id, payload.title?.trim());
-            yield* saveConversationMessages(
-              conversationDb,
-              user.id,
-              id,
-              null,
-              payload.messages.map((message) => ({
+            const id = yield* ConversationDatabase.createConversation({
+              userId: user.id,
+              title: payload.title?.trim(),
+            });
+            yield* ConversationDatabase.saveConversationMessages({
+              userId: user.id,
+              conversationId: id,
+              parentId: null,
+              messages: payload.messages.map((message) => ({
                 role: message.role,
                 parts: [...message.parts],
               })),
-            );
-            const conversation = yield* getConversation(conversationDb, user.id, id);
+            });
+            const conversation = yield* ConversationDatabase.getConversation({
+              userId: user.id,
+              conversationId: id,
+            });
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
             return { conversation: toApiConversation(conversation) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -201,11 +187,14 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.remove")(
           function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            yield* deleteConversation(conversationDb, user.id, params.id);
+            yield* ConversationDatabase.deleteConversation({
+              userId: user.id,
+              conversationId: params.id,
+            });
             return { success: true } as const;
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -213,21 +202,23 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.updateState")(
           function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            yield* updateConversationState({
-              db: conversationDb,
+            yield* ConversationDatabase.updateConversationState({
               userId: user.id,
               conversationId: params.id,
               status: payload.status,
               pinned: payload.pinned,
             });
-            const conversation = yield* getConversation(conversationDb, user.id, params.id);
+            const conversation = yield* ConversationDatabase.getConversation({
+              userId: user.id,
+              conversationId: params.id,
+            });
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
             return { conversation: toApiConversation(conversation) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -235,8 +226,7 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.clone")(
           function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const conversation = yield* cloneConversation({
-              db: conversationDb,
+            const conversation = yield* ConversationDatabase.cloneConversation({
               userId: user.id,
               conversationId: params.id,
             });
@@ -246,7 +236,7 @@ export const conversationsHandlers = ({
             return { conversation: toApiConversation(conversation) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -254,11 +244,17 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.compact")(
           function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const conversation = yield* getConversation(conversationDb, user.id, params.id);
+            const conversation = yield* ConversationDatabase.getConversation({
+              userId: user.id,
+              conversationId: params.id,
+            });
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
-            const messages = (yield* getConversationMessages(conversationDb, user.id, params.id))
+            const messages = (yield* ConversationDatabase.getConversationMessages({
+              userId: user.id,
+              conversationId: params.id,
+            }))
               .map(rowToMessage)
               .filter((message) => message.role !== "summary")
               .map((message) => ({
@@ -280,34 +276,37 @@ export const conversationsHandlers = ({
               }),
             );
             const title = conversation.title?.trim() || "New chat";
-            const compactedId = yield* createConversation(
-              conversationDb,
-              user.id,
-              `${title} (compacted)`,
-            );
-            yield* saveConversationMessages(conversationDb, user.id, compactedId, null, [
-              {
-                role: "system",
-                parts: [
-                  {
-                    type: "text",
-                    text: `Use this compacted summary of the previous conversation as context:\n\n${summary}`,
-                  },
-                ],
-              },
-            ]);
-            const compactedConversation = yield* getConversation(
-              conversationDb,
-              user.id,
-              compactedId,
-            );
+            const compactedId = yield* ConversationDatabase.createConversation({
+              userId: user.id,
+              title: `${title} (compacted)`,
+            });
+            yield* ConversationDatabase.saveConversationMessages({
+              userId: user.id,
+              conversationId: compactedId,
+              parentId: null,
+              messages: [
+                {
+                  role: "system",
+                  parts: [
+                    {
+                      type: "text",
+                      text: `Use this compacted summary of the previous conversation as context:\n\n${summary}`,
+                    },
+                  ],
+                },
+              ],
+            });
+            const compactedConversation = yield* ConversationDatabase.getConversation({
+              userId: user.id,
+              conversationId: compactedId,
+            });
             if (compactedConversation === null) {
               return yield* new NotFound({ message: "Compacted conversation not found" });
             }
             return { conversation: toApiConversation(compactedConversation) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -315,16 +314,28 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.messages")(
           function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const conversation = yield* getConversation(conversationDb, user.id, params.id);
+            const conversation = yield* ConversationDatabase.getConversation({
+              userId: user.id,
+              conversationId: params.id,
+            });
             if (conversation === null) {
               return yield* new NotFound({ message: "Conversation not found" });
             }
-            const rows = yield* getConversationMessages(conversationDb, user.id, params.id);
-            const threads = yield* getThreadsIncludingDiscarded(conversationDb, user.id, params.id);
+            const rows = yield* ConversationDatabase.getConversationMessages({
+              userId: user.id,
+              conversationId: params.id,
+            });
+            const threads = yield* ConversationDatabase.getThreadsIncludingDiscarded({
+              userId: user.id,
+              conversationId: params.id,
+            });
             const threadsWithMessages = yield* Effect.forEach(
               threads,
               (thread) =>
-                getThreadMessages(conversationDb, user.id, thread.id).pipe(
+                ConversationDatabase.getThreadMessages({
+                  userId: user.id,
+                  threadId: thread.id,
+                }).pipe(
                   Effect.map((messages) =>
                     toApiThreadWithMessages({
                       thread,
@@ -341,7 +352,7 @@ export const conversationsHandlers = ({
             };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -350,11 +361,15 @@ export const conversationsHandlers = ({
           function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
             const title = payload.title.trim();
-            yield* renameConversation(conversationDb, user.id, params.id, title);
+            yield* ConversationDatabase.renameConversation({
+              userId: user.id,
+              conversationId: params.id,
+              title,
+            });
             return { success: true } as const;
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -362,11 +377,14 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.threads")(
           function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const threads = yield* getThreads(conversationDb, user.id, params.id);
+            const threads = yield* ConversationDatabase.getThreads({
+              userId: user.id,
+              conversationId: params.id,
+            });
             return { threads: threads.map(toApiThread) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -374,32 +392,36 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.forkThread")(
           function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const anchor = yield* getMessage(conversationDb, user.id, payload.anchorMessageId);
+            const anchor = yield* ConversationDatabase.getMessage({
+              userId: user.id,
+              messageId: payload.anchorMessageId,
+            });
             if (anchor === null || anchor.conversation_id !== params.id) {
               return yield* new NotFound({ message: "Anchor message not found" });
             }
-            const existing = yield* getThreadByAnchor(
-              conversationDb,
-              user.id,
-              params.id,
-              payload.anchorMessageId,
-            );
+            const existing = yield* ConversationDatabase.getThreadByAnchor({
+              userId: user.id,
+              conversationId: params.id,
+              anchorMessageId: payload.anchorMessageId,
+            });
             if (existing !== null && existing.status === "discarded") {
-              yield* restoreThread(conversationDb, user.id, existing.id);
+              yield* ConversationDatabase.restoreThread({ userId: user.id, threadId: existing.id });
             }
             const id =
               existing?.id ??
-              (yield* createThread(
-                conversationDb,
-                user.id,
-                params.id,
-                payload.anchorMessageId,
-                payload.title?.trim(),
-              ));
+              (yield* ConversationDatabase.createThread({
+                userId: user.id,
+                conversationId: params.id,
+                anchorMessageId: payload.anchorMessageId,
+                title: payload.title?.trim(),
+              }));
             if (id === null) {
               return yield* new NotFound({ message: "Thread not found" });
             }
-            const thread = yield* getThread(conversationDb, user.id, id);
+            const thread = yield* ConversationDatabase.getThread({
+              userId: user.id,
+              threadId: id,
+            });
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });
             }
@@ -409,7 +431,7 @@ export const conversationsHandlers = ({
             });
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -417,16 +439,14 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.recordDiagnosticEvent")(
           function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const generation = yield* getGeneration({
-              db: conversationDb,
+            const generation = yield* GenerationDatabase.getGeneration({
               userId: user.id,
               generationId: payload.generationId,
             });
             if (generation === null || generation.conversation_id !== params.id) {
               return yield* new NotFound({ message: "Generation not found" });
             }
-            yield* recordChatEvent({
-              db: conversationDb,
+            yield* GenerationDatabase.recordChatEvent({
               userId: user.id,
               conversationId: params.id,
               generationId: generation.id,
@@ -438,7 +458,7 @@ export const conversationsHandlers = ({
             return { recorded: true } as const;
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -464,8 +484,7 @@ export const conversationsHandlers = ({
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
-            const revised = yield* reviseConversationMessage({
-              db: conversationDb,
+            const revised = yield* ConversationDatabase.reviseConversationMessage({
               userId: user.id,
               conversationId: params.id,
               messageId: params.messageId,
@@ -478,7 +497,7 @@ export const conversationsHandlers = ({
             return { ok: true } as const;
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       ),
   );
@@ -492,6 +511,9 @@ export const threadsHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const databaseLayer = ConversationDatabase.layer({ db: conversationDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
   return HttpApiBuilder.group(CoreApi, "threads", (handlers) =>
     handlers
       .handle(
@@ -499,15 +521,21 @@ export const threadsHandlers = ({
         Effect.fn("httpApi.threads.read")(
           function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const thread = yield* getThread(conversationDb, user.id, params.id);
+            const thread = yield* ConversationDatabase.getThread({
+              userId: user.id,
+              threadId: params.id,
+            });
             if (thread === null) {
               return yield* new NotFound({ message: "Thread not found" });
             }
-            const rows = yield* getThreadMessages(conversationDb, user.id, params.id);
+            const rows = yield* ConversationDatabase.getThreadMessages({
+              userId: user.id,
+              threadId: params.id,
+            });
             return { thread: toApiThread(thread), messages: rows.map(rowToMessage) };
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       )
       .handle(
@@ -516,21 +544,29 @@ export const threadsHandlers = ({
           function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
             if (payload.title !== undefined && payload.title.trim() !== "") {
-              yield* renameThread(conversationDb, user.id, params.id, payload.title.trim());
+              yield* ConversationDatabase.renameThread({
+                userId: user.id,
+                threadId: params.id,
+                title: payload.title.trim(),
+              });
             }
             if (payload.pinned !== undefined) {
-              yield* pinThread(conversationDb, user.id, params.id, payload.pinned);
+              yield* ConversationDatabase.pinThread({
+                userId: user.id,
+                threadId: params.id,
+                pinned: payload.pinned,
+              });
             }
             if (payload.status === "discarded") {
-              yield* discardThread(conversationDb, user.id, params.id);
+              yield* ConversationDatabase.discardThread({ userId: user.id, threadId: params.id });
             }
             if (payload.status === "regular") {
-              yield* restoreThread(conversationDb, user.id, params.id);
+              yield* ConversationDatabase.restoreThread({ userId: user.id, threadId: params.id });
             }
             return { success: true } as const;
           },
           withInternalError,
-          Effect.provide(runtimeContext),
+          provideDatabase,
         ),
       ),
   );
@@ -544,20 +580,26 @@ export const messagesHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+  const databaseLayer = ConversationDatabase.layer({ db: conversationDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
   return HttpApiBuilder.group(CoreApi, "messages", (handlers) =>
     handlers.handle(
       "read",
       Effect.fn("httpApi.messages.read")(
         function* ({ params }) {
           const user = yield* CoreCloudflare.user.CurrentUser;
-          const message = yield* getMessage(conversationDb, user.id, params.id);
+          const message = yield* ConversationDatabase.getMessage({
+            userId: user.id,
+            messageId: params.id,
+          });
           if (message === null) {
             return yield* new NotFound({ message: "Message not found" });
           }
           return { message: rowToMessage(message) };
         },
         withInternalError,
-        Effect.provide(runtimeContext),
+        provideDatabase,
       ),
     ),
   );
@@ -571,6 +613,9 @@ export const memoryExtractionHandlers = ({
   runtimeContext: Context.Context<never>;
 }) => {
   const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
+  const databaseLayer = MemoryDatabase.layer({ db: memoryDb });
+  const provideDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(databaseLayer), Effect.provide(runtimeContext));
   return HttpApiBuilder.group(CoreApi, "memoryExtraction", (handlers) =>
     handlers.handle(
       "extract",
@@ -581,9 +626,15 @@ export const memoryExtractionHandlers = ({
           const existingIds =
             payload.messageId === undefined
               ? []
-              : yield* listMemoryIdsForMessage(memoryDb, user.id, payload.messageId);
+              : yield* MemoryDatabase.listMemoryIdsForMessage({
+                  userId: user.id,
+                  messageId: payload.messageId,
+                });
           if (existingIds.length > 0) return { ids: existingIds, count: 0 };
-          const existingMemories = yield* getMemories(memoryDb, user.id, { limit: 60 });
+          const existingMemories = yield* MemoryDatabase.getMemories({
+            userId: user.id,
+            options: { limit: 60 },
+          });
           const snippets = yield* Effect.promise(() =>
             Chat.memory.extractMemories({
               configuration: payload.config,
@@ -591,16 +642,15 @@ export const memoryExtractionHandlers = ({
               existingMemories: existingMemories.map((memory) => memory.content),
             }),
           );
-          const ids = yield* insertMemories(
-            memoryDb,
-            user.id,
-            snippets.map((content) => ({
+          const ids = yield* MemoryDatabase.insertMemories({
+            userId: user.id,
+            inputs: snippets.map((content) => ({
               content,
               source: payload.source ?? "manual",
               threadId: payload.threadId,
               messageId: payload.messageId,
             })),
-          );
+          });
           if (ids.length > 0) {
             yield* refreshMemorySummary({
               db: memoryDb,
@@ -611,7 +661,7 @@ export const memoryExtractionHandlers = ({
           return { ids, count: ids.length };
         },
         withInternalError,
-        Effect.provide(runtimeContext),
+        provideDatabase,
       ),
     ),
   );

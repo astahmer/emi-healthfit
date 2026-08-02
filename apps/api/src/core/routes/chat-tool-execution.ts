@@ -36,7 +36,7 @@ export const createChatToolExecutor = ({
   budget: ReturnType<typeof Chat.operations.createChatOperationBudget>;
 }) => {
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-  const { recordChatEvent } = ServerDatabase.generations;
+  const generationLayer = ServerDatabase.generations.layer({ db: conversationDb });
   const toolCircuitBreaker = Chat.tools.createToolCircuitBreaker();
   const recordEvent = (type: string, payload: Record<string, unknown> = {}) =>
     isTemporary
@@ -52,16 +52,17 @@ export const createChatToolExecutor = ({
               ...budget.snapshot(),
             }),
           )
-        : recordChatEvent({
-            db: conversationDb,
-            userId,
-            conversationId: sessionId,
-            generationId,
-            requestId,
-            traceId,
-            type,
-            payload,
-          });
+        : ServerDatabase.generations
+            .recordChatEvent({
+              userId,
+              conversationId: sessionId,
+              generationId,
+              requestId,
+              traceId,
+              type,
+              payload,
+            })
+            .pipe(Effect.provide(generationLayer));
   const executeToolWithServices = (name: string, args: Record<string, unknown>) => {
     const toolStartedAt = performance.now();
     if (toolCircuitBreaker.isBlocked({ name, args })) {

@@ -1,8 +1,10 @@
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
-import { ConversationDatabase } from "./conversations.ts";
+import { getConversationForGeneration } from "./conversations.ts";
 import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
 
@@ -82,7 +84,7 @@ const createGeneration = Effect.fn("chatGeneration.create")(function* <TEnvironm
   traceId?: string;
   model?: string;
 }) {
-  const conversation = yield* ConversationDatabase.getConversation(db, userId, conversationId);
+  const conversation = yield* getConversationForGeneration(db, userId, conversationId);
   if (conversation === null) return false;
 
   const kysely = yield* db.kysely;
@@ -570,25 +572,310 @@ const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* <TEn
   );
 });
 
-export class GenerationDatabase {
-  static readonly GenerationAlreadyActiveError = GenerationAlreadyActiveError;
-  static readonly appendGenerationChunk = appendGenerationChunk;
-  static readonly appendGenerationChunks = appendGenerationChunks;
-  static readonly cancelRunningGenerations = cancelRunningGenerations;
-  static readonly cleanupGenerationHistory = cleanupGenerationHistory;
-  static readonly createGeneration = createGeneration;
+export interface GenerationDatabaseShape {
+  readonly appendGenerationChunk: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly sequence: number;
+    readonly chunk: unknown;
+  }) => Effect.Effect<boolean>;
+  readonly appendGenerationChunks: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly chunks: ReadonlyArray<GenerationChunkInput>;
+  }) => Effect.Effect<boolean>;
+  readonly cancelRunningGenerations: (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly reason: string;
+    readonly error?: string;
+  }) => Effect.Effect<number>;
+  readonly cleanupGenerationHistory: (input: {
+    readonly userId: string;
+    readonly retentionDays?: number;
+  }) => Effect.Effect<number>;
+  readonly createGeneration: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly conversationId: string;
+    readonly requestId?: string;
+    readonly traceId?: string;
+    readonly model?: string;
+  }) => Effect.Effect<boolean, Error>;
+  readonly expireStaleGenerations: (input: { readonly userId: string }) => Effect.Effect<number>;
+  readonly finishGeneration: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly status: "completed" | "failed" | "timed_out" | "cancelled";
+    readonly error?: string;
+    readonly finishReason?: string;
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+  }) => Effect.Effect<boolean>;
+  readonly getGeneration: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+  }) => Effect.Effect<ChatGeneration | null>;
+  readonly getGenerationByRequestId: (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly requestId: string;
+  }) => Effect.Effect<ChatGeneration | null>;
+  readonly getGenerationChunks: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly afterSequence: number;
+  }) => Effect.Effect<ReadonlyArray<StoredGenerationChunk>>;
+  readonly getResumableGeneration: (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+  }) => Effect.Effect<ChatGeneration | null>;
+  readonly getRunningGeneration: (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+  }) => Effect.Effect<ChatGeneration | null>;
+  readonly markGenerationStreaming: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+  }) => Effect.Effect<void>;
+  readonly reconcileFinishedGenerations: (input: {
+    readonly userId: string;
+  }) => Effect.Effect<number>;
+  readonly recordChatEvent: (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly generationId: string;
+    readonly requestId: string;
+    readonly traceId: string;
+    readonly type: string;
+    readonly payload?: Record<string, unknown>;
+  }) => Effect.Effect<void>;
+  readonly updateGenerationMetadata: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly finishReason: string;
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+  }) => Effect.Effect<void>;
+}
+
+export class GenerationDatabase extends Context.Service<
+  GenerationDatabase,
+  GenerationDatabaseShape
+>()("@emi/core/server/database/GenerationDatabase") {
+  static readonly appendGenerationChunk = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly sequence: number;
+    readonly chunk: unknown;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.appendGenerationChunk(input));
+
+  static readonly appendGenerationChunks = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly chunks: ReadonlyArray<GenerationChunkInput>;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.appendGenerationChunks(input));
+
+  static readonly cancelRunningGenerations = (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly reason: string;
+    readonly error?: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.cancelRunningGenerations(input));
+
+  static readonly cleanupGenerationHistory = (input: {
+    readonly userId: string;
+    readonly retentionDays?: number;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.cleanupGenerationHistory(input));
+
+  static readonly createGeneration = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly conversationId: string;
+    readonly requestId?: string;
+    readonly traceId?: string;
+    readonly model?: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.createGeneration(input));
+
   static readonly decodeGenerationChunk = decodeGenerationChunk;
-  static readonly expireStaleGenerations = expireStaleGenerations;
-  static readonly finishGeneration = finishGeneration;
-  static readonly getGeneration = getGeneration;
-  static readonly getGenerationByRequestId = getGenerationByRequestId;
-  static readonly getGenerationChunks = getGenerationChunks;
-  static readonly getResumableGeneration = getResumableGeneration;
-  static readonly getRunningGeneration = getRunningGeneration;
+
+  static readonly expireStaleGenerations = (input: { readonly userId: string }) =>
+    Effect.flatMap(GenerationDatabase, (database) => database.expireStaleGenerations(input));
+
+  static readonly finishGeneration = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly status: "completed" | "failed" | "timed_out" | "cancelled";
+    readonly error?: string;
+    readonly finishReason?: string;
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.finishGeneration(input));
+
+  static readonly getGeneration = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.getGeneration(input));
+
+  static readonly getGenerationByRequestId = (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly requestId: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.getGenerationByRequestId(input));
+
+  static readonly getGenerationChunks = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly afterSequence: number;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.getGenerationChunks(input));
+
+  static readonly getResumableGeneration = (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.getResumableGeneration(input));
+
+  static readonly getRunningGeneration = (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.getRunningGeneration(input));
+
   static readonly isGenerationStale = isGenerationStale;
   static readonly isUniqueConstraintError = isUniqueConstraintError;
-  static readonly markGenerationStreaming = markGenerationStreaming;
-  static readonly reconcileFinishedGenerations = reconcileFinishedGenerations;
-  static readonly recordChatEvent = recordChatEvent;
-  static readonly updateGenerationMetadata = updateGenerationMetadata;
+
+  static readonly markGenerationStreaming = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.markGenerationStreaming(input));
+
+  static readonly reconcileFinishedGenerations = (input: { readonly userId: string }) =>
+    Effect.flatMap(GenerationDatabase, (database) => database.reconcileFinishedGenerations(input));
+
+  static readonly recordChatEvent = (input: {
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly generationId: string;
+    readonly requestId: string;
+    readonly traceId: string;
+    readonly type: string;
+    readonly payload?: Record<string, unknown>;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.recordChatEvent(input));
+
+  static readonly updateGenerationMetadata = (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly finishReason: string;
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+  }) => Effect.flatMap(GenerationDatabase, (database) => database.updateGenerationMetadata(input));
+
+  static layer<Environment>({
+    db,
+  }: {
+    readonly db: QueryDatabaseClient<ConversationDatabaseSchema, Environment>;
+  }): Layer.Layer<GenerationDatabase, never, Environment> {
+    return Layer.effect(
+      GenerationDatabase,
+      Effect.gen(function* () {
+        const context = yield* Effect.context<Environment>();
+        const provide = <A, E = never>(effect: Effect.Effect<A, E, Environment>) =>
+          Effect.provideContext(effect, context);
+        return {
+          appendGenerationChunk: ({ userId, generationId, sequence, chunk }) =>
+            provide(appendGenerationChunk({ db, userId, generationId, sequence, chunk })),
+          appendGenerationChunks: ({ userId, generationId, chunks }) =>
+            provide(appendGenerationChunks({ db, userId, generationId, chunks })),
+          cancelRunningGenerations: ({ userId, conversationId, reason, error }) =>
+            provide(cancelRunningGenerations({ db, userId, conversationId, reason, error })),
+          cleanupGenerationHistory: ({ userId, retentionDays }) =>
+            provide(cleanupGenerationHistory({ db, userId, retentionDays })),
+          createGeneration: ({ userId, generationId, conversationId, requestId, traceId, model }) =>
+            provide(
+              createGeneration({
+                db,
+                userId,
+                generationId,
+                conversationId,
+                requestId,
+                traceId,
+                model,
+              }),
+            ),
+          expireStaleGenerations: ({ userId }) => provide(expireStaleGenerations({ db, userId })),
+          finishGeneration: ({
+            userId,
+            generationId,
+            status,
+            error,
+            finishReason,
+            inputTokens,
+            outputTokens,
+          }) =>
+            provide(
+              finishGeneration({
+                db,
+                userId,
+                generationId,
+                status,
+                error,
+                finishReason,
+                inputTokens,
+                outputTokens,
+              }),
+            ),
+          getGeneration: ({ userId, generationId }) =>
+            provide(getGeneration({ db, userId, generationId })),
+          getGenerationByRequestId: ({ userId, conversationId, requestId }) =>
+            provide(getGenerationByRequestId({ db, userId, conversationId, requestId })),
+          getGenerationChunks: ({ userId, generationId, afterSequence }) =>
+            provide(getGenerationChunks({ db, userId, generationId, afterSequence })),
+          getResumableGeneration: ({ userId, conversationId }) =>
+            provide(getResumableGeneration({ db, userId, conversationId })),
+          getRunningGeneration: ({ userId, conversationId }) =>
+            provide(getRunningGeneration({ db, userId, conversationId })),
+          markGenerationStreaming: ({ userId, generationId }) =>
+            provide(markGenerationStreaming({ db, userId, generationId })),
+          reconcileFinishedGenerations: ({ userId }) =>
+            provide(reconcileFinishedGenerations({ db, userId })),
+          recordChatEvent: ({
+            userId,
+            conversationId,
+            generationId,
+            requestId,
+            traceId,
+            type,
+            payload,
+          }) =>
+            provide(
+              recordChatEvent({
+                db,
+                userId,
+                conversationId,
+                generationId,
+                requestId,
+                traceId,
+                type,
+                payload,
+              }),
+            ),
+          updateGenerationMetadata: ({
+            userId,
+            generationId,
+            finishReason,
+            inputTokens,
+            outputTokens,
+          }) =>
+            provide(
+              updateGenerationMetadata({
+                db,
+                userId,
+                generationId,
+                finishReason,
+                inputTokens,
+                outputTokens,
+              }),
+            ),
+        } satisfies GenerationDatabaseShape;
+      }),
+    );
+  }
 }

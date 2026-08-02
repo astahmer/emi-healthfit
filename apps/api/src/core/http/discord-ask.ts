@@ -88,17 +88,20 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
 
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
   const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
-  const conversations = yield* ServerDatabase.conversations.getConversations(
-    conversationDb,
-    body.userId,
+  const conversationLayer = ServerDatabase.conversations.layer({ db: conversationDb });
+  const provideConversationDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(conversationLayer));
+  const conversations = yield* provideConversationDatabase(
+    ServerDatabase.conversations.getConversations({ userId: body.userId }),
   );
   const existing = conversations.find((conversation) => conversation.title === DISCORD_ASK_TITLE);
   const conversationId =
     existing?.id ??
-    (yield* ServerDatabase.conversations.createConversation(
-      conversationDb,
-      body.userId,
-      DISCORD_ASK_TITLE,
+    (yield* provideConversationDatabase(
+      ServerDatabase.conversations.createConversation({
+        userId: body.userId,
+        title: DISCORD_ASK_TITLE,
+      }),
     ));
 
   const fitnessContext = yield* buildChatContext(healthfitDb, body.userId);
@@ -120,15 +123,16 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     maxOutputTokens: DISCORD_ASK_MAX_OUTPUT_TOKENS,
   });
 
-  yield* ServerDatabase.conversations.saveConversationMessages(
-    conversationDb,
-    body.userId,
-    conversationId,
-    null,
-    [
-      { role: "user", parts: [{ type: "text", text: body.question }] },
-      { role: "assistant", parts: [{ type: "text", text: answer }] },
-    ],
+  yield* provideConversationDatabase(
+    ServerDatabase.conversations.saveConversationMessages({
+      userId: body.userId,
+      conversationId,
+      parentId: null,
+      messages: [
+        { role: "user", parts: [{ type: "text", text: body.question }] },
+        { role: "assistant", parts: [{ type: "text", text: answer }] },
+      ],
+    }),
   );
 
   return yield* HttpServerResponse.json({ answer, conversationId });

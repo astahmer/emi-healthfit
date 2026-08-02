@@ -71,22 +71,28 @@ export class GenerationStoreLive {
     readonly chunkWriter: GenerationChunkWriterShape<TEnvironment>;
   } {
     const userId = requestContext.userId;
+    const databaseLayer = GenerationDatabase.layer({ db });
+    const provideDatabase = <A, E>(effect: Effect.Effect<A, E, GenerationDatabase>) =>
+      Effect.provide(effect, databaseLayer);
     return {
       reader: {
         get: (generationId) =>
-          mapStoreError(GenerationDatabase.getGeneration({ db, userId, generationId })).pipe(
+          mapStoreError(
+            provideDatabase(GenerationDatabase.getGeneration({ userId, generationId })),
+          ).pipe(
             Effect.map((generation) =>
               generation === null ? null : toGenerationRecord(generation),
             ),
           ),
         getByRequestId: ({ conversationId, requestId }) =>
           mapStoreError(
-            GenerationDatabase.getGenerationByRequestId({
-              db,
-              userId,
-              conversationId,
-              requestId,
-            }),
+            provideDatabase(
+              GenerationDatabase.getGenerationByRequestId({
+                userId,
+                conversationId,
+                requestId,
+              }),
+            ),
           ).pipe(
             Effect.map((generation) =>
               generation === null ? null : toGenerationRecord(generation),
@@ -94,7 +100,7 @@ export class GenerationStoreLive {
           ),
         getResumable: (conversationId) =>
           mapStoreError(
-            GenerationDatabase.getResumableGeneration({ db, userId, conversationId }),
+            provideDatabase(GenerationDatabase.getResumableGeneration({ userId, conversationId })),
           ).pipe(
             Effect.map((generation) =>
               generation === null ? null : toGenerationRecord(generation),
@@ -103,23 +109,25 @@ export class GenerationStoreLive {
       },
       writer: {
         create: (input) => {
-          const createGeneration = GenerationDatabase.createGeneration({
-            db,
-            userId,
-            generationId: input.generationId,
-            conversationId: input.conversationId,
-            requestId: input.requestId,
-            model: input.model,
-          }).pipe(
+          const createGeneration = provideDatabase(
+            GenerationDatabase.createGeneration({
+              userId,
+              generationId: input.generationId,
+              conversationId: input.conversationId,
+              requestId: input.requestId,
+              model: input.model,
+            }),
+          ).pipe(
             Effect.catchIf(
               (cause): cause is InstanceType<typeof GenerationAlreadyActiveError> =>
                 cause instanceof GenerationAlreadyActiveError,
               (cause) => {
-                return GenerationDatabase.getRunningGeneration({
-                  db,
-                  userId,
-                  conversationId: input.conversationId,
-                }).pipe(
+                return provideDatabase(
+                  GenerationDatabase.getRunningGeneration({
+                    userId,
+                    conversationId: input.conversationId,
+                  }),
+                ).pipe(
                   Effect.flatMap((running) =>
                     Effect.fail(
                       new GenerationAlreadyActiveError({
@@ -135,14 +143,18 @@ export class GenerationStoreLive {
           return mapGenerationError(createGeneration);
         },
         markStreaming: (generationId) =>
-          mapStoreError(GenerationDatabase.markGenerationStreaming({ db, userId, generationId })),
+          mapStoreError(
+            provideDatabase(GenerationDatabase.markGenerationStreaming({ userId, generationId })),
+          ),
         finish: (input) =>
-          mapStoreError(GenerationDatabase.finishGeneration({ db, userId, ...input })),
+          mapStoreError(provideDatabase(GenerationDatabase.finishGeneration({ userId, ...input }))),
       },
       chunkReader: {
         getChunks: ({ generationId, afterSequence }) =>
           mapStoreError(
-            GenerationDatabase.getGenerationChunks({ db, userId, generationId, afterSequence }),
+            provideDatabase(
+              GenerationDatabase.getGenerationChunks({ userId, generationId, afterSequence }),
+            ),
           ).pipe(
             Effect.map((chunks) =>
               chunks.map((chunk) => ({ sequence: chunk.sequence, chunk: chunk.chunk })),
@@ -152,13 +164,14 @@ export class GenerationStoreLive {
       chunkWriter: {
         append: ({ generationId, sequence, chunk }) =>
           mapStoreError(
-            GenerationDatabase.appendGenerationChunk({
-              db,
-              userId,
-              generationId,
-              sequence,
-              chunk,
-            }),
+            provideDatabase(
+              GenerationDatabase.appendGenerationChunk({
+                userId,
+                generationId,
+                sequence,
+                chunk,
+              }),
+            ),
           ),
       },
     };

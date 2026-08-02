@@ -107,24 +107,32 @@ export const handleDiscordCommand = Effect.fn("http.discord.command")(function* 
   ).pipe(Effect.mapError((error) => new Error(`Invalid Discord command body: ${String(error)}`)));
   const discordDb = narrowQueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>(db);
   const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+  const discordLayer = ServerDatabase.discordLinks.layer({ db: discordDb });
+  const provideDiscordDatabase = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(Effect.provide(discordLayer));
 
   switch (body.operation) {
     case "get-linked-user-id":
       return yield* HttpServerResponse.json({
-        userId: yield* ServerDatabase.discordLinks.getLinkedUserId(discordDb, body.discordUserId),
+        userId: yield* provideDiscordDatabase(
+          ServerDatabase.discordLinks.getLinkedUserId({ discordUserId: body.discordUserId }),
+        ),
       });
     case "consume-link-code":
       return yield* HttpServerResponse.json({
-        result: yield* ServerDatabase.discordLinks.consumeLinkCode(discordDb, {
-          code: body.code,
-          discordUserId: body.discordUserId,
-        }),
+        result: yield* provideDiscordDatabase(
+          ServerDatabase.discordLinks.consumeLinkCode({
+            code: body.code,
+            discordUserId: body.discordUserId,
+          }),
+        ),
       });
     case "unlink-discord-user":
       return yield* HttpServerResponse.json({
-        removed: yield* ServerDatabase.discordLinks.unlinkAccountByDiscordUserId(
-          discordDb,
-          body.discordUserId,
+        removed: yield* provideDiscordDatabase(
+          ServerDatabase.discordLinks.unlinkAccountByDiscordUserId({
+            discordUserId: body.discordUserId,
+          }),
         ),
       });
     case "summary":

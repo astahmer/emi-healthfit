@@ -26,7 +26,10 @@ export const refreshMemorySummary = Effect.fn("chatMemory.refreshSummary")(funct
   userId: string;
   config: { apiKey: string; baseUrl?: string; model: string };
 }) {
-  const memories = yield* ServerDatabase.memories.getMemories(db, userId, { limit: 200 });
+  const databaseLayer = ServerDatabase.memories.layer({ db });
+  const memories = yield* ServerDatabase.memories
+    .getMemories({ userId, options: { limit: 200 } })
+    .pipe(Effect.provide(databaseLayer));
   if (memories.length === 0) return undefined;
   const content = yield* Effect.promise(() =>
     Chat.memory.generateMemorySummary({
@@ -35,7 +38,9 @@ export const refreshMemorySummary = Effect.fn("chatMemory.refreshSummary")(funct
     }),
   );
   if (content === "") return undefined;
-  yield* ServerDatabase.memories.upsertMemorySummary(db, userId, content, memories.length);
+  yield* ServerDatabase.memories
+    .upsertMemorySummary({ userId, content, memoryCount: memories.length })
+    .pipe(Effect.provide(databaseLayer));
   return content;
 });
 
@@ -48,7 +53,10 @@ export const loadMemorySummary = Effect.fn("chatMemory.loadSummary")(function* (
   userId: string;
   config: { apiKey: string; baseUrl?: string; model: string };
 }) {
-  const summary = yield* ServerDatabase.memories.getMemorySummary(db, userId);
+  const databaseLayer = ServerDatabase.memories.layer({ db });
+  const summary = yield* ServerDatabase.memories
+    .getMemorySummary({ userId })
+    .pipe(Effect.provide(databaseLayer));
   if (summary !== undefined) return summary.content;
   return yield* refreshMemorySummary({ db, userId, config });
 });
