@@ -78,7 +78,7 @@ describe("buildGeneratedFiles", () => {
 
     assert.equal(workerPackageJson.name, "acme-chat-worker");
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
-    assert.equal(workerPackageJson.dependencies["@emi/core-migration"], "workspace:*");
+    assert.equal(workerPackageJson.dependencies["@emi/core"], "workspace:*");
     assert.equal(workerPackageJson.devDependencies["@effect/platform-node"], "catalog:");
   });
 

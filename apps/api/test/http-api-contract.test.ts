@@ -8,7 +8,7 @@ import {
   OpenAiClientConfig,
   Thread,
   ThreadWithMessages,
-} from "@emi/core-migration/contract";
+} from "@emi/core/contract";
 import * as Schema from "effect/Schema";
 import { decodeGenerationChunk } from "../src/core/chat/generation-store.ts";
 import { normalizeGeneratedStrings } from "../src/core/chat/ai-sdk.ts";

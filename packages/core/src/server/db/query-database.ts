@@ -8,24 +8,32 @@ export interface QueryDatabaseClient<TSchema, TEnvironment = never> {
   ) => Effect.Effect<Array<{ meta: { changes: number } }>, never, TEnvironment>;
 }
 
-export const runTransaction = <TSchema, TEnvironment>(
-  db: QueryDatabaseClient<TSchema, TEnvironment>,
-  statements: ReadonlyArray<Compilable<unknown>>,
-) => db.batch(statements);
-
 const batchSize = 100;
 
 const chunk = <T>(items: ReadonlyArray<T>, size: number): Array<ReadonlyArray<T>> => {
   const chunks: Array<ReadonlyArray<T>> = [];
-  for (let index = 0; index < items.length; index += size)
+  for (let index = 0; index < items.length; index += size) {
     chunks.push(items.slice(index, index + size));
+  }
   return chunks;
 };
 
-export const runBatches = <TSchema, TEnvironment>(
-  db: QueryDatabaseClient<TSchema, TEnvironment>,
-  statements: ReadonlyArray<Compilable<unknown>>,
-) =>
-  Effect.gen(function* () {
-    for (const batch of chunk(statements, batchSize)) yield* runTransaction(db, batch);
-  });
+export class QueryDatabase {
+  static transaction<TSchema, TEnvironment>(
+    db: QueryDatabaseClient<TSchema, TEnvironment>,
+    statements: ReadonlyArray<Compilable<unknown>>,
+  ) {
+    return db.batch(statements);
+  }
+
+  static batches<TSchema, TEnvironment>(
+    db: QueryDatabaseClient<TSchema, TEnvironment>,
+    statements: ReadonlyArray<Compilable<unknown>>,
+  ) {
+    return Effect.gen(function* () {
+      for (const batch of chunk(statements, batchSize)) {
+        yield* QueryDatabase.transaction(db, batch);
+      }
+    });
+  }
+}

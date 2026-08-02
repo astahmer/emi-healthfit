@@ -1,3 +1,4 @@
+import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import type {
@@ -5,25 +6,31 @@ import type {
   Conversation,
   GenerationEvent,
   ModelConfiguration,
-} from "../../protocol/index.ts";
-import type { ChatExtension } from "../../extensions/index.ts";
+} from "../../protocol.export.ts";
+import type { ChatExtension } from "../../extensions.export.ts";
 import type { ChatServerError } from "../use-cases/chat-server.ts";
 
 export interface ChatServerPrincipal {
   readonly subject: string;
 }
 
-export interface AuthPort {
-  readonly authenticate: (request: Request) => Effect.Effect<ChatServerPrincipal, ChatServerError>;
+export interface AuthPortShape {
+  readonly authenticate: (
+    request: Request,
+  ) => Effect.Effect<ChatServerPrincipal, ChatServerError>;
 }
 
-export interface ConversationRepository {
+export class AuthPort extends Context.Service<AuthPort, AuthPortShape>()(
+  "@emi/core/server/AuthPort",
+) {}
+
+export interface ConversationRepositoryShape {
   readonly list: (input: {
     readonly subject: string;
   }) => Effect.Effect<ReadonlyArray<Conversation>, ChatServerError>;
 }
 
-export interface MessageRepository {
+export interface MessageRepositoryShape {
   readonly append: (input: {
     readonly subject: string;
     readonly conversationId: string;
@@ -31,7 +38,7 @@ export interface MessageRepository {
   }) => Effect.Effect<void, ChatServerError>;
 }
 
-export interface GenerationRepository {
+export interface GenerationRepositoryShape {
   readonly admit: (input: {
     readonly subject: string;
     readonly requestId: string;
@@ -45,13 +52,25 @@ export interface GenerationRepository {
   }) => Effect.Effect<void, ChatServerError>;
 }
 
-export interface MemoryRepository {
+export interface MemoryRepositoryShape {
   readonly list: (input: {
     readonly subject: string;
   }) => Effect.Effect<ReadonlyArray<{ readonly id: string }>, ChatServerError>;
 }
 
-export interface ChatModel {
+export interface ChatRepositoriesShape {
+  readonly conversations: ConversationRepositoryShape;
+  readonly messages: MessageRepositoryShape;
+  readonly generations: GenerationRepositoryShape;
+  readonly memories: MemoryRepositoryShape;
+}
+
+export class ChatRepositories extends Context.Service<
+  ChatRepositories,
+  ChatRepositoriesShape
+>()("@emi/core/server/ChatRepositories") {}
+
+export interface ChatModelShape {
   readonly generate: (input: {
     readonly subject: string;
     readonly messages: ReadonlyArray<ChatMessage>;
@@ -60,17 +79,16 @@ export interface ChatModel {
   }) => Stream.Stream<GenerationEvent, ChatServerError>;
 }
 
-export interface ChatRepositories {
-  readonly conversations: ConversationRepository;
-  readonly messages: MessageRepository;
-  readonly generations: GenerationRepository;
-  readonly memories: MemoryRepository;
+export class ChatModel extends Context.Service<ChatModel, ChatModelShape>()(
+  "@emi/core/server/ChatModel",
+) {}
+
+export interface ChatServerConfigurationShape {
+  readonly model: ModelConfiguration;
+  readonly extensions: ReadonlyArray<ChatExtension>;
 }
 
-export interface ChatServerOptions {
-  readonly auth: AuthPort;
-  readonly repositories: ChatRepositories;
-  readonly model: ChatModel;
-  readonly configuration: ModelConfiguration;
-  readonly extensions?: ReadonlyArray<ChatExtension>;
-}
+export class ChatServerConfiguration extends Context.Service<
+  ChatServerConfiguration,
+  ChatServerConfigurationShape
+>()("@emi/core/server/ChatServerConfiguration") {}

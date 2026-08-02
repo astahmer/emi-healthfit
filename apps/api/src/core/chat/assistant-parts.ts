@@ -1,1 +1,1 @@
-export { buildAssistantParts } from "@emi/core-migration/chat";
+export { buildAssistantParts } from "@emi/core/chat";

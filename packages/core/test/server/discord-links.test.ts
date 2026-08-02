@@ -11,9 +11,9 @@ import {
   hashDiscordLinkCode,
   listDiscordAccountLinks,
   unlinkDiscordAccountByDiscordUserId,
-  type DiscordDatabaseSchema,
-  type QueryDatabaseClient,
-} from "../../src/server/legacy/index.ts";
+} from "../../src/server/db/discord-links.ts";
+import type { DiscordDatabaseSchema } from "../../src/server/db/discord-schema.ts";
+import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
 
 const schemaDdl = `
   CREATE TABLE discord_account_links (

@@ -1,0 +1,6 @@
+id: no-core-migration-import
+valid:
+  - "import { ChatProtocol } from '@emi/core/protocol';"
+invalid:
+  - "import { ChatProtocol } from '@emi/core-migration/protocol';"
+  - "import '@emi/core-migration/server';"

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createChatRuntime } from "../../src/runtime/index.ts";
+import { createChatRuntime } from "../../src/runtime.export.ts";
 
 const conversation = {
   id: "conversation-1",

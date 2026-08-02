@@ -11,7 +11,7 @@ import {
   getThreadMessages,
   saveConversationMessages,
 } from "../db/conversations.ts";
-import type { ConversationDatabaseSchema } from "@emi/core-migration/server";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { decodeMessageParts } from "../http/codecs.ts";
 import { validateAttachments } from "./chat-request-codec.ts";

@@ -20,8 +20,8 @@ describe("stored UI messages", () => {
     assert.deepStrictEqual(await validateStoredUIMessages(messages), messages);
   });
 
-  it("normalizes legacy dynamic tool errors", async () => {
-    const messages = await validateStoredUIMessages([
+  it("rejects obsolete dynamic tool error payloads", async () => {
+    await assert.rejects(validateStoredUIMessages([
       {
         id: "assistant-1",
         role: "assistant",
@@ -37,17 +37,6 @@ describe("stored UI messages", () => {
           },
         ],
       },
-    ]);
-
-    assert.deepStrictEqual(messages[0]?.parts, [
-      {
-        type: "dynamic-tool",
-        toolName: "render_component",
-        toolCallId: "call-1",
-        input: {},
-        errorText: "Invalid MetricCard props",
-        state: "output-error",
-      },
-    ]);
+    ]));
   });
 });

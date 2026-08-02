@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CoreWebProvider } from "@emi/core-migration/web";
+import { CoreWebProvider } from "@emi/core/web";
 import { healthFitContributions } from "@/app/core-web-contributions";
 import { ToolResultContent } from "./tool-result-content";
 

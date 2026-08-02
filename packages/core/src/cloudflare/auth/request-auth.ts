@@ -4,15 +4,20 @@ import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import {
-  CurrentRequestContext,
   isAuthorizedAuthEmail,
-  makeAuthRequestContext,
   parseAllowedEmails,
+} from "../../server/auth/emails.ts";
+import {
+  CurrentUser,
+  makeAuthRequestContext,
   withCurrentUser,
-  withRequestContext,
   type AuthPrincipal,
+} from "../../server/auth/principal.ts";
+import {
+  CurrentRequestContext,
+  withRequestContext,
   type RequestContext,
-} from "../../server/legacy/index.ts";
+} from "../../server/request-context.ts";
 import type { CloudflareQueryDatabaseClient } from "../db/client.ts";
 import { anonymousSignInPath, createAnonymousSessionResponse } from "./anonymous-session.ts";
 import { makeAuth, type AuthConfiguration } from "./make-auth.ts";

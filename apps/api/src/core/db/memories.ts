@@ -17,4 +17,4 @@ export {
   type MemoryInput,
   type MemorySearchResult,
   type MemorySummary,
-} from "@emi/core-migration/server";
+} from "@emi/core/server";

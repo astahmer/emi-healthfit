@@ -1,8 +1,9 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { betterAuth } from "better-auth/minimal";
+import type { BetterAuthOptions } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/d1";
-import { authSchema } from "../../server/legacy/index.ts";
+import { authSchema } from "../../server/db/auth-schema.ts";
 
 export interface AuthConfiguration {
   appName: string;
@@ -21,8 +22,8 @@ export const makeAuth = ({
 }: {
   database: D1Database;
   configuration: AuthConfiguration;
-}) =>
-  betterAuth({
+}): ReturnType<typeof betterAuth<BetterAuthOptions>> => {
+  const options: BetterAuthOptions = {
     appName: configuration.appName,
     baseURL: configuration.baseUrl,
     secret: configuration.secret,
@@ -61,4 +62,6 @@ export const makeAuth = ({
     advanced: {
       useSecureCookies: configuration.baseUrl.startsWith("https://"),
     },
-  });
+  };
+  return betterAuth(options);
+}

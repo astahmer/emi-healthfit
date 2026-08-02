@@ -1,5 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { createAnonymousEmail, type AuthDatabaseSchema } from "../../server/legacy/index.ts";
+import { createAnonymousEmail } from "../../server/auth/emails.ts";
+import type { AuthDatabaseSchema } from "../../server/db/auth-schema.ts";
 import type { Compilable } from "kysely";
 import { makeD1Kysely } from "../db/client.ts";
 

@@ -275,7 +275,7 @@ export const workerPackageJson = (context: TemplateContext): string =>
       },
       dependencies: {
         "@emi/core": coreDependency(context),
-        ...(context.distributionMode === "owned" ? { "@emi/core-migration": "workspace:*" } : {}),
+        ...(context.distributionMode === "owned" ? { "@emi/core": "workspace:*" } : {}),
         alchemy: "catalog:",
         "drizzle-orm": "catalog:",
         effect: "catalog:",

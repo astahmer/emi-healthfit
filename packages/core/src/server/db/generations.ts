@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import { getConversation } from "./conversations.ts";
-import { runTransaction, type QueryDatabaseClient } from "./query-database.ts";
+import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
 
 const Json = Schema.String.pipe(
@@ -209,7 +209,7 @@ export const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(f
 
   const kysely = yield* db.kysely;
   const timestamp = nowIso();
-  yield* runTransaction(db, [
+  yield* QueryDatabase.transaction(db, [
     ...chunks.map(({ sequence, chunk }) =>
       kysely.insertInto("chat_generation_chunks").values({
         chunk: JSON.stringify(chunk),

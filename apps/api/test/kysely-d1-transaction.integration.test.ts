@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
-import type { MemoryDatabaseSchema } from "@emi/core-migration/server";
+import type { MemoryDatabaseSchema } from "@emi/core/server";
 import { narrowQueryDatabaseClient, runTransaction } from "../src/platform/db/client.ts";
 import { getNotes } from "../src/core/db/memories.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";

@@ -1,1 +1,1 @@
-export { resolveGenerationTerminalState } from "@emi/core-migration/chat";
+export { resolveGenerationTerminalState } from "@emi/core/chat";

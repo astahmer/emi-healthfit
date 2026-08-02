@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link2Icon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { runApi } from "./api-client";
-import type { DiscordAccountLink, DiscordLinkCode } from "@emi/core-migration/contract";
+import type { DiscordAccountLink, DiscordLinkCode } from "@emi/core/contract";
 
 export const DiscordLinkControls = () => {
   const [links, setLinks] = useState<ReadonlyArray<DiscordAccountLink>>([]);

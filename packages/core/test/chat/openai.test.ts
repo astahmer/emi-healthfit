@@ -4,7 +4,7 @@ import {
   buildConversationTitlePrompt,
   defaultConversationTitlePrompt,
   normalizeGeneratedStrings,
-} from "../../src/chat/index.ts";
+} from "../../src/chat/openai.ts";
 
 describe("@emi/core/chat", () => {
   it("normalizes JSON and list-shaped model output", () => {

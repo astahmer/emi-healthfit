@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from "react";
 
-import { useChatActions, useChatSelector } from "@emi/core/react";
-import type { Attachment } from "../../protocol/index.ts";
+import { useChatActions, useChatSelector } from "../../react.export.ts";
+import type { Attachment } from "../../protocol.export.ts";
 import {
   ChatComposer,
   ChatHeader,

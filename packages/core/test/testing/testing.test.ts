@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { Effect } from "effect";
 import { describe, it } from "node:test";
 
-import { ChatTesting } from "../../src/testing/index.ts";
-import { ChatServerError } from "../../src/server/index.ts";
+import { ChatTesting } from "../../src/testing.export.ts";
+import { ChatServerError } from "../../src/server.export.ts";
 
 describe("ChatTesting", () => {
   it("provides deterministic injected dependencies", () => {

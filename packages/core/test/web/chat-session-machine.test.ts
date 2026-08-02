@@ -1,7 +1,7 @@
 import { createActor } from "xstate";
 import { describe, expect, it } from "vitest";
 
-import type { ChatMessage } from "../../src/protocol/index.ts";
+import type { ChatMessage } from "../../src/protocol.export.ts";
 import { chatSessionMachine, initialChatSession } from "../../src/web/chat-session-machine.ts";
 
 const message: ChatMessage = {

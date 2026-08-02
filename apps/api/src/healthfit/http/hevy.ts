@@ -1,4 +1,4 @@
-import { BadRequest } from "@emi/core-migration/contract";
+import { BadRequest } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import type * as Context from "effect/Context";

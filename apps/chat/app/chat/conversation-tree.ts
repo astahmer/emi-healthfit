@@ -7,4 +7,4 @@ export {
   getRootMessages,
   getThreadMessages,
   searchMessages,
-} from "@emi/core-migration/web";
+} from "@emi/core/web";

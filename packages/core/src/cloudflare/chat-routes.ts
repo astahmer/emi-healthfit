@@ -3,59 +3,64 @@ import { RuntimeContext } from "alchemy";
 import {
   ChatStreamRequestSchema,
   CompactConversationRequestSchema,
-  buildAssistantParts,
-  createChatStream,
-  createChatStreamResponse,
-  extractMemories,
   firstUserText,
+  validateChatAttachments,
+} from "../chat/request.ts";
+import { buildAssistantParts } from "../chat/message-parts.ts";
+import {
+  createChatStream,
+  extractMemories,
   generateConversationSummary,
   generateConversationTitle,
   generateMemorySummary,
   toUiMessageStream,
-  validateChatAttachments,
-  validateStoredUIMessages,
-} from "../chat/index.ts";
+} from "../chat/openai.ts";
+import { createChatStreamResponse } from "../chat/stream-response.ts";
+import { validateStoredUIMessages } from "../chat/ui-messages.ts";
 import {
-  CurrentUser,
-  GenerationAlreadyActiveError,
-  appendGenerationChunk,
-  addThreadMessage,
   createConversation,
-  createGeneration,
-  createGenerationReplayStream,
-  createThread,
-  cloneConversation,
-  discardThread,
-  deleteConversation,
-  finishGeneration,
   getConversation,
   getConversationMessages,
+  deleteConversation,
+  updateConversationState,
+  cloneConversation,
+  renameConversation,
+  saveConversationMessages,
+  createThread,
+  getThreads,
+  getThread,
+  renameThread,
+  pinThread,
+  discardThread,
+  restoreThread,
+  addThreadMessage,
+  getThreadMessages,
+} from "../server/db/conversations.ts";
+import {
+  GenerationAlreadyActiveError,
+  appendGenerationChunk,
+  createGeneration,
+  finishGeneration,
   getGeneration,
   getGenerationByRequestId,
   getGenerationChunks,
   getResumableGeneration,
-  getThread,
-  getThreadMessages,
-  getThreads,
-  getMemories,
+  markGenerationStreaming,
+} from "../server/db/generations.ts";
+import { createGenerationReplayStream } from "../server/generation-replay.ts";
+import {
+  deleteMemory,
   getMemorySummary,
+  getMemories,
   insertMemory,
   insertMemories,
-  makeConversationStore,
-  makeRequestContext,
-  markGenerationStreaming,
-  renameConversation,
-  renameThread,
-  restoreThread,
-  saveConversationMessages,
-  deleteMemory,
   searchMemories,
   upsertMemorySummary,
-  updateConversationState,
-  pinThread,
-  type ConversationDatabaseSchema,
-  type MemoryDatabaseSchema,
-} from "../server/legacy/index.ts";
+} from "../server/db/memories.ts";
+import { makeConversationStore } from "../server/make-conversation-store.ts";
+import { makeRequestContext } from "../server/request-context.ts";
+import { CurrentUser } from "../server/auth/principal.ts";
+import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";

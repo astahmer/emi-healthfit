@@ -29,4 +29,4 @@ export {
   type Message,
   type MessageUsage,
   type Thread,
-} from "@emi/core-migration/server";
+} from "@emi/core/server";

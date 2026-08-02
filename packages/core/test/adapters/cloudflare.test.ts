@@ -4,10 +4,11 @@ import { describe, it } from "node:test";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import {
+  CloudflareAdapterLayer,
   CloudflareRepositories,
-  type CloudflareDatabase,
-} from "../../src/adapters/cloudflare/index.ts";
-import { ChatServerError } from "../../src/server/use-cases/chat-server.ts";
+  type CloudflareDatabaseShape,
+} from "../../src/adapters/cloudflare.export.ts";
+import { ChatServerError } from "../../src/server-effect.export.ts";
 
 const schemaDdl = `
   CREATE TABLE conversations (
@@ -97,7 +98,7 @@ class SqliteStatement {
   }
 }
 
-class SqliteDatabase implements CloudflareDatabase {
+class SqliteDatabase implements CloudflareDatabaseShape {
   private readonly database: DatabaseSync;
 
   constructor(database: DatabaseSync) {
@@ -109,7 +110,7 @@ class SqliteDatabase implements CloudflareDatabase {
   }
 }
 
-const makeDatabase = (): CloudflareDatabase => {
+const makeDatabase = (): CloudflareDatabaseShape => {
   const database = new DatabaseSync(":memory:");
   for (const statement of schemaDdl
     .split(";")
@@ -134,7 +135,10 @@ const makeDatabase = (): CloudflareDatabase => {
 
 describe("CloudflareRepositories", () => {
   it("maps D1 rows into provider-neutral repositories", async () => {
-    const repositories = CloudflareRepositories.fromDatabase({ database: makeDatabase() });
+    const layer = CloudflareAdapterLayer({ database: makeDatabase() });
+    const repositories = await Effect.runPromise(
+      CloudflareRepositories.use((value) => Effect.succeed(value)).pipe(Effect.provide(layer)),
+    );
 
     const conversations = await Effect.runPromise(
       repositories.conversations.list({ subject: "user-1" }),
@@ -170,7 +174,10 @@ describe("CloudflareRepositories", () => {
   });
 
   it("turns a unique active-generation violation into a typed conflict", async () => {
-    const repositories = CloudflareRepositories.fromDatabase({ database: makeDatabase() });
+    const layer = CloudflareAdapterLayer({ database: makeDatabase() });
+    const repositories = await Effect.runPromise(
+      CloudflareRepositories.use((value) => Effect.succeed(value)).pipe(Effect.provide(layer)),
+    );
     const input = {
       subject: "user-1",
       requestId: "request-1",

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { describe, it } from "node:test";
 
-import { CoreApiClient, CoreApiClientError } from "../../src/api/index.ts";
+import { CoreApiClient, CoreApiClientError } from "../../src/api.export.ts";
 
 const conversation = {
   id: "conversation-1",

@@ -7,14 +7,14 @@ import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import {
   makeGenericChatRoutes,
   type CloudflareQueryDatabaseClient,
-} from "@emi/core-migration/cloudflare";
+} from "@emi/core/cloudflare";
 import {
   createConversation,
   CurrentUser,
   getConversationMessages,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core-migration/server";
+} from "@emi/core/server";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 

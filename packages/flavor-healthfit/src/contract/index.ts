@@ -6,7 +6,7 @@ import {
   Deleted,
   Identifier,
   StandardErrors,
-} from "@emi/core-migration/contract";
+} from "@emi/core/contract";
 
 const NullableNumber = Schema.NullOr(Schema.Number);
 

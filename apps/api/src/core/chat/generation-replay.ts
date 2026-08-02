@@ -1,4 +1,4 @@
 export {
   createGenerationReplayStream,
   type StoredGenerationChunk,
-} from "@emi/core-migration/server";
+} from "@emi/core/server";

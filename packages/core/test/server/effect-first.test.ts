@@ -1,12 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { ChatServer, ChatServerError } from "../../src/server/index.ts";
-import type { ChatServerOptions } from "../../src/server/index.ts";
-import { ChatServerEffect } from "../../src/server/effect/index.ts";
-import { ChatFetchHandlers } from "../../src/server/fetch/index.ts";
+import {
+  AuthPort,
+  ChatModel,
+  ChatRepositories,
+  ChatServer,
+  ChatServerConfiguration,
+  ChatServerError,
+  ChatServerLive,
+} from "../../src/server-effect.export.ts";
+import { ChatFetch, ChatFetchHandlers, ChatFetchHandlersLive } from "../../src/server-fetch.export.ts";
+import type {
+  AuthPortShape,
+  ChatModelShape,
+  ChatRepositoriesShape,
+  ChatServerConfigurationShape,
+} from "../../src/server/ports/chat-server.ts";
 
 const message = {
   id: "message-1",
@@ -15,15 +28,15 @@ const message = {
   createdAt: "2026-08-02T00:00:00.000Z",
 };
 
-const makeOptions = (events: Array<string>): ChatServerOptions => ({
-  auth: {
+const makeServices = (events: Array<string>) => {
+  const auth: AuthPortShape = {
     authenticate: () =>
       Effect.sync(() => {
         events.push("auth");
         return { subject: "user-1" };
       }),
-  },
-  repositories: {
+  };
+  const repositories: ChatRepositoriesShape = {
     conversations: {
       list: () =>
         Effect.sync(() => {
@@ -56,11 +69,9 @@ const makeOptions = (events: Array<string>): ChatServerOptions => ({
           events.push("generations.append");
         }),
     },
-    memories: {
-      list: () => Effect.succeed([]),
-    },
-  },
-  model: {
+    memories: { list: () => Effect.succeed([]) },
+  };
+  const model: ChatModelShape = {
     generate: () =>
       Stream.unwrap(
         Effect.sync(() => {
@@ -71,34 +82,50 @@ const makeOptions = (events: Array<string>): ChatServerOptions => ({
           ]);
         }),
       ),
-  },
-  configuration: { model: "generic-model" },
-});
+  };
+  const configuration: ChatServerConfigurationShape = {
+    model: { model: "generic-model" },
+    extensions: [],
+  };
+  const ports = Layer.mergeAll(
+    Layer.succeed(AuthPort, auth),
+    Layer.succeed(ChatRepositories, repositories),
+    Layer.succeed(ChatModel, model),
+    Layer.succeed(ChatServerConfiguration, configuration),
+  );
+  return ChatServerLive.pipe(Layer.provide(ports));
+};
+
+const useServer = <Value, Error, Environment>(
+  layer: Layer.Layer<ChatServer, Error, Environment>,
+  effect: (server: ChatServer["Service"]) => Effect.Effect<Value, Error>,
+) => ChatServer.use(effect).pipe(Effect.provide(layer));
 
 describe("@emi/core/server Effect-first surface", () => {
-  it("uses domain classes and preserves Effect composition", async () => {
+  it("uses Context services and preserves Effect composition", async () => {
     const events: Array<string> = [];
-    const server = new ChatServer(makeOptions(events));
     const conversations = await Effect.runPromise(
-      server.listConversations(new Request("https://example.test/api/conversations")),
+      useServer(
+        makeServices(events),
+        (server) => server.listConversations(new Request("https://example.test/api/conversations")),
+      ),
     );
 
     assert.equal(conversations[0]?.id, "conversation-1");
     assert.deepEqual(events, ["auth", "conversations.list"]);
-    assert.equal(typeof ChatServerEffect.create, "function");
-    assert.ok(await Effect.runPromise(ChatServerEffect.create(makeOptions([]))));
   });
 
   it("admits a generation before message persistence and model execution", async () => {
     const events: Array<string> = [];
-    const server = new ChatServer(makeOptions(events));
     const output = await Effect.runPromise(
-      Stream.runCollect(
-        server.generate(new Request("https://example.test/api/chat"), {
-          requestId: "request-1",
-          conversationId: "conversation-1",
-          message,
-        }),
+      useServer(makeServices(events), (server) =>
+        Stream.runCollect(
+          server.generate(new Request("https://example.test/api/chat"), {
+            requestId: "request-1",
+            conversationId: "conversation-1",
+            message,
+          }),
+        ),
       ),
     );
 
@@ -115,51 +142,60 @@ describe("@emi/core/server Effect-first surface", () => {
 
   it("keeps admission conflicts typed and prevents orphan message persistence", async () => {
     const events: Array<string> = [];
-    const baseOptions = makeOptions(events);
-    const options: ChatServerOptions = {
-      ...baseOptions,
-      repositories: {
-        ...baseOptions.repositories,
-        generations: {
-          ...baseOptions.repositories.generations,
-          admit: () => {
-            events.push("generations.admit");
-            return Effect.fail(
-              new ChatServerError({
-                kind: "conflict",
-                message: "A generation is already active.",
-              }),
-            );
-          },
-        },
+    const conflictRepositories: ChatRepositoriesShape = {
+      conversations: {
+        list: () => Effect.succeed([]),
       },
+      messages: {
+        append: () => Effect.succeed(undefined),
+      },
+      generations: {
+        admit: () => {
+          events.push("generations.admit");
+          return Effect.fail(
+            new ChatServerError({ kind: "conflict", message: "A generation is already active." }),
+          );
+        },
+        append: () => Effect.succeed(undefined),
+      },
+      memories: { list: () => Effect.succeed([]) },
     };
-    const server = new ChatServer(options);
+    const conflictPorts = Layer.mergeAll(
+      Layer.succeed(AuthPort, {
+        authenticate: () => Effect.succeed({ subject: "user-1" }),
+      }),
+      Layer.succeed(ChatRepositories, conflictRepositories),
+      Layer.succeed(ChatModel, { generate: () => Stream.empty }),
+      Layer.succeed(ChatServerConfiguration, { model: { model: "generic-model" }, extensions: [] }),
+    );
     const exit = await Effect.runPromiseExit(
-      Stream.runCollect(
-        server.generate(new Request("https://example.test/api/chat"), {
-          requestId: "request-1",
-          conversationId: "conversation-1",
-          message,
-        }),
-      ),
+      ChatServer.use((server) =>
+        Stream.runCollect(
+          server.generate(new Request("https://example.test/api/chat"), {
+            requestId: "request-1",
+            conversationId: "conversation-1",
+            message,
+          }),
+        ),
+      ).pipe(Effect.provide(ChatServerLive.pipe(Layer.provide(conflictPorts)))),
     );
 
     assert.equal(Exit.isFailure(exit), true);
     if (Exit.isFailure(exit)) assert.match(String(exit.cause), /ChatServerError/);
-    assert.deepEqual(events, ["auth", "generations.admit"]);
+    assert.deepEqual(events, ["generations.admit"]);
   });
 
   it("decodes generation input before calling injected ports", async () => {
     const events: Array<string> = [];
-    const server = new ChatServer(makeOptions(events));
     const exit = await Effect.runPromiseExit(
-      Stream.runCollect(
-        server.generate(new Request("https://example.test/api/chat"), {
-          requestId: "",
-          conversationId: "conversation-1",
-          message,
-        }),
+      useServer(makeServices(events), (server) =>
+        Stream.runCollect(
+          server.generate(new Request("https://example.test/api/chat"), {
+            requestId: "",
+            conversationId: "conversation-1",
+            message,
+          }),
+        ),
       ),
     );
 
@@ -168,11 +204,13 @@ describe("@emi/core/server Effect-first surface", () => {
     assert.deepEqual(events, []);
   });
 
-  it("derives a Promise Fetch adapter from the server Effect", async () => {
-    const server = new ChatServer(makeOptions([]));
-    const response = await new ChatFetchHandlers(server).handle(
-      new Request("https://example.test/api/conversations"),
-    );
+  it("derives the Promise Fetch adapter from the server Effect", async () => {
+    const serverLayer = makeServices([]);
+    const fetchLayer = ChatFetchHandlersLive.pipe(Layer.provide(serverLayer));
+    const response = await ChatFetch.handle({
+      layer: fetchLayer,
+      request: new Request("https://example.test/api/conversations"),
+    });
 
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), [
@@ -188,23 +226,18 @@ describe("@emi/core/server Effect-first surface", () => {
   });
 
   it("maps typed server failures at the Promise adapter boundary", async () => {
-    const baseOptions = makeOptions([]);
-    const options: ChatServerOptions = {
-      ...baseOptions,
-      auth: {
-        ...baseOptions.auth,
-        authenticate: () =>
-          Effect.fail(
-            new ChatServerError({
-              kind: "unauthorized",
-              message: "Sign in required.",
-            }),
-          ),
-      },
-    };
-    const response = await new ChatFetchHandlers(new ChatServer(options)).handle(
-      new Request("https://example.test/api/conversations"),
+    const layer = makeServices([]).pipe(
+      Layer.provideMerge(
+        Layer.succeed(AuthPort, {
+          authenticate: () =>
+            Effect.fail(new ChatServerError({ kind: "unauthorized", message: "Sign in required." })),
+        }),
+      ),
     );
+    const response = await ChatFetch.handle({
+      layer: ChatFetchHandlersLive.pipe(Layer.provide(layer)),
+      request: new Request("https://example.test/api/conversations"),
+    });
 
     assert.equal(response.status, 401);
     assert.deepEqual(await response.json(), {

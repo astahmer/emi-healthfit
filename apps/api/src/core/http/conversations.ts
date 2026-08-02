@@ -6,14 +6,14 @@ import {
   type Message as ApiMessage,
   type Thread as ApiThread,
   type ThreadWithMessages as ApiThreadWithMessages,
-} from "@emi/core-migration/contract";
+} from "@emi/core/contract";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
-import { extractMemories, generateConversationSummary } from "@emi/core-migration/chat";
-import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core-migration/server";
+import { extractMemories, generateConversationSummary } from "@emi/core/chat";
+import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core/server";
 import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
 import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";

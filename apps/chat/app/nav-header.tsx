@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { FC, ReactNode } from "react";
 import { MenuIcon, LogOutIcon, UserRoundIcon } from "lucide-react";
-import { useCoreWebContributions } from "@emi/core-migration/web";
+import { useCoreWebContributions } from "@emi/core/web";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";

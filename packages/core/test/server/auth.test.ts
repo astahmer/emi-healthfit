@@ -10,7 +10,7 @@ import {
   parseAllowedEmails,
   withCurrentUser,
   CurrentUser,
-} from "../../src/server/auth/index.ts";
+} from "../../src/server/auth.export.ts";
 import { CurrentRequestContext, withRequestContext } from "../../src/server/request-context.ts";
 import * as Effect from "effect/Effect";
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Schema from "effect/Schema";
-import { defaultGenericChatSettings, GenericChatSettingsSchema } from "../../src/chat/index.ts";
+import { defaultGenericChatSettings, GenericChatSettingsSchema } from "../../src/chat/settings.ts";
 
 describe("generic chat settings", () => {
   it("defines complete local defaults and validates the persisted shape", () => {

@@ -45,6 +45,8 @@ export interface GenerateTextConfiguration {
   model: string;
 }
 
+type ChatStreamResult = ReturnType<typeof streamText>;
+
 const decodeGeneratedStrings = (value: string): string[] | undefined => {
   const parsed = Schema.decodeUnknownOption(Json)(value);
   if (Option.isNone(parsed)) return undefined;
@@ -128,7 +130,7 @@ export const createChatStream = async ({
   }) => void | Promise<void>;
   onChunk?: StreamTextOnChunkCallback<ToolSet>;
   onError?: (error: unknown) => void | Promise<void>;
-}) => {
+}): Promise<ChatStreamResult> => {
   const openai = createOpenAI({
     apiKey: request.configuration.apiKey,
     baseURL: request.configuration.baseUrl,

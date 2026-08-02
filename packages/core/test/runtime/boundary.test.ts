@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import * as runtime from "../../src/runtime/index.ts";
+import * as runtime from "../../src/runtime.export.ts";
 
 describe("R2 runtime boundary", () => {
   it("exports only the facade contract from the runtime entrypoint", () => {

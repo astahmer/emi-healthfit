@@ -1,5 +1,5 @@
 import { assign, setup } from "xstate";
-import type { Attachment, ChatMessage } from "../protocol/index.ts";
+import type { Attachment, ChatMessage } from "../protocol.export.ts";
 
 export interface QueuedFollowUp {
   id: string;

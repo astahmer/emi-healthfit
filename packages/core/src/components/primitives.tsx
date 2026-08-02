@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import type { FormEvent, ReactNode } from "react";
-import { useChatActions, useChatSelector } from "@emi/core/react";
-import type { ChatMessage, MessagePart as ProtocolMessagePart } from "../protocol/index.ts";
+import { useChatActions, useChatSelector } from "../react.export.ts";
+import type { ChatMessage, MessagePart as ProtocolMessagePart } from "../protocol.export.ts";
 
 const isSafeAttachment = Schema.is(
   Schema.Struct({

@@ -39,7 +39,7 @@ import {
   getResumableGeneration,
 } from "../src/core/chat/generation-store.ts";
 import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
-import type { ConversationDatabaseSchema } from "@emi/core-migration/server";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";

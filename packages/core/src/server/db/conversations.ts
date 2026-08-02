@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { getRevisionDeletionIds } from "./conversation-revision.ts";
-import { runTransaction, type QueryDatabaseClient } from "./query-database.ts";
+import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
 
 const textEncoder = new TextEncoder();
@@ -285,7 +285,7 @@ export const cloneConversation = Effect.fn("conversation.clone")(function* <TEnv
   const messageIds = new Map(originalMessages.map((message) => [message.id, crypto.randomUUID()]));
   const threadIds = new Map(originalThreads.map((thread) => [thread.id, crypto.randomUUID()]));
 
-  yield* runTransaction(db, [
+  yield* QueryDatabase.transaction(db, [
     kysely.insertInto("conversations").values({
       id: clonedConversationId,
       user_id: userId,
@@ -422,7 +422,7 @@ export const reviseConversationMessage = Effect.fn("conversation.reviseMessage")
     includeDescendants: threadId === undefined,
   });
   const kysely = yield* db.kysely;
-  yield* runTransaction(db, [
+  yield* QueryDatabase.transaction(db, [
     kysely
       .updateTable("messages")
       .set({
@@ -495,7 +495,7 @@ export const saveConversationMessages = <TEnvironment>(
       });
     });
 
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       ...statements,
       kysely
         .updateTable("conversations")
@@ -523,7 +523,7 @@ export const createThread = <TEnvironment>(
     const id = crypto.randomUUID();
     const createdAt = nowIso();
     const kysely = yield* db.kysely;
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       kysely.insertInto("threads").values({
         id,
         user_id: userId,
@@ -697,7 +697,7 @@ export const restoreThread = <TEnvironment>(
     if (thread === null) return;
     const updatedAt = nowIso();
     const kysely = yield* db.kysely;
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       kysely
         .updateTable("threads")
         .set({ status: "regular", updated_at: updatedAt })
@@ -814,7 +814,7 @@ export const summarizeThread = <TEnvironment>(
     const id = crypto.randomUUID();
     const createdAt = nowIso();
     const kysely = yield* db.kysely;
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       kysely.insertInto("messages").values({
         id,
         user_id: userId,

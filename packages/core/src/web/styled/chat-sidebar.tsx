@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { Conversation, Memory, Thread } from "../../protocol/index.ts";
-import type { ChatSettingsState } from "../../runtime/index.ts";
+import type { Conversation, Memory, Thread } from "../../protocol.export.ts";
+import type { ChatSettingsState } from "../../runtime.export.ts";
 import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.tsx";

@@ -1,1 +1,1 @@
-export { conversationMarkdown } from "@emi/core-migration/web";
+export { conversationMarkdown } from "@emi/core/web";

@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import {
   DiscordInteractionType,
   DiscordInteractionResponseType,
-} from "@emi/core-migration/discord";
+} from "@emi/core/discord";
 import { handleInteractionsRequest } from "../src/routes/interactions.ts";
 import {
   resetDiscordRateLimitsForTests,

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Effect } from "effect";
 import * as Schema from "effect/Schema";
-import { ChatExtensionError, ChatExtensions } from "../../src/extensions/index.ts";
+import { ChatExtensionError, ChatExtensions } from "../../src/extensions.export.ts";
 
 const definition = (id: string, namespace = `${id}.chat`) =>
   ChatExtensions.define({

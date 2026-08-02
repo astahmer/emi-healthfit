@@ -11,7 +11,7 @@ import {
   saveConversationMessages,
   secureStringEqual,
   type ConversationDatabaseSchema,
-} from "@emi/core-migration/server";
+} from "@emi/core/server";
 import {
   buildChatContext,
   healthFitAppDefinition,

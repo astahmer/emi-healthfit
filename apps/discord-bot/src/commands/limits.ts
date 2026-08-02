@@ -1,8 +1,8 @@
 import type {
   ApplicationCommandInteraction,
   DiscordHttpResponse,
-} from "@emi/core-migration/discord";
-import { ephemeralMessageResponse } from "@emi/core-migration/discord";
+} from "@emi/core/discord";
+import { ephemeralMessageResponse } from "@emi/core/discord";
 import type * as Effect from "effect/Effect";
 
 export const DISCORD_MAX_CONTENT_LENGTH = 2000;

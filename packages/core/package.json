@@ -11,65 +11,85 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/types/core.export.d.ts",
+      "import": "./dist/core.export.js"
     },
     "./protocol": {
-      "types": "./dist/types/protocol/index.d.ts",
-      "import": "./dist/protocol/index.js"
+      "types": "./dist/types/protocol.export.d.ts",
+      "import": "./dist/protocol.export.js"
     },
     "./api": {
-      "types": "./dist/types/api/index.d.ts",
-      "import": "./dist/api/index.js"
+      "types": "./dist/types/api.export.d.ts",
+      "import": "./dist/api.export.js"
+    },
+    "./chat": {
+      "types": "./dist/types/chat.export.d.ts",
+      "import": "./dist/chat.export.js"
+    },
+    "./contract": {
+      "types": "./dist/types/contract.export.d.ts",
+      "import": "./dist/contract.export.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/types/cloudflare.export.d.ts",
+      "import": "./dist/cloudflare.export.js"
+    },
+    "./discord": {
+      "types": "./dist/types/discord.export.d.ts",
+      "import": "./dist/discord.export.js"
+    },
+    "./web": {
+      "types": "./dist/types/web.export.d.ts",
+      "import": "./dist/web.export.js"
     },
     "./runtime": {
-      "types": "./dist/types/runtime/index.d.ts",
-      "import": "./dist/runtime/index.js"
+      "types": "./dist/types/runtime.export.d.ts",
+      "import": "./dist/runtime.export.js"
     },
     "./react": {
-      "types": "./dist/types/react/index.d.ts",
-      "import": "./dist/react/index.js"
+      "types": "./dist/types/react.export.d.ts",
+      "import": "./dist/react.export.js"
     },
     "./components": {
-      "types": "./dist/types/components/index.d.ts",
-      "import": "./dist/components/index.js"
+      "types": "./dist/types/components.export.d.ts",
+      "import": "./dist/components.export.js"
     },
     "./components/styled": {
-      "types": "./dist/types/components/styled/index.d.ts",
-      "import": "./dist/components/styled/index.js"
+      "types": "./dist/types/components-styled.export.d.ts",
+      "import": "./dist/components-styled.export.js"
     },
     "./styles.css": "./dist/styles/styles.css",
     "./server/effect": {
-      "types": "./dist/types/server/effect/index.d.ts",
-      "import": "./dist/server/effect/index.js"
+      "types": "./dist/types/server-effect.export.d.ts",
+      "import": "./dist/server-effect.export.js"
     },
     "./server/fetch": {
-      "types": "./dist/types/server/fetch/index.d.ts",
-      "import": "./dist/server/fetch/index.js"
+      "types": "./dist/types/server-fetch.export.d.ts",
+      "import": "./dist/server-fetch.export.js"
     },
     "./adapters/ai-sdk": {
-      "types": "./dist/types/adapters/ai-sdk/index.d.ts",
-      "import": "./dist/adapters/ai-sdk/index.js"
+      "types": "./dist/types/adapters/ai-sdk.export.d.ts",
+      "import": "./dist/adapters/ai-sdk.export.js"
     },
     "./adapters/cloudflare": {
-      "types": "./dist/types/adapters/cloudflare/index.d.ts",
-      "import": "./dist/adapters/cloudflare/index.js"
+      "types": "./dist/types/adapters/cloudflare.export.d.ts",
+      "import": "./dist/adapters/cloudflare.export.js"
     },
     "./extensions": {
-      "types": "./dist/types/extensions/index.d.ts",
-      "import": "./dist/extensions/index.js"
+      "types": "./dist/types/extensions.export.d.ts",
+      "import": "./dist/extensions.export.js"
     },
     "./testing": {
-      "types": "./dist/types/testing/index.d.ts",
-      "import": "./dist/testing/index.js"
+      "types": "./dist/types/testing.export.d.ts",
+      "import": "./dist/testing.export.js"
     },
     "./advanced/xstate": {
-      "types": "./dist/types/advanced/xstate/index.d.ts",
-      "import": "./dist/advanced/xstate/index.js"
+      "types": "./dist/types/advanced-xstate.export.d.ts",
+      "import": "./dist/advanced-xstate.export.js"
     },
     "./server": {
-      "types": "./dist/types/server/index.d.ts",
-      "import": "./dist/server/index.js"
+      "types": "./dist/types/server.export.d.ts",
+      "import": "./dist/server.export.js"
     }
   },
   "publishConfig": {
@@ -173,6 +193,11 @@
         ".": "facade",
         "./protocol": "protocol",
         "./api": "api",
+        "./chat": "chat",
+        "./contract": "contract",
+        "./cloudflare": "cloudflare",
+        "./discord": "discord",
+        "./web": "web",
         "./runtime": "runtime",
         "./react": "react",
         "./components": "components",
@@ -188,22 +213,27 @@
         "./advanced/xstate": "advanced-xstate"
       },
       "entrypointPaths": {
-        ".": "./src/index.ts",
-        "./protocol": "./src/protocol/index.ts",
-        "./api": "./src/api/index.ts",
-        "./runtime": "./src/runtime/index.ts",
-        "./react": "./src/react/index.ts",
-        "./components": "./src/components/index.ts",
-        "./components/styled": "./src/components/styled/index.ts",
+        ".": "./src/core.export.ts",
+        "./protocol": "./src/protocol.export.ts",
+        "./api": "./src/api.export.ts",
+        "./chat": "./src/chat.export.ts",
+        "./contract": "./src/contract.export.ts",
+        "./cloudflare": "./src/cloudflare.export.ts",
+        "./discord": "./src/discord.export.ts",
+        "./web": "./src/web.export.ts",
+        "./runtime": "./src/runtime.export.ts",
+        "./react": "./src/react.export.ts",
+        "./components": "./src/components.export.ts",
+        "./components/styled": "./src/components-styled.export.ts",
         "./styles.css": "./src/styles/styles.css",
-        "./server": "./src/server/index.ts",
-        "./server/effect": "./src/server/effect/index.ts",
-        "./server/fetch": "./src/server/fetch/index.ts",
-        "./adapters/ai-sdk": "./src/adapters/ai-sdk/index.ts",
-        "./adapters/cloudflare": "./src/adapters/cloudflare/index.ts",
-        "./extensions": "./src/extensions/index.ts",
-        "./testing": "./src/testing/index.ts",
-        "./advanced/xstate": "./src/advanced/xstate/index.ts"
+        "./server": "./src/server.export.ts",
+        "./server/effect": "./src/server-effect.export.ts",
+        "./server/fetch": "./src/server-fetch.export.ts",
+        "./adapters/ai-sdk": "./src/adapters/ai-sdk.export.ts",
+        "./adapters/cloudflare": "./src/adapters/cloudflare.export.ts",
+        "./extensions": "./src/extensions.export.ts",
+        "./testing": "./src/testing.export.ts",
+        "./advanced/xstate": "./src/advanced-xstate.export.ts"
       },
       "advancedEntrypoints": {
         "xstate": "./advanced/xstate",
@@ -440,6 +470,88 @@
             "@ai-sdk/openai",
             "drizzle-orm",
             "@cloudflare/workers-types"
+          ]
+        },
+        "./chat": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [
+            "ai",
+            "@ai-sdk/openai"
+          ],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./contract": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./cloudflare": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [
+            "@cloudflare/workers-types"
+          ],
+          "optional": [
+            "alchemy",
+            "better-auth",
+            "drizzle-orm",
+            "kysely",
+            "kysely-d1"
+          ],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "@ai-sdk/openai"
+          ]
+        },
+        "./discord": {
+          "runtime": [],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./web": {
+          "runtime": [
+            "xstate",
+            "effect"
+          ],
+          "peer": [
+            "react",
+            "react-dom"
+          ],
+          "optional": [
+            "ai",
+            "lucide-react"
+          ],
+          "forbidden": [
+            "@cloudflare/workers-types",
+            "drizzle-orm"
           ]
         }
       },

@@ -11,6 +11,11 @@ const targetEntrypoints = {
   ".": "facade",
   "./protocol": "protocol",
   "./api": "api",
+  "./chat": "chat",
+  "./contract": "contract",
+  "./cloudflare": "cloudflare",
+  "./discord": "discord",
+  "./web": "web",
   "./runtime": "runtime",
   "./react": "react",
   "./components": "components",
@@ -27,22 +32,27 @@ const targetEntrypoints = {
 } as const;
 
 const targetEntrypointPaths = {
-  ".": "./src/index.ts",
-  "./protocol": "./src/protocol/index.ts",
-  "./api": "./src/api/index.ts",
-  "./runtime": "./src/runtime/index.ts",
-  "./react": "./src/react/index.ts",
-  "./components": "./src/components/index.ts",
-  "./components/styled": "./src/components/styled/index.ts",
+  ".": "./src/core.export.ts",
+  "./protocol": "./src/protocol.export.ts",
+  "./api": "./src/api.export.ts",
+  "./chat": "./src/chat.export.ts",
+  "./contract": "./src/contract.export.ts",
+  "./cloudflare": "./src/cloudflare.export.ts",
+  "./discord": "./src/discord.export.ts",
+  "./web": "./src/web.export.ts",
+  "./runtime": "./src/runtime.export.ts",
+  "./react": "./src/react.export.ts",
+  "./components": "./src/components.export.ts",
+  "./components/styled": "./src/components-styled.export.ts",
   "./styles.css": "./src/styles/styles.css",
-  "./server": "./src/server/index.ts",
-  "./server/effect": "./src/server/effect/index.ts",
-  "./server/fetch": "./src/server/fetch/index.ts",
-  "./adapters/ai-sdk": "./src/adapters/ai-sdk/index.ts",
-  "./adapters/cloudflare": "./src/adapters/cloudflare/index.ts",
-  "./extensions": "./src/extensions/index.ts",
-  "./testing": "./src/testing/index.ts",
-  "./advanced/xstate": "./src/advanced/xstate/index.ts",
+  "./server": "./src/server.export.ts",
+  "./server/effect": "./src/server-effect.export.ts",
+  "./server/fetch": "./src/server-fetch.export.ts",
+  "./adapters/ai-sdk": "./src/adapters/ai-sdk.export.ts",
+  "./adapters/cloudflare": "./src/adapters/cloudflare.export.ts",
+  "./extensions": "./src/extensions.export.ts",
+  "./testing": "./src/testing.export.ts",
+  "./advanced/xstate": "./src/advanced-xstate.export.ts",
 } as const;
 
 const dependencyMatrix = {
@@ -70,6 +80,43 @@ const dependencyMatrix = {
     peer: [],
     optional: [],
     forbidden: ["react", "xstate", "ai", "drizzle-orm", "@cloudflare/workers-types"],
+  },
+  "./chat": {
+    runtime: ["effect"],
+    peer: ["ai", "@ai-sdk/openai"],
+    optional: [],
+    forbidden: ["react", "xstate", "drizzle-orm", "@cloudflare/workers-types"],
+  },
+  "./contract": {
+    runtime: ["effect"],
+    peer: [],
+    optional: [],
+    forbidden: ["react", "xstate", "ai", "drizzle-orm", "@cloudflare/workers-types"],
+  },
+  "./cloudflare": {
+    runtime: ["effect"],
+    peer: ["@cloudflare/workers-types"],
+    optional: ["alchemy", "better-auth", "drizzle-orm", "kysely", "kysely-d1"],
+    forbidden: ["react", "xstate", "ai", "@ai-sdk/openai"],
+  },
+  "./discord": {
+    runtime: [],
+    peer: [],
+    optional: [],
+    forbidden: [
+      "react",
+      "xstate",
+      "ai",
+      "@ai-sdk/openai",
+      "drizzle-orm",
+      "@cloudflare/workers-types",
+    ],
+  },
+  "./web": {
+    runtime: ["xstate", "effect"],
+    peer: ["react", "react-dom"],
+    optional: ["ai", "lucide-react"],
+    forbidden: ["@cloudflare/workers-types", "drizzle-orm"],
   },
   "./runtime": {
     runtime: ["xstate"],
@@ -204,16 +251,19 @@ describe("@emi/core R0 public catalog", () => {
     );
 
     const exports = packageJson.exports;
-    for (const entrypoint of Object.keys(targetEntrypointPaths)) {
+    for (const [entrypoint, sourcePath] of Object.entries(targetEntrypointPaths)) {
       const exportValue = exports[entrypoint];
       assert.ok(exportValue !== undefined);
       if (entrypoint === "./styles.css") {
         assert.equal(exportValue, "./dist/styles/styles.css");
         continue;
       }
+      const outputPath = sourcePath
+        .replace(/^\.\/src\//, "")
+        .replace(/\.(?:tsx?|mts|cts)$/, ".js");
       assert.deepEqual(exportValue, {
-        types: `./dist/types/${entrypoint === "." ? "index" : `${entrypoint.slice(2)}/index`}.d.ts`,
-        import: `./dist/${entrypoint === "." ? "index" : `${entrypoint.slice(2)}/index`}.js`,
+        types: `./dist/types/${outputPath.replace(/\.js$/, ".d.ts")}`,
+        import: `./dist/${outputPath}`,
       });
     }
     assert.equal(

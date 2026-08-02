@@ -5,8 +5,8 @@ import type {
   Memory,
   ModelConfiguration,
   Thread,
-} from "../protocol/index.ts";
-import type { ChatExtension } from "../extensions/index.ts";
+} from "../protocol.export.ts";
+import type { ChatExtension } from "../extensions.export.ts";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;

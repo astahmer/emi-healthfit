@@ -1,12 +1,12 @@
 import * as Effect from "effect/Effect";
-import type { DiscordHttpResponse } from "@emi/core-migration/discord";
+import type { DiscordHttpResponse } from "@emi/core/discord";
 import {
   badRequestResponse,
   DiscordInteractionType,
   pongResponse,
   unauthorizedResponse,
   verifyDiscordRequest,
-} from "@emi/core-migration/discord";
+} from "@emi/core/discord";
 import { dispatchApplicationCommand } from "../commands/dispatch.ts";
 import type { HealthfitCommandServices } from "../commands/limits.ts";
 

@@ -3,11 +3,9 @@ import { describe, it } from "node:test";
 import type { UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import {
-  createGenerationReplayStream,
-  isGenerationStale,
-  type ChatGeneration,
-} from "../../src/server/legacy/index.ts";
+import { createGenerationReplayStream } from "../../src/server/generation-replay.ts";
+import { isGenerationStale } from "../../src/server/db/generations.ts";
+import type { ChatGeneration } from "../../src/server/db/generations.ts";
 
 const generation = (
   status: ChatGeneration["status"],

@@ -1,0 +1,14 @@
+id: no-core-migration-import
+language: TypeScript
+files:
+  - apps/**/*.ts
+  - apps/**/*.tsx
+  - packages/**/*.ts
+  - packages/**/*.tsx
+message: Import the target @emi/core contract directly; @emi/core-migration is retired.
+severity: error
+rule:
+  kind: import_statement
+  has:
+    field: source
+    regex: "@emi/core-migration"

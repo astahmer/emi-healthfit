@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
-import { Conversation, CoreApi, Memory, Note } from "../../src/contract/index.ts";
+import { Conversation, CoreApi, Memory, Note } from "../../src/contract.export.ts";
 
 const walk = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -63,7 +63,7 @@ describe("@emi/core/contract", () => {
   });
 
   it("does not expose HealthFit product contract APIs", async () => {
-    const contract = await import("../../src/contract/index.ts");
+    const contract = await import("../../src/contract.export.ts");
     const healthFitExports = [
       "AnalyticsApi",
       "DataApi",

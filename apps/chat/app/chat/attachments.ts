@@ -3,4 +3,4 @@ export {
   prepareAttachmentParts,
   prepareAttachments,
   validateAttachments,
-} from "@emi/core-migration/web";
+} from "@emi/core/web";

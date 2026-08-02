@@ -27,7 +27,7 @@ import {
   SuggestionChips,
   type ComposerControls as CoreComposerControls,
   type MessagePartValue,
-} from "@emi/core-migration/web";
+} from "@emi/core/web";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Message, MessageContent, MessageFooter } from "@/components/ui/message";

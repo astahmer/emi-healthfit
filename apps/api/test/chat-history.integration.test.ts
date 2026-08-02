@@ -6,7 +6,7 @@ import {
   reviseConversationMessage,
 } from "../src/core/db/conversations.ts";
 import { prepareChatHistory } from "../src/core/routes/chat-history.ts";
-import type { ConversationDatabaseSchema } from "@emi/core-migration/server";
+import type { ConversationDatabaseSchema } from "@emi/core/server";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 

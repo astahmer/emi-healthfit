@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 import { Effect } from "effect";
 import * as Stream from "effect/Stream";
-import { AiSdkAdapterError, AiSdkModelProvider } from "../../src/adapters/ai-sdk/index.ts";
+import { AiSdkAdapterError, AiSdkModelProvider } from "../../src/adapters/ai-sdk.export.ts";
 
 const chunk = ({ text, finishReason }: { text?: string; finishReason?: string }) => ({
   id: "adapter-generation",

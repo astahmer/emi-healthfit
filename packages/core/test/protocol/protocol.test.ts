@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
-import { ChatProtocol, ProtocolDecodeError } from "../../src/protocol/index.ts";
+import { ChatProtocol, ProtocolDecodeError } from "../../src/protocol.export.ts";
 
 const decode = <SchemaType extends Schema.ConstraintDecoder<unknown>>(
   schema: SchemaType,

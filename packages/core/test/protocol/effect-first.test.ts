@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Effect } from "effect";
-import { ChatProtocol, ProtocolDecodeError, type Conversation } from "../../src/protocol/index.ts";
+import { ChatProtocol, ProtocolDecodeError, type Conversation } from "../../src/protocol.export.ts";
 
 const conversationDto = {
   id: "conversation-1",

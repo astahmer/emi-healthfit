@@ -1,0 +1,12 @@
+id: no-export-from
+language: TypeScript
+files:
+  - packages/core/src/**/*.ts
+  - packages/core/src/**/*.tsx
+message: Public boundaries must own explicit bindings; do not re-export from another file.
+severity: error
+rule:
+  kind: export_statement
+  has:
+    field: source
+    kind: string

@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 describe("chat thread ownership", () => {
-  it("imports MessagePart, SuggestionChips, and ComposerControls from @emi/core-migration/web", async () => {
+  it("imports MessagePart, SuggestionChips, and ComposerControls from @emi/core/web", async () => {
     const source = await readFile(join(process.cwd(), "components/chat/thread.tsx"), "utf8");
-    expect(source).toContain('from "@emi/core-migration/web"');
+    expect(source).toContain('from "@emi/core/web"');
     expect(source).toContain("MessagePart");
     expect(source).toContain("SuggestionChips");
     expect(source).toContain("CoreComposerControls");

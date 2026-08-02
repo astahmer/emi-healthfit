@@ -1,7 +1,7 @@
 import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ChatMessage } from "../../src/protocol/index.ts";
+import type { ChatMessage } from "../../src/protocol.export.ts";
 import {
   chatTransportActor,
   type ChatTransportActorInput,

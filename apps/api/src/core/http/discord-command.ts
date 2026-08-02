@@ -9,7 +9,7 @@ import {
   unlinkDiscordAccountByDiscordUserId,
   type DiscordDatabaseSchema,
   type QueryDatabaseClient as GenericQueryDatabaseClient,
-} from "@emi/core-migration/server";
+} from "@emi/core/server";
 import {
   buildChatContext,
   getDataSummary,

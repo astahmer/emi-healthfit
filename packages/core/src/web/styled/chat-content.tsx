@@ -1,8 +1,8 @@
 import { useState, type RefObject } from "react";
 import { ArrowDownIcon, ArrowUpIcon, PaperclipIcon, SquareIcon } from "lucide-react";
 
-import type { Attachment, ChatMessage } from "../../protocol/index.ts";
-import type { QueuedFollowUpState } from "../../runtime/index.ts";
+import type { Attachment, ChatMessage } from "../../protocol.export.ts";
+import type { QueuedFollowUpState } from "../../runtime.export.ts";
 import { Bubble, BubbleContent } from "./ui/bubble.tsx";
 import { Button } from "./ui/button.tsx";
 import { Message, MessageContent, MessageFooter } from "./ui/message.tsx";

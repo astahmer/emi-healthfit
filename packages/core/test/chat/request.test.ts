@@ -5,7 +5,7 @@ import {
   ChatStreamRequestSchema,
   CompactConversationRequestSchema,
   validateChatAttachments,
-} from "../../src/chat/index.ts";
+} from "../../src/chat/request.ts";
 
 describe("chat request", () => {
   it("requires a configured provider key and model", () => {

@@ -2,7 +2,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { fromCallback } from "xstate";
 
-import type { Attachment, ChatMessage, MessagePart } from "../../protocol/index.ts";
+import type { Attachment, ChatMessage, MessagePart } from "../../protocol.export.ts";
 import type { ChatSessionEvent, QueuedFollowUp } from "../chat-session-machine.ts";
 
 export interface ChatTransportRequest {

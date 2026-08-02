@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { runTransaction, type QueryDatabaseClient } from "./query-database.ts";
+import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { MemoryDatabaseSchema } from "./schema.ts";
 
 type MemoriesDb<Environment = never> = QueryDatabaseClient<MemoryDatabaseSchema, Environment>;
@@ -45,7 +45,7 @@ export const insertMemories = <Environment>(
       .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
       .map((candidate) => ({ id: crypto.randomUUID(), ...candidate }));
     if (inserted.length === 0) return [];
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       ...inserted.map((memory) =>
         kysely.insertInto("memories").values({
           content: memory.content,
@@ -245,7 +245,7 @@ export const deleteMemory = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       kysely.deleteFrom("memories").where("user_id", "=", userId).where("id", "=", id),
       kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
     ]);
@@ -258,7 +258,7 @@ export const deleteMemoriesByMessage = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* runTransaction(db, [
+    yield* QueryDatabase.transaction(db, [
       kysely
         .deleteFrom("memories")
         .where("user_id", "=", userId)

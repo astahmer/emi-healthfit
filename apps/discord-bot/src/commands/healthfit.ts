@@ -1,7 +1,7 @@
 import type {
   ApplicationCommandInteraction,
   DiscordHttpResponse,
-} from "@emi/core-migration/discord";
+} from "@emi/core/discord";
 import * as Effect from "effect/Effect";
 import {
   checkDiscordRateLimit,

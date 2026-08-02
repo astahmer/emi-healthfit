@@ -1,9 +1,16 @@
-import { Effect } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { ChatProtocol } from "../../protocol/index.ts";
-import type { ChatMessage, Conversation, GenerationEvent } from "../../protocol/index.ts";
-import type { ChatServerOptions } from "../ports/chat-server.ts";
+import { ChatProtocol } from "../../protocol.export.ts";
+import type { ChatMessage, Conversation, GenerationEvent } from "../../protocol.export.ts";
+import {
+  AuthPort,
+  ChatModel,
+  ChatRepositories,
+  ChatServerConfiguration,
+} from "../ports/chat-server.ts";
 
 const ChatGenerationInputSchema = Schema.Struct({
   requestId: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
@@ -16,104 +23,121 @@ export class ChatServerError extends Schema.TaggedErrorClass<ChatServerError>()(
   message: Schema.String,
 }) {}
 
-export class ChatServer {
-  private readonly options: ChatServerOptions;
-
-  constructor(options: ChatServerOptions) {
-    this.options = options;
-  }
-
-  listConversations(request: Request): Effect.Effect<ReadonlyArray<Conversation>, ChatServerError> {
-    const options = this.options;
-    return Effect.gen(function* () {
-      const principal = yield* options.auth.authenticate(request);
-      return yield* options.repositories.conversations.list({ subject: principal.subject });
-    });
-  }
-
-  generate(
+export interface ChatServerShape {
+  readonly listConversations: (
+    request: Request,
+  ) => Effect.Effect<ReadonlyArray<Conversation>, ChatServerError>;
+  readonly generate: (
     request: Request,
     input: {
       readonly requestId: string;
       readonly conversationId: string;
       readonly message: ChatMessage;
     },
-  ): Stream.Stream<GenerationEvent, ChatServerError> {
-    const options = this.options;
-    return Stream.unwrap(
+  ) => Stream.Stream<GenerationEvent, ChatServerError>;
+  readonly handle: (request: Request) => Effect.Effect<Response, ChatServerError>;
+}
+
+export class ChatServer extends Context.Service<ChatServer, ChatServerShape>()(
+  "@emi/core/server/ChatServer",
+) {}
+
+export const ChatServerLive = Layer.effect(
+  ChatServer,
+  Effect.gen(function* () {
+    const auth = yield* AuthPort;
+    const repositories = yield* ChatRepositories;
+    const model = yield* ChatModel;
+    const configuration = yield* ChatServerConfiguration;
+
+    const listConversations = (request: Request) =>
       Effect.gen(function* () {
-        const decodedInput = yield* Schema.decodeUnknownEffect(ChatGenerationInputSchema)(
-          input,
-        ).pipe(
-          Effect.mapError(
-            (error) =>
-              new ChatServerError({
-                kind: "invalid-input",
-                message: error.message,
-              }),
-          ),
-        );
-        const principal = yield* options.auth.authenticate(request);
-        yield* options.repositories.generations.admit({
-          subject: principal.subject,
-          requestId: decodedInput.requestId,
-          conversationId: decodedInput.conversationId,
-          model: options.configuration.model,
-        });
-        yield* options.repositories.messages.append({
-          subject: principal.subject,
-          conversationId: decodedInput.conversationId,
-          message: decodedInput.message,
-        });
-        return options.model
-          .generate({
-            subject: principal.subject,
-            messages: [decodedInput.message],
-            configuration: options.configuration,
-          })
-          .pipe(
-            Stream.tap((event) =>
-              options.repositories.generations.append({
-                subject: principal.subject,
-                requestId: decodedInput.requestId,
-                event,
-              }),
+        const principal = yield* auth.authenticate(request);
+        return yield* repositories.conversations.list({ subject: principal.subject });
+      });
+
+    const generate = (
+      request: Request,
+      input: {
+        readonly requestId: string;
+        readonly conversationId: string;
+        readonly message: ChatMessage;
+      },
+    ) =>
+      Stream.unwrap(
+        Effect.gen(function* () {
+          const decodedInput = yield* Schema.decodeUnknownEffect(ChatGenerationInputSchema)(
+            input,
+          ).pipe(
+            Effect.mapError(
+              (error) =>
+                new ChatServerError({
+                  kind: "invalid-input",
+                  message: error.message,
+                }),
             ),
           );
-      }),
-    );
-  }
+          const principal = yield* auth.authenticate(request);
+          yield* repositories.generations.admit({
+            subject: principal.subject,
+            requestId: decodedInput.requestId,
+            conversationId: decodedInput.conversationId,
+            model: configuration.model.model,
+          });
+          yield* repositories.messages.append({
+            subject: principal.subject,
+            conversationId: decodedInput.conversationId,
+            message: decodedInput.message,
+          });
+          return model
+            .generate({
+              subject: principal.subject,
+              messages: [decodedInput.message],
+              configuration: configuration.model,
+            })
+            .pipe(
+              Stream.tap((event) =>
+                repositories.generations.append({
+                  subject: principal.subject,
+                  requestId: decodedInput.requestId,
+                  event,
+                }),
+              ),
+            );
+        }),
+      );
 
-  handle(request: Request): Effect.Effect<Response, ChatServerError> {
-    const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/api/conversations") {
-      return this.listConversations(request).pipe(
-        Effect.flatMap((conversations) =>
-          Effect.forEach(conversations, (conversation) =>
-            ChatProtocol.toConversationDto(conversation).pipe(
-              Effect.mapError(
-                (error) =>
-                  new ChatServerError({
-                    kind: "internal",
-                    message: error.message,
-                  }),
+    const handle = (request: Request) => {
+      const url = new URL(request.url);
+      if (request.method === "GET" && url.pathname === "/api/conversations") {
+        return listConversations(request).pipe(
+          Effect.flatMap((conversations) =>
+            Effect.forEach(conversations, (conversation) =>
+              ChatProtocol.toConversationDto(conversation).pipe(
+                Effect.mapError(
+                  (error) =>
+                    new ChatServerError({
+                      kind: "internal",
+                      message: error.message,
+                    }),
+                ),
               ),
             ),
           ),
-        ),
-        Effect.map((conversations) => Response.json(conversations)),
+          Effect.map((conversations) => Response.json(conversations)),
+        );
+      }
+      if (request.method === "GET" && url.pathname === "/api/health") {
+        return Effect.succeed(Response.json({ ok: true }));
+      }
+      return Effect.fail(
+        new ChatServerError({
+          kind: "invalid-input",
+          message: `Unsupported request: ${request.method} ${url.pathname}`,
+        }),
       );
-    }
-    if (request.method === "GET" && url.pathname === "/api/health") {
-      return Effect.succeed(Response.json({ ok: true }));
-    }
-    return Effect.fail(
-      new ChatServerError({
-        kind: "invalid-input",
-        message: `Unsupported request: ${request.method} ${url.pathname}`,
-      }),
-    );
-  }
-}
+    };
 
-export type { ChatServerOptions } from "../ports/chat-server.ts";
+    return { listConversations, generate, handle } satisfies ChatServerShape;
+  }),
+);
