@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, it } from "node:test";
+import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import { Kysely, SqliteDialect, type Compilable } from "kysely";
-import type { SqliteDatabase, SqliteStatement } from "kysely";
 import { DiscordLinkDatabase } from "../../src/server/db/discord-links.ts";
 import type { DiscordDatabaseSchema } from "../../src/server/db/discord-schema.ts";
 import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
+import { makeSqliteDatabase } from "./sqlite.ts";
 
 const schemaDdl = `
   CREATE TABLE discord_account_links (
@@ -38,125 +37,61 @@ const databaseRuntime = {
   },
 };
 
-const normalizeParameter = (value: unknown): SQLInputValue => {
-  if (typeof value === "boolean") return Number(value);
-  if (
-    value === null ||
-    typeof value === "number" ||
-    typeof value === "bigint" ||
-    typeof value === "string" ||
-    value instanceof Uint8Array
-  ) {
-    return value;
-  }
-  throw new Error(`Unsupported SQLite parameter: ${typeof value}`);
-};
-
-class NodeSqliteStatementAdapter implements SqliteStatement {
-  readonly reader: boolean;
-  readonly #statement: ReturnType<DatabaseSync["prepare"]>;
-
-  constructor(statement: ReturnType<DatabaseSync["prepare"]>, sql: string) {
-    this.#statement = statement;
-    this.reader = /^\s*(select|with|pragma)/i.test(sql);
-  }
-
-  all(parameters: ReadonlyArray<unknown>): unknown[] {
-    return this.#statement.all(...parameters.map(normalizeParameter));
-  }
-
-  run(parameters: ReadonlyArray<unknown>) {
-    const result = this.#statement.run(...parameters.map(normalizeParameter));
-    return { changes: Number(result.changes), lastInsertRowid: Number(result.lastInsertRowid) };
-  }
-
-  iterate(parameters: ReadonlyArray<unknown>): IterableIterator<unknown> {
-    return this.#statement.iterate(...parameters.map(normalizeParameter));
-  }
-}
-
-class NodeSqliteDatabaseAdapter implements SqliteDatabase {
-  readonly #sqlite: DatabaseSync;
-
-  constructor(sqlite: DatabaseSync) {
-    this.#sqlite = sqlite;
-  }
-
-  close(): void {
-    this.#sqlite.close();
-  }
-
-  prepare(sql: string): SqliteStatement {
-    return new NodeSqliteStatementAdapter(this.#sqlite.prepare(sql), sql);
-  }
-}
-
-const makeInMemoryDb = (): QueryDatabaseClient<DiscordDatabaseSchema, never> => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(schemaDdl);
-  const kysely = new Kysely<DiscordDatabaseSchema>({
-    dialect: new SqliteDialect({ database: new NodeSqliteDatabaseAdapter(sqlite) }),
-  });
-  return {
-    kysely: Effect.succeed(kysely),
+const makeInMemoryDb = () =>
+  makeSqliteDatabase<DiscordDatabaseSchema>({
+    schemaDdl,
     runtime: databaseRuntime,
-    batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
-      Effect.promise(async () => {
-        const results: Array<{ meta: { changes: number } }> = [];
-        for (const statement of statements) {
-          const compiled = statement.compile();
-          const changes = await kysely
-            .executeQuery(compiled)
-            .then((result) => Number(result.numAffectedRows ?? 0));
-          results.push({ meta: { changes } });
-        }
-        return results;
-      }),
-  };
-};
+  });
 
 const makeDatabaseRunner = (db: QueryDatabaseClient<DiscordDatabaseSchema, never>) => {
   const databaseLayer = DiscordLinkDatabase.layer({ db });
-  return <A, E>(effect: Effect.Effect<A, E, DiscordLinkDatabase>) =>
-    Effect.runPromise(effect.pipe(Effect.provide(databaseLayer)));
+  return <A, E>(
+    program: (database: Context.Service.Shape<typeof DiscordLinkDatabase>) => Effect.Effect<A, E>,
+  ) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const database = yield* DiscordLinkDatabase;
+        return yield* program(database);
+      }).pipe(Effect.provide(databaseLayer)),
+    );
 };
 
 describe("discord link codes", () => {
   it("creates a hashed one-time code, consumes it once, and isolates owners", async () => {
     const db = makeInMemoryDb();
     const runDatabase = makeDatabaseRunner(db);
-    const created = await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" }));
+    const created = await runDatabase((database) => database.createLinkCode({ userId: "user-a" }));
     assert.ok(created !== null);
     const hash = await Effect.runPromise(DiscordLinkDatabase.hashLinkCode(created.code));
     assert.notEqual(hash, created.code);
 
-    const first = await runDatabase(
-      DiscordLinkDatabase.consumeLinkCode({ code: created.code, discordUserId: "discord-1" }),
+    const first = await runDatabase((database) =>
+      database.consumeLinkCode({ code: created.code, discordUserId: "discord-1" }),
     );
     assert.equal(first.ok, true);
     if (first.ok) assert.equal(first.userId, "user-a");
 
-    const linked = await runDatabase(
-      DiscordLinkDatabase.getLinkedUserId({ discordUserId: "discord-1" }),
+    const linked = await runDatabase((database) =>
+      database.getLinkedUserId({ discordUserId: "discord-1" }),
     );
     assert.equal(linked, "user-a");
 
-    const second = await runDatabase(
-      DiscordLinkDatabase.consumeLinkCode({ code: created.code, discordUserId: "discord-2" }),
+    const second = await runDatabase((database) =>
+      database.consumeLinkCode({ code: created.code, discordUserId: "discord-2" }),
     );
     assert.deepEqual(second, { ok: false, reason: "consumed" });
 
-    const otherUserLinks = await runDatabase(
-      DiscordLinkDatabase.listAccountLinks({ userId: "user-b" }),
+    const otherUserLinks = await runDatabase((database) =>
+      database.listAccountLinks({ userId: "user-b" }),
     );
     assert.deepEqual(otherUserLinks, []);
 
-    const unlinked = await runDatabase(
-      DiscordLinkDatabase.unlinkAccountByDiscordUserId({ discordUserId: "discord-1" }),
+    const unlinked = await runDatabase((database) =>
+      database.unlinkAccountByDiscordUserId({ discordUserId: "discord-1" }),
     );
     assert.equal(unlinked, true);
     assert.equal(
-      await runDatabase(DiscordLinkDatabase.getLinkedUserId({ discordUserId: "discord-1" })),
+      await runDatabase((database) => database.getLinkedUserId({ discordUserId: "discord-1" })),
       null,
     );
   });
@@ -164,16 +99,19 @@ describe("discord link codes", () => {
   it("caps active unconsumed codes per user", async () => {
     const db = makeInMemoryDb();
     const runDatabase = makeDatabaseRunner(db);
-    assert.ok(await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" })));
-    assert.ok(await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" })));
-    assert.ok(await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" })));
-    assert.equal(await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" })), null);
+    assert.ok(await runDatabase((database) => database.createLinkCode({ userId: "user-a" })));
+    assert.ok(await runDatabase((database) => database.createLinkCode({ userId: "user-a" })));
+    assert.ok(await runDatabase((database) => database.createLinkCode({ userId: "user-a" })));
+    assert.equal(
+      await runDatabase((database) => database.createLinkCode({ userId: "user-a" })),
+      null,
+    );
   });
 
   it("rejects expired codes", async () => {
     const db = makeInMemoryDb();
     const runDatabase = makeDatabaseRunner(db);
-    const created = await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" }));
+    const created = await runDatabase((database) => database.createLinkCode({ userId: "user-a" }));
     assert.ok(created !== null);
     const kysely = await Effect.runPromise(db.kysely);
     await kysely
@@ -182,8 +120,8 @@ describe("discord link codes", () => {
       .where("id", "=", created.id)
       .execute();
 
-    const result = await runDatabase(
-      DiscordLinkDatabase.consumeLinkCode({ code: created.code, discordUserId: "discord-1" }),
+    const result = await runDatabase((database) =>
+      database.consumeLinkCode({ code: created.code, discordUserId: "discord-1" }),
     );
     assert.deepEqual(result, { ok: false, reason: "expired" });
   });
@@ -191,15 +129,15 @@ describe("discord link codes", () => {
   it("only one concurrent consume wins the update race", async () => {
     const db = makeInMemoryDb();
     const runDatabase = makeDatabaseRunner(db);
-    const created = await runDatabase(DiscordLinkDatabase.createLinkCode({ userId: "user-a" }));
+    const created = await runDatabase((database) => database.createLinkCode({ userId: "user-a" }));
     assert.ok(created !== null);
 
     const [first, second] = await Promise.all([
-      runDatabase(
-        DiscordLinkDatabase.consumeLinkCode({ code: created.code, discordUserId: "discord-1" }),
+      runDatabase((database) =>
+        database.consumeLinkCode({ code: created.code, discordUserId: "discord-1" }),
       ),
-      runDatabase(
-        DiscordLinkDatabase.consumeLinkCode({ code: created.code, discordUserId: "discord-2" }),
+      runDatabase((database) =>
+        database.consumeLinkCode({ code: created.code, discordUserId: "discord-2" }),
       ),
     ]);
 

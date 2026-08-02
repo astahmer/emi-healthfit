@@ -1,24 +1,27 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import * as Effect from "effect/Effect";
 import { prepareChatHistory } from "../src/core/routes/chat-history.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
-
-const { createConversation, getMessage, reviseConversationMessage } = ServerDatabase.conversations;
+import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("chat history SQLite integration", () => {
   it("keeps the client message id addressable after initial persistence", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
-    const runConversation = makeLayerRunner(ServerDatabase.conversations.layer({ db }));
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
     const userId = "user-a";
-    const conversationId = await runConversation(createConversation({ userId }));
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
     const messageId = "d007dd8e-8138-484d-bd5c-3f9676ba314e";
 
     const history = await run(
       prepareChatHistory({
-        db: rawDb,
+        database: conversationDatabase,
         userId,
         sessionId: conversationId,
         isTemporary: false,
@@ -37,10 +40,13 @@ describe("chat history SQLite integration", () => {
 
     assert.equal("error" in history, false);
     assert.equal(history.lastIncomingMessageId, messageId);
-    assert.equal((await runConversation(getMessage({ userId, messageId })))?.id, messageId);
     assert.equal(
-      await runConversation(
-        reviseConversationMessage({
+      (await run(conversationDatabase.getMessage({ userId, messageId })))?.id,
+      messageId,
+    );
+    assert.equal(
+      await run(
+        conversationDatabase.reviseConversationMessage({
           userId,
           conversationId,
           messageId,

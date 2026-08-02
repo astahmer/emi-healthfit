@@ -2,15 +2,13 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeMemoryDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("Kysely D1 transaction integration", () => {
   it("rolls back every Kysely-compiled statement when a D1 batch fails", async () => {
     const { db } = makeSqliteDatabase();
-    const runDatabase = makeLayerRunner(
-      ServerDatabase.memories.layer({
-        db: narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db),
-      }),
+    const memoryDatabase = await makeMemoryDatabase(
+      narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db),
     );
     const userId = "user-a";
     const createdAt = "2026-07-19T12:00:00.000Z";
@@ -25,6 +23,6 @@ describe("Kysely D1 transaction integration", () => {
 
     await assert.rejects(run(ServerDatabase.query.transaction(db, [note, note])));
 
-    assert.deepStrictEqual(await runDatabase(ServerDatabase.memories.getNotes({ userId })), []);
+    assert.deepStrictEqual(await run(memoryDatabase.getNotes({ userId })), []);
   });
 });

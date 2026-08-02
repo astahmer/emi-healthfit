@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import * as Effect from "effect/Effect";
 import {
   Conversation,
   Memory,
@@ -150,14 +151,18 @@ describe("HTTP response contracts", () => {
 
   it("validates persisted generation chunks with the AI SDK schema", async () => {
     assert.deepStrictEqual(
-      await ServerDatabase.generations.decodeGenerationChunk('{"type":"finish"}'),
+      await Effect.runPromise(
+        ServerDatabase.generations.decodeGenerationChunk('{"type":"finish"}'),
+      ),
       {
         type: "finish",
       },
     );
     await assert.rejects(() =>
-      ServerDatabase.generations.decodeGenerationChunk('{"type":"unknown"}'),
+      Effect.runPromise(ServerDatabase.generations.decodeGenerationChunk('{"type":"unknown"}')),
     );
-    await assert.rejects(() => ServerDatabase.generations.decodeGenerationChunk("not-json"));
+    await assert.rejects(() =>
+      Effect.runPromise(ServerDatabase.generations.decodeGenerationChunk("not-json")),
+    );
   });
 });

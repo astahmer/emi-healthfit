@@ -8,7 +8,7 @@ import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import type { CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeLayerRunner, makeSqliteDatabase } from "./sqlite.ts";
+import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
 const user = {
   id: "core-route-user",
@@ -98,11 +98,9 @@ describe("generic core chat route", () => {
     const { db: database } = makeSqliteDatabase();
     const conversationDatabase =
       narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
-    const runConversation = makeLayerRunner(
-      ServerDatabase.conversations.layer({ db: conversationDatabase }),
-    );
-    const conversationId = await runConversation(
-      ServerDatabase.conversations.createConversation({
+    const conversationService = await makeConversationDatabase(conversationDatabase);
+    const conversationId = await run(
+      conversationService.createConversation({
         userId: user.id,
         title: "Concurrent route test",
       }),
@@ -190,8 +188,8 @@ describe("generic core chat route", () => {
       if (outcomes[1]?.status === "fulfilled") assert.equal(outcomes[1].value.status, 409);
       await Promise.allSettled(pendingTasks);
 
-      const messages = await runConversation(
-        ServerDatabase.conversations.getConversationMessages({
+      const messages = await run(
+        conversationService.getConversationMessages({
           userId: user.id,
           conversationId,
         }),

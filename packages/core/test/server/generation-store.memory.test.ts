@@ -1,15 +1,8 @@
 import assert from "node:assert/strict";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
-import {
-  Kysely,
-  SqliteDialect,
-  type Compilable,
-  type SqliteDatabase,
-  type SqliteStatement,
-} from "kysely";
 import { GenerationStoreLive } from "../../src/server/make-generation-store.ts";
+import { GenerationDatabase } from "../../src/server/db/generations.ts";
 import {
   GenerationChunkReader,
   GenerationChunkWriter,
@@ -18,8 +11,9 @@ import {
   GenerationWriter,
 } from "../../src/server/ports/generation-store.ts";
 import { makeRequestContext } from "../../src/server/request-context.ts";
-import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
 import type { ConversationDatabaseSchema } from "../../src/server/db/schema.ts";
+import type { DatabaseSync } from "node:sqlite";
+import { makeSqliteDatabase } from "./sqlite.ts";
 
 const schemaDdl = `
   CREATE TABLE conversations (
@@ -67,95 +61,25 @@ const databaseRuntime = {
   randomBytes: (length: number) => new Uint8Array(length).fill(7),
 };
 
-const normalizeParameter = (value: unknown): SQLInputValue => {
-  if (typeof value === "boolean") return Number(value);
-  if (
-    value === null ||
-    typeof value === "number" ||
-    typeof value === "bigint" ||
-    typeof value === "string" ||
-    value instanceof Uint8Array
-  ) {
-    return value;
-  }
-  throw new Error(`Unsupported SQLite parameter: ${typeof value}`);
-};
-
-class NodeSqliteStatementAdapter implements SqliteStatement {
-  readonly reader: boolean;
-  readonly #statement: ReturnType<DatabaseSync["prepare"]>;
-
-  constructor(statement: ReturnType<DatabaseSync["prepare"]>, sql: string) {
-    this.#statement = statement;
-    this.reader = /^\s*(select|with|pragma)/i.test(sql);
-  }
-
-  all(parameters: ReadonlyArray<unknown>): unknown[] {
-    return this.#statement.all(...parameters.map(normalizeParameter));
-  }
-
-  run(parameters: ReadonlyArray<unknown>) {
-    const result = this.#statement.run(...parameters.map(normalizeParameter));
-    return { changes: Number(result.changes), lastInsertRowid: Number(result.lastInsertRowid) };
-  }
-
-  iterate(parameters: ReadonlyArray<unknown>): IterableIterator<unknown> {
-    return this.#statement.iterate(...parameters.map(normalizeParameter));
-  }
-}
-
-class NodeSqliteDatabaseAdapter implements SqliteDatabase {
-  readonly #sqlite: DatabaseSync;
-
-  constructor(sqlite: DatabaseSync) {
-    this.#sqlite = sqlite;
-  }
-
-  close(): void {
-    this.#sqlite.close();
-  }
-
-  prepare(sql: string): SqliteStatement {
-    return new NodeSqliteStatementAdapter(this.#sqlite.prepare(sql), sql);
-  }
-}
-
-const makeInMemoryDb = (): QueryDatabaseClient<ConversationDatabaseSchema, never> => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(schemaDdl);
-  const kysely = new Kysely<ConversationDatabaseSchema>({
-    dialect: new SqliteDialect({ database: new NodeSqliteDatabaseAdapter(sqlite) }),
-  });
-  sqlite
-    .prepare(
-      "INSERT INTO conversations (id, user_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    )
-    .run(
-      "conversation-generation",
-      "generation-user",
-      "Generation",
-      "regular",
-      0,
-      databaseRuntime.now(),
-      databaseRuntime.now(),
-    );
-  return {
-    kysely: Effect.succeed(kysely),
+const makeInMemoryDb = () =>
+  makeSqliteDatabase<ConversationDatabaseSchema>({
+    schemaDdl,
     runtime: databaseRuntime,
-    batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
-      Effect.promise(async () => {
-        const results: Array<{ meta: { changes: number } }> = [];
-        for (const statement of statements) {
-          const compiled = statement.compile();
-          const changes = await kysely
-            .executeQuery(compiled)
-            .then((result) => Number(result.numAffectedRows ?? 0));
-          results.push({ meta: { changes } });
-        }
-        return results;
-      }),
-  };
-};
+    setup: (sqlite: DatabaseSync) =>
+      sqlite
+        .prepare(
+          "INSERT INTO conversations (id, user_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          "conversation-generation",
+          "generation-user",
+          "Generation",
+          "regular",
+          0,
+          databaseRuntime.now(),
+          databaseRuntime.now(),
+        ),
+  });
 
 const run = <Value, Error>(effect: Effect.Effect<Value, Error, never>) => Effect.runPromise(effect);
 
@@ -223,10 +147,11 @@ describe("makeGenerationStore", () => {
 
   it("maps the database uniqueness race to the provider-neutral conflict error", async () => {
     const db = makeInMemoryDb();
-    const store = GenerationStoreLive.shapes({
-      db,
-      requestContext: makeRequestContext({ userId: "generation-user" }),
-    });
+    const store = await run(
+      GenerationStoreLive.effect({
+        requestContext: makeRequestContext({ userId: "generation-user" }),
+      }).pipe(Effect.provide(GenerationDatabase.layer({ db }))),
+    );
     const input = {
       generationId: "generation-race",
       conversationId: "conversation-generation",

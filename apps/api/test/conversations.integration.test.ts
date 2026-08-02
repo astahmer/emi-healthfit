@@ -2,45 +2,19 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeLayerRunner, makeSqliteDatabase } from "./sqlite.ts";
-
-const {
-  addThreadMessage,
-  cloneConversation,
-  createConversation,
-  createThread,
-  deleteConversation,
-  discardThread,
-  getConversation,
-  getConversationMessages,
-  getConversations,
-  getMessage,
-  getSuggestionsById,
-  getThread,
-  getThreadByAnchor,
-  getThreadMessages,
-  getThreads,
-  getThreadsIncludingDiscarded,
-  pinThread,
-  renameConversation,
-  renameThread,
-  restoreThread,
-  reviseConversationMessage,
-  saveConversationMessages,
-  saveSuggestions,
-  summarizeThread,
-  updateConversationState,
-} = ServerDatabase.conversations;
+import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("conversations SQLite integration", () => {
   it("persists conversation, branch, summary, suggestion, and revision lifecycle", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
-    const run = makeLayerRunner(ServerDatabase.conversations.layer({ db }));
+    const conversationDatabase = await makeConversationDatabase(db);
     const userId = "user-a";
-    const conversationId = await run(createConversation({ userId, title: "Running plan" }));
+    const conversationId = await run(
+      conversationDatabase.createConversation({ userId, title: "Running plan" }),
+    );
     const [questionId] = await run(
-      saveConversationMessages({
+      conversationDatabase.saveConversationMessages({
         userId,
         conversationId,
         parentId: null,
@@ -48,7 +22,7 @@ describe("conversations SQLite integration", () => {
       }),
     );
     const [answerId] = await run(
-      saveConversationMessages({
+      conversationDatabase.saveConversationMessages({
         userId,
         conversationId,
         parentId: questionId,
@@ -65,12 +39,19 @@ describe("conversations SQLite integration", () => {
     assert.ok(questionId);
     assert.ok(answerId);
 
-    await run(renameConversation({ userId, conversationId, title: "Recovery plan" }));
     await run(
-      updateConversationState({ userId, conversationId, status: "archived", pinned: true }),
+      conversationDatabase.renameConversation({ userId, conversationId, title: "Recovery plan" }),
+    );
+    await run(
+      conversationDatabase.updateConversationState({
+        userId,
+        conversationId,
+        status: "archived",
+        pinned: true,
+      }),
     );
     assert.deepStrictEqual(
-      (await run(getConversations({ userId }))).map((conversation) => ({
+      (await run(conversationDatabase.getConversations({ userId }))).map((conversation) => ({
         id: conversation.id,
         title: conversation.title,
         status: conversation.status,
@@ -79,14 +60,14 @@ describe("conversations SQLite integration", () => {
       [{ id: conversationId, title: "Recovery plan", status: "archived", pinned: true }],
     );
     assert.deepStrictEqual(
-      (await run(getConversations({ userId, search: "easy day" }))).map(
+      (await run(conversationDatabase.getConversations({ userId, search: "easy day" }))).map(
         (conversation) => conversation.id,
       ),
       [conversationId],
     );
 
     const threadId = await run(
-      createThread({
+      conversationDatabase.createThread({
         userId,
         conversationId,
         anchorMessageId: questionId,
@@ -94,15 +75,17 @@ describe("conversations SQLite integration", () => {
       }),
     );
     assert.ok(threadId);
-    await run(addThreadMessage({ userId, threadId, messageId: answerId }));
-    await run(renameThread({ userId, threadId, title: "Recovery details" }));
-    await run(pinThread({ userId, threadId, pinned: true }));
+    await run(conversationDatabase.addThreadMessage({ userId, threadId, messageId: answerId }));
+    await run(conversationDatabase.renameThread({ userId, threadId, title: "Recovery details" }));
+    await run(conversationDatabase.pinThread({ userId, threadId, pinned: true }));
     assert.deepStrictEqual(
-      (await run(getThreadMessages({ userId, threadId }))).map((message) => message.id),
+      (await run(conversationDatabase.getThreadMessages({ userId, threadId }))).map(
+        (message) => message.id,
+      ),
       [questionId, answerId],
     );
     assert.deepStrictEqual(
-      (await run(getThreads({ userId, conversationId }))).map((thread) => ({
+      (await run(conversationDatabase.getThreads({ userId, conversationId }))).map((thread) => ({
         id: thread.id,
         title: thread.title,
         pinned: thread.pinned,
@@ -110,46 +93,78 @@ describe("conversations SQLite integration", () => {
       [{ id: threadId, title: "Recovery details", pinned: true }],
     );
     assert.strictEqual(
-      (await run(getThreadByAnchor({ userId, conversationId, anchorMessageId: questionId })))?.id,
+      (
+        await run(
+          conversationDatabase.getThreadByAnchor({
+            userId,
+            conversationId,
+            anchorMessageId: questionId,
+          }),
+        )
+      )?.id,
       threadId,
     );
 
     const summaryId = await run(
-      summarizeThread({ userId, threadId, summaryText: "Keep volume low." }),
+      conversationDatabase.summarizeThread({ userId, threadId, summaryText: "Keep volume low." }),
     );
     assert.ok(summaryId);
-    assert.deepStrictEqual(await run(getMessage({ userId, messageId: summaryId })), {
-      id: summaryId,
-      conversation_id: conversationId,
-      parent_id: questionId,
-      role: "summary",
-      parts: JSON.stringify([{ type: "text", text: "Keep volume low." }]),
-      prompt_tokens: null,
-      completion_tokens: null,
-      total_tokens: null,
-      model: null,
-      created_at: (await run(getMessage({ userId, messageId: summaryId })))?.created_at,
-    });
-
-    await run(saveSuggestions({ userId, id: "suggestion-key", suggestions: ["Walk", "Sleep"] }));
-    await run(saveSuggestions({ userId, id: "suggestion-key", suggestions: ["Ignored"] }));
     assert.deepStrictEqual(
-      (await run(getSuggestionsById({ userId, id: "suggestion-key" })))?.suggestions,
+      await run(conversationDatabase.getMessage({ userId, messageId: summaryId })),
+      {
+        id: summaryId,
+        conversation_id: conversationId,
+        parent_id: questionId,
+        role: "summary",
+        parts: JSON.stringify([{ type: "text", text: "Keep volume low." }]),
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        model: null,
+        created_at: (await run(conversationDatabase.getMessage({ userId, messageId: summaryId })))
+          ?.created_at,
+      },
+    );
+
+    await run(
+      conversationDatabase.saveSuggestions({
+        userId,
+        id: "suggestion-key",
+        suggestions: ["Walk", "Sleep"],
+      }),
+    );
+    await run(
+      conversationDatabase.saveSuggestions({
+        userId,
+        id: "suggestion-key",
+        suggestions: ["Ignored"],
+      }),
+    );
+    assert.deepStrictEqual(
+      (await run(conversationDatabase.getSuggestionsById({ userId, id: "suggestion-key" })))
+        ?.suggestions,
       JSON.stringify(["Walk", "Sleep"]),
     );
 
-    await run(discardThread({ userId, threadId }));
-    assert.deepStrictEqual(await run(getThreads({ userId, conversationId })), []);
+    await run(conversationDatabase.discardThread({ userId, threadId }));
+    assert.deepStrictEqual(
+      await run(conversationDatabase.getThreads({ userId, conversationId })),
+      [],
+    );
     assert.strictEqual(
-      (await run(getThreadsIncludingDiscarded({ userId, conversationId })))[0]?.status,
+      (await run(conversationDatabase.getThreadsIncludingDiscarded({ userId, conversationId })))[0]
+        ?.status,
       "discarded",
     );
-    await run(restoreThread({ userId, threadId }));
-    assert.strictEqual((await run(getThread({ userId, threadId })))?.status, "regular");
+    await run(conversationDatabase.restoreThread({ userId, threadId }));
+    assert.strictEqual(
+      (await run(conversationDatabase.getThread({ userId, threadId })))?.status,
+      "regular",
+    );
 
     assert.strictEqual(
       await run(
-        reviseConversationMessage({
+        conversationDatabase.reviseConversationMessage({
           userId,
           conversationId,
           messageId: questionId,
@@ -160,7 +175,7 @@ describe("conversations SQLite integration", () => {
       true,
     );
     assert.deepStrictEqual(
-      (await run(getThreadMessages({ userId, threadId }))).map((message) => ({
+      (await run(conversationDatabase.getThreadMessages({ userId, threadId }))).map((message) => ({
         id: message.id,
         parts: message.parts,
       })),
@@ -176,11 +191,13 @@ describe("conversations SQLite integration", () => {
   it("creates a conversation with a batch of root messages in order", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
-    const run = makeLayerRunner(ServerDatabase.conversations.layer({ db }));
+    const conversationDatabase = await makeConversationDatabase(db);
     const userId = "user-a";
-    const conversationId = await run(createConversation({ userId, title: "Kept ghost" }));
+    const conversationId = await run(
+      conversationDatabase.createConversation({ userId, title: "Kept ghost" }),
+    );
     await run(
-      saveConversationMessages({
+      conversationDatabase.saveConversationMessages({
         userId,
         conversationId,
         parentId: null,
@@ -190,7 +207,9 @@ describe("conversations SQLite integration", () => {
         ],
       }),
     );
-    const messages = await run(getConversationMessages({ userId, conversationId }));
+    const messages = await run(
+      conversationDatabase.getConversationMessages({ userId, conversationId }),
+    );
     assert.deepStrictEqual(
       messages.map((message) => ({
         role: message.role,
@@ -217,12 +236,14 @@ describe("conversations SQLite integration", () => {
   it("clones linked messages and threads, then deletes only owned original conversation", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
-    const run = makeLayerRunner(ServerDatabase.conversations.layer({ db }));
+    const conversationDatabase = await makeConversationDatabase(db);
     const alice = "user-a";
     const bob = "user-b";
-    const conversationId = await run(createConversation({ userId: alice, title: "Strength plan" }));
+    const conversationId = await run(
+      conversationDatabase.createConversation({ userId: alice, title: "Strength plan" }),
+    );
     const [rootId] = await run(
-      saveConversationMessages({
+      conversationDatabase.saveConversationMessages({
         userId: alice,
         conversationId,
         parentId: null,
@@ -230,7 +251,7 @@ describe("conversations SQLite integration", () => {
       }),
     );
     const [childId] = await run(
-      saveConversationMessages({
+      conversationDatabase.saveConversationMessages({
         userId: alice,
         conversationId,
         parentId: rootId,
@@ -238,35 +259,57 @@ describe("conversations SQLite integration", () => {
       }),
     );
     const threadId = await run(
-      createThread({ userId: alice, conversationId, anchorMessageId: rootId }),
+      conversationDatabase.createThread({ userId: alice, conversationId, anchorMessageId: rootId }),
     );
     assert.ok(threadId);
-    await run(addThreadMessage({ userId: alice, threadId, messageId: childId }));
+    await run(
+      conversationDatabase.addThreadMessage({ userId: alice, threadId, messageId: childId }),
+    );
 
-    const cloned = await run(cloneConversation({ userId: alice, conversationId }));
+    const cloned = await run(
+      conversationDatabase.cloneConversation({ userId: alice, conversationId }),
+    );
     assert.ok(cloned);
     assert.strictEqual(cloned.title, "Strength plan copy");
     const clonedMessages = await run(
-      getConversationMessages({ userId: alice, conversationId: cloned.id }),
+      conversationDatabase.getConversationMessages({ userId: alice, conversationId: cloned.id }),
     );
     const clonedThreads = await run(
-      getThreadsIncludingDiscarded({ userId: alice, conversationId: cloned.id }),
+      conversationDatabase.getThreadsIncludingDiscarded({
+        userId: alice,
+        conversationId: cloned.id,
+      }),
     );
     assert.strictEqual(clonedMessages.length, 2);
     assert.strictEqual(clonedMessages[1]?.parent_id, clonedMessages[0]?.id);
     assert.strictEqual(clonedThreads.length, 1);
     assert.deepStrictEqual(
-      (await run(getThreadMessages({ userId: alice, threadId: clonedThreads[0]?.id ?? "" })))
+      (
+        await run(
+          conversationDatabase.getThreadMessages({
+            userId: alice,
+            threadId: clonedThreads[0]?.id ?? "",
+          }),
+        )
+      )
         .map((message) => message.id)
         .toSorted(),
       clonedMessages.map((message) => message.id).toSorted(),
     );
-    assert.strictEqual(await run(cloneConversation({ userId: bob, conversationId })), null);
+    assert.strictEqual(
+      await run(conversationDatabase.cloneConversation({ userId: bob, conversationId })),
+      null,
+    );
 
-    await run(deleteConversation({ userId: bob, conversationId }));
-    assert.ok(await run(getConversation({ userId: alice, conversationId })));
-    await run(deleteConversation({ userId: alice, conversationId }));
-    assert.strictEqual(await run(getConversation({ userId: alice, conversationId })), null);
-    assert.ok(await run(getConversation({ userId: alice, conversationId: cloned.id })));
+    await run(conversationDatabase.deleteConversation({ userId: bob, conversationId }));
+    assert.ok(await run(conversationDatabase.getConversation({ userId: alice, conversationId })));
+    await run(conversationDatabase.deleteConversation({ userId: alice, conversationId }));
+    assert.strictEqual(
+      await run(conversationDatabase.getConversation({ userId: alice, conversationId })),
+      null,
+    );
+    assert.ok(
+      await run(conversationDatabase.getConversation({ userId: alice, conversationId: cloned.id })),
+    );
   });
 });

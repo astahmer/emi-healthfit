@@ -5,6 +5,7 @@ import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
+import { ServerDatabase } from "@emi/core/server/database";
 import { makeQueryDatabaseClient, type QueryDatabaseClient } from "../src/platform/db/client.ts";
 
 const migrationsDirectory = fileURLToPath(new URL("../migrations", import.meta.url));
@@ -126,3 +127,39 @@ export const makeLayerRunner =
   <Service>(layer: Layer.Layer<Service, never, never>) =>
   <A, E>(effect: Effect.Effect<A, E, Service>) =>
     Effect.runPromise(effect.pipe(Effect.provide(layer)));
+
+export const makeConversationDatabase = (
+  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>,
+) =>
+  makeLayerRunner(ServerDatabase.conversations.layer({ db }))(
+    Effect.gen(function* () {
+      return yield* ServerDatabase.conversations;
+    }),
+  );
+
+export const makeGenerationDatabase = (
+  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>,
+) =>
+  makeLayerRunner(ServerDatabase.generations.layer({ db }))(
+    Effect.gen(function* () {
+      return yield* ServerDatabase.generations;
+    }),
+  );
+
+export const makeMemoryDatabase = (
+  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>,
+) =>
+  makeLayerRunner(ServerDatabase.memories.layer({ db }))(
+    Effect.gen(function* () {
+      return yield* ServerDatabase.memories;
+    }),
+  );
+
+export const makeDiscordLinkDatabase = (
+  db: ServerDatabase.QueryDatabaseClient<ServerDatabase.DiscordDatabaseSchema>,
+) =>
+  makeLayerRunner(ServerDatabase.discordLinks.layer({ db }))(
+    Effect.gen(function* () {
+      return yield* ServerDatabase.discordLinks;
+    }),
+  );

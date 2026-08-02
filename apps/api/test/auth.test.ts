@@ -7,8 +7,10 @@ import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 
 const {
   createAnonymousEmail,
-  createAnonymousSessionResponse,
+  createAnonymousSessionResponseEffect,
   createSessionCookie,
+  createSessionCookieEffect,
+  errors: { AuthError },
   isAnonymousEmail,
   isAuthorizedAuthEmail,
   isProtectedPath,
@@ -20,6 +22,25 @@ const {
 const { CurrentRequestContext, withRequestContext } = CoreCloudflare.request;
 
 describe("authentication boundaries", () => {
+  it("keeps authentication configuration failures tagged", async () => {
+    await assert.rejects(
+      () =>
+        Effect.runPromise(
+          CoreCloudflare.auth.getAuthConfiguration({
+            environment: {
+              BETTER_AUTH_SECRET: "a secure test secret with at least 32 bytes",
+              BETTER_AUTH_URL: "https://app.example.com",
+              GOOGLE_CLIENT_ID: "google-client-id",
+              GOOGLE_CLIENT_SECRET: "google-client-secret",
+            },
+            policy: "anonymous",
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof AuthError && error._tag === "AuthError" && error.phase === "configuration",
+    );
+  });
+
   it("builds RequestContext from the authenticated principal", async () => {
     const requestContext = makeRequestContext({
       principal: {
@@ -112,11 +133,19 @@ describe("authentication boundaries", () => {
   it("creates a Better Auth-compatible signed session cookie", async () => {
     const secret = "a secure test secret with at least 32 bytes";
     const token = "anonymous-session-token";
+    const cookieFromEffect = await Effect.runPromise(
+      createSessionCookieEffect({
+        baseUrl: "https://app.example.com",
+        secret,
+        token,
+      }),
+    );
     const cookie = await createSessionCookie({
       baseUrl: "https://app.example.com",
       secret,
       token,
     });
+    assert.equal(cookie, cookieFromEffect);
     const encodedValue = cookie.split(";", 1)[0]?.split("=", 2)[1];
     assert.notEqual(encodedValue, undefined);
     const [signedToken, signature] = decodeURIComponent(encodedValue ?? "").split(".");
@@ -162,15 +191,17 @@ describe("authentication boundaries", () => {
       await database.batch(migrationStatements.map((statement) => database.prepare(statement)));
       const baseUrl = "https://app.example.com";
       const secret = "a secure test secret with at least 32 bytes";
-      const response = await createAnonymousSessionResponse({
-        baseUrl,
-        database,
-        request: new Request(`${baseUrl}/api/auth/sign-in/anonymous`, {
-          method: "POST",
-          headers: { origin: baseUrl, "user-agent": "auth-integration-test" },
+      const response = await Effect.runPromise(
+        createAnonymousSessionResponseEffect({
+          baseUrl,
+          database,
+          request: new Request(`${baseUrl}/api/auth/sign-in/anonymous`, {
+            method: "POST",
+            headers: { origin: baseUrl, "user-agent": "auth-integration-test" },
+          }),
+          secret,
         }),
-        secret,
-      });
+      );
 
       assert.equal(response.status, 201);
       const setCookie = response.headers.get("set-cookie");
