@@ -164,7 +164,11 @@ export const conversationsHandlers = ({
                 messages: payload.messages.map((message, index) => ({
                   id: `import-${index}`,
                   role: message.role,
-                  parts: message.parts,
+                  parts: Chat.messages.fromProtocolMessage({
+                    id: `import-${index}`,
+                    role: message.role,
+                    parts: message.parts,
+                  }).parts,
                 })),
               }),
             );
@@ -177,9 +181,9 @@ export const conversationsHandlers = ({
               user.id,
               id,
               null,
-              validated.data.map((message) => ({
+              payload.messages.map((message) => ({
                 role: message.role,
-                parts: message.parts,
+                parts: [...message.parts],
               })),
             );
             const conversation = yield* getConversation(conversationDb, user.id, id);
@@ -444,7 +448,17 @@ export const conversationsHandlers = ({
             const user = yield* CoreCloudflare.user.CurrentUser;
             const validated = yield* Effect.promise(() =>
               safeValidateUIMessages({
-                messages: [{ id: params.messageId, role: "user", parts: payload.parts }],
+                messages: [
+                  {
+                    id: params.messageId,
+                    role: "user",
+                    parts: Chat.messages.fromProtocolMessage({
+                      id: params.messageId,
+                      role: "user",
+                      parts: payload.parts,
+                    }).parts,
+                  },
+                ],
               }),
             );
             if (!validated.success) {
@@ -455,7 +469,7 @@ export const conversationsHandlers = ({
               userId: user.id,
               conversationId: params.id,
               messageId: params.messageId,
-              parts: validated.data[0]?.parts ?? [],
+              parts: [...payload.parts],
               threadId: payload.threadId,
             });
             if (!revised) {

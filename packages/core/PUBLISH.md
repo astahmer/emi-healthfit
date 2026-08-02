@@ -158,6 +158,13 @@ stream. AI SDK imports stop at that adapter; protocol, runtime, components, and 
 not expose AI SDK message types. `AiSdkModelProvider.layer(configuration)` is the explicit
 adapter composition point.
 
+The provider-bound `@emi/core/chat` boundary also owns the UI message conversion required by
+AI SDK applications. `Chat.messages.toProtocolPartsEffect` is the canonical conversion with a
+typed Effect failure channel; `Chat.messages.toProtocolParts` is its Promise-derived outer
+wrapper, and `Chat.messages.fromProtocolMessage` converts persisted protocol messages back to UI
+parts for rendering. Generic protocol and server consumers never need these AI SDK-facing
+methods.
+
 `@emi/core/components` contains controlled and connected view primitives. `ChatApp` and
 `ChatShell` are opt-in recipes under `components/styled`; they render runtime selectors and send
 intent actions but do not own application state. Unsafe attachment URLs are rejected with Effect

@@ -256,7 +256,16 @@ describe("generic web and worker local API topology", () => {
         messages: [
           {
             id: "message-1",
-            parts: Array.from({ length: 11 }, () => ({ type: "image", image: "x" })),
+            createdAt: "2026-08-02T00:00:00.000Z",
+            parts: Array.from({ length: 11 }, (_, index) => ({
+              type: "file",
+              file: {
+                id: `attachment-${index}`,
+                name: `attachment-${index}.txt`,
+                mediaType: "text/plain",
+                url: "https://example.com/attachment.txt",
+              },
+            })),
             role: "user",
           },
         ],
@@ -278,6 +287,7 @@ describe("generic web and worker local API topology", () => {
   }, 15_000);
 
   it("streams through an OpenAI-compatible provider and persists the generation", async () => {
+    const runId = crypto.randomUUID();
     const provider = await startProvider();
     try {
       const authResponse = await fetch(`${apiOrigin}/api/auth/sign-in/anonymous`, {
@@ -306,7 +316,8 @@ describe("generic web and worker local API topology", () => {
           memory: { enabled: false },
           messages: [
             {
-              id: "generic-user-message",
+              id: `${runId}-generic-user-message`,
+              createdAt: "2026-08-02T00:00:00.000Z",
               parts: [{ text: "Hello generic Worker", type: "text" }],
               role: "user",
             },
@@ -428,7 +439,8 @@ describe("generic web and worker local API topology", () => {
           memory: { enabled: false },
           messages: [
             {
-              id: "temporary-user-message",
+              id: `${runId}-temporary-user-message`,
+              createdAt: "2026-08-02T00:00:00.000Z",
               parts: [{ text: "Temporary generic chat", type: "text" }],
               role: "user",
             },

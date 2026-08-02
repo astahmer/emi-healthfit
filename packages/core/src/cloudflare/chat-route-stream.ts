@@ -8,7 +8,7 @@ import {
 import { buildAssistantParts } from "../chat/message-parts.ts";
 import { OpenAiChat, OpenAiCompatibleConfigurationSchema } from "../adapters/ai-sdk/openai-chat.ts";
 import { createChatStreamResponse } from "../chat/stream-response.ts";
-import { validateStoredUIMessages } from "../chat/ui-messages.ts";
+import { ChatUiMessages } from "../chat/ui-messages.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
@@ -81,13 +81,10 @@ export class ChatRouteStream {
         return yield* HttpServerResponse.json({ error: attachmentError }, { status: 400 });
       }
 
-      const messages = yield* Effect.tryPromise({
-        try: () => validateStoredUIMessages(decoded.value.messages),
-        catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
-      }).pipe(Effect.catch(() => Effect.succeed(undefined)));
-      if (messages === undefined) {
-        return yield* HttpServerResponse.json({ error: "Invalid chat messages" }, { status: 400 });
-      }
+      const protocolMessages = decoded.value.messages;
+      const messages = protocolMessages.map((message) =>
+        ChatUiMessages.fromProtocolMessage(message),
+      );
 
       const temporary = decoded.value.temporary === true;
       const memoryEnabled = decoded.value.memory?.enabled !== false;
@@ -155,8 +152,8 @@ export class ChatRouteStream {
         });
       }
 
-      const lastMessage = messages.at(-1);
-      const titleSource = firstUserText(messages);
+      const lastMessage = protocolMessages.at(-1);
+      const titleSource = firstUserText(protocolMessages);
       let assistantParentId = threadParentId;
       const markGenerationFailed = (cause: unknown) =>
         temporary
@@ -173,7 +170,7 @@ export class ChatRouteStream {
           const savedUserIds = yield* conversationStore.messageStore.saveMessages({
             conversationId,
             parentId: threadParentId,
-            messages: [{ id: lastMessage.id, role: "user", parts: lastMessage.parts }],
+            messages: [{ id: lastMessage.id, role: "user", parts: [...lastMessage.parts] }],
           });
           assistantParentId = savedUserIds.at(-1) ?? threadParentId;
           if (existingThread !== null) {

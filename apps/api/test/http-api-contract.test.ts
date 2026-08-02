@@ -135,7 +135,7 @@ describe("HTTP response contracts", () => {
     assert.throws(() => decodeSuggestions("not-json"));
 
     const parts = decodeMessageParts(
-      '[{"type":"text","text":"First"},{"type":"image","url":"example"}]',
+      '[{"type":"text","text":"First"},{"type":"file","file":{"id":"attachment-1","name":"example.txt","mediaType":"text/plain","url":"/api/attachments/attachment-1"}}]',
     );
     assert.strictEqual(textFromMessageParts(parts), "First");
     assert.throws(() => decodeMessageParts('{"type":"text"}'));

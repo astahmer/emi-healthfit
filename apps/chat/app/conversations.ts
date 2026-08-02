@@ -1,14 +1,10 @@
 import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
 import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./session-cache";
-import type { UIMessage } from "ai";
+import { Chat } from "@emi/core/chat";
 import * as Schema from "effect/Schema";
 import { runApi } from "./api-client";
 import { notifyConversationsChanged } from "./conversation-events";
-
-const messagePartSchema = Schema.declare<UIMessage["parts"][number]>(
-  (part): part is UIMessage["parts"][number] =>
-    typeof part === "object" && part !== null && "type" in part,
-);
+import { ChatProtocol } from "@emi/core/protocol";
 
 const conversationSchema = Schema.Struct({
   id: Schema.String,
@@ -23,7 +19,7 @@ const messageSchema = Schema.Struct({
   conversationId: Schema.optional(Schema.String),
   parentId: Schema.optional(Schema.NullOr(Schema.String)),
   role: Schema.Literals(["user", "assistant", "system", "summary"]),
-  parts: Schema.Array(messagePartSchema),
+  parts: Schema.Array(ChatProtocol.schemas.messagePart),
   usage: Schema.optional(
     Schema.Struct({
       promptTokens: Schema.NullOr(Schema.Number),
@@ -89,7 +85,11 @@ const toMessage = ({
   conversationId: string;
 }): MessageNode => ({
   ...raw,
-  parts: [...raw.parts],
+  parts: Chat.messages.fromProtocolMessage({
+    id: raw.id,
+    role: raw.role === "summary" ? "assistant" : raw.role,
+    parts: raw.parts,
+  }).parts,
   conversationId: raw.conversationId ?? conversationId,
   parentId: raw.parentId ?? null,
 });

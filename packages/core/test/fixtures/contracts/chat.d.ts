@@ -38,6 +38,9 @@ export declare class Chat {
     readonly firstUserText: (...args: ReadonlyArray<never>) => unknown;
     readonly getProviderMessages: (...args: ReadonlyArray<never>) => unknown;
     readonly validateStoredUIMessages: (...args: ReadonlyArray<never>) => unknown;
+    readonly toProtocolParts: (...args: ReadonlyArray<never>) => unknown;
+    readonly toProtocolPartsEffect: (...args: ReadonlyArray<never>) => unknown;
+    readonly fromProtocolMessage: (...args: ReadonlyArray<never>) => unknown;
   };
   static readonly orphans: {
     readonly getOrphanUserMessageId: (...args: ReadonlyArray<never>) => unknown;

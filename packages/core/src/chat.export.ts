@@ -71,7 +71,10 @@ export class Chat {
     buildAssistantParts: MessageParts.buildAssistantParts,
     firstUserText: ChatRequest.firstUserText,
     getProviderMessages: OrphanTurn.getProviderMessages,
-    validateStoredUIMessages: UiMessages.validateStoredUIMessages,
+    validateStoredUIMessages: UiMessages.ChatUiMessages.validateStoredUIMessages,
+    toProtocolParts: UiMessages.ChatUiMessages.toProtocolParts,
+    toProtocolPartsEffect: UiMessages.ChatUiMessages.toProtocolPartsEffect,
+    fromProtocolMessage: UiMessages.ChatUiMessages.fromProtocolMessage,
   } as const;
 
   static readonly orphans = {

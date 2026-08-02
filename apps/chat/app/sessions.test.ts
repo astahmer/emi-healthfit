@@ -61,7 +61,7 @@ describe("offline session browsing", () => {
     expect(cache.setCachedThreads).not.toHaveBeenCalled();
   });
 
-  it("keeps temporary chats by stripping non-JSON message part fields", async () => {
+  it("keeps temporary chats with provider-neutral message parts", async () => {
     cache.updateCachedThread.mockResolvedValue(undefined);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ conversation: thread }), { status: 201 }),
@@ -93,7 +93,7 @@ describe("offline session browsing", () => {
       messages: [
         {
           role: "assistant",
-          parts: [{ type: "text", text: "Ghost reply", state: "done" }],
+          parts: [{ type: "text", text: "Ghost reply" }],
         },
       ],
     });

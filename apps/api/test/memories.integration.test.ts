@@ -49,7 +49,7 @@ describe("memories SQLite integration", () => {
       })),
       [
         { id: strengthId, content: "Tracks bench press", source: "manual" },
-        { id: morningRunsId, content: "prefers morning runs", source: "chat:message-a" },
+        { id: morningRunsId, content: "Prefers morning runs", source: "chat:message-a" },
       ],
     );
     assert.deepStrictEqual(

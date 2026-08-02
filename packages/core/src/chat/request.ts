@@ -1,5 +1,6 @@
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { ChatMessageSchema } from "../protocol/messages.ts";
 
 export const ChatModelConfigurationSchema = Schema.Struct({
   provider: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
@@ -21,7 +22,7 @@ export const ChatMemoryRequestSchema = Schema.Struct({
 });
 
 export const ChatStreamRequestSchema = Schema.Struct({
-  messages: Schema.mutable(Schema.Array(Schema.Unknown)),
+  messages: Schema.mutable(Schema.Array(ChatMessageSchema)),
   system: Schema.optional(Schema.String),
   config: ChatModelConfigurationSchema,
   title: Schema.optional(
@@ -46,12 +47,19 @@ const AttachmentPart = Schema.Union([
     url: Schema.optional(Schema.String),
   }),
   Schema.Struct({ type: Schema.Literal("image"), image: Schema.optional(Schema.String) }),
+  Schema.Struct({
+    type: Schema.Literal("file"),
+    file: Schema.Struct({
+      size: Schema.optional(Schema.Number),
+      url: Schema.String,
+    }),
+  }),
 ]);
 const maxAttachmentBytes = 5 * 1024 * 1024;
 const maxAttachmentsPerMessage = 10;
 
 export const firstUserText = (
-  messages: Array<{ role: string; parts: unknown[] }>,
+  messages: ReadonlyArray<{ role: string; parts: ReadonlyArray<unknown> }>,
 ): string | undefined => {
   for (const message of messages) {
     if (message.role !== "user") continue;
@@ -64,12 +72,15 @@ export const firstUserText = (
 };
 
 const attachmentSize = (part: typeof AttachmentPart.Type): number => {
+  if (part.type === "file" && "file" in part) {
+    return part.file.size ?? part.file.url.length;
+  }
   if (part.type === "file") return part.data?.length ?? part.url?.length ?? 0;
   return part.image?.length ?? 0;
 };
 
 export const validateChatAttachments = (
-  messages: Array<{ parts: unknown[] }>,
+  messages: ReadonlyArray<{ parts: ReadonlyArray<unknown> }>,
 ): string | undefined => {
   for (const message of messages) {
     const attachments = message.parts.flatMap((part) => {

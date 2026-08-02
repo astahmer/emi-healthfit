@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { Chat } from "@emi/core/chat";
 import { useCallback, useRef, useState, type MutableRefObject } from "react";
 import { type EventFrom, type SnapshotFrom } from "xstate";
 import { runApi } from "../api-client";
@@ -350,10 +351,11 @@ export const useChatSubmission = ({
             ];
       try {
         cancelActiveGeneration();
+        const protocolParts = await Chat.messages.toProtocolParts({ parts });
         await runApi((client) =>
           client.conversations.reviseMessage({
             params: { id: sessionId, messageId: userMessage.id },
-            payload: { parts, threadId: config.threadId },
+            payload: { parts: protocolParts, threadId: config.threadId },
           }),
         );
         recordClientEvent("client.retried");

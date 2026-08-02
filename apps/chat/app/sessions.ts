@@ -1,5 +1,5 @@
 import { safeValidateUIMessages, type UIMessage } from "ai";
-import * as Schema from "effect/Schema";
+import { Chat } from "@emi/core/chat";
 import { runApi } from "./api-client";
 import { notifyConversationsChanged } from "./conversation-events";
 import {
@@ -11,12 +11,6 @@ import {
   setCachedThreads,
   updateCachedThread,
 } from "./session-cache";
-
-const decodeJsonParts = Schema.decodeUnknownSync(
-  Schema.fromJsonString(Schema.Array(Schema.Unknown)),
-);
-
-const toWireMessageParts = (parts: UIMessage["parts"]) => decodeJsonParts(JSON.stringify(parts));
 
 export interface Thread {
   id: string;
@@ -87,13 +81,16 @@ export const createConversation = async (): Promise<string> => {
 export const createConversationWithMessages = async (
   messages: Array<{ role: "user" | "assistant" | "system"; parts: UIMessage["parts"] }>,
 ): Promise<Thread> => {
+  const protocolMessages = await Promise.all(
+    messages.map(async (message) => ({
+      role: message.role,
+      parts: await Chat.messages.toProtocolParts({ parts: message.parts }),
+    })),
+  );
   const data = await runApi((client) =>
     client.conversations.createWithMessages({
       payload: {
-        messages: messages.map((message) => ({
-          role: message.role,
-          parts: toWireMessageParts(message.parts),
-        })),
+        messages: protocolMessages,
       },
     }),
   );
@@ -113,7 +110,13 @@ export const fetchConversationMessages = async (
     const validated = await safeValidateUIMessages({
       messages: data.messages
         .filter((message) => message.role !== "summary")
-        .map((message) => ({ id: message.id, role: message.role, parts: message.parts })),
+        .map((message) =>
+          Chat.messages.fromProtocolMessage({
+            id: message.id,
+            role: message.role === "summary" ? "assistant" : message.role,
+            parts: message.parts,
+          }),
+        ),
     });
     if (!validated.success) throw validated.error;
     const messages = validated.data.map((message) => {

@@ -75,6 +75,7 @@ const chatBody = ({ conversationId, requestId }: { conversationId: string; reque
     messages: [
       {
         id: `message-${requestId}`,
+        createdAt: "2026-08-02T00:00:00.000Z",
         parts: [{ text: `User message ${requestId}`, type: "text" }],
         role: "user",
       },
