@@ -18,6 +18,7 @@
     "emi/no-effect-context-reprovide": "error",
     "emi/no-catch-if-tagged-error": "error",
     "emi/no-service-flat-map-facade": "error",
+    "emi/no-untyped-readable-stream-error": "error",
     "emi/no-export-forwarding": "error"
   },
   "ignorePatterns": [".next/**", ".alchemy/**", "dist/**", "coverage/**"]

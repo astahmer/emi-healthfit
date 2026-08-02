@@ -42,6 +42,8 @@ The current checks protect these boundaries:
   `Context.Service` with a `Layer`; the layer yields the implementation once, and callers yield
   that service once instead of rebuilding or re-providing it per operation;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
+- `Stream.fromReadableStream` and `Stream.fromAsyncIterable` map external causes into tagged
+  domain errors instead of returning the raw `unknown` cause;
 - generic chat rendering, scrolling, and runtime state belong in `@emi/core`, while products supply
   only product renderers, extensions, and configuration.
 
@@ -86,9 +88,10 @@ is also slop.
 `scripts/oxlint/emi-plugin.mjs` complements ast-grep with ESLint-compatible rules that need source
 context. It rejects abstract core domain classes, empty private constructors, export forwarding,
 raw provider/platform imports in generic protocol and server contracts, `Effect.run*` inside
-generic domain code, context capture/re-provision, predicate-based handling of tagged errors, and
-static service-operation facades. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise
-the plugin; `pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
+generic domain code, context capture/re-provision, predicate-based handling of tagged errors,
+static service-operation facades, and identity `onError` callbacks passed to
+`Stream.fromReadableStream`. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise the
+plugin; `pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
 Filesystem-aware boundary checks additionally reject legacy source paths, internal `index.ts`
 modules, raw SQL imports in generic handlers, and constructor-based server/adapter dependency
 injection.

@@ -55,6 +55,7 @@ const main = async () => {
       ["no-effect-context-reprovide", "context"],
       ["no-catch-if-tagged-error", "catch"],
       ["no-service-flat-map-facade", "flat-map"],
+      ["no-untyped-readable-stream-error", "stream-error"],
     ];
     await mkdir(effectDirectory, { recursive: true });
     for (const [fixtureName, suffix] of effectFixtures) {

@@ -32,6 +32,11 @@ const isCoreEffectImplementation = (filename) => {
   );
 };
 
+const isRepositorySource = (filename) => {
+  const normalizedFilename = normalizePath(filename);
+  return isCoreSource(filename) || normalizedFilename.includes("/apps/");
+};
+
 const forbiddenPlatformImports =
   /^(?:ai|drizzle-orm|kysely|kysely-d1|@cloudflare\/workers-types)$|^@ai-sdk\//;
 
@@ -194,6 +199,35 @@ const plugin = {
               node,
               message:
                 "Core public boundaries must enumerate exports explicitly; wildcard forwarding hides the contract.",
+            });
+          },
+        };
+      },
+    },
+    "no-untyped-readable-stream-error": {
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (!isRepositorySource(context.getFilename())) return;
+            if (node.callee?.type !== "MemberExpression") return;
+            if (node.callee.object?.type !== "Identifier") return;
+            if (
+              node.callee.object.name !== "Stream" ||
+              memberName(node.callee) !== "fromReadableStream"
+            )
+              return;
+            const source = context.sourceCode.getText(node);
+            if (!/fromReadableStream\s*\(\s*\{/s.test(source)) return;
+            if (
+              !/onError\s*:\s*(?:\(\s*)?([A-Za-z_$][\w$]*)(?:\s*\))?\s*=>\s*\1\b/s.test(
+                source,
+              )
+            )
+              return;
+            context.report({
+              node,
+              message:
+                "Map Stream.fromReadableStream onError causes into a tagged domain error; do not leak raw unknown failures.",
             });
           },
         };
