@@ -7,7 +7,10 @@ import {
   validateChatAttachments,
 } from "../chat/request.ts";
 import { buildAssistantParts } from "../chat/message-parts.ts";
-import { OpenAiChat, OpenAiCompatibleConfigurationSchema } from "../chat/openai.ts";
+import {
+  OpenAiChat,
+  OpenAiCompatibleConfigurationSchema,
+} from "../adapters/ai-sdk/openai-chat.ts";
 import { createChatStreamResponse } from "../chat/stream-response.ts";
 import { validateStoredUIMessages } from "../chat/ui-messages.ts";
 import { ConversationDatabase } from "../server/db/conversations.ts";

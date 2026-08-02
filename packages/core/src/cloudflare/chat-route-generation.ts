@@ -3,7 +3,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { UIMessageChunk } from "ai";
-import { OpenAiChat } from "../chat/openai.ts";
+import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import { GenerationReplay } from "../server/generation-replay.ts";
 import type {
   GenerationChunkRecord,

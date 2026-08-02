@@ -17,6 +17,16 @@ import * as Stream from "effect/Stream";
 import type { ChatMessage } from "../protocol/messages.ts";
 import type { MessagePart } from "../protocol/parts.ts";
 import type { GenerationEvent, ModelGenerationInput, ModelProvider } from "../protocol/model.ts";
+import {
+  OpenAiChat,
+  OpenAiChatError,
+  OpenAiCompatibleConfigurationSchema,
+  type ChatStreamOptions,
+  type ChatStreamPart,
+  type ChatStreamRequest,
+  type GenerateTextConfiguration,
+  type OpenAiCompatibleConfiguration,
+} from "./ai-sdk/openai-chat.ts";
 
 export interface AiSdkModelConfiguration {
   readonly model: string;
@@ -309,3 +319,16 @@ export class AiSdkModelProvider extends Context.Service<
     });
   }
 }
+
+export {
+  OpenAiChat,
+  OpenAiChatError,
+  OpenAiCompatibleConfigurationSchema,
+};
+export type {
+  ChatStreamOptions,
+  ChatStreamPart,
+  ChatStreamRequest,
+  GenerateTextConfiguration,
+  OpenAiCompatibleConfiguration,
+};

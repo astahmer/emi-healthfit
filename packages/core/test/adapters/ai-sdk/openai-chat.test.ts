@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { OpenAiChat } from "../../src/chat/openai.ts";
+import { OpenAiChat } from "../../../src/adapters/ai-sdk/openai-chat.ts";
 
 describe("@emi/core/chat", () => {
   it("normalizes JSON and list-shaped model output", () => {

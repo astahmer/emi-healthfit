@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { ChatModelConfigurationSchema } from "../chat/request.ts";
-import { OpenAiChat } from "../chat/openai.ts";
+import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import type { MemoryReaderShape, MemorySummaryStoreShape } from "../server/ports/memory-store.ts";
 
 export class ChatRouteSupport {

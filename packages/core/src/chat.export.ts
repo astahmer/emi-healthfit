@@ -7,7 +7,7 @@ import {
   type ChatStreamOptions as ChatStreamOptionsType,
   type ChatStreamPart as ChatStreamPartType,
   type GenerateTextConfiguration as GenerateTextConfigurationType,
-} from "./chat/openai.ts";
+} from "./adapters/ai-sdk/openai-chat.ts";
 import * as OperationBudget from "./chat/operation-budget.ts";
 import * as OrphanTurn from "./chat/orphan-turn.ts";
 import * as ChatRequest from "./chat/request.ts";
