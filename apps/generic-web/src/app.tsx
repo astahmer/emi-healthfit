@@ -1,51 +1,21 @@
 import { createAuthClient } from "better-auth/react";
-import { useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { createChatRuntime } from "@emi/core";
 import { ChatApp } from "@emi/core/components/styled";
 import { ChatProvider } from "@emi/core/react";
-import { AnonymousSession } from "@emi/core/web";
+import { AnonymousSession, AuthSession } from "@emi/core/web";
 
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
 
-type AuthState = "signed-out" | "starting" | "authenticated" | "error";
-
 const AuthGate = ({
-  apiOrigin,
-  onAuthenticated,
+  session,
+  status,
 }: {
-  readonly apiOrigin: string;
-  readonly onAuthenticated: () => void;
+  readonly session: AuthSession;
+  readonly status: "signed-out" | "starting" | "authenticated" | "error";
 }) => {
-  const [authState, setAuthState] = useState<AuthState>("signed-out");
-  const authClient = useMemo(
-    () => createAuthClient({ baseURL: apiOrigin || undefined }),
-    [apiOrigin],
-  );
-  const rawFetch = useMemo(() => window.fetch.bind(window), []);
-
-  const continueAsGuest = async () => {
-    setAuthState("starting");
-    const started = await AnonymousSession.start({ apiOrigin, fetch: rawFetch });
-    if (!started) {
-      setAuthState("error");
-      return;
-    }
-    setAuthState("authenticated");
-    onAuthenticated();
-  };
-
-  const continueWithGoogle = async () => {
-    setAuthState("starting");
-    const result = await authClient.signIn.social({
-      provider: "google",
-      callbackURL: window.location.href,
-      errorCallbackURL: window.location.href,
-    });
-    if (result.error !== null) setAuthState("error");
-  };
-
-  if (authState === "authenticated") return null;
+  if (status === "authenticated") return null;
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[radial-gradient(circle_at_top,hsl(var(--muted)),transparent_45%)] px-6">
@@ -62,11 +32,11 @@ const AuthGate = ({
         </div>
         <button
           className="h-12 w-full rounded-xl bg-primary px-4 font-medium text-primary-foreground disabled:opacity-60"
-          onClick={() => void continueAsGuest()}
-          disabled={authState === "starting"}
+          onClick={session.signInAsGuest}
+          disabled={status === "starting"}
           type="button"
         >
-          {authState === "starting" ? "Connecting…" : "Continue as guest"}
+          {status === "starting" ? "Connecting…" : "Continue as guest"}
         </button>
         <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
           <span className="h-px flex-1 bg-border" />
@@ -75,13 +45,13 @@ const AuthGate = ({
         </div>
         <button
           className="h-12 w-full rounded-xl border bg-background px-4 font-medium disabled:opacity-60"
-          onClick={() => void continueWithGoogle()}
-          disabled={authState === "starting"}
+          onClick={session.signInWithOAuth}
+          disabled={status === "starting"}
           type="button"
         >
           Continue with Google
         </button>
-        {authState === "error" && (
+        {status === "error" && (
           <p className="mt-4 text-center text-sm text-destructive" role="alert">
             Sign-in could not be started. Try again.
           </p>
@@ -96,14 +66,38 @@ const AuthGate = ({
 
 export const App = () => {
   const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
-  const [authenticated, setAuthenticated] = useState(false);
+  const rawFetch = useMemo(() => window.fetch.bind(window), []);
+  const authClient = useMemo(
+    () => createAuthClient({ baseURL: apiOrigin || undefined }),
+    [apiOrigin],
+  );
+  const authSession = useMemo(
+    () =>
+      new AuthSession({
+        signInAsGuest: () => AnonymousSession.start({ apiOrigin, fetch: rawFetch }),
+        signInWithOAuth: async () => {
+          const result = await authClient.signIn.social({
+            provider: "google",
+            callbackURL: window.location.href,
+            errorCallbackURL: window.location.href,
+          });
+          return result.error === null;
+        },
+      }),
+    [apiOrigin, authClient, rawFetch],
+  );
+  const authStatus = useSyncExternalStore(
+    authSession.subscribe,
+    authSession.getState,
+    authSession.getState,
+  );
   const fetcher = useMemo(
     () =>
       AnonymousSession.createFetch({
         apiOrigin,
-        fetch: window.fetch.bind(window),
+        fetch: rawFetch,
       }),
-    [apiOrigin],
+    [apiOrigin, rawFetch],
   );
   const runtime = useMemo(
     () =>
@@ -143,8 +137,7 @@ export const App = () => {
     [apiOrigin, fetcher],
   );
 
-  if (!authenticated)
-    return <AuthGate apiOrigin={apiOrigin} onAuthenticated={() => setAuthenticated(true)} />;
+  if (authStatus !== "authenticated") return <AuthGate session={authSession} status={authStatus} />;
 
   return (
     <ChatProvider runtime={runtime}>

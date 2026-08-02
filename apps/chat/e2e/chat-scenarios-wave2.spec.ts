@@ -526,7 +526,7 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
   await expect(nextWorkoutTool).toHaveAttribute("open", "");
   await expect(recoveryTool.getByText("Ready", { exact: true })).toBeVisible();
   await expect(page.getByText("Bench Press")).toBeVisible();
-  await expect(page.getByText("Metric")).toBeVisible();
+  await expect(page.getByText("Steps", { exact: true })).toBeVisible();
   await expect(page.getByText("flat")).toBeVisible();
   await expect(page.getByText("Sleep trend", { exact: true })).toBeVisible();
   await expect(page.getByText("Current streak")).toBeVisible();
@@ -551,7 +551,7 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
 
   await page.reload();
   await expect(page.getByText("Bench Press")).toBeVisible();
-  await expect(page.getByText("Metric")).toBeVisible();
+  await expect(page.getByText("Steps", { exact: true })).toBeVisible();
   await expect(page.getByText("Sleep trend", { exact: true })).toBeVisible();
   await expect(page.getByText("Training load", { exact: true })).toBeVisible();
   await expect(page.getByText("Suggested next workout")).toBeVisible();

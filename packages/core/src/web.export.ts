@@ -5,6 +5,7 @@ import {
   validateAttachments,
 } from "./web/attachments/attachments.ts";
 import { AnonymousSession } from "./web/auth/anonymous-session.ts";
+import { AuthSession } from "./web/auth/auth-session.ts";
 import { ChatShell } from "./web/chat-shell.tsx";
 import { CoreWebProvider, useCoreWebContributions, useToolRenderer } from "./web/contributions.tsx";
 import type {
@@ -70,6 +71,7 @@ export {
   conversationMarkdown,
   CoreWebProvider,
   AnonymousSession,
+  AuthSession,
   createConversationClient,
   getChildMessages,
   getConversationViewMessages,

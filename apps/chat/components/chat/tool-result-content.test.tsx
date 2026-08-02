@@ -236,7 +236,7 @@ describe("ToolResultContent", () => {
 
     expect(screen.getByText("Bench Press")).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
-    expect(screen.getByText("Metric")).toBeInTheDocument();
+    expect(screen.getByText("Steps")).toBeInTheDocument();
     expect(screen.getByText("flat")).toBeInTheDocument();
     expect(screen.getByText("Deadlift")).toBeInTheDocument();
     expect(view.container.querySelector(".recharts-responsive-container")).not.toBeNull();

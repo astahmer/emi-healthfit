@@ -83,6 +83,7 @@ export const workspaceConfig = (): string =>
     '  "@types/react-dom": "19.2.3"',
     '  "@testing-library/jest-dom": "6.9.1"',
     '  "@testing-library/react": "16.3.2"',
+    '  "@testing-library/user-event": "14.6.1"',
     '  "@vitejs/plugin-react": "6.0.3"',
     '  ai: "6.0.224"',
     '  alchemy: "2.0.0-beta.59"',
@@ -180,6 +181,7 @@ export const webPackageJson = (context: TemplateContext): string =>
       },
       dependencies: {
         "@emi/core": coreDependency(context),
+        "better-auth": "catalog:",
         "class-variance-authority": "catalog:",
         clsx: "catalog:",
         effect: "catalog:",

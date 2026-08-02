@@ -138,7 +138,7 @@ export const MessageRail = ({
               Jump to a previous message you sent
             </SheetDescription>
           </SheetHeader>
-          <div className="overflow-y-auto px-2 py-2">
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
             {messages.map((message) => (
               <button
                 key={message.id}
