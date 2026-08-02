@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema";
+import type * as Stream from "effect/Stream";
 import { GenerationIdSchema } from "./ids.ts";
 import { ChatMessageSchema, type ChatMessage } from "./messages.ts";
 import { MessagePartSchema, type MessagePart } from "./parts.ts";
@@ -25,8 +26,16 @@ export const GenerationEventSchema = Schema.Union([
 ]);
 export type GenerationEvent = typeof GenerationEventSchema.Type;
 
+export interface ModelProviderError {
+  readonly code: string;
+  readonly message: string;
+  readonly retryable: boolean;
+}
+
 export interface ModelProvider {
-  readonly generate: (input: ModelGenerationInput) => AsyncIterable<GenerationEvent>;
+  readonly generate: (
+    input: ModelGenerationInput,
+  ) => Stream.Stream<GenerationEvent, ModelProviderError>;
 }
 
 export type { ChatMessage, MessagePart, TransportError };

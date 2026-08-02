@@ -34,6 +34,7 @@ export type {
   ModelConfiguration,
   ModelGenerationInput,
   ModelProvider,
+  ModelProviderError,
   TransportError,
 } from "./model.ts";
 export type { ErrorResponseDto } from "./errors.ts";

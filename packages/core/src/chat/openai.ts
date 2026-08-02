@@ -27,6 +27,7 @@ export interface OpenAiCompatibleConfiguration {
   apiKey: string;
   model: string;
   system?: string | undefined;
+  fetch?: typeof globalThis.fetch;
 }
 
 export interface ChatStreamRequest {
@@ -35,6 +36,7 @@ export interface ChatStreamRequest {
   tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
   configuration: OpenAiCompatibleConfiguration;
   webSearch?: boolean | undefined;
+  signal?: AbortSignal | undefined;
 }
 
 export interface GenerateTextConfiguration {
@@ -130,6 +132,7 @@ export const createChatStream = async ({
   const openai = createOpenAI({
     apiKey: request.configuration.apiKey,
     baseURL: request.configuration.baseUrl,
+    ...(request.configuration.fetch === undefined ? {} : { fetch: request.configuration.fetch }),
   });
   const system = request.system ?? request.configuration.system;
   const model = request.webSearch
@@ -147,6 +150,7 @@ export const createChatStream = async ({
       executeTool,
     }),
     maxOutputTokens: 4096,
+    abortSignal: request.signal,
     stopWhen: [isLoopFinished(), stepCountIs(8)],
     onChunk,
     onError,
