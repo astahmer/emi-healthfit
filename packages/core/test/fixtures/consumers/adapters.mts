@@ -1,11 +1,18 @@
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
+// @ts-ignore R4 AI SDK adapter is implemented in a later packet.
 import { AiSdkModelProvider } from "@emi/core/adapters/ai-sdk";
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
 import { CloudflareRepositories } from "@emi/core/adapters/cloudflare";
 
 const model = AiSdkModelProvider.create({ model: "example", apiKey: "test" });
 const repositories = CloudflareRepositories.fromDatabase({
-  database: { prepare: () => ({ bind: () => undefined }) },
+  database: {
+    prepare: () => ({
+      bind: () => ({
+        all: async () => ({ results: [] }),
+        first: async () => null,
+        run: async () => ({ meta: { changes: 0 } }),
+      }),
+    }),
+  },
 });
 
 void model;

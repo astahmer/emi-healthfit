@@ -2,7 +2,11 @@ import type { ChatRepositories } from "./server";
 
 export interface CloudflareDatabase {
   prepare(query: string): {
-    bind(...values: ReadonlyArray<unknown>): unknown;
+    bind(...values: ReadonlyArray<unknown>): {
+      all(): Promise<{ results: ReadonlyArray<unknown> }>;
+      first(): Promise<unknown | null>;
+      run(): Promise<{ meta: { changes: number } }>;
+    };
   };
 }
 

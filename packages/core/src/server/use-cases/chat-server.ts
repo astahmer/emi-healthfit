@@ -58,6 +58,7 @@ export class ChatServer {
           subject: principal.subject,
           requestId: decodedInput.requestId,
           conversationId: decodedInput.conversationId,
+          model: options.configuration.model,
         });
         yield* options.repositories.messages.append({
           subject: principal.subject,

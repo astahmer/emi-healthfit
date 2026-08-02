@@ -35,6 +35,7 @@ export interface GenerationRepository {
     readonly subject: string;
     readonly requestId: string;
     readonly conversationId: string;
+    readonly model?: string;
   }) => Effect.Effect<void, ChatServerError>;
   readonly append: (input: {
     readonly subject: string;
