@@ -11,12 +11,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { GenericChatSettings } from "../../chat/settings.ts";
-import type {
-  Conversation,
-  ConversationThread,
-  Memory,
-} from "../chat-runtime/conversation-client.ts";
+import type { Conversation, Memory, Thread } from "../../protocol/index.ts";
+import type { ChatSettingsState } from "../../runtime/index.ts";
 import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.tsx";
@@ -110,9 +106,9 @@ export const ConversationList = ({
   onDeleteConversation,
   onOpenThread,
 }: {
-  conversations: Conversation[];
+  conversations: ReadonlyArray<Conversation>;
   conversationId: string | undefined;
-  threads: ConversationThread[];
+  threads: ReadonlyArray<Thread>;
   threadId: string | undefined;
   search: string;
   onSearchChange: (search: string) => void;
@@ -261,7 +257,7 @@ export const MemoryPanel = ({
   open: boolean;
   search: string;
   draft: string;
-  memories: Memory[];
+  memories: ReadonlyArray<Memory>;
   onOpenChange: (open: boolean) => void;
   onSearchChange: (search: string) => void;
   onDraftChange: (draft: string) => void;
@@ -328,13 +324,13 @@ export const SettingsPanel = ({
   onSettingsChange,
   onTemporaryChange,
 }: {
-  settings: GenericChatSettings;
+  settings: ChatSettingsState;
   temporary: boolean;
   metadata: string;
   online: boolean;
   version: string;
-  releaseNotes: string[];
-  onSettingsChange: (patch: Partial<GenericChatSettings>) => void;
+  releaseNotes: ReadonlyArray<string>;
+  onSettingsChange: (patch: Partial<ChatSettingsState>) => void;
   onTemporaryChange: (temporary: boolean) => void;
 }) => (
   <section className="flex flex-col gap-4 border-t pt-3">

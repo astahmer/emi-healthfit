@@ -8,14 +8,11 @@ const rootDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryDirectory = dirname(rootDirectory);
 const workerOrigin = "http://127.0.0.1:8787";
 const withGenericAuthOrigin = (contents) => {
-  const lines = contents.split("\n");
-  const index = lines.findIndex((line) => line.startsWith("BETTER_AUTH_URL="));
-  if (index === -1) {
-    lines.push("BETTER_AUTH_URL=http://localhost:3233");
-  } else {
-    lines[index] = "BETTER_AUTH_URL=http://localhost:3233";
-  }
-  return lines.join("\n");
+  const lines = contents
+    .split("\n")
+    .filter((line) => line.startsWith("BETTER_AUTH_SECRET="));
+  lines.push("BETTER_AUTH_URL=http://localhost:3233");
+  return `${lines.join("\n")}\n`;
 };
 
 const createWorkerEnvironmentFile = async () => {
