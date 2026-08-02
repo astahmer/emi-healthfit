@@ -57,13 +57,18 @@ const scanText = async (path, patterns) => {
 
 const scanForwardingClasses = async (path) => {
   const source = await readFile(path, "utf8");
+  const namespaceImports = new Set(
+    [...source.matchAll(/import\s+\*\s+as\s+([A-Z][A-Za-z0-9_]*)\s+from\s+["'][^"']+["']/g)].map(
+      (match) => match[1],
+    ),
+  );
   const classPattern = /(?:export\s+)?class\s+([A-Z][A-Za-z0-9_]*)\b([\s\S]*?)(?=(?:\n|^)\s*(?:export\s+)?class\s+[A-Z][A-Za-z0-9_]*\b|$)/g;
   for (const classMatch of source.matchAll(classPattern)) {
     const className = classMatch[1];
     const classBody = classMatch[2];
     const aliasPattern = /(?:^|\n)[\t ]*(?!(?:private|protected)\s+)static\s+(?:readonly\s+)?[A-Za-z_$][\w$]*\s*=\s*([A-Z][A-Za-z0-9_]*)\.[A-Za-z_$][\w$]*/gm;
     for (const aliasMatch of classBody.matchAll(aliasPattern)) {
-      if (aliasMatch[1] === className) continue;
+      if (aliasMatch[1] === className || namespaceImports.has(aliasMatch[1])) continue;
       report(
         path,
         lineNumber(source, classMatch.index + classMatch[0].indexOf(aliasMatch[0])),
