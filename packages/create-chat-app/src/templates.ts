@@ -65,12 +65,13 @@ export const workspacePackageJson = (context: TemplateContext): string =>
     2,
   ) + "\n";
 
-export const workspaceConfig = (): string =>
+export const workspaceConfig = (context?: TemplateContext): string =>
   lines([
     "packages:",
     '  - "core"',
     '  - "web"',
     '  - "worker"',
+    ...(context?.distributionMode === "owned" ? ['  - "migration"'] : []),
     "catalog:",
     '  "@ai-sdk/openai": "3.0.84"',
     '  "@cloudflare/workers-types": "4.20250805.0"',
@@ -92,6 +93,7 @@ export const workspaceConfig = (): string =>
     '  clsx: "2.1.1"',
     '  drizzle-kit: "0.31.10"',
     '  drizzle-orm: "0.45.2"',
+    '  esbuild: "0.28.1"',
     '  jsdom: "29.1.1"',
     '  kysely: "0.29.3"',
     '  kysely-d1: "0.4.0"',
@@ -104,7 +106,6 @@ export const workspaceConfig = (): string =>
     '  react-dom: "19.2.7"',
     '  react-markdown: "10.1.0"',
     '  remark-gfm: "4.0.1"',
-    '  playwright-bdd: "9.2.0"',
     '  tailwind-merge: "3.6.0"',
     '  tailwindcss: "4.3.2"',
     '  tw-animate-css: "1.4.0"',
@@ -171,8 +172,7 @@ export const webPackageJson = (context: TemplateContext): string =>
         start: "vite preview --port 3233",
         test: "vitest run --exclude test/api.integration.test.ts",
         "test:api": "vitest run --config vitest.integration.config.ts",
-        "test:e2e": "bddgen && playwright test",
-        "test:e2e:bddgen": "bddgen",
+        "test:e2e": "playwright test",
         "test:e2e:install": "playwright install chromium",
         format: "oxfmt --check",
         "format:fix": "oxfmt",
@@ -200,7 +200,6 @@ export const webPackageJson = (context: TemplateContext): string =>
         "@vitejs/plugin-react": "catalog:",
         oxfmt: "catalog:",
         oxlint: "catalog:",
-        "playwright-bdd": "catalog:",
         tailwindcss: "catalog:",
         typescript: "catalog:",
         vite: "catalog:",
@@ -276,6 +275,7 @@ export const workerPackageJson = (context: TemplateContext): string =>
       },
       dependencies: {
         "@emi/core": coreDependency(context),
+        ...(context.distributionMode === "owned" ? { "@emi/core-migration": "workspace:*" } : {}),
         alchemy: "catalog:",
         "drizzle-orm": "catalog:",
         effect: "catalog:",

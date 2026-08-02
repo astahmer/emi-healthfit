@@ -14,7 +14,7 @@ import {
 const packageDir = fileURLToPath(new URL("..", import.meta.url));
 const repoRoot = join(packageDir, "..", "..");
 
-describe("generated fixture never contains packages/core/src internals", () => {
+describe("generated fixture keeps owned source boundaries explicit", () => {
   let targetDir = "";
 
   before(async () => {
@@ -26,7 +26,7 @@ describe("generated fixture never contains packages/core/src internals", () => {
     if (targetDir !== "") await rm(targetDir, { recursive: true, force: true });
   });
 
-  it("hashes every generated file against packages/core/src and finds no copy", async () => {
+  it("hashes every non-owned generated file against core sources and finds no copy", async () => {
     const coreSourceHashes = await buildCoreSourceHashIndex(repoRoot);
     assert.ok(
       coreSourceHashes.size > 0,

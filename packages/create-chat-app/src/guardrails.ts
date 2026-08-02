@@ -66,7 +66,11 @@ export const scanGeneratedTreeForCopiedCoreSource = async (options: {
   const violationLists = await Promise.all(
     files.map(async (file) => {
       const relPath = relative(options.generatedRoot, file);
-      if (options.ownedCore === true && relPath.startsWith("core/")) return [];
+      if (
+        options.ownedCore === true &&
+        (relPath.startsWith("core/") || relPath.startsWith("migration/"))
+      )
+        return [];
       const contents = await readFile(file);
       const violations: GuardrailViolation[] = [];
       if (options.coreSourceHashes.has(hashContents(contents))) {

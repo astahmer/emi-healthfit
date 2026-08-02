@@ -26,16 +26,15 @@ describe("buildGeneratedFiles", () => {
       ".oxfmtrc.json",
       "core/package.json",
       "core/source-manifest.json",
-      "core/src/chat/index.ts",
-      "core/test/chat/request.test.ts",
+      "core/src/protocol/index.ts",
+      "core/test/public-api/export-surface.test.ts",
+      "migration/package.json",
+      "migration/src/server.ts",
       "core/tsconfig.json",
       "web/src/app.tsx",
       "web/postcss.config.mjs",
       "web/test/api.integration.test.ts",
       "web/test/e2e/generic-chat.spec.ts",
-      "web/test/e2e/features/compact.feature",
-      "web/test/e2e/features/guest.feature",
-      "web/test/e2e/features/message-actions.feature",
       "web/test/e2e/mock-api.ts",
       "web/test/e2e/layout.spec.ts",
       "worker/src/generic.worker.ts",
@@ -79,18 +78,23 @@ describe("buildGeneratedFiles", () => {
 
     assert.equal(workerPackageJson.name, "acme-chat-worker");
     assert.equal(workerPackageJson.dependencies["@emi/core"], DEFAULT_CORE_VERSION);
+    assert.equal(workerPackageJson.dependencies["@emi/core-migration"], "workspace:*");
     assert.equal(workerPackageJson.devDependencies["@effect/platform-node"], "catalog:");
   });
 
   it("keeps the standalone catalog limited to generated project dependencies", () => {
-    const config = workspaceConfig();
+    const config = workspaceConfig({
+      appName: "Acme Chat",
+      coreVersion: DEFAULT_CORE_VERSION,
+      distributionMode: "owned",
+      slug: "acme-chat",
+    });
 
     for (const dependency of [
       "@ai-sdk/openai",
       "@playwright/test",
       "alchemy",
       "better-auth",
-      "playwright-bdd",
       "react",
       "wrangler",
     ]) {
@@ -174,8 +178,7 @@ describe("buildGeneratedFiles", () => {
       packageJson.scripts["test:api"],
       "vitest run --config vitest.integration.config.ts",
     );
-    assert.equal(packageJson.scripts["test:e2e"], "bddgen && playwright test");
-    assert.equal(packageJson.scripts["test:e2e:bddgen"], "bddgen");
+    assert.equal(packageJson.scripts["test:e2e"], "playwright test");
   });
 
   it("generates the core streaming and replay worker routes", () => {

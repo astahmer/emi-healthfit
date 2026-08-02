@@ -46,10 +46,7 @@ const genericSourceFile = (path: string): string =>
 const coreSourcePackageJson = (): string => {
   const packageJson = JSON.parse(genericSourceFile("packages/core/package.json"));
   const publicApi = packageJson.emi.publicApi;
-  const sourcePaths = {
-    ...publicApi.entrypointPaths,
-    ...publicApi.legacyEntrypointPaths,
-  };
+  const sourcePaths = publicApi.entrypointPaths;
   packageJson.private = true;
   packageJson.files = ["src", "test", "PUBLISH.md", "source-manifest.json"];
   packageJson.exports = Object.fromEntries(
@@ -63,6 +60,13 @@ const coreSourcePackageJson = (): string => {
     provenance: `@emi/core source catalog ${publicApi.version}`,
     generatedFrom: "./package.json > emi.publicApi",
   };
+  return `${JSON.stringify(packageJson, null, 2)}\n`;
+};
+
+const migrationSourcePackageJson = (): string => {
+  const packageJson = JSON.parse(genericSourceFile("packages/core-migration/package.json"));
+  packageJson.private = true;
+  packageJson.dependencies["@emi/core"] = "workspace:*";
   return `${JSON.stringify(packageJson, null, 2)}\n`;
 };
 
@@ -111,7 +115,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     context.distributionMode === "owned"
       ? [
           { path: "package.json", contents: templates.workspacePackageJson(context) },
-          { path: "pnpm-workspace.yaml", contents: templates.workspaceConfig() },
+          { path: "pnpm-workspace.yaml", contents: templates.workspaceConfig(context) },
           { path: ".oxfmtrc.json", contents: templates.workspaceFormatConfig() },
           { path: "core/package.json", contents: coreSourcePackageJson() },
           {
@@ -124,6 +128,11 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
           },
           ...corePackageFiles({ sourcePath: "packages/core/src", targetPath: "core/src" }),
           ...corePackageFiles({ sourcePath: "packages/core/test", targetPath: "core/test" }),
+          { path: "migration/package.json", contents: migrationSourcePackageJson() },
+          ...corePackageFiles({
+            sourcePath: "packages/core-migration/src",
+            targetPath: "migration/src",
+          }),
         ]
       : [];
   return [
