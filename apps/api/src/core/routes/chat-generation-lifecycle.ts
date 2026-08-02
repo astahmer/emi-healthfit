@@ -41,7 +41,7 @@ import {
   reviseConversationMessage,
   saveConversationMessages,
 } from "../db/conversations.ts";
-import type { ConversationDatabaseSchema } from "@emi/core/server";
+import type { ConversationDatabaseSchema } from "@emi/core/server/legacy";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
 import { corsHeaders } from "../../platform/http/assets-cors.ts";

@@ -22,4 +22,4 @@ export {
   type SuggestionsRow,
   type ThreadMessageRow,
   type ThreadRow,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";

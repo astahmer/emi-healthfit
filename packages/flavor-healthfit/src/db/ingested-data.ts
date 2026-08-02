@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Compilable } from "kysely";
-import { runBatches, runTransaction, type QueryDatabaseClient } from "@emi/core/server";
+import { runBatches, runTransaction, type QueryDatabaseClient } from "@emi/core/server/legacy";
 import type {
   BodyMetricRow,
   DailyActivityRow,

@@ -1,55 +1,61 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { ChatMessage, Conversation, GenerationEvent, ModelConfiguration } from "./protocol";
+import type {
+  ChatMessage,
+  Conversation,
+  GenerationEvent,
+  ModelConfiguration,
+} from "../../protocol/index.ts";
+import type { ChatServerError } from "../use-cases/chat-server.ts";
 
-export interface AuthPrincipal {
+export interface ChatServerPrincipal {
   readonly subject: string;
 }
 
 export interface AuthPort {
-  authenticate(request: Request): Effect.Effect<AuthPrincipal, ChatServerError>;
+  readonly authenticate: (request: Request) => Effect.Effect<ChatServerPrincipal, ChatServerError>;
 }
 
 export interface ConversationRepository {
-  list(input: {
+  readonly list: (input: {
     readonly subject: string;
-  }): Effect.Effect<ReadonlyArray<Conversation>, ChatServerError>;
+  }) => Effect.Effect<ReadonlyArray<Conversation>, ChatServerError>;
 }
 
 export interface MessageRepository {
-  append(input: {
+  readonly append: (input: {
     readonly subject: string;
     readonly conversationId: string;
     readonly message: ChatMessage;
-  }): Effect.Effect<void, ChatServerError>;
+  }) => Effect.Effect<void, ChatServerError>;
 }
 
 export interface GenerationRepository {
-  admit(input: {
+  readonly admit: (input: {
     readonly subject: string;
     readonly requestId: string;
     readonly conversationId: string;
-  }): Effect.Effect<void, ChatServerError>;
-  append(input: {
+  }) => Effect.Effect<void, ChatServerError>;
+  readonly append: (input: {
     readonly subject: string;
     readonly requestId: string;
     readonly event: GenerationEvent;
-  }): Effect.Effect<void, ChatServerError>;
+  }) => Effect.Effect<void, ChatServerError>;
 }
 
 export interface MemoryRepository {
-  list(input: {
+  readonly list: (input: {
     readonly subject: string;
-  }): Effect.Effect<ReadonlyArray<{ readonly id: string }>, ChatServerError>;
+  }) => Effect.Effect<ReadonlyArray<{ readonly id: string }>, ChatServerError>;
 }
 
 export interface ChatModel {
-  generate(input: {
+  readonly generate: (input: {
     readonly subject: string;
     readonly messages: ReadonlyArray<ChatMessage>;
     readonly configuration: ModelConfiguration;
     readonly signal?: AbortSignal;
-  }): Stream.Stream<GenerationEvent, ChatServerError>;
+  }) => Stream.Stream<GenerationEvent, ChatServerError>;
 }
 
 export interface ChatRepositories {
@@ -65,22 +71,4 @@ export interface ChatServerOptions {
   readonly model: ChatModel;
   readonly configuration: ModelConfiguration;
   readonly extensions?: ReadonlyArray<unknown>;
-}
-
-export declare class ChatServerError extends Error {
-  readonly kind: "unauthorized" | "conflict" | "invalid-input" | "internal";
-}
-
-export declare class ChatServer {
-  constructor(options: ChatServerOptions);
-  listConversations(request: Request): Effect.Effect<ReadonlyArray<Conversation>, ChatServerError>;
-  generate(
-    request: Request,
-    input: {
-      readonly requestId: string;
-      readonly conversationId: string;
-      readonly message: ChatMessage;
-    },
-  ): Stream.Stream<GenerationEvent, ChatServerError>;
-  handle(request: Request): Effect.Effect<Response, ChatServerError>;
 }

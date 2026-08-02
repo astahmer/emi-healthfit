@@ -36,7 +36,7 @@ import {
   type HealthfitDatabaseSchema,
   type HealthfitToolsDatabaseSchema,
 } from "@emi/flavor-healthfit";
-import { composeSystemPrompt } from "@emi/core/server";
+import { composeSystemPrompt } from "@emi/core/server/legacy";
 import { ensureHevyFresh } from "./healthfit/integrations/hevy/hevy-sync.ts";
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 const chatAppDirectory = "../chat";

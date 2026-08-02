@@ -11,7 +11,7 @@ import {
   getConversationMessages,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 

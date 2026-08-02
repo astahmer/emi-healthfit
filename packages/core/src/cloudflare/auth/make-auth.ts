@@ -2,7 +2,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/d1";
-import { authSchema } from "@emi/core/server";
+import { authSchema } from "@emi/core/server/legacy";
 
 export interface AuthConfiguration {
   appName: string;

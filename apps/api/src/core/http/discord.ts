@@ -9,7 +9,7 @@ import {
   revokeDiscordLinkCode,
   unlinkDiscordAccount,
   type DiscordDatabaseSchema,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 import { CurrentUser } from "../auth/request-auth.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 

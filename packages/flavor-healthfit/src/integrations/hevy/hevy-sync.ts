@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { QueryDatabaseClient } from "@emi/core/server";
+import type { QueryDatabaseClient } from "@emi/core/server/legacy";
 import type { HealthfitDatabaseSchema } from "../../db/schema.ts";
 import {
   decryptHevyApiKey,

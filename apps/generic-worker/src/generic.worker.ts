@@ -17,7 +17,7 @@ import {
   type AuthDatabaseSchema,
   type ConversationDatabaseSchema,
   type MemoryDatabaseSchema,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 import { genericWorkerAppConfig } from "./app-config.ts";
 
 const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {

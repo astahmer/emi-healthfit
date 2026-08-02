@@ -9,7 +9,7 @@ import * as Schema from "effect/Schema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
-import type { MemoryDatabaseSchema } from "@emi/core/server";
+import type { MemoryDatabaseSchema } from "@emi/core/server/legacy";
 import { CurrentUser } from "./core/auth/request-auth.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "./platform/db/client.ts";
 import {

@@ -1,1 +1,1 @@
-export { getRevisionDeletionIds } from "@emi/core/server";
+export { getRevisionDeletionIds } from "@emi/core/server/legacy";

@@ -13,7 +13,7 @@ import * as Schema from "effect/Schema";
 import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { extractMemories, generateConversationSummary } from "@emi/core/chat";
-import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core/server";
+import { makeConversationStore, type ConversationDatabaseSchema } from "@emi/core/server/legacy";
 import { CurrentRequestContext, CurrentUser } from "../auth/request-auth.ts";
 import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { getGeneration, recordChatEvent } from "../chat/generation-store.ts";

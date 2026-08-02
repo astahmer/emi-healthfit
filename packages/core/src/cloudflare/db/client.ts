@@ -3,7 +3,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import { Kysely, type Compilable } from "kysely";
 import { D1Dialect } from "kysely-d1";
-import type { QueryDatabaseClient } from "@emi/core/server";
+import type { QueryDatabaseClient } from "@emi/core/server/legacy";
 
 export type RawQueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
 

@@ -12,7 +12,7 @@ import {
   withRequestContext,
   type AuthPrincipal,
   type RequestContext,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 import type { CloudflareQueryDatabaseClient } from "../db/client.ts";
 import { anonymousSignInPath, createAnonymousSessionResponse } from "./anonymous-session.ts";
 import { makeAuth, type AuthConfiguration } from "./make-auth.ts";

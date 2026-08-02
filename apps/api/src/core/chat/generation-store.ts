@@ -16,7 +16,7 @@ import {
   recordChatEvent as recordCoreChatEvent,
   updateGenerationMetadata as updateCoreGenerationMetadata,
   type ConversationDatabaseSchema,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 
 export {
@@ -26,7 +26,7 @@ export {
   isUniqueConstraintError,
   type ChatGeneration,
   type StoredGenerationChunk,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 
 type CoreOptions<Options> = Options extends { db: unknown }
   ? Omit<Options, "db"> & { db: QueryDatabaseClient }

@@ -18,7 +18,7 @@ import {
   threadMessages,
   threads,
   type QueryDatabaseClient as GenericQueryDatabaseClient,
-} from "@emi/core/server";
+} from "@emi/core/server/legacy";
 import {
   makeD1Kysely as makePlatformD1Kysely,
   makeQueryDatabaseClient as makePlatformQueryDatabaseClient,
@@ -38,7 +38,7 @@ import {
   syncCursors,
 } from "@emi/flavor-healthfit";
 
-export { runTransaction, runBatches } from "@emi/core/server";
+export { runTransaction, runBatches } from "@emi/core/server/legacy";
 export type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
 
 export interface DatabaseSchema {

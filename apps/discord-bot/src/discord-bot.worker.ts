@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { coreAppDefinition } from "@emi/core/server";
+import { coreAppDefinition } from "@emi/core/server/legacy";
 import { makeHealthfitCommandServices } from "./commands/services.ts";
 import { handleInteractionsRequest } from "./routes/interactions.ts";
 

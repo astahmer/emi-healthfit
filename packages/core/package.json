@@ -18,6 +18,7 @@
     "./styles.css": "./src/styles/styles.css",
     "./server/effect": "./src/server/effect/index.ts",
     "./server/fetch": "./src/server/fetch/index.ts",
+    "./server/legacy": "./src/server/legacy/index.ts",
     "./adapters/ai-sdk": "./src/adapters/ai-sdk/index.ts",
     "./adapters/cloudflare": "./src/adapters/cloudflare/index.ts",
     "./extensions": "./src/extensions/index.ts",
