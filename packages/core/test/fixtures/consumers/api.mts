@@ -1,7 +1,8 @@
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
-import { createCoreApiClient } from "@emi/core/api";
+import { CoreApiClient } from "@emi/core/api";
 
-const client = createCoreApiClient({ baseUrl: "/api", fetch });
+const client = CoreApiClient.create({ baseUrl: "/api", fetch });
 const conversations = client.conversations.list();
+const promise = CoreApiClient.runPromise(conversations);
 
 void conversations;
+void promise;

@@ -1,11 +1,20 @@
-import type { ChatMessage } from "./protocol";
+import type * as Effect from "effect/Effect";
+import type { ChatMessage, Conversation } from "./protocol";
+
+export declare class CoreApiClientError extends Error {
+  readonly _tag: "CoreApiClientError";
+  readonly kind: "network" | "http" | "decode";
+  readonly message: string;
+}
 
 export interface CoreApiClient {
   readonly conversations: {
-    list(): Promise<ReadonlyArray<{ readonly id: string; readonly title: string }>>;
+    list(): Effect.Effect<ReadonlyArray<Conversation>, CoreApiClientError>;
   };
   readonly messages: {
-    list(input: { readonly conversationId: string }): Promise<ReadonlyArray<ChatMessage>>;
+    list(input: {
+      readonly conversationId: string;
+    }): Effect.Effect<ReadonlyArray<ChatMessage>, CoreApiClientError>;
   };
 }
 
@@ -14,4 +23,8 @@ export interface CoreApiClientOptions {
   readonly fetch: typeof globalThis.fetch;
 }
 
-export declare const createCoreApiClient: (options: CoreApiClientOptions) => CoreApiClient;
+export declare class CoreApiClient {
+  private constructor();
+  static create(options: CoreApiClientOptions): CoreApiClient;
+  static runPromise<Value>(effect: Effect.Effect<Value, CoreApiClientError>): Promise<Value>;
+}
