@@ -1,8 +1,6 @@
 import { createChatRuntime } from "@emi/core";
 import { ChatProvider } from "@emi/core/react";
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
 import { ChatApp } from "@emi/core/components/styled";
-// @ts-ignore R0 target stylesheet is implemented in a later packet.
 import styles from "@emi/core/styles.css";
 
 const storage = {

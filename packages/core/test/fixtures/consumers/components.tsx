@@ -1,4 +1,3 @@
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
 import {
   Composer,
   ConnectedComposer,
@@ -10,9 +9,7 @@ import {
   MessagePart,
   Sidebar,
   ThreadViewport,
-  // @ts-ignore R0 target entrypoint is implemented in a later packet.
 } from "@emi/core/components";
-// @ts-ignore R0 target entrypoint is implemented in a later packet.
 import type { ChatMessage } from "@emi/core/protocol";
 
 declare const message: ChatMessage;
