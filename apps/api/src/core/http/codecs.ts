@@ -1,8 +1,8 @@
 import * as Schema from "effect/Schema";
-import { MessagePartSchema, type MessagePart } from "@emi/core/protocol";
+import { ChatProtocol, type MessagePart } from "@emi/core/protocol";
 import { decodeJson } from "../lib/json-codec.ts";
 
-const MessageParts = Schema.Array(MessagePartSchema);
+const MessageParts = Schema.Array(ChatProtocol.schemas.messagePart);
 const Suggestions = Schema.Array(Schema.String);
 const TextMessagePart = Schema.Struct({ type: Schema.Literal("text"), text: Schema.String });
 export const decodeMessageParts = (value: string) =>

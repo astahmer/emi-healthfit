@@ -41,7 +41,6 @@ import type {
   ModelProvider,
   ModelProviderError,
 } from "./protocol/model.ts";
-import { MessagePartSchema } from "./protocol/parts.ts";
 import type { TransportError } from "./protocol/errors.ts";
 import { ProtocolDecodeError } from "./protocol/errors.ts";
 import { ChatProtocol } from "./protocol/mappers.ts";
@@ -86,4 +85,4 @@ export type {
   ProtocolSchemas,
 };
 
-export { ChatProtocol, MessagePartSchema, ProtocolDecodeError };
+export { ChatProtocol, ProtocolDecodeError };
