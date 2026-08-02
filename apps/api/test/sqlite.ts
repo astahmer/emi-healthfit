@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
 import { makeQueryDatabaseClient, type QueryDatabaseClient } from "../src/platform/db/client.ts";
 
@@ -120,3 +121,8 @@ export const makeSqliteDatabase = () => {
 
 export const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>) =>
   Effect.runPromise(effect.pipe(Effect.provide(RuntimeContext.phantom)));
+
+export const makeLayerRunner =
+  <Service>(layer: Layer.Layer<Service, never, never>) =>
+  <A, E>(effect: Effect.Effect<A, E, Service>) =>
+    Effect.runPromise(effect.pipe(Effect.provide(layer)));

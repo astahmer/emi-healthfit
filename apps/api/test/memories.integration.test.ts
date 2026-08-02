@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeLayerRunner, makeSqliteDatabase } from "./sqlite.ts";
 
 const {
   deleteMemoriesByMessage,
@@ -25,24 +25,30 @@ describe("memories SQLite integration", () => {
   it("normalizes, searches, and deletes memories without crossing owners", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
+    const run = makeLayerRunner(ServerDatabase.memories.layer({ db }));
     const alice = "user-a";
     const bob = "user-b";
     const ids = await run(
-      insertMemories(db, alice, [
-        { content: "  Prefers morning runs  ", source: "chat", messageId: "message-a" },
-        { content: "prefers morning runs", source: "chat", messageId: "message-a" },
-        { content: "   " },
-      ]),
+      insertMemories({
+        userId: alice,
+        inputs: [
+          { content: "  Prefers morning runs  ", source: "chat", messageId: "message-a" },
+          { content: "prefers morning runs", source: "chat", messageId: "message-a" },
+          { content: "   " },
+        ],
+      }),
     );
     const [morningRunsId] = ids;
     assert.ok(morningRunsId);
-    assert.strictEqual(await run(getMemorySummary(db, alice)), undefined);
-    const strengthId = await run(insertMemory(db, alice, "Tracks bench press", "manual"));
+    assert.strictEqual(await run(getMemorySummary({ userId: alice })), undefined);
+    const strengthId = await run(
+      insertMemory({ userId: alice, content: "Tracks bench press", source: "manual" }),
+    );
     assert.ok(strengthId);
-    await run(insertMemory(db, bob, "Prefers morning runs", "manual"));
+    await run(insertMemory({ userId: bob, content: "Prefers morning runs", source: "manual" }));
 
     assert.deepStrictEqual(
-      (await run(getMemories(db, alice))).map((memory) => ({
+      (await run(getMemories({ userId: alice }))).map((memory) => ({
         id: memory.id,
         content: memory.content,
         source: memory.source,
@@ -53,76 +59,92 @@ describe("memories SQLite integration", () => {
       ],
     );
     assert.deepStrictEqual(
-      (await run(searchMemories(db, alice, "prefers"))).map((memory) => ({
+      (await run(searchMemories({ userId: alice, query: "prefers" }))).map((memory) => ({
         id: memory.id,
         rank: memory.rank,
       })),
       [{ id: morningRunsId, rank: 2 }],
     );
     assert.deepStrictEqual(
-      (await run(searchMemories(db, alice, "  ", { limit: 1 }))).map((memory) => memory.id),
+      (await run(searchMemories({ userId: alice, query: "  ", options: { limit: 1 } }))).map(
+        (memory) => memory.id,
+      ),
       [strengthId],
     );
-    assert.deepStrictEqual(await run(listMemoryIdsForMessage(db, alice, "message-a")), [
-      morningRunsId,
-    ]);
+    assert.deepStrictEqual(
+      await run(listMemoryIdsForMessage({ userId: alice, messageId: "message-a" })),
+      [morningRunsId],
+    );
 
-    await run(upsertMemorySummary(db, alice, "- Prefers morning runs", 2));
-    const memorySummary = await run(getMemorySummary(db, alice));
+    await run(
+      upsertMemorySummary({ userId: alice, content: "- Prefers morning runs", memoryCount: 2 }),
+    );
+    const memorySummary = await run(getMemorySummary({ userId: alice }));
     assert.deepStrictEqual(memorySummary, {
       content: "- Prefers morning runs",
       memory_count: 2,
       updated_at: memorySummary?.updated_at,
     });
 
-    await run(deleteMemoriesByMessage(db, alice, "message-a"));
-    assert.deepStrictEqual(await run(listMemoryIdsForMessage(db, alice, "message-a")), []);
-    assert.strictEqual(await run(getMemorySummary(db, alice)), undefined);
+    await run(deleteMemoriesByMessage({ userId: alice, messageId: "message-a" }));
     assert.deepStrictEqual(
-      (await run(getMemories(db, bob))).map((memory) => memory.content),
+      await run(listMemoryIdsForMessage({ userId: alice, messageId: "message-a" })),
+      [],
+    );
+    assert.strictEqual(await run(getMemorySummary({ userId: alice })), undefined);
+    assert.deepStrictEqual(
+      (await run(getMemories({ userId: bob }))).map((memory) => memory.content),
       ["Prefers morning runs"],
     );
-    await run(upsertMemorySummary(db, alice, "- Tracks bench press", 1));
-    await run(deleteMemory(db, alice, strengthId));
-    assert.deepStrictEqual(await run(getMemories(db, alice)), []);
-    assert.strictEqual(await run(getMemorySummary(db, alice)), undefined);
+    await run(
+      upsertMemorySummary({ userId: alice, content: "- Tracks bench press", memoryCount: 1 }),
+    );
+    await run(deleteMemory({ userId: alice, id: strengthId }));
+    assert.deepStrictEqual(await run(getMemories({ userId: alice })), []);
+    assert.strictEqual(await run(getMemorySummary({ userId: alice })), undefined);
   });
 
   it("trims, filters, updates, and deletes notes per owner", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
+    const run = makeLayerRunner(ServerDatabase.memories.layer({ db }));
     const alice = "user-a";
     const bob = "user-b";
 
-    assert.strictEqual(await run(insertNote(db, alice, "   ")), null);
-    const trainingNoteId = await run(insertNote(db, alice, "  Reduce volume this week  "));
-    const foodNoteId = await run(insertNote(db, alice, "Increase protein"));
-    const bobNoteId = await run(insertNote(db, bob, "Private note"));
+    assert.strictEqual(await run(insertNote({ userId: alice, content: "   " })), null);
+    const trainingNoteId = await run(
+      insertNote({ userId: alice, content: "  Reduce volume this week  " }),
+    );
+    const foodNoteId = await run(insertNote({ userId: alice, content: "Increase protein" }));
+    const bobNoteId = await run(insertNote({ userId: bob, content: "Private note" }));
     assert.ok(trainingNoteId);
     assert.ok(foodNoteId);
     assert.ok(bobNoteId);
 
-    await run(updateNote(db, alice, trainingNoteId, "  Keep recovery days  "));
-    await run(updateNote(db, alice, foodNoteId, "  "));
-    await run(updateNote(db, bob, trainingNoteId, "Cannot edit"));
+    await run(updateNote({ userId: alice, id: trainingNoteId, content: "  Keep recovery days  " }));
+    await run(updateNote({ userId: alice, id: foodNoteId, content: "  " }));
+    await run(updateNote({ userId: bob, id: trainingNoteId, content: "Cannot edit" }));
 
     assert.deepStrictEqual(
-      (await run(searchNotes(db, alice, "recovery"))).map((note) => ({
+      (await run(searchNotes({ userId: alice, query: "recovery" }))).map((note) => ({
         id: note.id,
         content: note.content,
       })),
       [{ id: trainingNoteId, content: "Keep recovery days" }],
     );
-    assert.strictEqual((await run(searchNotes(db, alice, "  ", 1))).length, 1);
+    assert.strictEqual(
+      (await run(searchNotes({ userId: alice, query: "  ", limit: 1 }))).length,
+      1,
+    );
     assert.deepStrictEqual(
-      (await run(getNotes(db, bob))).map((note) => note.content),
+      (await run(getNotes({ userId: bob }))).map((note) => note.content),
       ["Private note"],
     );
 
-    await run(deleteNote(db, alice, trainingNoteId));
-    await run(deleteNote(db, alice, bobNoteId));
+    await run(deleteNote({ userId: alice, id: trainingNoteId }));
+    await run(deleteNote({ userId: alice, id: bobNoteId }));
     assert.deepStrictEqual(
-      (await run(getNotes(db, alice))).map((note) => note.content),
+      (await run(getNotes({ userId: alice }))).map((note) => note.content),
       ["Increase protein"],
     );
   });

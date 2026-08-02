@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { prepareChatHistory } from "../src/core/routes/chat-history.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
 
 const { createConversation, getMessage, reviseConversationMessage } = ServerDatabase.conversations;
 
@@ -11,8 +11,9 @@ describe("chat history SQLite integration", () => {
   it("keeps the client message id addressable after initial persistence", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const runConversation = makeLayerRunner(ServerDatabase.conversations.layer({ db }));
     const userId = "user-a";
-    const conversationId = await run(createConversation(db, userId));
+    const conversationId = await runConversation(createConversation({ userId }));
     const messageId = "d007dd8e-8138-484d-bd5c-3f9676ba314e";
 
     const history = await run(
@@ -36,11 +37,10 @@ describe("chat history SQLite integration", () => {
 
     assert.equal("error" in history, false);
     assert.equal(history.lastIncomingMessageId, messageId);
-    assert.equal((await run(getMessage(db, userId, messageId)))?.id, messageId);
+    assert.equal((await runConversation(getMessage({ userId, messageId })))?.id, messageId);
     assert.equal(
-      await run(
+      await runConversation(
         reviseConversationMessage({
-          db,
           userId,
           conversationId,
           messageId,

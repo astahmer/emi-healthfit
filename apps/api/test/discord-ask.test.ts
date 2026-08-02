@@ -6,7 +6,7 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { ServerDatabase } from "@emi/core/server/database";
 import { handleDiscordAsk } from "../src/core/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
 
 const { getConversations, getConversationMessages } = ServerDatabase.conversations;
 
@@ -110,13 +110,16 @@ describe("handleDiscordAsk", () => {
     assert.match(prompts[0]!.system, /Discord slash command/);
 
     const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
-    const conversations = await run(getConversations(conversationDb, "user-1"));
+    const runConversation = makeLayerRunner(
+      ServerDatabase.conversations.layer({ db: conversationDb }),
+    );
+    const conversations = await runConversation(getConversations({ userId: "user-1" }));
     assert.equal(
       conversations.some((row) => row.title === "[Discord] /ask"),
       true,
     );
-    const messages = await run(
-      getConversationMessages(conversationDb, "user-1", payload.conversationId),
+    const messages = await runConversation(
+      getConversationMessages({ userId: "user-1", conversationId: payload.conversationId }),
     );
     assert.equal(messages.length >= 2, true);
   });

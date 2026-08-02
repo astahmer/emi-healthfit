@@ -8,7 +8,7 @@ import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import type { CloudflareQueryDatabaseClient } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
 
 const user = {
   id: "core-route-user",
@@ -98,12 +98,14 @@ describe("generic core chat route", () => {
     const { db: database } = makeSqliteDatabase();
     const conversationDatabase =
       narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
-    const conversationId = await run(
-      ServerDatabase.conversations.createConversation(
-        conversationDatabase,
-        user.id,
-        "Concurrent route test",
-      ),
+    const runConversation = makeLayerRunner(
+      ServerDatabase.conversations.layer({ db: conversationDatabase }),
+    );
+    const conversationId = await runConversation(
+      ServerDatabase.conversations.createConversation({
+        userId: user.id,
+        title: "Concurrent route test",
+      }),
     );
 
     let firstMessageBatch = true;
@@ -188,12 +190,11 @@ describe("generic core chat route", () => {
       if (outcomes[1]?.status === "fulfilled") assert.equal(outcomes[1].value.status, 409);
       await Promise.allSettled(pendingTasks);
 
-      const messages = await run(
-        ServerDatabase.conversations.getConversationMessages(
-          conversationDatabase,
-          user.id,
+      const messages = await runConversation(
+        ServerDatabase.conversations.getConversationMessages({
+          userId: user.id,
           conversationId,
-        ),
+        }),
       );
       const userMessages = messages.filter((message) => message.role === "user");
       assert.equal(userMessages.length, 1);

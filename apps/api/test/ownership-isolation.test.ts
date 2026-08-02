@@ -5,7 +5,7 @@ import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
-import { makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeLayerRunner, makeSqliteDatabase, run } from "./sqlite.ts";
 
 const { getIngestedDataExport, getWorkoutDetails } = HealthFit.data;
 const { upsertDailyActivity, upsertHevySessions, upsertHevySets } = HealthFit.storage;
@@ -50,10 +50,17 @@ describe("per-user ownership", () => {
     const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
     const generationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+    const runConversation = makeLayerRunner(
+      ServerDatabase.conversations.layer({ db: conversationDb }),
+    );
+    const runMemory = makeLayerRunner(ServerDatabase.memories.layer({ db: memoryDb }));
+    const runGeneration = makeLayerRunner(ServerDatabase.generations.layer({ db: generationDb }));
     const alice = "user-alice";
     const bob = "user-bob";
-    const conversationId = await run(createConversation(conversationDb, alice, "Alice chat"));
-    const conversation = await run(getConversation(conversationDb, alice, conversationId));
+    const conversationId = await runConversation(
+      createConversation({ userId: alice, title: "Alice chat" }),
+    );
+    const conversation = await runConversation(getConversation({ userId: alice, conversationId }));
     assert.strictEqual(conversation?.pinned, false);
     assert.deepStrictEqual(Object.keys(conversation ?? {}).toSorted(), [
       "created_at",
@@ -63,67 +70,84 @@ describe("per-user ownership", () => {
       "title",
       "updated_at",
     ]);
-    await run(
-      updateConversationState({ db: conversationDb, userId: alice, conversationId, pinned: true }),
-    );
-    assert.strictEqual((await run(getConversations(conversationDb, alice)))[0]?.pinned, true);
-    const [messageId] = await run(
-      saveConversationMessages(conversationDb, alice, conversationId, null, [
-        { role: "user", parts: [{ type: "text", text: "private" }] },
-      ]),
-    );
-    const threadId = await run(createThread(conversationDb, alice, conversationId, messageId));
-    assert.ok(threadId);
-    assert.strictEqual((await run(getThread(conversationDb, alice, threadId)))?.pinned, false);
-    await run(pinThread(conversationDb, alice, threadId, true));
-    assert.strictEqual((await run(getThread(conversationDb, alice, threadId)))?.pinned, true);
-
-    assert.strictEqual(await run(getConversation(conversationDb, bob, conversationId)), null);
-    assert.strictEqual(await run(getThread(conversationDb, bob, threadId)), null);
+    await runConversation(updateConversationState({ userId: alice, conversationId, pinned: true }));
     assert.strictEqual(
-      await run(cloneConversation({ db: conversationDb, userId: bob, conversationId })),
+      (await runConversation(getConversations({ userId: alice })))[0]?.pinned,
+      true,
+    );
+    const [messageId] = await runConversation(
+      saveConversationMessages({
+        userId: alice,
+        conversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "private" }] }],
+      }),
+    );
+    const threadId = await runConversation(
+      createThread({ userId: alice, conversationId, anchorMessageId: messageId }),
+    );
+    assert.ok(threadId);
+    assert.strictEqual(
+      (await runConversation(getThread({ userId: alice, threadId })))?.pinned,
+      false,
+    );
+    await runConversation(pinThread({ userId: alice, threadId, pinned: true }));
+    assert.strictEqual(
+      (await runConversation(getThread({ userId: alice, threadId })))?.pinned,
+      true,
+    );
+
+    assert.strictEqual(
+      await runConversation(getConversation({ userId: bob, conversationId })),
       null,
     );
-    await run(deleteConversation(conversationDb, bob, conversationId));
-    assert.ok(await run(getConversation(conversationDb, alice, conversationId)));
-    assert.deepStrictEqual(await run(getConversations(conversationDb, bob)), []);
+    assert.strictEqual(await runConversation(getThread({ userId: bob, threadId })), null);
+    assert.strictEqual(
+      await runConversation(cloneConversation({ userId: bob, conversationId })),
+      null,
+    );
+    await runConversation(deleteConversation({ userId: bob, conversationId }));
+    assert.ok(await runConversation(getConversation({ userId: alice, conversationId })));
+    assert.deepStrictEqual(await runConversation(getConversations({ userId: bob })), []);
 
-    const noteId = await run(insertNote(memoryDb, alice, "Alice note"));
+    const noteId = await runMemory(insertNote({ userId: alice, content: "Alice note" }));
     assert.ok(noteId);
-    await run(updateNote(memoryDb, bob, noteId, "Bob overwrite"));
-    assert.strictEqual((await run(getNotes(memoryDb, alice)))[0]?.content, "Alice note");
-    assert.deepStrictEqual(await run(searchNotes(memoryDb, bob, "Alice")), []);
+    await runMemory(updateNote({ userId: bob, id: noteId, content: "Bob overwrite" }));
+    assert.strictEqual((await runMemory(getNotes({ userId: alice })))[0]?.content, "Alice note");
+    assert.deepStrictEqual(await runMemory(searchNotes({ userId: bob, query: "Alice" })), []);
 
-    await run(insertMemory(memoryDb, alice, "Alice memory"));
-    assert.strictEqual((await run(getMemories(memoryDb, alice))).length, 1);
-    const insertedMemoryIds = await run(
-      insertMemories(memoryDb, alice, [
-        { content: "Wants three strength sessions per week", source: "auto" },
-        { content: " wants  three strength sessions per week ", source: "auto" },
-      ]),
+    await runMemory(insertMemory({ userId: alice, content: "Alice memory" }));
+    assert.strictEqual((await runMemory(getMemories({ userId: alice }))).length, 1);
+    const insertedMemoryIds = await runMemory(
+      insertMemories({
+        userId: alice,
+        inputs: [
+          { content: "Wants three strength sessions per week", source: "auto" },
+          { content: " wants  three strength sessions per week ", source: "auto" },
+        ],
+      }),
     );
     assert.strictEqual(insertedMemoryIds.length, 1);
     assert.deepStrictEqual(
-      await run(
-        insertMemories(memoryDb, alice, [
-          { content: "Wants three strength sessions per week", source: "auto" },
-        ]),
+      await runMemory(
+        insertMemories({
+          userId: alice,
+          inputs: [{ content: "Wants three strength sessions per week", source: "auto" }],
+        }),
       ),
       [],
     );
-    assert.deepStrictEqual(await run(searchMemories(memoryDb, bob, "Alice")), []);
+    assert.deepStrictEqual(await runMemory(searchMemories({ userId: bob, query: "Alice" })), []);
 
-    await run(
+    await runGeneration(
       createGeneration({
-        db: generationDb,
         userId: alice,
         generationId: "generation-1",
         conversationId,
       }),
     );
-    await run(
+    await runGeneration(
       appendGenerationChunk({
-        db: generationDb,
         userId: alice,
         generationId: "generation-1",
         sequence: 0,
@@ -131,17 +155,16 @@ describe("per-user ownership", () => {
       }),
     );
     assert.strictEqual(
-      await run(getGeneration({ db: generationDb, userId: bob, generationId: "generation-1" })),
+      await runGeneration(getGeneration({ userId: bob, generationId: "generation-1" })),
       null,
     );
     assert.strictEqual(
-      await run(getResumableGeneration({ db: generationDb, userId: bob, conversationId })),
+      await runGeneration(getResumableGeneration({ userId: bob, conversationId })),
       null,
     );
     assert.deepStrictEqual(
-      await run(
+      await runGeneration(
         getGenerationChunks({
-          db: generationDb,
           userId: bob,
           generationId: "generation-1",
           afterSequence: -1,
@@ -168,37 +191,52 @@ describe("per-user ownership", () => {
     const db = makeDatabase();
     const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
     const generationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+    const runConversation = makeLayerRunner(
+      ServerDatabase.conversations.layer({ db: conversationDb }),
+    );
+    const runGeneration = makeLayerRunner(ServerDatabase.generations.layer({ db: generationDb }));
     const alice = "user-alice";
     const bob = "user-bob";
-    const conversationId = await run(createConversation(conversationDb, alice, "Alice chat"));
-    const [messageId] = await run(
-      saveConversationMessages(conversationDb, alice, conversationId, null, [
-        { role: "user", parts: [{ type: "text", text: "private" }] },
-      ]),
+    const conversationId = await runConversation(
+      createConversation({ userId: alice, title: "Alice chat" }),
     );
-    const threadId = await run(createThread(conversationDb, alice, conversationId, messageId));
+    const [messageId] = await runConversation(
+      saveConversationMessages({
+        userId: alice,
+        conversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "private" }] }],
+      }),
+    );
+    const threadId = await runConversation(
+      createThread({ userId: alice, conversationId, anchorMessageId: messageId }),
+    );
     assert.ok(threadId);
 
     assert.deepStrictEqual(
-      await run(
-        saveConversationMessages(conversationDb, bob, conversationId, null, [
-          { role: "user", parts: [{ type: "text", text: "intrusion" }] },
-        ]),
+      await runConversation(
+        saveConversationMessages({
+          userId: bob,
+          conversationId,
+          parentId: null,
+          messages: [{ role: "user", parts: [{ type: "text", text: "intrusion" }] }],
+        }),
       ),
       [],
     );
     assert.strictEqual(
-      await run(createThread(conversationDb, bob, conversationId, messageId)),
+      await runConversation(
+        createThread({ userId: bob, conversationId, anchorMessageId: messageId }),
+      ),
       null,
     );
     assert.strictEqual(
-      await run(addThreadMessage(conversationDb, bob, threadId, messageId)),
+      await runConversation(addThreadMessage({ userId: bob, threadId, messageId })),
       false,
     );
     assert.strictEqual(
-      await run(
+      await runGeneration(
         createGeneration({
-          db: generationDb,
           userId: bob,
           generationId: "bob-generation",
           conversationId,
@@ -207,9 +245,8 @@ describe("per-user ownership", () => {
       false,
     );
     assert.strictEqual(
-      await run(
+      await runGeneration(
         appendGenerationChunk({
-          db: generationDb,
           userId: bob,
           generationId: "generation-missing",
           sequence: 0,
@@ -220,12 +257,12 @@ describe("per-user ownership", () => {
     );
 
     assert.strictEqual(
-      (await run(getConversationMessages(conversationDb, alice, conversationId))).length,
+      (await runConversation(getConversationMessages({ userId: alice, conversationId }))).length,
       1,
     );
-    assert.ok(await run(getThread(conversationDb, alice, threadId)));
+    assert.ok(await runConversation(getThread({ userId: alice, threadId })));
     assert.strictEqual(
-      await run(getGeneration({ db: generationDb, userId: alice, generationId: "bob-generation" })),
+      await runGeneration(getGeneration({ userId: alice, generationId: "bob-generation" })),
       null,
     );
   });

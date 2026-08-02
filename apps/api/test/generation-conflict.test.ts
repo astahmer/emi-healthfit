@@ -25,7 +25,7 @@ describe("generation conflict helpers", () => {
   it("builds a tagged already-active error for 409 mapping", async () => {
     const exit = await Effect.runPromiseExit(
       Effect.fail(
-        new ServerDatabase.generations.GenerationAlreadyActiveError({
+        new ServerDatabase.errors.generationAlreadyActive({
           conversationId: "conversation-1",
           generationId: "generation-1",
         }),
