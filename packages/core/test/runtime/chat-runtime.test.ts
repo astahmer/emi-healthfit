@@ -85,6 +85,7 @@ const createOptions = ({
       titlePrompt: "",
       memoryEnabled: true,
       memoryModel: "test-model",
+      webSearch: false,
       theme: "light",
     }),
   );

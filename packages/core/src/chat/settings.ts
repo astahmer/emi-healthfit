@@ -10,6 +10,21 @@ export const GenericChatSettingsSchema = Schema.Struct({
   titlePrompt: Schema.String,
   memoryEnabled: Schema.Boolean,
   memoryModel: Schema.String,
+  webSearch: Schema.Boolean,
+  theme: Schema.Literals(["light", "dark"]),
+});
+
+export const PersistedGenericChatSettingsSchema = Schema.Struct({
+  provider: Schema.Literal("openai"),
+  apiKey: Schema.String,
+  baseUrl: Schema.String,
+  model: Schema.String,
+  systemPrompt: Schema.String,
+  titleModel: Schema.String,
+  titlePrompt: Schema.String,
+  memoryEnabled: Schema.Boolean,
+  memoryModel: Schema.String,
+  webSearch: Schema.optional(Schema.Boolean),
   theme: Schema.Literals(["light", "dark"]),
 });
 
@@ -25,5 +40,6 @@ export const defaultGenericChatSettings: GenericChatSettings = {
   titlePrompt: "",
   memoryEnabled: true,
   memoryModel: "gpt-4o-mini",
+  webSearch: false,
   theme: "light",
 };

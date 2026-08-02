@@ -132,7 +132,13 @@ export const App = () => {
           },
         },
         identity: { createId: () => crypto.randomUUID(), now: () => new Date().toISOString() },
-        features: { attachments: true, memories: true, branches: true },
+        features: {
+          attachments: true,
+          memories: true,
+          branches: true,
+          suggestions: true,
+          webSearch: true,
+        },
       }),
     [apiOrigin, fetcher],
   );

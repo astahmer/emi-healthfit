@@ -261,6 +261,8 @@ export const ChatComposer = ({
   onFilesSelected,
   onSubmit,
   onRemoveFile,
+  webSearch,
+  onWebSearchChange,
 }: {
   draft: string;
   files: ReadonlyArray<Attachment>;
@@ -270,6 +272,8 @@ export const ChatComposer = ({
   onFilesSelected: (files: FileList | undefined) => void;
   onSubmit: () => void;
   onRemoveFile: (file: Attachment) => void;
+  webSearch: boolean;
+  onWebSearchChange: (enabled: boolean) => void;
 }) => (
   <div className="shrink-0 border-t p-3 md:p-4">
     <form
@@ -294,6 +298,17 @@ export const ChatComposer = ({
             type="file"
           />
         </label>
+      </Button>
+      <Button
+        aria-pressed={webSearch}
+        className="min-h-20 shrink-0 flex-col"
+        onClick={() => onWebSearchChange(!webSearch)}
+        size="lg"
+        type="button"
+        variant={webSearch ? "secondary" : "outline"}
+      >
+        <span aria-hidden="true">⌕</span>
+        <span>Web search</span>
       </Button>
       <Textarea
         aria-label="Message"

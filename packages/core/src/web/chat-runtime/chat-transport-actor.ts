@@ -4,6 +4,8 @@ import { fromCallback } from "xstate";
 
 import type { ChatMessage } from "../../protocol/messages.ts";
 import type { Attachment, MessagePart } from "../../protocol/parts.ts";
+import { ChatModelConfigurationSchema } from "../../chat/request.ts";
+import type { ChatModelConfiguration } from "../../chat/request.ts";
 import type { ChatSessionEvent, QueuedFollowUp } from "../chat-session-machine.ts";
 
 export interface ChatTransportRequest {
@@ -22,6 +24,13 @@ export interface ChatTransportActorInput {
   createId: () => string;
   now: () => string;
   sendSession: (event: ChatSessionEvent) => void;
+  sendSuggestions?: (input: {
+    readonly lastAssistantText: string;
+    readonly lastUserText: string;
+    readonly threadId: string | undefined;
+    readonly messageId: string | undefined;
+    readonly config: ChatModelConfiguration;
+  }) => void;
 }
 
 export type ChatTransportActorEvent =
@@ -73,6 +82,9 @@ const appendText = ({
       : [...current.parts, { type: "text", text }];
   return { ...current, parts };
 };
+
+const assistantText = (message: ChatMessage): string =>
+  message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
 const responseStream = (response: Response): ReadableStream<string> => {
   if (response.body === null) throw new Error("Chat response did not contain a stream.");
@@ -128,7 +140,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         input.sendSession({ type: "conversation-identified", conversationId });
       }
       if (!response.ok) throw new Error(`Chat request failed (${response.status}).`);
-      await consumeStream({ activeOperation, response, now: input.now });
+      return await consumeStream({ activeOperation, response, now: input.now });
     };
 
     const consumeStream = async ({
@@ -139,7 +151,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       activeOperation: number;
       response: Response;
       now: () => string;
-    }) => {
+    }): Promise<ChatMessage | undefined> => {
       let buffer = "";
       let message: ChatMessage | undefined;
       for await (const chunk of responseStream(response)) {
@@ -171,6 +183,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
           }
         }
       }
+      return message;
     };
 
     const run = async ({
@@ -183,7 +196,18 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       controller: AbortController;
     }) => {
       try {
-        await sendRequest({ activeOperation, controller, request });
+        const message = await sendRequest({ activeOperation, controller, request });
+        if (message !== undefined && input.sendSuggestions !== undefined) {
+          const text = assistantText(message);
+          if (text !== "")
+            input.sendSuggestions({
+              lastAssistantText: text,
+              lastUserText: request.text,
+              threadId: request.threadId,
+              messageId: message.id,
+              config: Schema.decodeUnknownSync(ChatModelConfigurationSchema)(request.body.config),
+            });
+        }
       } catch (cause) {
         if (controller.signal.aborted || activeOperation !== operation) return;
         input.sendSession({

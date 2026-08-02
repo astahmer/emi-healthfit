@@ -23,6 +23,7 @@ import type {
 } from "../web/chat-runtime/settings-actor.ts";
 import type { BrowserStateContext } from "../web/chat-runtime/browser-state-actor.ts";
 import type { ChatUiContext } from "../web/chat-runtime/chat-ui-actor.ts";
+import type { SuggestionsState } from "./types.ts";
 import type { ChatTransportActorEvent } from "../web/chat-runtime/chat-transport-actor.ts";
 import type {
   ChatActions,
@@ -41,6 +42,7 @@ type RuntimeChildContexts = {
   settings: SettingsActorContext;
   browserState: BrowserStateContext;
   chatUi: ChatUiContext;
+  suggestions: SuggestionsState;
 };
 type ChildSnapshot<Context> = {
   readonly context: Context;
@@ -123,6 +125,7 @@ const requestBody = (settings: GenericChatSettings): Record<string, unknown> => 
     ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
     ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
   },
+  webSearch: settings.webSearch,
 });
 
 const buildDefaults = (model: ModelConfiguration | undefined): GenericChatSettings => ({
@@ -158,6 +161,9 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
         storage: draftsStorage,
       },
       draftStorageKey,
+      features: {
+        suggestions: options.features?.suggestions ?? false,
+      },
     },
   });
 };
@@ -285,12 +291,24 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     );
   };
 
+  const currentSuggestions = (): SuggestionsState => {
+    const snapshot = childSnapshot("suggestions");
+    return (
+      snapshot?.context ?? {
+        items: [],
+        loading: false,
+        error: undefined,
+      }
+    );
+  };
+
   const stateFromActor = (): ChatState => {
     const session = currentSession();
     const store = currentStore();
     const settings = currentSettings();
     const browser = currentBrowser();
     const ui = currentUi();
+    const suggestions = currentSuggestions();
     const activeConversation = store.conversations.find(
       (conversation) => conversation.id === session.conversationId,
     );
@@ -333,6 +351,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       error: session.error ?? store.error ?? currentBrowser().error ?? undefined,
       ui: { ...ui },
       threads: store.threads.map(threadToProtocol),
+      suggestions,
     };
   };
 
@@ -450,6 +469,11 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         type: "settings-patch-requested",
         patch: Object.assign({}, patch, model === undefined ? {} : settingsPatchFromModel(model)),
       }),
+    setWebSearch: ({ enabled }) =>
+      sendSettings({
+        type: "settings-patch-requested",
+        patch: { webSearch: enabled },
+      }),
     setDraft: ({ text }) => sendSession({ type: "draft-changed", draft: text }),
     addAttachments: ({ attachments }) =>
       sendSession({ type: "files-added", files: [...attachments] }),
@@ -524,6 +548,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     memories: ((state) => state.memories) as Selector<ChatState["memories"]>,
     settings: ((state) => state.settings) as Selector<ChatState["settings"]>,
     connection: ((state) => state.connection) as Selector<ChatState["connection"]>,
+    suggestions: ((state) => state.suggestions) as Selector<ChatState["suggestions"]>,
   };
 
   const start = () => {

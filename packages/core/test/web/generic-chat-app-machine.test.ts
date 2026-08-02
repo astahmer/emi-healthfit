@@ -45,6 +45,7 @@ const client: ConversationClient = {
   listMemories: async () => [],
   createMemory: async () => "memory-1",
   deleteMemory: async () => undefined,
+  generateSuggestions: async () => [],
   listThreads: async () => [],
   createThread: async () => ({
     id: "thread-1",

@@ -2,6 +2,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import {
   ChatStreamRequestSchema,
+  ChatModelConfigurationSchema,
   CompactConversationRequestSchema,
   firstUserText,
   validateChatAttachments,
@@ -13,6 +14,7 @@ import {
   generateConversationSummary,
   generateConversationTitle,
   generateMemorySummary,
+  generateSuggestions,
   toUiMessageStream,
 } from "../chat/openai.ts";
 import { createChatStreamResponse } from "../chat/stream-response.ts";
@@ -96,6 +98,14 @@ const ThreadActionSchema = Schema.Struct({
 
 const CreateMemorySchema = Schema.Struct({
   content: Schema.String.check(Schema.isMinLength(1)),
+});
+
+const SuggestionsRequestSchema = Schema.Struct({
+  threadId: Schema.optional(Schema.String),
+  messageId: Schema.optional(Schema.String),
+  lastAssistantText: Schema.String.check(Schema.isMinLength(1)),
+  lastUserText: Schema.optional(Schema.String),
+  config: ChatModelConfigurationSchema,
 });
 
 const memoryResponse = (memory: {
@@ -517,6 +527,33 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     return yield* HttpServerResponse.json({ memories: values.map(memoryResponse) });
   });
 
+  const suggestions = Effect.fn("core.chat.suggestions")(function* (request: HttpServerRequest) {
+    yield* CurrentUser;
+    const decoded = Schema.decodeUnknownOption(SuggestionsRequestSchema)(yield* request.json);
+    if (Option.isNone(decoded)) {
+      return yield* HttpServerResponse.json(
+        { error: "Invalid suggestions request" },
+        { status: 400 },
+      );
+    }
+    const values = yield* Effect.tryPromise({
+      try: () =>
+        generateSuggestions({
+          configuration: {
+            apiKey: decoded.value.config.apiKey,
+            ...(decoded.value.config.baseUrl === undefined
+              ? {}
+              : { baseUrl: decoded.value.config.baseUrl }),
+            model: decoded.value.config.model,
+          },
+          lastAssistantText: decoded.value.lastAssistantText,
+          lastUserText: decoded.value.lastUserText,
+        }),
+      catch: (cause) => new Error(cause instanceof Error ? cause.message : String(cause)),
+    });
+    return yield* HttpServerResponse.json({ suggestions: values });
+  });
+
   const memory = Effect.fn("core.chat.memory")(function* () {
     const user = yield* CurrentUser;
     const params = yield* HttpRouter.params;
@@ -769,6 +806,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
             messages,
             system: appendMemoryContext({ system: decoded.value.system, summary: memorySummary }),
             configuration: decoded.value.config,
+            webSearch: decoded.value.webSearch,
           },
           executeTool: async () => {
             throw new Error("No tools are configured for this chat.");
@@ -954,6 +992,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
     compact,
     memories,
     memory,
+    suggestions,
     threads,
     thread,
     chat,

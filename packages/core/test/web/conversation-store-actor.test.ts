@@ -57,6 +57,7 @@ const createClient = (overrides: Partial<ConversationClient> = {}): Conversation
   listMemories: async () => [memory],
   createMemory: async () => memory.id,
   deleteMemory: async () => undefined,
+  generateSuggestions: async () => [],
   listThreads: async () => [thread],
   createThread: async () => thread,
   loadThread: async () => ({ thread, messages: [message] }),

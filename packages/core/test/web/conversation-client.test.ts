@@ -21,7 +21,10 @@ describe("conversation client response boundaries", () => {
     });
 
     await expect(
-      client.generateSuggestions({ lastAssistantText: "Hello" }),
+      client.generateSuggestions({
+        lastAssistantText: "Hello",
+        config: { provider: "openai", apiKey: "key", model: "test-model" },
+      }),
     ).resolves.toEqual(["Tell me more"]);
   });
 

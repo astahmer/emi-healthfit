@@ -37,6 +37,8 @@ export interface ChatRuntimeOptions {
     readonly attachments?: boolean;
     readonly memories?: boolean;
     readonly branches?: boolean;
+    readonly suggestions?: boolean;
+    readonly webSearch?: boolean;
   };
 }
 
@@ -67,6 +69,12 @@ export interface MemoryListState {
   readonly error: string | undefined;
 }
 
+export interface SuggestionsState {
+  readonly items: ReadonlyArray<string>;
+  readonly loading: boolean;
+  readonly error: string | undefined;
+}
+
 export interface ChatSettingsState {
   readonly provider: "openai";
   readonly apiKey: string;
@@ -77,6 +85,7 @@ export interface ChatSettingsState {
   readonly titlePrompt: string;
   readonly memoryEnabled: boolean;
   readonly memoryModel: string;
+  readonly webSearch: boolean;
   readonly theme: "light" | "dark";
 }
 
@@ -105,6 +114,7 @@ export interface ChatState {
     readonly sidebarOpen: boolean;
   };
   readonly threads: ReadonlyArray<Thread>;
+  readonly suggestions: SuggestionsState;
 }
 
 export type Selector<Value> = (state: ChatState) => Value;
@@ -117,6 +127,7 @@ export interface ChatSelectors {
   readonly memories: Selector<MemoryListState>;
   readonly settings: Selector<ChatSettingsState>;
   readonly connection: Selector<ChatState["connection"]>;
+  readonly suggestions: Selector<SuggestionsState>;
 }
 
 export interface ChatActions {
@@ -144,6 +155,7 @@ export interface ChatActions {
     readonly model?: ModelConfiguration;
     readonly patch?: Partial<ChatSettingsState>;
   }): void;
+  setWebSearch(input: { readonly enabled: boolean }): void;
   setDraft(input: { readonly text: string }): void;
   addAttachments(input: { readonly attachments: ReadonlyArray<Attachment> }): void;
   removeAttachment(input: { readonly attachmentId: string }): void;

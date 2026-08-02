@@ -9,6 +9,8 @@ export const ChatModelConfigurationSchema = Schema.Struct({
   system: Schema.optional(Schema.String),
 });
 
+export type ChatModelConfiguration = typeof ChatModelConfigurationSchema.Type;
+
 export const CompactConversationRequestSchema = Schema.Struct({
   config: ChatModelConfigurationSchema,
 });
@@ -33,6 +35,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
   sessionId: Schema.optional(Schema.String),
   threadId: Schema.optional(Schema.String),
   requestId: Schema.optional(Schema.String.check(Schema.isUUID())),
+  webSearch: Schema.optional(Schema.Boolean),
 });
 
 const TextPart = Schema.Struct({ type: Schema.Literal("text"), text: Schema.String });

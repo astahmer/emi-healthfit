@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import type { ChatModelConfiguration } from "../../chat/request.ts";
 import { ChatProtocol } from "../../protocol/mappers.ts";
 import type { ChatMessage } from "../../protocol/messages.ts";
 
@@ -50,10 +51,19 @@ const MemorySchema = Schema.Struct({
   rank: Schema.Number,
 });
 const MemoryListSchema = Schema.Struct({ memories: Schema.Array(MemorySchema) });
+const SuggestionsResponseSchema = Schema.Struct({ suggestions: Schema.Array(Schema.String) });
 
 export type Conversation = typeof ConversationSchema.Type;
 export type ConversationThread = typeof ThreadSchema.Type;
 export type Memory = typeof MemorySchema.Type;
+
+export interface SuggestionsRequest {
+  readonly threadId?: string;
+  readonly messageId?: string;
+  readonly lastAssistantText: string;
+  readonly lastUserText?: string;
+  readonly config: ChatModelConfiguration;
+}
 
 const isJsonContentType = ({ response }: { response: Response }): boolean => {
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -242,6 +252,16 @@ export const createConversationClient = ({
     Schema.decodeUnknownSync(Schema.Struct({ deleted: Schema.Literal(true) }))(payload);
   };
 
+  const generateSuggestions = async (input: SuggestionsRequest): Promise<string[]> => {
+    const response = await fetch(apiUrl("/api/suggestions"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = await readResponse({ response });
+    return [...Schema.decodeUnknownSync(SuggestionsResponseSchema)(payload).suggestions];
+  };
+
   const listThreads = async ({
     conversationId,
   }: {
@@ -293,6 +313,7 @@ export const createConversationClient = ({
     listMemories,
     createMemory,
     deleteMemory,
+    generateSuggestions,
     listThreads,
     createThread,
     loadThread,

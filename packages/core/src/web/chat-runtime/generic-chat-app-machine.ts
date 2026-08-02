@@ -22,6 +22,11 @@ import {
   type SettingsActorEvent,
   type SettingsActorInput,
 } from "./settings-actor.ts";
+import {
+  suggestionsActor,
+  type SuggestionsActorEvent,
+  type SuggestionsActorInput,
+} from "./suggestions-actor.ts";
 
 const invalidForwardingEvent = (): never => {
   throw new Error("Generic chat app received an invalid forwarding event.");
@@ -32,7 +37,11 @@ export interface GenericChatAppInput
     Pick<ChatTransportActorInput, "api" | "createId" | "fetch" | "now">,
     Pick<ConversationStoreActorInput, "client">,
     Pick<SettingsActorInput, "storage" | "storageKey" | "defaults">,
-    Pick<BrowserStateActorInput, "browser" | "draftStorageKey"> {}
+    Pick<BrowserStateActorInput, "browser" | "draftStorageKey"> {
+  readonly features?: {
+    readonly suggestions?: boolean;
+  };
+}
 
 export type GenericChatAppEvent =
   | { type: "session-event"; event: ChatSessionEvent }
@@ -44,7 +53,8 @@ export type GenericChatAppEvent =
   | { type: "settings-event"; event: SettingsActorEvent }
   | { type: "browser-state-event"; event: BrowserStateActorEvent }
   | { type: "browser-state-session-event"; event: ChatSessionEvent }
-  | { type: "chat-ui-event"; event: ChatUiActorEvent };
+  | { type: "chat-ui-event"; event: ChatUiActorEvent }
+  | { type: "suggestions-event"; event: SuggestionsActorEvent };
 
 export const genericChatAppMachine = setup({
   types: {
@@ -59,6 +69,7 @@ export const genericChatAppMachine = setup({
     settings: settingsActor,
     browserState: browserStateActor,
     chatUi: chatUiActor,
+    suggestions: suggestionsActor,
   },
   actions: {
     forwardSessionEvent: sendTo("session", ({ event }) => {
@@ -94,6 +105,10 @@ export const genericChatAppMachine = setup({
       if (event.type === "chat-ui-event") return event.event;
       return invalidForwardingEvent();
     }),
+    forwardSuggestionsEvent: sendTo("suggestions", ({ event }) => {
+      if (event.type === "suggestions-event") return event.event;
+      return invalidForwardingEvent();
+    }),
     forwardChildSessionEvent: sendTo("session", ({ event }) => {
       if (event.type === "transport-session-event") return event.event;
       if (event.type === "conversation-store-session-event") return event.event;
@@ -116,6 +131,11 @@ export const genericChatAppMachine = setup({
       input: ({ context, self }) => ({
         ...context,
         sendSession: (event) => self.send({ type: "transport-session-event", event }),
+        sendSuggestions: (event) =>
+          self.send({
+            type: "suggestions-event",
+            event: { type: "suggestions-requested", ...event },
+          }),
       }),
     },
     {
@@ -146,6 +166,15 @@ export const genericChatAppMachine = setup({
       }),
     },
     { id: "chatUi", src: "chatUi" },
+    {
+      id: "suggestions",
+      src: "suggestions",
+      input: ({ context }) =>
+        ({
+          client: context.client,
+          enabled: context.features?.suggestions ?? false,
+        }) satisfies SuggestionsActorInput,
+    },
   ],
   on: {
     "session-event": { actions: ["forwardSessionEvent", "forwardSessionToBrowserState"] },
@@ -160,5 +189,6 @@ export const genericChatAppMachine = setup({
     "browser-state-event": { actions: "forwardBrowserStateEvent" },
     "browser-state-session-event": { actions: "forwardChildSessionEvent" },
     "chat-ui-event": { actions: "forwardChatUiEvent" },
+    "suggestions-event": { actions: "forwardSuggestionsEvent" },
   },
 });

@@ -12,6 +12,7 @@ import type {
   MemoryListState,
   QueuedFollowUpState,
   Selector,
+  SuggestionsState,
   ThreadViewState,
 } from "./runtime/types.ts";
 
@@ -30,5 +31,6 @@ export type {
   MemoryListState,
   QueuedFollowUpState,
   Selector,
+  SuggestionsState,
   ThreadViewState,
 };

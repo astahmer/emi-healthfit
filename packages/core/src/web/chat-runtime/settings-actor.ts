@@ -4,7 +4,7 @@ import { assign, fromCallback, sendTo, setup } from "xstate";
 
 import {
   defaultGenericChatSettings,
-  GenericChatSettingsSchema,
+  PersistedGenericChatSettingsSchema,
   type GenericChatSettings,
 } from "../../chat/settings.ts";
 
@@ -41,12 +41,13 @@ const normalizeSettings = ({
   settings,
 }: {
   defaults: GenericChatSettings;
-  settings: GenericChatSettings;
+  settings: Partial<GenericChatSettings>;
 }): GenericChatSettings => ({
   ...defaults,
   ...settings,
   model: settings.model || defaults.model,
   titleModel: settings.titleModel || defaults.titleModel,
+  webSearch: settings.webSearch ?? defaults.webSearch,
 });
 
 const settingsOperations = fromCallback<SettingsActorEvent, SettingsActorInput>(
@@ -57,7 +58,9 @@ const settingsOperations = fromCallback<SettingsActorEvent, SettingsActorInput>(
         const decoded =
           stored === null
             ? Option.none<GenericChatSettings>()
-            : Schema.decodeUnknownOption(Schema.fromJsonString(GenericChatSettingsSchema))(stored);
+            : Schema.decodeUnknownOption(Schema.fromJsonString(PersistedGenericChatSettingsSchema))(
+                stored,
+              );
         sendBack({
           type: "settings-hydrated",
           settings: Option.isSome(decoded)

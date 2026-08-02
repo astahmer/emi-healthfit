@@ -15,6 +15,7 @@ import {
   SettingsPanel,
 } from "../../web/styled/chat-sidebar.tsx";
 import { Button } from "../../web/styled/ui/button.tsx";
+import { SuggestionChips } from "../../web/thread/suggestion-chips.tsx";
 
 const maximumAttachments = 10;
 const maximumFileBytes = 5 * 1024 * 1024;
@@ -105,6 +106,7 @@ export const ChatApp = ({
   const temporary = useChatSelector((state) => state.temporary);
   const error = useChatSelector((state) => state.error);
   const queuedFollowUps = useChatSelector((state) => state.queuedFollowUps);
+  const suggestions = useChatSelector((state) => state.suggestions);
   const { memoryDraft, memoryPanelOpen, memorySearch, sidebarOpen } = useChatSelector(
     (state) => state.ui,
   );
@@ -274,18 +276,29 @@ export const ChatApp = ({
         <ChatShell>
           {content}
           {slots?.composer ?? (
-            <ChatComposer
-              draft={composer.text}
-              files={composer.attachments}
-              onDraftChange={(draft) => actions.setDraft({ text: draft })}
-              onFilesSelected={addFiles}
-              onRemoveFile={(file) =>
-                actions.removeAttachment({ attachmentId: `attachment:${file.url}` })
-              }
-              onSubmit={() => actions.sendMessage({ text: composer.text.trim() })}
-              placeholder={`Message ${appName}`}
-              streaming={streaming}
-            />
+            <>
+              <div className="mx-auto w-full max-w-3xl px-3 pb-2 md:px-4">
+                <SuggestionChips
+                  disabled={streaming}
+                  onSelect={(suggestion) => actions.sendMessage({ text: suggestion })}
+                  suggestions={suggestions.items}
+                />
+              </div>
+              <ChatComposer
+                draft={composer.text}
+                files={composer.attachments}
+                onDraftChange={(draft) => actions.setDraft({ text: draft })}
+                onFilesSelected={addFiles}
+                onRemoveFile={(file) =>
+                  actions.removeAttachment({ attachmentId: `attachment:${file.url}` })
+                }
+                onSubmit={() => actions.sendMessage({ text: composer.text.trim() })}
+                onWebSearchChange={(enabled) => actions.setWebSearch({ enabled })}
+                placeholder={`Message ${appName}`}
+                streaming={streaming}
+                webSearch={settings.webSearch}
+              />
+            </>
           )}
         </ChatShell>
         {slots?.footer}
