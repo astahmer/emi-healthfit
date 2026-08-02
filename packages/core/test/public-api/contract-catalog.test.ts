@@ -134,8 +134,8 @@ const dependencyMatrix = {
     ],
   },
   "./adapters/ai-sdk": {
-    runtime: ["@ai-sdk/openai", "ai", "effect"],
-    peer: [],
+    runtime: ["effect"],
+    peer: ["@ai-sdk/openai", "ai"],
     optional: [],
     forbidden: ["react", "drizzle-orm", "@cloudflare/workers-types"],
   },

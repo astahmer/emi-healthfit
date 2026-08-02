@@ -45,6 +45,8 @@ describe("@emi/core packed consumer", () => {
           type: "module",
           dependencies: {
             "@emi/core": `file:${join(temporaryDirectory, tarball)}`,
+            "@ai-sdk/openai": "3.0.84",
+            ai: "6.0.224",
             react: "19.2.7",
             "react-dom": "19.2.7",
           },

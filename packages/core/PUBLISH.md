@@ -67,7 +67,9 @@ Its rules are:
 - `react` and `components` require React only through their declared peer boundaries;
 - `components/styled` keeps visual helpers optional and does not make styling mandatory;
 - `server` and `server/fetch` keep generic server contracts free of database/platform packages;
-- `adapters/ai-sdk` is the only AI SDK boundary;
+- `adapters/ai-sdk` is the only AI SDK boundary; its AI SDK packages are optional peers, so
+  protocol, runtime, React, server, and component consumers do not install them unless they opt
+  into that adapter;
 - `adapters/cloudflare` is the only Cloudflare/database boundary; and
 - `testing` owns deterministic test helpers without becoming a production adapter.
 
