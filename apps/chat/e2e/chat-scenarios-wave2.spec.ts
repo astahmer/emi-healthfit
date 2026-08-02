@@ -302,7 +302,7 @@ test("renders multi-tool success and tool-error from a stream", async ({ page })
         streamBody: multiToolStream({ messageId: "tools-assistant" }),
         persistAssistantParts: [
           {
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: "get_recovery",
             toolCallId: "call-1",
             state: "output-available",
@@ -310,7 +310,7 @@ test("renders multi-tool success and tool-error from a stream", async ({ page })
             output: { label: "Ready", explanation: "Recovered well" },
           },
           {
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: "get_workout_history",
             toolCallId: "call-2",
             state: "output-error",
@@ -342,24 +342,27 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
     throw new Error("Expected an assistant message in the chat fixture.");
   assistant.parts = [
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_summary",
       toolCallId: "summary-1",
       state: "output-available",
+      input: {},
       output: { dailyActivity: 1655 },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_recovery",
       toolCallId: "recovery-1",
       state: "output-available",
+      input: {},
       output: { label: "Ready", explanation: "Good recovery" },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_exercise_progress",
       toolCallId: "progress-1",
       state: "output-available",
+      input: {},
       output: {
         exercise_title: "Bench Press",
         weeks: 8,
@@ -379,10 +382,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "render_component",
       toolCallId: "metric-1",
       state: "output-available",
+      input: {},
       output: {
         spec: {
           root: "metric",
@@ -396,10 +400,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_sleep_trend",
       toolCallId: "sleep-1",
       state: "output-available",
+      input: {},
       output: {
         days: 2,
         avg_in_bed_min: 495,
@@ -423,10 +428,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_workout_streak",
       toolCallId: "streak-1",
       state: "output-available",
+      input: {},
       output: {
         current_streak: 3,
         longest_streak: 7,
@@ -434,10 +440,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_training_load",
       toolCallId: "load-1",
       state: "output-available",
+      input: {},
       output: {
         weeks: [
           {
@@ -455,10 +462,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_recovery_timeline",
       toolCallId: "timeline-1",
       state: "output-available",
+      input: {},
       output: {
         days: [
           { date: "2026-07-18", asleep_min: 420, workouts: 1, volume_kg: 2000 },
@@ -468,10 +476,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_goal_progress",
       toolCallId: "goals-1",
       state: "output-available",
+      input: {},
       output: {
         period_days: 7,
         average_steps: 8500,
@@ -484,10 +493,11 @@ test("hydrates rich chat components open while keeping raw tool JSON folded", as
       },
     },
     {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_next_workout",
       toolCallId: "next-1",
       state: "output-available",
+      input: {},
       output: {
         suggested_title: "Upper body",
         readiness: "ready",

@@ -36,9 +36,11 @@ export const conversationPayload = ({ id, text }: { id: string; text: string }) 
       parts: [
         { type: "text", text: `${text} answer` },
         {
-          type: "dynamic-tool",
+          type: "tool-invocation",
           toolName: "get_recovery",
+          toolCallId: "recovery-1",
           state: "output-available",
+          input: {},
           output: { label: "Ready", explanation: "Recovered well" },
         },
       ],
