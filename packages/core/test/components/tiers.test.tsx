@@ -94,6 +94,11 @@ describe("R5 component tiers", () => {
     );
 
     expect(screen.getByRole("main", { name: "Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Core Chat" })).toBeInTheDocument();
+    expect(screen.getByText("Search conversations")).toBeInTheDocument();
+    expect(screen.getByText("Memories")).toBeInTheDocument();
+    expect(screen.getByLabelText("Theme")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add attachments")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeInTheDocument();
     runtime.dispose();
   });
