@@ -1,4 +1,5 @@
 export * from "./app-definition.ts";
+export * from "./core-extension.ts";
 export * from "./chat/context.ts";
 export * from "./chat/recovery-estimate.ts";
 export * from "./chat/prompts/fitness-coach-v1.ts";
