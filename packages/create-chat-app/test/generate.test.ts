@@ -25,6 +25,7 @@ describe("buildGeneratedFiles", () => {
       "pnpm-workspace.yaml",
       ".oxfmtrc.json",
       "core/package.json",
+      "core/source-manifest.json",
       "core/src/chat/index.ts",
       "core/test/chat/request.test.ts",
       "core/tsconfig.json",
@@ -42,6 +43,23 @@ describe("buildGeneratedFiles", () => {
       assert.ok(paths.includes(path), `expected generated file "${path}"`);
     }
     assert.equal(DEFAULT_DISTRIBUTION_MODE, "owned");
+
+    const corePackage = JSON.parse(findFile(files, "core/package.json").contents) as {
+      private: boolean;
+      files: string[];
+      exports: Record<string, string | { types: string; import: string }>;
+      emi: { sourceDistribution?: { manifest: string; provenance: string } };
+    };
+    assert.equal(corePackage.private, true);
+    assert.deepEqual(corePackage.files, ["src", "test", "PUBLISH.md", "source-manifest.json"]);
+    assert.equal(corePackage.exports["."], "./src/index.ts");
+    assert.equal(corePackage.exports["./protocol"], "./src/protocol/index.ts");
+    assert.equal(corePackage.exports["./styles.css"], "./src/styles/styles.css");
+    assert.equal(corePackage.emi.sourceDistribution?.manifest, "./source-manifest.json");
+    assert.match(
+      findFile(files, "core/source-manifest.json").contents,
+      /@emi\/core source catalog r0/,
+    );
   });
 
   it("defaults @emi/core dependency version to workspace:*", () => {
@@ -123,8 +141,6 @@ describe("buildGeneratedFiles", () => {
   it("generates a usable streaming web chat instead of a placeholder page", () => {
     const files = buildGeneratedFiles({ appName: "Acme Chat" });
     const app = findFile(files, "web/src/app.tsx").contents;
-    const styledContent = findFile(files, "core/src/web/styled/chat-content.tsx").contents;
-    const styledSidebar = findFile(files, "core/src/web/styled/chat-sidebar.tsx").contents;
     const packageJson = JSON.parse(findFile(files, "web/package.json").contents) as {
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
@@ -134,21 +150,18 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /createChatRuntime/);
     assert.match(app, /ChatProvider/);
     assert.match(app, /@emi\/core\/react/);
+    assert.match(app, /@emi\/core\/components\/styled/);
+    assert.match(app, /@emi\/core\/components/);
     assert.match(app, /baseUrl: `\$\{apiOrigin\}\/api`/);
-    assert.match(app, /@emi\/core\/web\/styled/);
-    assert.match(app, /ChatComposer/);
-    assert.match(styledSidebar, /Temporary chat/);
-    assert.match(styledContent, /Queued follow-ups/);
-    assert.match(app, /actions\.selectConversation/);
-    assert.match(app, /actions\.setConversationSearch/);
-    assert.match(styledContent, /Add attachments/);
-    assert.match(styledSidebar, /Search conversations/);
+    assert.match(app, /ChatApp/);
+    assert.match(app, /Temporary chat/);
+    assert.match(app, /Settings/);
     assert.doesNotMatch(
       app,
-      /genericChatAppMachine|conversation-store-event|createConversationClient/,
+      /genericChatAppMachine|conversation-store-event|createConversationClient|@emi\/core\/web/,
     );
     assert.doesNotMatch(app, /@xstate\/react|useActorRef|useSelector/);
-    assert.equal(packageJson.dependencies.ai, "catalog:");
+    assert.equal(packageJson.dependencies.ai, undefined);
     assert.equal(packageJson.dependencies["@xstate/react"], undefined);
     assert.equal(packageJson.dependencies["class-variance-authority"], "catalog:");
     assert.equal(packageJson.dependencies["lucide-react"], "catalog:");

@@ -43,6 +43,29 @@ const toContext = (options: BuildFilesOptions): TemplateContext => ({
 const genericSourceFile = (path: string): string =>
   readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8");
 
+const coreSourcePackageJson = (): string => {
+  const packageJson = JSON.parse(genericSourceFile("packages/core/package.json"));
+  const publicApi = packageJson.emi.publicApi;
+  const sourcePaths = {
+    ...publicApi.entrypointPaths,
+    ...publicApi.legacyEntrypointPaths,
+  };
+  packageJson.private = true;
+  packageJson.files = ["src", "test", "PUBLISH.md", "source-manifest.json"];
+  packageJson.exports = Object.fromEntries(
+    Object.keys(packageJson.exports).map((entrypoint) => {
+      const sourcePath = sourcePaths[entrypoint];
+      return [entrypoint, sourcePath ?? packageJson.exports[entrypoint]];
+    }),
+  );
+  packageJson.emi.sourceDistribution = {
+    manifest: "./source-manifest.json",
+    provenance: `@emi/core source catalog ${publicApi.version}`,
+    generatedFrom: "./package.json > emi.publicApi",
+  };
+  return `${JSON.stringify(packageJson, null, 2)}\n`;
+};
+
 const corePackageFiles = ({
   sourcePath,
   targetPath,
@@ -90,7 +113,11 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
           { path: "package.json", contents: templates.workspacePackageJson(context) },
           { path: "pnpm-workspace.yaml", contents: templates.workspaceConfig() },
           { path: ".oxfmtrc.json", contents: templates.workspaceFormatConfig() },
-          { path: "core/package.json", contents: genericSourceFile("packages/core/package.json") },
+          { path: "core/package.json", contents: coreSourcePackageJson() },
+          {
+            path: "core/source-manifest.json",
+            contents: genericSourceFile("packages/core/source-manifest.json"),
+          },
           {
             path: "core/tsconfig.json",
             contents: genericSourceFile("packages/core/tsconfig.json"),

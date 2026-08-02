@@ -181,7 +181,6 @@ export const webPackageJson = (context: TemplateContext): string =>
       },
       dependencies: {
         "@emi/core": coreDependency(context),
-        ai: "catalog:",
         "class-variance-authority": "catalog:",
         clsx: "catalog:",
         effect: "catalog:",
