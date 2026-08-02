@@ -52,8 +52,11 @@ extension model, and two supported distribution modes:
 2. **Source mode:** a generated, owned copy of supported source modules, tests, styles, and
    licenses with a manifest and upgrade/diff procedure, in the spirit of shadcn distribution.
 
-The rewrite is not an immediate implementation. It is the source of truth for the next focused
-JJ revisions. Packet IDs below are intended to be assigned to separate agents or separate turns.
+The initial clean-slate implementation has now been carried through R0–R8 in focused JJ
+revisions. This document remains the normative contract and maintenance plan: the packet cards
+describe the intended boundaries, while the status table below records the evidence already in
+the tree. Any follow-up work must preserve the same public and Effect-first patterns rather than
+reintroducing extraction-era shapes.
 
 ## Why
 
@@ -177,10 +180,40 @@ design system, or primitives with no core styling dependency.
 | Package output                   | Built ESM plus declarations with curated conditional exports                           | Registry consumers should not need the workspace TypeScript toolchain or every platform dependency.                                                                                                                                                                                                                                                                                                                   |
 | Fork distribution                | Generated source manifest with ownership metadata                                      | Source mode should be reproducible, diffable, and upgradeable instead of being an undocumented directory copy.                                                                                                                                                                                                                                                                                                        |
 
+### Current operating patterns
+
+These patterns are part of the target architecture, not optional implementation style:
+
+- Effect is the canonical server, use-case, adapter, and composition surface. Promise helpers are
+  derived only at named HTTP, browser, or host boundaries. Fallible database and adapter work uses
+  `QueryDatabase.tryPromise` or a tagged `Effect.tryPromise`; `Effect.promise` must not erase a
+  failure channel or make a query look like `never`.
+- Effect `Stream` is the default for incremental provider output, readable streams, and async
+  iterables. Use `Stream.fromReadableStream` or `Stream.fromAsyncIterable` with tagged causes,
+  preserve cancellation and resource cleanup, and run the stream only at the outer platform edge.
+- Dependency-bearing server and adapter contracts are `Context.Service` values composed with
+  `Layer`. Yield a service once and reuse its methods. Do not use constructor DI, capture and
+  re-provide an Effect context, or create static `flatMap` service facades.
+- Public operations live under a named domain class or owned instance. Static-only domains may use
+  static methods; instantiated services use `Context.Service`. Do not add abstract domain classes,
+  empty private constructors, or flat utility export files merely to group names.
+- Package boundaries are explicit `.export.ts` files. Internal code imports the owning
+  implementation file directly. No internal `index.ts` modules, index imports, wildcard exports,
+  or export-forwarding modules are allowed.
+- External, wire, and persisted values are decoded with Effect Schema and mapped into domain
+  values. Raw AI SDK, platform, database-row, and product types stop at their adapter/flavor
+  boundary. Tagged errors remain visible until the owning boundary maps them deliberately.
+- XState remains the actor/state owner. React is a view over actor-owned snapshots and commands;
+  it must not duplicate runtime, transport, persistence, or domain state with React state.
+
+The executable form of these rules is split between `anti-slop/rules/`, the contextual Oxlint
+plugin, and `scripts/check-architecture-boundaries.mjs`. Each new rule needs a human entry and a
+valid/invalid fixture where syntax or source context makes that possible.
+
 ### Target public package map
 
-Keep one `@emi/core` package, but make each subpath describe a consumer job. The exact names may
-be refined during packet R0; the dependency and ownership boundaries are non-negotiable.
+Keep one `@emi/core` package, but make each subpath describe a consumer job. R0 froze the names
+below; the dependency and ownership boundaries are non-negotiable.
 
 | Subpath                         | Public responsibility                                                                                 | Explicitly excluded                                                |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -560,6 +593,24 @@ refactor files inside its scope, but it must not opportunistically rewrite an ad
 When a packet needs a temporary compatibility bridge, record it in the packet's JJ revision and
 delete it in R8; do not make temporary names part of the target API.
 
+### Packet status and evidence (2026-08-03)
+
+| Packet | Status   | Current evidence                                                                                                                                                                                                                                                                                     |
+| ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0     | Complete | Public API fixtures, negative rewrite gates, export catalog, dependency matrix, and package boundary documentation are in `packages/core/test/public-api/**`, `packages/core/test/fixtures/**`, and `packages/core/package.json`.                                                                    |
+| R1     | Complete | Canonical protocol/contract schemas, IDs, errors, mappers, provider-neutral message parts, and Effect-first stream/error fixtures are in `packages/core/src/protocol/**`, `packages/core/src/contract/**`, and their tests.                                                                          |
+| R2     | Complete | `packages/core/src/runtime/**`, the actor-backed runtime facade, React integration, and generic-web consumer are covered by runtime/component/browser fixtures; XState remains behind the explicit advanced subpath.                                                                                 |
+| R3     | Complete | Server ports/use cases, Fetch and Cloudflare composition, granular persistence services, typed `DatabaseQueryError`, `QueryDatabase.tryPromise`, stream adapters, and HTTP error mapping are implemented in `packages/core/src/server/**`, `packages/core/src/cloudflare/**`, and `apps/api/src/**`. |
+| R4     | Complete | Provider-bound AI SDK conversion remains behind `packages/core/src/adapters/ai-sdk/**` and explicit advanced exports; protocol and common server contracts remain provider-neutral.                                                                                                                  |
+| R5     | Complete | React, controlled/connected/styled component tiers, generic web views, styles, and generic-web parity fixtures are in `packages/core/src/react/**`, `packages/core/src/components/**`, `packages/core/src/web/**`, and `apps/generic-web/**`.                                                        |
+| R6     | Complete | Generic extensions and the HealthFit flavor boundary are enforced by `packages/core/src/extensions/**`, `packages/flavor-healthfit/**`, and product-isolation fixtures.                                                                                                                              |
+| R7     | Complete | Built/source distribution, packed subpath imports, source manifests, dependency isolation, and generated generic-web acceptance are covered by `packages/core/test/pack/**` and package generator checks.                                                                                            |
+| R8     | Complete | Legacy paths, compatibility exports, internal barrels, forwarders, and undocumented package surfaces are deleted; anti-slop, boundary, and release checks are wired.                                                                                                                                 |
+
+The packet labels remain useful for follow-up work, but they are no longer a queue of unstarted
+implementation. A new change should name the packet it hardens and preserve the current status
+evidence in its JJ description.
+
 ### R0 — Freeze the public contract and consumer fixtures
 
 **Primary paths:** `packages/core/package.json`, `packages/core/test/public-api/**`,
@@ -621,15 +672,19 @@ commands and selectors are organized by user intent; injected dependencies remai
 
 ### R3 — Split server ports, Effect use cases, and Fetch/platform adapters
 
-**Primary paths:** new `packages/core/src/server/use-cases/**`, `packages/core/src/server/ports/**`,
-`packages/core/src/server/effect/**`, `packages/core/src/server/fetch/**`, current
-`packages/core/src/cloudflare/chat-routes.ts`, `packages/core/test/server/**`.
+**Primary paths:** `packages/core/src/server/use-cases/**`, `packages/core/src/server/ports/**`,
+`packages/core/src/server.export.ts`, `packages/core/src/server-effect.export.ts`,
+`packages/core/src/server-fetch.export.ts`, `packages/core/src/server/db/**`,
+`packages/core/src/cloudflare/chat-routes.ts` and its named route domains, and
+`packages/core/test/server/**`.
 
 **Depends on:** R1; can run in parallel with R4.
 
 **Purpose:** decompose HTTP routing, auth, provider calls, persistence, generation lifecycle, and
-response mapping. Keep Effect as the composition engine, but make Fetch and Cloudflare bindings
-explicit adapters.
+response mapping. Keep Effect as the composition engine, make Fetch and Cloudflare bindings
+explicit adapters, and keep database failures typed through the persistence boundary. Use
+`Context.Service`/`Layer` for dependency-bearing services, `Stream` for incremental work, and
+named domain owners instead of constructor-injected or static `flatMap` facades.
 
 **Write tests first:** exercise use cases with real in-memory/SQLite repositories and real Effect
 layers; assert generation admission precedes message persistence, concurrent conflict behavior,
@@ -639,7 +694,9 @@ generic use cases.
 
 **Acceptance:** generic server logic has no D1/Drizzle row leakage; the primary server entry is
 curated; an Effect-native consumer can compose layers; a Fetch consumer can create handlers without
-knowing internal Effect implementation; every external payload is decoded.
+knowing internal Effect implementation; every external payload is decoded; fallible SQL and
+adapter operations expose tagged failures instead of `never`; and incremental boundaries preserve
+`Stream` cancellation and tagged causes.
 
 ### R4 — Isolate provider and AI SDK adapters
 
@@ -858,33 +915,33 @@ they do not block progress unnecessarily.
 None of these questions justifies reintroducing HealthFit APIs into core or weakening the actor
 ownership and schema-boundary rules.
 
-## Acceptance criteria
+## Acceptance criteria (status as of 2026-08-03)
 
-- [ ] The documented quick start creates a runtime, mounts a provider, imports styles, and
+- [x] The documented quick start creates a runtime, mounts a provider, imports styles, and
       renders a complete chat without consumer knowledge of XState, Effect, AI SDK, D1, or core's
       source layout.
-- [ ] XState remains the tested internal owner of actor state, transitions, cancellation, and
+- [x] XState remains the tested internal owner of actor state, transitions, cancellation, and
       replaceable async work; the parent does not duplicate child snapshots.
-- [ ] Effect remains available for typed server services/use cases and layer composition through
+- [x] Effect remains available for typed server services/use cases and layer composition through
       an explicit advanced surface; Fetch consumers have a simple adapter.
-- [ ] Core protocol, runtime, components, and server ports contain no HealthFit/product APIs,
+- [x] Core protocol, runtime, components, and server ports contain no HealthFit/product APIs,
       provider message types, raw database rows, or platform globals.
-- [ ] Provider, wire DTO, domain, persistence, and database boundaries have named runtime schemas,
+- [x] Provider, wire DTO, domain, persistence, and database boundaries have named runtime schemas,
       mappers, and contract tests.
-- [ ] Real actor tests cover lifecycle, latest-wins/cancellation, generation admission, persistence
+- [x] Real actor tests cover lifecycle, latest-wins/cancellation, generation admission, persistence
       errors, browser state, and extension isolation.
-- [ ] Controlled primitives, connected components, and recipes are separately consumable and
+- [x] Controlled primitives, connected components, and recipes are separately consumable and
       tested for ownership, accessibility, safe URL sinks, and side-effect boundaries.
-- [ ] Registry mode passes packed clean-consumer import/type tests with built output and isolated
+- [x] Registry mode passes packed clean-consumer import/type tests with built output and isolated
       dependencies.
-- [ ] Source mode is generated from the same catalog, includes provenance/upgrade metadata, and
+- [x] Source mode is generated from the same catalog, includes provenance/upgrade metadata, and
       passes generator acceptance tests.
-- [ ] Curated exports prevent accidental internals; explicit advanced subpaths expose intentional
+- [x] Curated exports prevent accidental internals; explicit advanced subpaths expose intentional
       XState/Effect/platform hooks.
-- [ ] HealthFit and another hypothetical product can compose extensions without editing core.
-- [ ] The final source tree has no compatibility aliases, duplicate DTO schemas, dead forwarding
+- [x] HealthFit and another hypothetical product can compose extensions without editing core.
+- [x] The final source tree has no compatibility aliases, duplicate DTO schemas, dead forwarding
       sentinels, or undocumented distribution promises.
-- [ ] Focused checks pass for each packet and `pnpm release:check` passes once on the final worktree.
+- [x] Focused checks pass for each packet and `pnpm release:check` passes once on the final worktree.
 
 ## Decisions log
 
@@ -900,7 +957,10 @@ ownership and schema-boundary rules.
 | 2026-08-02 | Keep public files small and domain-scoped                           | `ChatProtocol`, `CoreApiClient`, `ChatExtensions`, `ChatServer`, and `ChatTesting` group discoverable operations; only independent React view primitives remain individually exported.                                                                                              |
 | 2026-08-02 | Curate the primary server entry and name advanced platform surfaces | `ChatServer`, `ChatServerEffect`, and `ChatFetchHandlers` provide the generic Effect-first boundary; SQL/replay and Cloudflare route/auth implementations live behind explicit `server/database` and `cloudflare` capability owners and are never part of generic server contracts. |
 | 2026-08-02 | Close R8 by deleting the migration boundary                         | `@emi/core` exports, manifests, packed fixtures, and docs describe only the target contract; application and flavor owners import their named generic or product domains directly.                                                                                                  |
-| 2026-08-02 | Separate the audit report from this rewrite plan                    | The audit records current evidence and completed fixes; this document is the normative future target and agent execution map.                                                                                                                                                       |
+| 2026-08-02 | Separate the audit report from this rewrite plan                    | The audit records current evidence and completed fixes; this document is the normative contract, current-status record, and maintenance packet map.                                                                                                                                 |
 | 2026-08-02 | Do not preserve backward compatibility for the rewrite              | The package may delete extraction artifacts and choose the best API instead of protecting historical names.                                                                                                                                                                         |
 | 2026-08-02 | Keep HealthFit contracts in the flavor package                      | Core supplies generic foundations; product/domain APIs enter through explicit extensions.                                                                                                                                                                                           |
 | 2026-08-02 | Use one plan with packet cards and a reusable prompt                | Another agent can start at a precise file path with tests, dependencies, and acceptance criteria without replaying the entire audit.                                                                                                                                                |
+| 2026-08-03 | Keep database failures typed through the Effect boundary            | `QueryDatabase.tryPromise` maps rejected query promises to `DatabaseQueryError`; higher ports and HTTP handlers map that tagged failure deliberately instead of declaring `never` or throwing outside Effect.                                                                       |
+| 2026-08-03 | Prefer Effect Stream for incremental boundaries                     | Readable streams and async iterables remain cancellable Effect programs with tagged causes; Promise conversion is reserved for the outer host adapter.                                                                                                                              |
+| 2026-08-03 | Enforce architecture patterns with layered deterministic checks     | ast-grep covers syntax-local slop, the Oxlint plugin covers source context, and the filesystem-aware boundary script covers package topology and cross-file rules.                                                                                                                  |
