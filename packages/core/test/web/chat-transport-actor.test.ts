@@ -1,7 +1,7 @@
-import type { UIMessage } from "ai";
 import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ChatMessage } from "../../src/protocol/index.ts";
 import {
   chatTransportActor,
   type ChatTransportActorInput,
@@ -68,12 +68,13 @@ const createInput = ({ fetch }: { fetch: typeof globalThis.fetch }) => {
     api: "https://chat.example/api/chat",
     fetch,
     createId: () => "user-message",
+    now: () => "2026-01-01T00:00:00.000Z",
     sendSession: (event) => sessionEvents.push(event),
   };
   return { input, sessionEvents };
 };
 
-const lastStreamMessage = ({ events }: { events: ChatSessionEvent[] }): UIMessage | undefined => {
+const lastStreamMessage = ({ events }: { events: ChatSessionEvent[] }): ChatMessage | undefined => {
   const event = events.findLast((candidate) => candidate.type === "stream-message");
   return event?.type === "stream-message" ? event.message : undefined;
 };
@@ -240,6 +241,7 @@ describe("chatTransportActor", () => {
             id: "user-message",
             role: "user",
             parts: [{ type: "text", text: "Send this now" }],
+            createdAt: "2026-01-01T00:00:00.000Z",
           },
         ],
       },

@@ -1,13 +1,14 @@
-import type { UIMessage } from "ai";
 import { createActor } from "xstate";
 import { describe, expect, it } from "vitest";
 
+import type { ChatMessage } from "../../src/protocol/index.ts";
 import { chatSessionMachine, initialChatSession } from "../../src/web/chat-session-machine.ts";
 
-const message: UIMessage = {
+const message: ChatMessage = {
   id: "message-1",
   role: "user",
   parts: [{ type: "text", text: "Hello" }],
+  createdAt: "2026-01-01T00:00:00.000Z",
 };
 
 describe("chatSessionMachine", () => {

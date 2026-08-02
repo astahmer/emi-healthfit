@@ -1,18 +1,18 @@
-import type { FileUIPart, UIMessage } from "ai";
 import { assign, setup } from "xstate";
+import type { Attachment, ChatMessage } from "../protocol/index.ts";
 
 export interface QueuedFollowUp {
   id: string;
   text: string;
-  files: FileUIPart[];
+  files: Attachment[];
 }
 
 export interface ChatSession {
   conversationId: string | undefined;
   threadId: string | undefined;
-  messages: UIMessage[];
+  messages: ChatMessage[];
   draft: string;
-  files: FileUIPart[];
+  files: Attachment[];
   temporary: boolean;
   error: string | undefined;
   queuedFollowUps: QueuedFollowUp[];
@@ -20,16 +20,16 @@ export interface ChatSession {
 
 export type ChatSessionEvent =
   | { type: "draft-changed"; draft: string }
-  | { type: "files-changed"; files: FileUIPart[] }
-  | { type: "files-added"; files: FileUIPart[] }
+  | { type: "files-changed"; files: Attachment[] }
+  | { type: "files-added"; files: Attachment[] }
   | { type: "temporary-changed"; temporary: boolean }
   | { type: "fresh-started" }
-  | { type: "conversation-opened"; conversationId: string; messages: UIMessage[] }
-  | { type: "thread-opened"; threadId: string; messages: UIMessage[] }
+  | { type: "conversation-opened"; conversationId: string; messages: ChatMessage[] }
+  | { type: "thread-opened"; threadId: string; messages: ChatMessage[] }
   | { type: "conversation-identified"; conversationId: string }
-  | { type: "stream-started"; messages: UIMessage[] }
+  | { type: "stream-started"; messages: ChatMessage[] }
   | { type: "stream-resumed" }
-  | { type: "stream-message"; message: UIMessage }
+  | { type: "stream-message"; message: ChatMessage }
   | { type: "stream-finished" }
   | { type: "error-reported"; error: string }
   | { type: "follow-up-queued"; followUp: QueuedFollowUp }
@@ -51,9 +51,9 @@ const replaceMessage = ({
   messages,
   message,
 }: {
-  messages: UIMessage[];
-  message: UIMessage;
-}): UIMessage[] => {
+  messages: ChatMessage[];
+  message: ChatMessage;
+}): ChatMessage[] => {
   const index = messages.findIndex((candidate) => candidate.id === message.id);
   if (index === -1) return [...messages, message];
   return [...messages.slice(0, index), message, ...messages.slice(index + 1)];

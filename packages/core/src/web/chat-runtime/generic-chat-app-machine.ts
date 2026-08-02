@@ -29,7 +29,7 @@ const invalidForwardingEvent = (): never => {
 
 export interface GenericChatAppInput
   extends
-    Pick<ChatTransportActorInput, "api" | "createId" | "fetch">,
+    Pick<ChatTransportActorInput, "api" | "createId" | "fetch" | "now">,
     Pick<ConversationStoreActorInput, "client">,
     Pick<SettingsActorInput, "storage" | "storageKey" | "defaults">,
     Pick<BrowserStateActorInput, "browser" | "draftStorageKey"> {}

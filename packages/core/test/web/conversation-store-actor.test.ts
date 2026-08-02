@@ -1,7 +1,7 @@
-import type { UIMessage } from "ai";
 import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ChatMessage } from "../../src/protocol/index.ts";
 import type { ChatSessionEvent } from "../../src/web/chat-session-machine.ts";
 import type {
   Conversation,
@@ -40,10 +40,11 @@ const memory: Memory = {
   rank: 1,
 };
 
-const message: UIMessage = {
+const message: ChatMessage = {
   id: "message-1",
   role: "user",
   parts: [{ type: "text", text: "Hello" }],
+  createdAt: "2026-01-01T00:00:00.000Z",
 };
 
 const createClient = (overrides: Partial<ConversationClient> = {}): ConversationClient => ({

@@ -1,7 +1,8 @@
-import type { UIMessage } from "ai";
+import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { validateStoredUIMessages } from "@emi/core/chat/ui-messages";
+
+import { ChatProtocol, type ChatMessage } from "../../protocol/index.ts";
 
 const ConversationSchema = Schema.Struct({
   id: Schema.String,
@@ -15,10 +16,10 @@ const ConversationSchema = Schema.Struct({
 const ConversationListSchema = Schema.Struct({ conversations: Schema.Array(ConversationSchema) });
 const ConversationMessageSchema = Schema.Struct({
   id: Schema.String,
-  role: Schema.String,
+  role: ChatProtocol.schemas.messageRole,
   parts: Schema.String,
   model: Schema.NullOr(Schema.String),
-  createdAt: Schema.String,
+  createdAt: ChatProtocol.schemas.timestamp,
 });
 const ConversationDetailSchema = Schema.Struct({
   conversation: ConversationSchema,
@@ -68,25 +69,31 @@ const invalidJsonResponseError =
 
 const decodeMessages = async (
   values: ReadonlyArray<typeof ConversationMessageSchema.Type>,
-): Promise<UIMessage[]> => {
-  const validated = await Promise.all(
-    values.map(async (message) => {
-      if (message.role !== "user" && message.role !== "assistant" && message.role !== "system")
-        return [];
-      const parts = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Schema.Unknown)))(
-        message.parts,
-      );
-      if (Option.isNone(parts)) return [];
+): Promise<ChatMessage[]> => {
+  const decoded = await Promise.all(
+    values.map(async (message): Promise<ChatMessage | undefined> => {
       try {
-        return await validateStoredUIMessages([
-          { id: message.id, role: message.role, parts: parts.value },
-        ]);
+        return await Effect.runPromise(
+          Schema.decodeUnknownEffect(
+            Schema.fromJsonString(Schema.Array(ChatProtocol.schemas.messagePart)),
+          )(message.parts).pipe(
+            Effect.flatMap((parts) =>
+              ChatProtocol.fromChatMessageDto({
+                id: message.id,
+                role: message.role,
+                parts,
+                createdAt: message.createdAt,
+                ...(message.model === null ? {} : { model: message.model }),
+              }),
+            ),
+          ),
+        );
       } catch {
-        return [];
+        return undefined;
       }
     }),
   );
-  return validated.flat();
+  return decoded.filter((message): message is ChatMessage => message !== undefined);
 };
 
 export const createConversationClient = ({
@@ -140,7 +147,7 @@ export const createConversationClient = ({
     conversationId,
   }: {
     conversationId: string;
-  }): Promise<{ conversation: Conversation; messages: UIMessage[] }> => {
+  }): Promise<{ conversation: Conversation; messages: ChatMessage[] }> => {
     const response = await fetch(apiUrl(`/api/conversations/${conversationId}`));
     const payload = await readResponse({ response });
     const decoded = Schema.decodeUnknownSync(ConversationDetailSchema)(payload);
@@ -266,7 +273,7 @@ export const createConversationClient = ({
   }: {
     conversationId: string;
     threadId: string;
-  }): Promise<{ thread: ConversationThread; messages: UIMessage[] }> => {
+  }): Promise<{ thread: ConversationThread; messages: ChatMessage[] }> => {
     const response = await fetch(
       apiUrl(`/api/conversations/${conversationId}/threads/${threadId}`),
     );

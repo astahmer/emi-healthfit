@@ -1,6 +1,6 @@
-import type { UIMessage } from "ai";
 import { assign, fromCallback, sendTo, setup } from "xstate";
 
+import type { ChatMessage } from "../../protocol/index.ts";
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
 import type { ChatTransportActorEvent } from "./chat-transport-actor.ts";
 import type {
@@ -67,9 +67,9 @@ export type ConversationStoreActorEvent =
   | { type: "threads-cleared" }
   | { type: "session-event"; event: ChatSessionEvent }
   | { type: "conversations-loaded"; conversations: Conversation[] }
-  | { type: "conversation-loaded"; conversation: Conversation; messages: UIMessage[] }
+  | { type: "conversation-loaded"; conversation: Conversation; messages: ChatMessage[] }
   | { type: "threads-loaded"; threads: ConversationThread[] }
-  | { type: "thread-loaded"; thread: ConversationThread; messages: UIMessage[] }
+  | { type: "thread-loaded"; thread: ConversationThread; messages: ChatMessage[] }
   | { type: "conversation-updated"; conversation: Conversation }
   | { type: "conversation-deleted"; conversationId: string; resetSession: boolean }
   | { type: "conversation-created"; conversation: Conversation }

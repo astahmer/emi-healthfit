@@ -23,7 +23,6 @@ import type {
 import type { BrowserStateContext } from "../web/chat-runtime/browser-state-actor.ts";
 import type { ChatUiContext } from "../web/chat-runtime/chat-ui-actor.ts";
 import type { ChatTransportActorEvent } from "../web/chat-runtime/chat-transport-actor.ts";
-import { LegacyChatBridge } from "./legacy-bridge.ts";
 import type {
   ChatActions,
   ChatRuntime,
@@ -107,14 +106,6 @@ const createStorageAdapter = (storage: ChatRuntimeOptions["storage"]["settings"]
   removeItem: (key: string) => storage.remove(key),
 });
 
-const createAttachment = (file: { url: string; mediaType: string; filename?: string }) =>
-  LegacyChatBridge.toAttachment({
-    type: "file",
-    url: file.url,
-    mediaType: file.mediaType,
-    filename: file.filename,
-  });
-
 const requestBody = (settings: GenericChatSettings): Record<string, unknown> => ({
   system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
   config: {
@@ -155,6 +146,7 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
       api: chatApiFromBaseUrl(normalizedBaseUrl),
       fetch: options.transport.fetch,
       createId: options.identity.createId,
+      now: options.identity.now,
       client,
       storage: settingsStorage,
       storageKey: settingsStorageKey,
@@ -302,13 +294,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       (conversation) => conversation.id === session.conversationId,
     );
     const isStreaming = childSnapshot("session")?.matches("streaming") ?? false;
-    const activeThreadMessages: ChatMessage[] = session.messages.map((message) =>
-      LegacyChatBridge.toChatMessage({
-        message,
-        createId: options.identity.createId,
-        now: options.identity.now,
-      }),
-    );
+    const activeThreadMessages: ChatMessage[] = session.messages;
     return {
       activeConversation:
         activeConversation === undefined ? undefined : conversationToProtocol(activeConversation),
@@ -320,7 +306,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       },
       composer: {
         text: session.draft,
-        attachments: session.files.map(createAttachment),
+        attachments: session.files,
         canSend: browser.online && (session.draft.trim() !== "" || session.files.length > 0),
       },
       conversations: {
@@ -341,7 +327,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       queuedFollowUps: session.queuedFollowUps.map((followUp) => ({
         id: followUp.id,
         text: followUp.text,
-        attachments: followUp.files.map(createAttachment),
+        attachments: followUp.files,
       })),
       error: session.error ?? store.error ?? currentBrowser().error ?? undefined,
       ui: { ...ui },
@@ -372,8 +358,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       });
       return;
     }
-    const files =
-      attachments === undefined ? session.files : attachments.map(LegacyChatBridge.toFileUIPart);
+    const files = attachments === undefined ? session.files : [...attachments];
     if (text.trim() === "" && files.length === 0) return;
     if (childSnapshot("session")?.matches("streaming")) {
       sendSession({
@@ -466,7 +451,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       }),
     setDraft: ({ text }) => sendSession({ type: "draft-changed", draft: text }),
     addAttachments: ({ attachments }) =>
-      sendSession({ type: "files-added", files: attachments.map(LegacyChatBridge.toFileUIPart) }),
+      sendSession({ type: "files-added", files: [...attachments] }),
     removeAttachment: ({ attachmentId }) => {
       const files = currentSession().files.filter(
         (file) => `attachment:${file.url}` !== attachmentId,
