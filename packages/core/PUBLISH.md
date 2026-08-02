@@ -61,7 +61,8 @@ XState, Effect, AI SDK, D1, or core source files.
 The complete machine-readable matrix is `package.json > emi.publicApi.dependencyMatrix`.
 Its rules are:
 
-- `protocol` and `api` may use Effect schemas internally but never expose Effect services;
+- `protocol` and `api` may use Effect schemas and expose typed Effect error channels, but never
+  expose Effect services or layers;
 - `runtime` and `advanced/xstate` own XState; React is not a runtime dependency;
 - `react` and `components` require React only through their declared peer boundaries;
 - `components/styled` keeps visual helpers optional and does not make styling mandatory;
@@ -72,6 +73,23 @@ Its rules are:
 
 The matrix is a contract for later built-package dependency isolation. R7 must turn these
 intentions into emitted artifacts and clean-install checks.
+
+## API organization and Effect-first rule
+
+Public entrypoints should expose a small number of domain owners. Stateless operations belong on
+an explicitly named class with static methods; stateful operations belong on an instance that owns
+its dependencies and lifecycle. Avoid flat files that export a long list of related functions or
+mutable values. Named TypeScript types may remain individually exported when consumers need them
+for annotations. React keeps a deliberately small exception for separately consumable provider and
+hook primitives because that is the native composition model and the frozen common-consumer path.
+
+Effect is the canonical form for fallible protocol, server, adapter, and use-case operations. A
+canonical method returns `Effect<Success, Error, Requirements>` and preserves its typed failure
+channel. Promise APIs are derived at an outer boundary with `Effect.runPromise` or a named wrapper
+around it. Do not catch schema failures only to throw a new error from a synchronous helper; use
+`Schema.decodeUnknownEffect` and `Effect.mapError` so the success and error channels remain visible
+to composition and tests. The runtime's synchronous command methods are an intentional actor
+dispatch boundary, not a reason to flatten Effect-based server or protocol work into throws.
 
 ## Fixture strategy
 
@@ -101,8 +119,9 @@ catalog above.
 ## R1 provider-neutral protocol
 
 `@emi/core/protocol` is now a real public subpath. Its public model is owned by core and imports
-only `effect/Schema`; it does not import React, XState, AI SDK, HealthFit, database, or platform
-modules.
+only Effect and Schema; it does not import React, XState, AI SDK, HealthFit, database, or platform
+modules. Its schemas and mappers are grouped under `ChatProtocol` rather than exported as a flat
+list of schema values and conversion functions.
 
 R1 freezes these protocol decisions:
 
@@ -121,7 +140,8 @@ R1 freezes these protocol decisions:
 - `ModelProvider` consumes core messages and configuration and yields core generation events
   without AI SDK types.
 
-Invalid DTO mapping raises `ProtocolDecodeError`; transport failures use the structured
+DTO mapping returns `Effect<DomainValue, ProtocolDecodeError>`. Promise consumers derive their
+boundary with `ChatProtocol.runPromise(effect)`; transport failures still use the structured
 `TransportError` and `ErrorResponseDto` schemas. The public import and type fixtures exercise the
 real package subpath as well as the compile-time consumer declarations.
 
@@ -181,6 +201,10 @@ R0 freezes these choices for later packets:
   `server/effect`;
 - extension contributions use namespaced, schema-validated parts and an immutable registry;
 - streaming uses normalized generation events; provider deltas remain inside adapters;
+- public operations are grouped under domain classes or owned instances instead of flat export
+  lists, with the React provider/hooks exception documented above;
+- Effect is canonical for fallible protocol/server/adapter operations, and Promise helpers are
+  derived at the boundary;
 - source regeneration refuses to silently overwrite locally changed files and reports a diff;
 - styles remain an explicit `@emi/core/styles.css` import; and
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong

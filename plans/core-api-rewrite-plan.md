@@ -166,6 +166,8 @@ design system, or primitives with no core styling dependency.
 |--------|----------|-----------|
 | State and async ownership | Keep XState actors internally | Actor lifetimes, transitions, cancellation, queues, and real-actor tests are a strong fit for chat and agent flows. Hide wiring behind a facade rather than weakening the model. |
 | Server composition | Keep Effect internally and expose an explicit Effect-native surface | Services, typed failures, schema decoding, resource safety, and layers are valuable. Fetch consumers can use an adapter without learning `Effect.gen` or layers. |
+| Public API organization | Group operations under domain classes or owned instances | One domain owner makes discovery, scoping, lifecycle, and dependency ownership visible. Avoid flat files with long lists of exported functions or mutable values; React provider/hooks are a deliberate composition exception. |
+| Effect-first fallible operations | Define Effect programs first and derive Promise boundaries | Preserve typed success, failure, and requirements through protocol, server, adapter, and use-case composition. Promise wrappers belong at outer boundaries; synchronous catch-and-throw helpers do not replace the failure channel. |
 | Domain protocol | Define core-owned types and runtime schemas | The protocol must not leak `UIMessage`, `FileUIPart`, OpenAI types, HealthFit types, or database rows. |
 | Provider integration | Optional `adapters/ai-sdk` and provider-neutral ports | Provider changes stay at an adapter boundary and AI SDK remains optional for consumers who do not use it. |
 | React integration | External-store style subscription over the runtime | React renders actor-derived snapshots; it must not own app, network, persistence, or domain state. |
@@ -872,6 +874,8 @@ ownership and schema-boundary rules.
 | 2026-08-02 | Keep the intentionally mixed-layer one-package model | Actors, web components, styles, server logic, and adapters are the intended go-to library surface; subpaths provide the boundary. |
 | 2026-08-02 | Keep XState as the runtime implementation model | Actor ownership and transition/cancellation semantics are a strength, not extraction slop. |
 | 2026-08-02 | Keep Effect as a server/composition implementation model | Typed services, failures, schemas, resource safety, and layers remain valuable; hide them only from the common consumer path. |
+| 2026-08-02 | Organize public operations under domain classes or owned instances | A scoped domain owner improves discoverability and keeps the public surface from becoming a flat collection of unrelated functions and values. |
+| 2026-08-02 | Make Effect the canonical fallible API and derive Promise helpers | Typed success/error/requirements channels should survive composition; Promise conversion belongs at consumer or adapter boundaries. |
 | 2026-08-02 | Separate the audit report from this rewrite plan | The audit records current evidence and completed fixes; this document is the normative future target and agent execution map. |
 | 2026-08-02 | Do not preserve backward compatibility for the rewrite | The package may delete extraction artifacts and choose the best API instead of protecting historical names. |
 | 2026-08-02 | Keep HealthFit contracts in the flavor package | Core supplies generic foundations; product/domain APIs enter through explicit extensions. |
