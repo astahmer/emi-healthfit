@@ -138,8 +138,12 @@ advanced `@emi/core/server/database` subpath. The generic `@emi/core/server` con
 port- and use-case-oriented, while HealthFit and platform workers own their product-specific
 schemas and adapters. The advanced database operations accept a `QueryDatabaseClient` with an
 injected `DatabaseRuntime`; Cloudflare and application edges construct that runtime from their
-platform capabilities. The primary server export has no wildcard exports and does not import D1,
-Drizzle, Kysely, Cloudflare, or AI SDK types.
+platform capabilities. The static SQL domains in `server/db` are implementation details of that
+advanced adapter, not generic use-case contracts. Generic route composition uses
+`ConversationStoreLive`, `MemoryStoreLive`, and `GenerationStoreLive` to provide granular
+`Context.Service` ports through `Layer`; new server code must use those services instead of
+calling raw SQL domains directly. The primary server export has no wildcard exports and does not
+import D1, Drizzle, Kysely, Cloudflare, or AI SDK types.
 
 Generation persistence follows the same advanced adapter boundary: `GenerationReader`,
 `GenerationWriter`, `GenerationChunkReader`, and `GenerationChunkWriter` are separate Effect
@@ -157,7 +161,9 @@ adapter composition point.
 `@emi/core/components` contains controlled and connected view primitives. `ChatApp` and
 `ChatShell` are opt-in recipes under `components/styled`; they render runtime selectors and send
 intent actions but do not own application state. Unsafe attachment URLs are rejected with Effect
-Schema before they reach an image sink.
+Schema before they reach an image sink. Their rich private implementation lives under
+`components/styled/internal`; `web` owns only provider-neutral browser views and policies, so
+the source layout makes the styled/headless ownership boundary visible.
 
 `@emi/core/extensions` exposes the Effect-first `ChatExtensions` domain owner. Definitions are
 validated, namespaced, collision-checked, immutable, and deterministically ordered. HealthFit's
@@ -259,6 +265,12 @@ Generic web views follow the same ownership rule. Core owns provider-neutral mes
 thread scrolling, attachment policy, suggestions, and runtime-connected recipes. Product apps may
 keep a thin wrapper for product renderers, memory actions, settings, model controls, and product
 navigation, but must not duplicate the generic message view or actor state in that wrapper.
+
+The canonical generic starter also covers the remaining non-sport parity flows: provider-neutral
+suggestions, the provider capability flag for web search, guest sessions, and Google/social sign-in
+success and failure states. The browser fixture exercises each flow through the real
+`createChatRuntime`/`ChatProvider`/`ChatApp` composition. Product-specific pages and providers remain
+outside generic core.
 
 ## Distribution modes
 

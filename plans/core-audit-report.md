@@ -302,15 +302,15 @@ The scan returned 10 warnings. Only the transport warning is a blocker and is al
 
 | Location | Rule | Disposition |
 | --- | --- | --- |
-| src/chat/openai.ts:51 | js-combine-iterations | Defer. Small generated-string collection; optimize only with a profile or while changing the function. |
-| src/cloudflare/chat-routes.ts:439 | js-combine-iterations | Defer. Route-local conversation filtering; not evidence of a meaningful hot path. |
+| src/adapters/ai-sdk/openai-chat.ts:51 | js-combine-iterations | Defer. Small generated-string collection; optimize only with a profile or while changing the function. |
+| src/cloudflare/chat-route-conversation.ts:242 | js-combine-iterations | Defer. Route-local conversation filtering; not evidence of a meaningful hot path. |
 | src/server/app-definition.ts:37 | js-combine-iterations | Low-priority cleanup if touched; contributor definitions are small. |
 | src/server/app-definition.ts:69 | no-spread-accumulator-in-reduce | Low-priority cleanup. The algorithmic warning is valid in isolation, but the input is configuration-sized. |
 | src/server/db/memories.ts:44 | js-combine-iterations | Defer pending memory-result size/profile. |
 | src/web/chat-runtime/chat-transport-actor.ts:102 | request-body-mass-assignment | Fix. This is CORE-003. |
 | src/web/contributions.tsx:42,45 | only-export-components | Accept. The registry and hook are intentional public contribution API, not accidental exports. |
-| src/web/styled/chat-content.tsx:95 | js-combine-iterations | Defer. Small render-time minimap collection; profile before changing readability. |
-| src/web/styled/ui/button.tsx:62 | only-export-components | Accept. Exporting buttonVariants is the intended shadcn-style API. |
+| src/components/styled/internal/chat-content.tsx:95 | js-combine-iterations | Defer. Small render-time minimap collection; profile before changing readability. |
+| src/components/styled/internal/ui/button.tsx | closed | The unused `buttonVariants` helper is private and no longer exported. |
 
 The non-failing Oxlint warnings are concentrated in tests (no-await-in-loop, consistent-function-scoping, and one JSX-as-prop warning). They are not production slop and should not be used to inflate this audit.
 

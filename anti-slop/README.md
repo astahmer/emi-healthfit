@@ -36,6 +36,8 @@ The current checks protect these boundaries:
 - actor-owned runtime state must not be duplicated with `useState` or `useReducer`;
 - generic protocol and server contracts do not import raw database, Cloudflare, or AI SDK types;
 - persistence code maps rows explicitly and stays behind ports/adapters;
+- raw SQL domains may exist only as advanced adapter implementations; generic handlers consume
+  granular Effect services supplied through `Layer`;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
 - generic chat rendering, scrolling, and runtime state belong in `@emi/core`, while products supply
   only product renderers, extensions, and configuration.
@@ -76,7 +78,9 @@ duplicating its logic.
 context. It rejects abstract core domain classes, empty private constructors, export forwarding,
 raw provider/platform imports in generic protocol and server contracts, and `Effect.run*` inside
 generic domain code. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise the plugin;
-`pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
+`pnpm slop:check` runs both the fixture checks and a clean generic-core scan. Filesystem-aware
+boundary checks additionally reject legacy source paths, internal `index.ts` modules, raw SQL
+imports in generic handlers, and constructor-based server/adapter dependency injection.
 
 When a new smell is found, add its human rule with `antislop add`, then add the smallest
 deterministic rule or boundary assertion that can prevent recurrence. Every executable rule must
