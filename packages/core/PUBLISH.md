@@ -1,4 +1,4 @@
-# `@emi/core` R0 contract, R1 protocol, R2 runtime facade, and distribution
+# `@emi/core` R0 contract, R1 protocol, R2 runtime facade, R3 server boundary, and distribution
 
 `@emi/core` is intentionally one mixed-layer package. Actors, provider-neutral chat
 protocols, React integration, controlled components, server composition, and platform
@@ -23,8 +23,8 @@ against that catalog.
 | `@emi/core/server/fetch`        | Fetch `Request`/`Response` handlers                                            | no platform bindings                                         |
 | `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge                                                         | provider types stop at this adapter                          |
 | `@emi/core/adapters/cloudflare` | Cloudflare, D1, R2, and Worker bindings                                        | platform assumptions stay in the adapter                     |
-| `@emi/core/extensions`          | `defineChatExtension` and collision-checked composition                        | product domains remain external packages                     |
-| `@emi/core/testing`             | deterministic dependencies, in-memory repositories, and actor harnesses        | test-only helpers, not production state                      |
+| `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition                  | product domains remain external packages                     |
+| `@emi/core/testing`             | `ChatTesting` deterministic dependencies, repositories, and actor harnesses    | test-only helpers, not production state                      |
 | `@emi/core/advanced/xstate`     | intentional actor refs and machine integration                                 | raw XState is never the common path                          |
 
 The explicit advanced Effect entrypoint is `@emi/core/server/effect`; R0 does not add a
@@ -90,6 +90,27 @@ around it. Do not catch schema failures only to throw a new error from a synchro
 `Schema.decodeUnknownEffect` and `Effect.mapError` so the success and error channels remain visible
 to composition and tests. The runtime's synchronous command methods are an intentional actor
 dispatch boundary, not a reason to flatten Effect-based server or protocol work into throws.
+
+## R3 Effect-first server boundary
+
+`@emi/core/server` is the curated generic server entry. `ChatServer` is an instance-owned domain
+use case: it receives authentication, repository, model, configuration, and extension ports, then
+returns typed `Effect` programs for listing and generating. Generation input is decoded with the
+protocol schemas before authentication or persistence; admission runs before user-message
+persistence; every emitted generation event is persisted through the generation port; and response
+conversations are encoded through the protocol DTO mapper.
+
+`@emi/core/server/effect` exposes `ChatServerEffect.create` for an explicit Effect-native
+construction point. `@emi/core/server/fetch` exposes `ChatFetchHandlers`, which derives a
+Promise-based `Request`/`Response` boundary with `Effect.runPromise` and maps typed server
+failures to HTTP responses. Fetch consumers do not need to know the server's Effect composition
+details.
+
+The old database, auth, and AI-SDK-shaped server helpers are quarantined under the internal
+migration path `@emi/core/server/legacy`; it is not listed in `emi.publicApi`, not a target name,
+and must not be used by generic consumers. Existing Cloudflare and application workers use this
+bridge while their platform adapters move to explicit ports. The primary server barrel has no
+wildcard exports and does not import D1, Drizzle, Kysely, Cloudflare, or AI SDK types.
 
 ## Fixture strategy
 
@@ -189,7 +210,7 @@ Registry mode is not publish-ready in R0. Before changing `private` to `false`, 
 - a packed clean-consumer import and typecheck for the target fixtures; and
 - package README, license, version, and provenance metadata.
 
-## R0/R1 decisions and remaining gates
+## R0-R3 decisions and remaining gates
 
 R0 freezes these choices for later packets:
 
@@ -205,16 +226,22 @@ R0 freezes these choices for later packets:
   lists, with the React provider/hooks exception documented above;
 - Effect is canonical for fallible protocol/server/adapter operations, and Promise helpers are
   derived at the boundary;
+- `ChatServer` owns the generic server use-case boundary, `ChatServerEffect` is the explicit
+  Effect construction surface, and `ChatFetchHandlers` is the derived Promise adapter;
+- raw database/platform helpers are temporarily isolated behind the non-catalog
+  `server/legacy` migration path while Cloudflare ports are extracted;
 - source regeneration refuses to silently overwrite locally changed files and reports a diff;
 - styles remain an explicit `@emi/core/styles.css` import; and
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong
   in `testing`.
 
-The R0 public-contract, R1 protocol, and R2 runtime-facade gates are closed. Remaining
-implementation gates are R3 for generic API/server composition, R4 for the AI SDK adapter, R5 for
+The R0 public-contract, R1 protocol, R2 runtime-facade, and generic R3 server-boundary gates are
+closed for the new port/use-case/Fetch surface. The legacy Cloudflare route and its D1 repository
+mapping remain an explicit R3 migration bridge; they must be completed before the final
+distribution gate. Remaining implementation gates are R4 for the AI SDK adapter, R5 for
 React/components/styles, R6 for extensions, and R7 for source and registry distribution.
 These are implementation dependencies, not alternate public names.
 
-R2 leaves the legacy transport/session bridge, generic-web styled bridge, and the remaining
-provider-neutral message conversion as explicit R4/R5 work. R3 generic API/server migration and
-R4 AI SDK adapter are the next implementation gates; R5 consumes their protocol fixtures.
+R2 leaves the legacy transport/session bridge and generic-web styled bridge. R3 leaves only the
+explicit Cloudflare/D1 migration bridge described above. R4 owns the AI SDK adapter; R5 consumes
+the completed protocol and server fixtures.

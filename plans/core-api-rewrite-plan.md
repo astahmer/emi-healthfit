@@ -197,7 +197,7 @@ be refined during packet R0; the dependency and ownership boundaries are non-neg
 | `@emi/core/server/fetch` | Request/Response handlers over the server composition. | Platform-specific bindings. |
 | `@emi/core/adapters/ai-sdk` | AI SDK/provider bridge to the core protocol and model ports. | AI SDK types in protocol or runtime core. |
 | `@emi/core/adapters/cloudflare` | D1, Workers, R2, and platform bindings. | Cloudflare assumptions in generic server logic. |
-| `@emi/core/extensions` | `defineChatExtension` and collision-checked composition helpers. | Product code bundled into the base core. |
+| `@emi/core/extensions` | `ChatExtensions` definition and collision-checked composition methods. | Product code bundled into the base core. |
 | `@emi/core/testing` | In-memory repositories, deterministic clock/ID/fetch/storage adapters, actor harnesses, and fixtures. | Production runtime dependencies. |
 | `@emi/core/advanced/xstate` | Deliberate actor refs, machine types, and integration helpers for advanced consumers. | Accidental access through default barrels. |
 
@@ -361,7 +361,7 @@ are namespaced, collision-checked, and resolved deterministically.
 HealthFit is an extension/composition package, not a conditional branch in core:
 
 ```ts
-const healthFit = defineChatExtension({
+const healthFit = ChatExtensions.define({
   id: "healthfit",
   api: healthFitApi,
   server: { routes, tools, repositories },
@@ -513,9 +513,9 @@ results must decode through runtime schemas before entering domain state.
 | `UIMessage` and `FileUIPart` in runtime/components | `ChatMessage` and `MessagePart` plus provider adapters | R1/R4 |
 | `chat/openai.ts` | Provider-neutral `ModelProvider` plus `adapters/ai-sdk` | R4 |
 | `makeGenericChatRoutes` and the large route module | `createChatServer` use cases plus small HTTP/platform adapters | R3 |
-| `server/index.ts` wildcard export | Curated ports/use cases plus explicit advanced database exports | R0/R3 |
+| `server/index.ts` wildcard export | Curated ports/use cases; raw database helpers move behind the non-catalog `server/legacy` migration path | R0/R3/R8 |
 | `web/styled` app-shaped components | Controlled primitives, connected components, and opt-in recipes | R5 |
-| `CoreWebContributions` arrays | Namespaced `defineChatExtension` contributions with collision validation | R6 |
+| `CoreWebContributions` arrays | Namespaced `ChatExtensions` definitions with collision validation | R6 |
 | `create-chat-app` repository-shaped copying | Public source manifest generated from the export catalog | R7 |
 | `packages/flavor-healthfit/src/contract/index.ts` | Product-owned extension contract over generic `CoreApi` | R6 |
 
@@ -876,6 +876,7 @@ ownership and schema-boundary rules.
 | 2026-08-02 | Keep Effect as a server/composition implementation model | Typed services, failures, schemas, resource safety, and layers remain valuable; hide them only from the common consumer path. |
 | 2026-08-02 | Organize public operations under domain classes or owned instances | A scoped domain owner improves discoverability and keeps the public surface from becoming a flat collection of unrelated functions and values. |
 | 2026-08-02 | Make Effect the canonical fallible API and derive Promise helpers | Typed success/error/requirements channels should survive composition; Promise conversion belongs at consumer or adapter boundaries. |
+| 2026-08-02 | Curate the primary server entry and quarantine the old platform surface | `ChatServer`, `ChatServerEffect`, and `ChatFetchHandlers` provide the generic Effect-first boundary; existing D1/Drizzle/AI-SDK helpers use a non-catalog migration path until explicit Cloudflare ports replace them. |
 | 2026-08-02 | Separate the audit report from this rewrite plan | The audit records current evidence and completed fixes; this document is the normative future target and agent execution map. |
 | 2026-08-02 | Do not preserve backward compatibility for the rewrite | The package may delete extraction artifacts and choose the best API instead of protecting historical names. |
 | 2026-08-02 | Keep HealthFit contracts in the flavor package | Core supplies generic foundations; product/domain APIs enter through explicit extensions. |
