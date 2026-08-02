@@ -33,6 +33,15 @@ export type JsonValue =
   | ReadonlyArray<JsonValue>
   | { readonly [key: string]: JsonValue };
 
+export type AttachmentId = string;
+export type ConversationId = string;
+export type GenerationId = string;
+export type MemoryId = string;
+export type MessageId = string;
+export type ThreadId = string;
+export type ToolCallId = string;
+export type Timestamp = string;
+
 export type MessagePart =
   | { readonly type: "text"; readonly text: string }
   | { readonly type: "reasoning"; readonly text: string }
@@ -125,6 +134,14 @@ export interface ModelProvider {
 }
 
 export declare const AttachmentSchema: unknown;
+export declare const AttachmentIdSchema: unknown;
+export declare const ConversationIdSchema: unknown;
+export declare const GenerationIdSchema: unknown;
+export declare const MemoryIdSchema: unknown;
+export declare const MessageIdSchema: unknown;
+export declare const ThreadIdSchema: unknown;
+export declare const TimestampSchema: unknown;
+export declare const ToolCallIdSchema: unknown;
 export declare const ToolCallSchema: unknown;
 export declare const ToolResultSchema: unknown;
 export declare const ExtensionPartSchema: unknown;
