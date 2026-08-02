@@ -15,5 +15,5 @@
     },
     "types": ["node"]
   },
-  "include": ["consumers/**/*.ts", "consumers/**/*.tsx", "rewrite-gates/**/*.mts"]
+  "include": ["consumers/**/*", "rewrite-gates/**/*"]
 }

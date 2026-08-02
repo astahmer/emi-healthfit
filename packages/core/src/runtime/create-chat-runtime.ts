@@ -23,7 +23,7 @@ import type {
 import type { BrowserStateContext } from "../web/chat-runtime/browser-state-actor.ts";
 import type { ChatUiContext } from "../web/chat-runtime/chat-ui-actor.ts";
 import type { ChatTransportActorEvent } from "../web/chat-runtime/chat-transport-actor.ts";
-import { toAttachment, toChatMessage, toFileUIPart } from "./legacy-bridge.ts";
+import { LegacyChatBridge } from "./legacy-bridge.ts";
 import type {
   ChatActions,
   ChatRuntime,
@@ -108,7 +108,7 @@ const createStorageAdapter = (storage: ChatRuntimeOptions["storage"]["settings"]
 });
 
 const createAttachment = (file: { url: string; mediaType: string; filename?: string }) =>
-  toAttachment({
+  LegacyChatBridge.toAttachment({
     type: "file",
     url: file.url,
     mediaType: file.mediaType,
@@ -299,7 +299,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     );
     const isStreaming = childSnapshot("session")?.matches("streaming") ?? false;
     const activeThreadMessages: ChatMessage[] = session.messages.map((message) =>
-      toChatMessage({
+      LegacyChatBridge.toChatMessage({
         message,
         createId: options.identity.createId,
         now: options.identity.now,
@@ -368,7 +368,8 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       });
       return;
     }
-    const files = attachments === undefined ? session.files : attachments.map(toFileUIPart);
+    const files =
+      attachments === undefined ? session.files : attachments.map(LegacyChatBridge.toFileUIPart);
     if (text.trim() === "" && files.length === 0) return;
     if (childSnapshot("session")?.matches("streaming")) {
       sendSession({
@@ -461,7 +462,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       }),
     setDraft: ({ text }) => sendSession({ type: "draft-changed", draft: text }),
     addAttachments: ({ attachments }) =>
-      sendSession({ type: "files-added", files: attachments.map(toFileUIPart) }),
+      sendSession({ type: "files-added", files: attachments.map(LegacyChatBridge.toFileUIPart) }),
     removeAttachment: ({ attachmentId }) => {
       const files = currentSession().files.filter(
         (file) => `attachment:${file.url}` !== attachmentId,

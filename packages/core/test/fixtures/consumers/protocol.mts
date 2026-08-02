@@ -1,50 +1,21 @@
-import {
-  AttachmentSchema,
-  AttachmentIdSchema,
-  ChatMessageDtoSchema,
-  ChatMessageSchema,
-  ConversationIdSchema,
-  ConversationDtoSchema,
-  ErrorResponseDtoSchema,
-  ExtensionPartSchema,
-  GenerationEventSchema,
-  GenerationIdSchema,
-  MemoryDtoSchema,
-  MemoryIdSchema,
-  MessagePartSchema,
-  MessageIdSchema,
-  ModelConfigurationSchema,
-  ThreadDtoSchema,
-  ThreadIdSchema,
-  ToolCallSchema,
-  ToolCallIdSchema,
-  ToolResultSchema,
-  TimestampSchema,
-  fromChatMessageDto,
-  fromConversationDto,
-  fromMemoryDto,
-  fromThreadDto,
-  ProtocolDecodeError,
-  protocolSchemas,
-  toChatMessageDto,
-  toConversationDto,
-  toMemoryDto,
-  toThreadDto,
-} from "@emi/core/protocol";
+import { Effect } from "effect";
+import { ChatProtocol } from "@emi/core/protocol";
 import type {
-  ChatMessage,
   AttachmentId,
-  ConversationId,
-  GenerationId,
-  MemoryId,
-  MessageId,
+  ChatMessage,
+  Conversation,
   ConversationDto,
   ErrorResponseDto,
   ExtensionPart,
   GenerationEvent,
+  GenerationId,
+  Memory,
   MemoryDto,
+  MemoryId,
+  MessageId,
   MessagePart,
   ModelProvider,
+  Thread,
   ThreadDto,
   ThreadId,
   Timestamp,
@@ -72,7 +43,7 @@ declare const memory: MemoryDto;
 declare const errorResponse: ErrorResponseDto;
 declare const ids: {
   attachment: AttachmentId;
-  conversation: ConversationId;
+  conversation: string;
   generation: GenerationId;
   memory: MemoryId;
   message: MessageId;
@@ -81,42 +52,31 @@ declare const ids: {
   toolCall: ToolCallId;
 };
 
-void AttachmentSchema;
-void AttachmentIdSchema;
-void ChatMessageDtoSchema;
-void ChatMessageSchema;
-void ConversationIdSchema;
-void ConversationDtoSchema;
-void ErrorResponseDtoSchema;
-void ExtensionPartSchema;
-void GenerationEventSchema;
-void GenerationIdSchema;
-void MemoryDtoSchema;
-void MemoryIdSchema;
-void MessagePartSchema;
-void MessageIdSchema;
-void ModelConfigurationSchema;
-void ThreadDtoSchema;
-void ThreadIdSchema;
-void ToolCallSchema;
-void ToolCallIdSchema;
-void ToolResultSchema;
-void TimestampSchema;
-void fromChatMessageDto;
-void ProtocolDecodeError;
-void fromConversationDto;
-void fromMemoryDto;
-void fromThreadDto;
-void protocolSchemas;
+const decodedConversation: Effect.Effect<Conversation, Error> =
+  ChatProtocol.fromConversationDto(conversation);
+const conversationPromise: Promise<Conversation> = ChatProtocol.runPromise(decodedConversation);
+const decodedMessage: Effect.Effect<ChatMessage, Error> = ChatProtocol.fromChatMessageDto(message);
+const messagePromise: Promise<ChatMessage> = ChatProtocol.runPromise(decodedMessage);
+const errorPromise: Promise<ErrorResponseDto> = ChatProtocol.runPromise(
+  ChatProtocol.decodeErrorResponseDto(errorResponse),
+);
+
+void ChatProtocol.schemas.attachment;
+void ChatProtocol.schemas.chatMessage;
+void ChatProtocol.schemas.conversation;
+void ChatProtocol.schemas.errorResponseDto;
+void ChatProtocol.schemas.generationEvent;
+void ChatProtocol.schemas.messagePart;
+void ChatProtocol.schemas.modelConfiguration;
+void ChatProtocol.schemas.thread;
+void ChatProtocol.schemas.memory;
 void event;
 void extensionPart;
 void provider;
-void toChatMessageDto;
-void toConversationDto;
-void toMemoryDto;
-void toThreadDto;
-void conversation;
-void thread;
-void memory;
-void errorResponse;
 void ids;
+void memory;
+void thread;
+void conversation;
+void conversationPromise;
+void messagePromise;
+void errorPromise;

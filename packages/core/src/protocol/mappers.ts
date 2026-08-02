@@ -1,4 +1,6 @@
+import { Effect } from "effect";
 import * as Schema from "effect/Schema";
+
 import { ErrorResponseDtoSchema, ProtocolDecodeError, type ErrorResponseDto } from "./errors.ts";
 import {
   ChatMessageDtoSchema,
@@ -6,6 +8,23 @@ import {
   type ChatMessage,
   type ChatMessageDto,
 } from "./messages.ts";
+import {
+  AttachmentSchema,
+  ExtensionPartSchema,
+  MessagePartSchema,
+  ToolCallSchema,
+  ToolResultSchema,
+} from "./parts.ts";
+import {
+  AttachmentIdSchema,
+  ConversationIdSchema,
+  GenerationIdSchema,
+  MemoryIdSchema,
+  MessageIdSchema,
+  ThreadIdSchema,
+  TimestampSchema,
+  ToolCallIdSchema,
+} from "./ids.ts";
 import {
   ConversationDtoSchema,
   ConversationSchema,
@@ -20,32 +39,188 @@ import {
   type Thread,
   type ThreadDto,
 } from "./resources.ts";
+import {
+  GenerationEventSchema,
+  ModelConfigurationSchema,
+  ModelGenerationInputSchema,
+} from "./model.ts";
+import { MessageRoleSchema, MessageUsageSchema } from "./messages.ts";
+import { TransportErrorSchema } from "./errors.ts";
 
-const decode = <SchemaType extends Schema.ConstraintDecoder<unknown>>(
-  schema: SchemaType,
-  input: unknown,
-): SchemaType["Type"] => {
-  try {
-    return Schema.decodeUnknownSync(schema)(input);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Protocol value failed validation.";
-    throw new ProtocolDecodeError({ message });
+const protocolSchemas = {
+  attachment: AttachmentSchema,
+  attachmentId: AttachmentIdSchema,
+  conversationId: ConversationIdSchema,
+  generationId: GenerationIdSchema,
+  memoryId: MemoryIdSchema,
+  messageId: MessageIdSchema,
+  threadId: ThreadIdSchema,
+  timestamp: TimestampSchema,
+  toolCallId: ToolCallIdSchema,
+  toolCall: ToolCallSchema,
+  toolResult: ToolResultSchema,
+  extensionPart: ExtensionPartSchema,
+  messagePart: MessagePartSchema,
+  chatMessage: ChatMessageSchema,
+  chatMessageDto: ChatMessageDtoSchema,
+  conversation: ConversationSchema,
+  conversationDto: ConversationDtoSchema,
+  thread: ThreadSchema,
+  threadDto: ThreadDtoSchema,
+  memory: MemorySchema,
+  memoryDto: MemoryDtoSchema,
+  messageRole: MessageRoleSchema,
+  messageUsage: MessageUsageSchema,
+  generationEvent: GenerationEventSchema,
+  errorResponseDto: ErrorResponseDtoSchema,
+  modelConfiguration: ModelConfigurationSchema,
+  modelGenerationInput: ModelGenerationInputSchema,
+  transportError: TransportErrorSchema,
+} as const;
+
+export type ProtocolSchemas = typeof protocolSchemas;
+export type ProtocolEffect<Value> = Effect.Effect<Value, ProtocolDecodeError>;
+
+export class ChatProtocol {
+  private constructor() {}
+
+  static readonly schemas = protocolSchemas;
+
+  static fromChatMessageDto(input: unknown): ProtocolEffect<ChatMessage> {
+    return ChatProtocol.decode(ChatProtocol.schemas.chatMessageDto, input).pipe(
+      Effect.map((value) => ChatProtocol.copyChatMessage(value)),
+    );
   }
-};
 
-const copyChatMessage = (value: ChatMessage): ChatMessage => {
-  const base = {
-    id: value.id,
-    role: value.role,
-    parts: [...value.parts],
-    createdAt: value.createdAt,
-  };
-  const usage = value.usage;
-  if (value.model === undefined && usage === undefined) return base;
-  if (value.model !== undefined && usage !== undefined) {
+  static toChatMessageDto(input: ChatMessage): ProtocolEffect<ChatMessageDto> {
+    return ChatProtocol.decode(ChatProtocol.schemas.chatMessage, input).pipe(
+      Effect.map((value) => ChatProtocol.copyChatMessage(value)),
+    );
+  }
+
+  static fromConversationDto(input: unknown): ProtocolEffect<Conversation> {
+    return ChatProtocol.decode(ChatProtocol.schemas.conversationDto, input).pipe(
+      Effect.map((value) => ({
+        id: value.id,
+        title: value.title,
+        status: value.status,
+        pinned: value.pinned,
+        createdAt: value.createdAt,
+        updatedAt: value.updatedAt,
+      })),
+    );
+  }
+
+  static toConversationDto(input: Conversation): ProtocolEffect<ConversationDto> {
+    return ChatProtocol.decode(ChatProtocol.schemas.conversation, input).pipe(
+      Effect.map((value) => ({
+        id: value.id,
+        title: value.title,
+        status: value.status,
+        pinned: value.pinned,
+        createdAt: value.createdAt,
+        updatedAt: value.updatedAt,
+      })),
+    );
+  }
+
+  static fromThreadDto(input: unknown): ProtocolEffect<Thread> {
+    return ChatProtocol.decode(ChatProtocol.schemas.threadDto, input).pipe(
+      Effect.map((value) => ({
+        id: value.id,
+        conversationId: value.conversationId,
+        anchorMessageId: value.anchorMessageId,
+        title: value.title,
+        status: value.status,
+        pinned: value.pinned,
+        createdAt: value.createdAt,
+        updatedAt: value.updatedAt,
+      })),
+    );
+  }
+
+  static toThreadDto(input: Thread): ProtocolEffect<ThreadDto> {
+    return ChatProtocol.decode(ChatProtocol.schemas.thread, input).pipe(
+      Effect.map((value) => ({
+        id: value.id,
+        conversationId: value.conversationId,
+        anchorMessageId: value.anchorMessageId,
+        title: value.title,
+        status: value.status,
+        pinned: value.pinned,
+        createdAt: value.createdAt,
+        updatedAt: value.updatedAt,
+      })),
+    );
+  }
+
+  static fromMemoryDto(input: unknown): ProtocolEffect<Memory> {
+    return ChatProtocol.decode(ChatProtocol.schemas.memoryDto, input).pipe(
+      Effect.map((value) => ({
+        id: value.id,
+        content: value.content,
+        source: value.source,
+        threadId: value.threadId,
+        createdAt: value.createdAt,
+        rank: value.rank,
+      })),
+    );
+  }
+
+  static toMemoryDto(input: Memory): ProtocolEffect<MemoryDto> {
+    return ChatProtocol.decode(ChatProtocol.schemas.memory, input).pipe(
+      Effect.map((value) => ({
+        id: value.id,
+        content: value.content,
+        source: value.source,
+        threadId: value.threadId,
+        createdAt: value.createdAt,
+        rank: value.rank,
+      })),
+    );
+  }
+
+  static decodeErrorResponseDto(input: unknown): ProtocolEffect<ErrorResponseDto> {
+    return ChatProtocol.decode(ChatProtocol.schemas.errorResponseDto, input);
+  }
+
+  static runPromise<Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value> {
+    return Effect.runPromise(effect);
+  }
+
+  private static decode<SchemaType extends Schema.ConstraintDecoder<unknown>>(
+    schema: SchemaType,
+    input: unknown,
+  ): ProtocolEffect<SchemaType["Type"]> {
+    return Schema.decodeUnknownEffect(schema)(input).pipe(
+      Effect.mapError((error) => new ProtocolDecodeError({ message: error.message })),
+    );
+  }
+
+  private static copyChatMessage(value: ChatMessage): ChatMessage {
+    const base = {
+      id: value.id,
+      role: value.role,
+      parts: [...value.parts],
+      createdAt: value.createdAt,
+    };
+    const usage = value.usage;
+    if (value.model === undefined && usage === undefined) return base;
+    if (value.model !== undefined && usage !== undefined) {
+      return {
+        ...base,
+        model: value.model,
+        usage: {
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
+          totalTokens: usage.totalTokens,
+        },
+      };
+    }
+    if (value.model !== undefined) return { ...base, model: value.model };
+    if (usage === undefined) return base;
     return {
       ...base,
-      model: value.model,
       usage: {
         promptTokens: usage.promptTokens,
         completionTokens: usage.completionTokens,
@@ -53,99 +228,4 @@ const copyChatMessage = (value: ChatMessage): ChatMessage => {
       },
     };
   }
-  if (value.model !== undefined) return { ...base, model: value.model };
-  if (usage === undefined) return base;
-  return {
-    ...base,
-    usage: {
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      totalTokens: usage.totalTokens,
-    },
-  };
-};
-
-export const fromChatMessageDto = (input: unknown): ChatMessage =>
-  copyChatMessage(decode(ChatMessageDtoSchema, input));
-
-export const toChatMessageDto = (input: ChatMessage): ChatMessageDto =>
-  copyChatMessage(decode(ChatMessageSchema, input));
-
-export const fromConversationDto = (input: unknown): Conversation => {
-  const value = decode(ConversationDtoSchema, input);
-  return {
-    id: value.id,
-    title: value.title,
-    status: value.status,
-    pinned: value.pinned,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-  };
-};
-
-export const toConversationDto = (input: Conversation): ConversationDto => {
-  const value = decode(ConversationSchema, input);
-  return {
-    id: value.id,
-    title: value.title,
-    status: value.status,
-    pinned: value.pinned,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-  };
-};
-
-export const fromThreadDto = (input: unknown): Thread => {
-  const value = decode(ThreadDtoSchema, input);
-  return {
-    id: value.id,
-    conversationId: value.conversationId,
-    anchorMessageId: value.anchorMessageId,
-    title: value.title,
-    status: value.status,
-    pinned: value.pinned,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-  };
-};
-
-export const toThreadDto = (input: Thread): ThreadDto => {
-  const value = decode(ThreadSchema, input);
-  return {
-    id: value.id,
-    conversationId: value.conversationId,
-    anchorMessageId: value.anchorMessageId,
-    title: value.title,
-    status: value.status,
-    pinned: value.pinned,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-  };
-};
-
-export const fromMemoryDto = (input: unknown): Memory => {
-  const value = decode(MemoryDtoSchema, input);
-  return {
-    id: value.id,
-    content: value.content,
-    source: value.source,
-    threadId: value.threadId,
-    createdAt: value.createdAt,
-    rank: value.rank,
-  };
-};
-
-export const toMemoryDto = (input: Memory): MemoryDto => {
-  const value = decode(MemorySchema, input);
-  return {
-    id: value.id,
-    content: value.content,
-    source: value.source,
-    threadId: value.threadId,
-    createdAt: value.createdAt,
-    rank: value.rank,
-  };
-};
-
-export const decodeErrorResponseDto = (input: unknown): ErrorResponseDto =>
-  decode(ErrorResponseDtoSchema, input);
+}

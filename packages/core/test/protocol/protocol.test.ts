@@ -3,32 +3,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { Effect } from "effect";
 import * as Schema from "effect/Schema";
-import {
-  AttachmentSchema,
-  ChatMessageDtoSchema,
-  ChatMessageSchema,
-  ConversationDtoSchema,
-  ErrorResponseDtoSchema,
-  ExtensionPartSchema,
-  GenerationEventSchema,
-  MemoryDtoSchema,
-  MessagePartSchema,
-  ModelConfigurationSchema,
-  ProtocolDecodeError,
-  ThreadDtoSchema,
-  ToolCallSchema,
-  ToolResultSchema,
-  fromChatMessageDto,
-  fromConversationDto,
-  decodeErrorResponseDto,
-  fromMemoryDto,
-  fromThreadDto,
-  toChatMessageDto,
-  toConversationDto,
-  toMemoryDto,
-  toThreadDto,
-} from "../../src/protocol/index.ts";
+import { ChatProtocol, ProtocolDecodeError } from "../../src/protocol/index.ts";
 
 const decode = <SchemaType extends Schema.ConstraintDecoder<unknown>>(
   schema: SchemaType,
@@ -63,20 +40,20 @@ const message = {
 describe("@emi/core/protocol", () => {
   it("resolves through the curated public subpath", async () => {
     const publicProtocol = await import("@emi/core/protocol");
-    assert.equal(typeof publicProtocol.protocolSchemas.chatMessage, "object");
-    assert.equal(typeof publicProtocol.fromConversationDto, "function");
+    assert.equal(typeof publicProtocol.ChatProtocol.schemas.chatMessage, "object");
+    assert.equal(typeof publicProtocol.ChatProtocol.fromConversationDto, "function");
   });
 
   it("decodes provider-neutral messages, attachments, tools, and generation events", () => {
-    assert.deepEqual(decode(AttachmentSchema, attachment), attachment);
-    assert.deepEqual(decode(ToolCallSchema, toolCall.call), toolCall.call);
-    assert.deepEqual(decode(ToolResultSchema, toolResult.result), toolResult.result);
-    assert.deepEqual(decode(MessagePartSchema, message.parts[0]), message.parts[0]);
-    const decodedMessage = decode(ChatMessageSchema, message);
+    assert.deepEqual(decode(ChatProtocol.schemas.attachment, attachment), attachment);
+    assert.deepEqual(decode(ChatProtocol.schemas.toolCall, toolCall.call), toolCall.call);
+    assert.deepEqual(decode(ChatProtocol.schemas.toolResult, toolResult.result), toolResult.result);
+    assert.deepEqual(decode(ChatProtocol.schemas.messagePart, message.parts[0]), message.parts[0]);
+    const decodedMessage = decode(ChatProtocol.schemas.chatMessage, message);
     assert.deepEqual(decodedMessage, message);
-    assert.deepEqual(Schema.encodeSync(ChatMessageSchema)(decodedMessage), message);
-    assert.deepEqual(decode(ChatMessageDtoSchema, message), message);
-    assert.deepEqual(decode(GenerationEventSchema, { type: "completed", message }), {
+    assert.deepEqual(Schema.encodeSync(ChatProtocol.schemas.chatMessage)(decodedMessage), message);
+    assert.deepEqual(decode(ChatProtocol.schemas.chatMessageDto, message), message);
+    assert.deepEqual(decode(ChatProtocol.schemas.generationEvent, { type: "completed", message }), {
       type: "completed",
       message,
     });
@@ -84,13 +61,20 @@ describe("@emi/core/protocol", () => {
 
   it("rejects unknown parts and unsafe persisted values", () => {
     assert.throws(() =>
-      decode(MessagePartSchema, { type: "provider-specific", payload: { value: true } }),
+      decode(ChatProtocol.schemas.messagePart, {
+        type: "provider-specific",
+        payload: { value: true },
+      }),
     );
-    assert.throws(() => decode(AttachmentSchema, { ...attachment, url: "javascript:alert(1)" }));
     assert.throws(() =>
-      decode(ToolResultSchema, { callId: "call-1", output: { value: undefined } }),
+      decode(ChatProtocol.schemas.attachment, { ...attachment, url: "javascript:alert(1)" }),
     );
-    assert.throws(() => decode(ChatMessageSchema, { ...message, createdAt: "yesterday" }));
+    assert.throws(() =>
+      decode(ChatProtocol.schemas.toolResult, { callId: "call-1", output: { value: undefined } }),
+    );
+    assert.throws(() =>
+      decode(ChatProtocol.schemas.chatMessage, { ...message, createdAt: "yesterday" }),
+    );
   });
 
   it("keeps extension parts namespaced without using an unknown boundary", () => {
@@ -100,11 +84,13 @@ describe("@emi/core/protocol", () => {
       name: "citation",
       data: { sourceId: "source-1", page: 2 },
     };
-    assert.deepEqual(decode(ExtensionPartSchema, extensionPart), extensionPart);
-    assert.throws(() => decode(ExtensionPartSchema, { ...extensionPart, namespace: "healthfit" }));
+    assert.deepEqual(decode(ChatProtocol.schemas.extensionPart, extensionPart), extensionPart);
+    assert.throws(() =>
+      decode(ChatProtocol.schemas.extensionPart, { ...extensionPart, namespace: "healthfit" }),
+    );
   });
 
-  it("keeps HTTP DTOs explicit and maps stable IDs into domain values", () => {
+  it("keeps HTTP DTOs explicit and maps stable IDs into domain values", async () => {
     const conversationDto = {
       id: "conversation-1",
       title: "Planning",
@@ -132,48 +118,73 @@ describe("@emi/core/protocol", () => {
       rank: 1,
     };
 
-    assert.deepEqual(fromConversationDto(conversationDto), conversationDto);
-    assert.deepEqual(toConversationDto(fromConversationDto(conversationDto)), conversationDto);
-    assert.deepEqual(fromThreadDto(threadDto), threadDto);
-    assert.deepEqual(toThreadDto(fromThreadDto(threadDto)), threadDto);
-    assert.deepEqual(fromMemoryDto(memoryDto), memoryDto);
-    assert.deepEqual(toMemoryDto(fromMemoryDto(memoryDto)), memoryDto);
-    assert.equal(fromChatMessageDto(message).id, "message-1");
-    assert.equal(toChatMessageDto(fromChatMessageDto(message)).id, "message-1");
+    const conversation = await ChatProtocol.runPromise(
+      ChatProtocol.fromConversationDto(conversationDto),
+    );
+    assert.deepEqual(conversation, conversationDto);
+    assert.deepEqual(
+      await ChatProtocol.runPromise(ChatProtocol.toConversationDto(conversation)),
+      conversationDto,
+    );
+    const thread = await ChatProtocol.runPromise(ChatProtocol.fromThreadDto(threadDto));
+    assert.deepEqual(thread, threadDto);
+    assert.deepEqual(await ChatProtocol.runPromise(ChatProtocol.toThreadDto(thread)), threadDto);
+    const memory = await ChatProtocol.runPromise(ChatProtocol.fromMemoryDto(memoryDto));
+    assert.deepEqual(memory, memoryDto);
+    assert.deepEqual(await ChatProtocol.runPromise(ChatProtocol.toMemoryDto(memory)), memoryDto);
+    const decodedMessage = await ChatProtocol.runPromise(ChatProtocol.fromChatMessageDto(message));
+    assert.equal(decodedMessage.id, "message-1");
+    assert.equal(
+      (await ChatProtocol.runPromise(ChatProtocol.toChatMessageDto(decodedMessage))).id,
+      "message-1",
+    );
 
     assert.throws(() =>
-      decode(ConversationDtoSchema, {
+      decode(ChatProtocol.schemas.conversationDto, {
         ...conversationDto,
         createdAt: undefined,
         created_at: conversationDto.createdAt,
       }),
     );
     assert.throws(() =>
-      decode(ThreadDtoSchema, {
+      decode(ChatProtocol.schemas.threadDto, {
         ...threadDto,
         conversationId: undefined,
         conversation_id: "conversation-1",
       }),
     );
     assert.throws(() =>
-      decode(MemoryDtoSchema, { ...memoryDto, threadId: undefined, thread_id: "thread-1" }),
+      decode(ChatProtocol.schemas.memoryDto, {
+        ...memoryDto,
+        threadId: undefined,
+        thread_id: "thread-1",
+      }),
     );
-    assert.throws(
-      () => fromConversationDto({ ...conversationDto, createdAt: "not-a-timestamp" }),
-      ProtocolDecodeError,
+    await assert.rejects(
+      () =>
+        ChatProtocol.runPromise(
+          ChatProtocol.fromConversationDto({ ...conversationDto, createdAt: "not-a-timestamp" }),
+        ),
+      (error: unknown) => error instanceof ProtocolDecodeError,
     );
   });
 
-  it("decodes model configuration and structured error responses without provider types", () => {
+  it("decodes model configuration and structured error responses without provider types", async () => {
     assert.deepEqual(
-      decode(ModelConfigurationSchema, { model: "generic-model", temperature: 0.2 }),
+      decode(ChatProtocol.schemas.modelConfiguration, {
+        model: "generic-model",
+        temperature: 0.2,
+      }),
       { model: "generic-model", temperature: 0.2 },
     );
     const errorResponse = {
       error: { code: "generation_conflict", message: "Already running", retryable: true },
     };
-    assert.deepEqual(decode(ErrorResponseDtoSchema, errorResponse), errorResponse);
-    assert.deepEqual(decodeErrorResponseDto(errorResponse), errorResponse);
+    assert.deepEqual(decode(ChatProtocol.schemas.errorResponseDto, errorResponse), errorResponse);
+    assert.deepEqual(
+      await ChatProtocol.runPromise(ChatProtocol.decodeErrorResponseDto(errorResponse)),
+      errorResponse,
+    );
   });
 
   it("keeps the protocol source independent from provider, product, and platform modules", async () => {

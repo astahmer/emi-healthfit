@@ -133,59 +133,53 @@ export interface ModelProvider {
   readonly generate: (input: ModelGenerationInput) => AsyncIterable<GenerationEvent>;
 }
 
-export declare const AttachmentSchema: unknown;
-export declare const AttachmentIdSchema: unknown;
-export declare const ConversationIdSchema: unknown;
-export declare const GenerationIdSchema: unknown;
-export declare const MemoryIdSchema: unknown;
-export declare const MessageIdSchema: unknown;
-export declare const ThreadIdSchema: unknown;
-export declare const TimestampSchema: unknown;
-export declare const ToolCallIdSchema: unknown;
-export declare const ToolCallSchema: unknown;
-export declare const ToolResultSchema: unknown;
-export declare const ExtensionPartSchema: unknown;
-export declare const MessagePartSchema: unknown;
-export declare const ChatMessageSchema: unknown;
-export declare const ChatMessageDtoSchema: unknown;
-export declare const ConversationDtoSchema: unknown;
-export declare const ConversationSchema: unknown;
-export declare const ThreadDtoSchema: unknown;
-export declare const ThreadSchema: unknown;
-export declare const MemoryDtoSchema: unknown;
-export declare const MemorySchema: unknown;
-export declare const MessageRoleSchema: unknown;
-export declare const MessageUsageSchema: unknown;
-export declare const GenerationEventSchema: unknown;
-export declare const ErrorResponseDtoSchema: unknown;
-export declare const ModelConfigurationSchema: unknown;
-export declare const ModelGenerationInputSchema: unknown;
+import type * as Effect from "effect/Effect";
 
-export declare const fromChatMessageDto: (input: unknown) => ChatMessage;
-export declare const decodeErrorResponseDto: (input: unknown) => ErrorResponseDto;
-export declare const toChatMessageDto: (input: ChatMessage) => ChatMessageDto;
-export declare const fromConversationDto: (input: unknown) => Conversation;
-export declare const toConversationDto: (input: Conversation) => ConversationDto;
-export declare const fromThreadDto: (input: unknown) => Thread;
-export declare const toThreadDto: (input: Thread) => ThreadDto;
-export declare const fromMemoryDto: (input: unknown) => Memory;
-export declare const toMemoryDto: (input: Memory) => MemoryDto;
 export declare class ProtocolDecodeError extends Error {}
 
 export interface ProtocolSchemas {
   readonly attachment: unknown;
+  readonly attachmentId: unknown;
+  readonly conversationId: unknown;
+  readonly generationId: unknown;
+  readonly memoryId: unknown;
+  readonly messageId: unknown;
+  readonly threadId: unknown;
+  readonly timestamp: unknown;
+  readonly toolCallId: unknown;
   readonly toolCall: unknown;
   readonly toolResult: unknown;
   readonly extensionPart: unknown;
   readonly messagePart: unknown;
   readonly chatMessage: unknown;
   readonly chatMessageDto: unknown;
+  readonly conversation: unknown;
   readonly conversationDto: unknown;
+  readonly thread: unknown;
   readonly threadDto: unknown;
+  readonly memory: unknown;
   readonly memoryDto: unknown;
+  readonly messageRole: unknown;
+  readonly messageUsage: unknown;
   readonly generationEvent: unknown;
   readonly errorResponseDto: unknown;
   readonly modelConfiguration: unknown;
+  readonly modelGenerationInput: unknown;
+  readonly transportError: unknown;
 }
 
-export declare const protocolSchemas: ProtocolSchemas;
+export declare class ChatProtocol {
+  static readonly schemas: ProtocolSchemas;
+  static fromChatMessageDto(input: unknown): Effect.Effect<ChatMessage, ProtocolDecodeError>;
+  static toChatMessageDto(input: ChatMessage): Effect.Effect<ChatMessageDto, ProtocolDecodeError>;
+  static fromConversationDto(input: unknown): Effect.Effect<Conversation, ProtocolDecodeError>;
+  static toConversationDto(input: Conversation): Effect.Effect<ConversationDto, ProtocolDecodeError>;
+  static fromThreadDto(input: unknown): Effect.Effect<Thread, ProtocolDecodeError>;
+  static toThreadDto(input: Thread): Effect.Effect<ThreadDto, ProtocolDecodeError>;
+  static fromMemoryDto(input: unknown): Effect.Effect<Memory, ProtocolDecodeError>;
+  static toMemoryDto(input: Memory): Effect.Effect<MemoryDto, ProtocolDecodeError>;
+  static decodeErrorResponseDto(
+    input: unknown,
+  ): Effect.Effect<ErrorResponseDto, ProtocolDecodeError>;
+  static runPromise<Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value>;
+}
