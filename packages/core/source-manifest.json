@@ -327,6 +327,7 @@
     "test/protocol/effect-first.test.ts",
     "test/protocol/protocol.test.ts",
     "test/public-api/contract-catalog.test.ts",
+    "test/public-api/export-surface.test.ts",
     "test/public-api/fixtures.test.ts",
     "test/runtime/boundary.test.ts",
     "test/runtime/chat-runtime.test.ts",

@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import * as api from "@emi/core/api";
+import * as cloudflare from "@emi/core/adapters/cloudflare";
+import * as aiSdk from "@emi/core/adapters/ai-sdk";
+import * as advancedXState from "@emi/core/advanced/xstate";
+import * as components from "@emi/core/components";
+import * as styled from "@emi/core/components/styled";
+import * as extensions from "@emi/core/extensions";
+import * as protocol from "@emi/core/protocol";
+import * as react from "@emi/core/react";
+import * as root from "@emi/core";
+import * as runtime from "@emi/core/runtime";
+import * as server from "@emi/core/server";
+import * as serverEffect from "@emi/core/server/effect";
+import * as serverFetch from "@emi/core/server/fetch";
+import * as testing from "@emi/core/testing";
+
+const sortedKeys = (module: object): string[] => Object.keys(module).toSorted();
+
+describe("@emi/core target export surface", () => {
+  it("keeps stable entrypoints curated and discoverable", () => {
+    assert.deepEqual(sortedKeys(root), ["createChatRuntime"]);
+    assert.deepEqual(sortedKeys(protocol), ["ChatProtocol", "ProtocolDecodeError"]);
+    assert.deepEqual(sortedKeys(api), ["CoreApiClient", "CoreApiClientError"]);
+    assert.deepEqual(sortedKeys(runtime), ["createChatRuntime"]);
+    assert.deepEqual(sortedKeys(react), [
+      "ChatProvider",
+      "useChatActions",
+      "useChatRuntime",
+      "useChatSelector",
+    ]);
+    assert.deepEqual(sortedKeys(components), [
+      "Composer",
+      "ConnectedComposer",
+      "ConnectedSidebar",
+      "ConnectedThread",
+      "ConversationList",
+      "Dialog",
+      "Message",
+      "MessagePart",
+      "Sidebar",
+      "ThreadViewport",
+    ]);
+    assert.deepEqual(sortedKeys(styled), ["ChatApp", "ChatShell"]);
+    assert.deepEqual(sortedKeys(server), ["ChatServer", "ChatServerError"]);
+    assert.deepEqual(sortedKeys(serverEffect), ["ChatServerEffect"]);
+    assert.deepEqual(sortedKeys(serverFetch), ["ChatFetchHandlers"]);
+    assert.deepEqual(sortedKeys(aiSdk), ["AiSdkAdapterError", "AiSdkModelProvider"]);
+    assert.deepEqual(sortedKeys(cloudflare), ["CloudflareRepositories"]);
+    assert.deepEqual(sortedKeys(extensions), ["ChatExtensionError", "ChatExtensions"]);
+    assert.deepEqual(sortedKeys(testing), ["ChatTesting"]);
+    assert.ok(sortedKeys(advancedXState).includes("chatRuntimeMachine"));
+    assert.ok(sortedKeys(advancedXState).includes("createActor"));
+    assert.ok(sortedKeys(advancedXState).includes("createChatRuntimeActor"));
+  });
+});

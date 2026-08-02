@@ -6,6 +6,7 @@ import type {
   ModelConfiguration,
   Thread,
 } from "./protocol";
+import type { ChatExtension } from "./extensions";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;
@@ -35,7 +36,7 @@ export interface ChatRuntimeOptions {
     readonly now: () => string;
   };
   readonly model?: ModelConfiguration;
-  readonly extensions?: ReadonlyArray<unknown>;
+  readonly extensions?: ReadonlyArray<ChatExtension>;
   readonly features?: {
     readonly attachments?: boolean;
     readonly memories?: boolean;
