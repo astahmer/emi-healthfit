@@ -100,16 +100,20 @@ describe("core thread shell", () => {
             type: "tool-invocation",
             toolName: "render_component",
             state: "output-available",
+            input: {},
             output: {},
           }}
           isStreaming={false}
+          renderToolResult={() => <div>Rendered component</div>}
         />
       </CoreWebProvider>,
     );
 
     expect(screen.getByText("summary").closest("details")).not.toHaveAttribute("open");
     expect(screen.getByText("ping").closest("details")).toHaveAttribute("open");
-    expect(screen.getByText("render component").closest("details")).toHaveAttribute("open");
+    const renderComponent = screen.getByText("render component").closest("details");
+    expect(renderComponent).toHaveAttribute("open");
+    expect(renderComponent?.querySelector("pre")).toBeNull();
   });
 
   it("lays out empty, messages, and composer slots", () => {

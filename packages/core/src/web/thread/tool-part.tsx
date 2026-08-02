@@ -65,6 +65,7 @@ export const ToolPart = ({
   const isFailed = state === "output-error" || outcome === "error" || errorOutput;
   const hasOutput =
     output !== undefined || state === "output-available" || state === "output-error";
+  const shouldRenderInput = input !== undefined && toolName !== "render_component";
   const isRunning = isStreaming && !hasOutput;
   const opensByDefault =
     isRunning || registeredRenderer !== undefined || toolName === "render_component";
@@ -88,7 +89,7 @@ export const ToolPart = ({
         </span>
       </summary>
       <div className="border-t px-3 py-2">
-        {input !== undefined && (
+        {shouldRenderInput && (
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">Input</summary>
             <pre className="mt-1 overflow-auto whitespace-pre-wrap">
