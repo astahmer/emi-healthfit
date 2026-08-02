@@ -12,6 +12,7 @@ export declare class Chat {
     readonly buildConversationTitlePrompt: unknown;
   };
   static readonly stream: {
+    readonly createChatStreamEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly createChatStream: (...args: ReadonlyArray<never>) => unknown;
     readonly createChatStreamResponse: (...args: ReadonlyArray<never>) => unknown;
     readonly toUiMessageStream: (...args: ReadonlyArray<never>) => unknown;
@@ -23,12 +24,17 @@ export declare class Chat {
     readonly createToolCircuitBreaker: (...args: ReadonlyArray<never>) => unknown;
   };
   static readonly memory: {
+    readonly extractMemoriesEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly extractMemories: (...args: ReadonlyArray<never>) => unknown;
+    readonly generateMemorySummaryEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly generateMemorySummary: (...args: ReadonlyArray<never>) => unknown;
   };
   static readonly generation: {
+    readonly generateConversationSummaryEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly generateConversationSummary: (...args: ReadonlyArray<never>) => unknown;
+    readonly generateConversationTitleEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly generateConversationTitle: (...args: ReadonlyArray<never>) => unknown;
+    readonly generateSuggestionsEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly generateSuggestions: (...args: ReadonlyArray<never>) => unknown;
     readonly normalizeGeneratedStrings: (...args: ReadonlyArray<never>) => unknown;
     readonly resolveGenerationTerminalState: (...args: ReadonlyArray<never>) => unknown;
