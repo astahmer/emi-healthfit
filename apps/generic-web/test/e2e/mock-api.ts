@@ -82,16 +82,25 @@ const conversationResponse = ({
   messages,
 });
 
-export const createGenericE2eApi = () => {
+export const createGenericE2eApi = ({
+  socialOk = true,
+  suggestions = ["Tell me more", "Give me an example"],
+}: {
+  socialOk?: boolean;
+  suggestions?: string[];
+} = {}) => {
   const conversations: Conversation[] = [];
   const messages = new Map<string, StoredMessage[]>();
   const threads = new Map<string, Thread[]>();
   const memories: Memory[] = [];
   let anonymousSessionCalls = 0;
+  let socialAuthCalls = 0;
+  let suggestionsCalls = 0;
   let chatCalls = 0;
   let compactCalls = 0;
   let nextThreadId = 1;
   let lastChatRequestBody: Record<string, unknown> | undefined;
+  let lastSuggestionsRequestBody: Record<string, unknown> | undefined;
   let holdStream = false;
   let releaseStream: (() => void) | undefined;
   let streamPromise: Promise<void> | undefined;
@@ -142,6 +151,23 @@ export const createGenericE2eApi = () => {
         contentType: "application/json",
         headers: { "set-cookie": "better-auth.session_token=guest; Path=/" },
         status: 201,
+      });
+      return;
+    }
+
+    if (pathname === "/api/auth/sign-in/social") {
+      if (request.method() !== "POST") {
+        await json({ route, body: { error: "Method not allowed" }, status: 405 });
+        return;
+      }
+      socialAuthCalls += 1;
+      if (!socialOk) {
+        await json({ route, body: { error: "Social sign-in unavailable" }, status: 400 });
+        return;
+      }
+      await json({
+        route,
+        body: { redirect: true, url: `${url.origin}/oauth-callback` },
       });
       return;
     }
@@ -306,6 +332,13 @@ export const createGenericE2eApi = () => {
       }
     }
 
+    if (pathname === "/api/suggestions" && request.method() === "POST") {
+      suggestionsCalls += 1;
+      lastSuggestionsRequestBody = requestBody(route);
+      await json({ route, body: { suggestions } });
+      return;
+    }
+
     const memoryMatch = pathname.match(/^\/api\/memories\/([^/]+)$/);
     if (memoryMatch !== null && request.method() === "DELETE") {
       const index = memories.findIndex((memory) => memory.id === memoryMatch[1]);
@@ -381,6 +414,9 @@ export const createGenericE2eApi = () => {
 
   return {
     anonymousSessionCalls: () => anonymousSessionCalls,
+    lastSuggestionsBody: () => lastSuggestionsRequestBody,
+    socialAuthCalls: () => socialAuthCalls,
+    suggestionsCalls: () => suggestionsCalls,
     chatCalls: () => chatCalls,
     compactCalls: () => compactCalls,
     conversations,

@@ -49,6 +49,16 @@ describe("chat request", () => {
     assert.equal(decoded.memory?.model, "memory-model");
   });
 
+  it("accepts the provider-neutral web-search capability flag", () => {
+    const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+      messages: [],
+      config: { provider: "openai", apiKey: "key", model: "chat-model" },
+      webSearch: true,
+    });
+
+    assert.equal(decoded.webSearch, true);
+  });
+
   it("shares the configured model shape with conversation compaction", () => {
     const decoded = Schema.decodeUnknownSync(CompactConversationRequestSchema)({
       config: {

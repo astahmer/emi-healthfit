@@ -9,6 +9,22 @@ const createClient = ({ response }: { response: Response }) =>
   });
 
 describe("conversation client response boundaries", () => {
+  it("decodes provider-neutral suggestions from the suggestions endpoint", async () => {
+    const client = createConversationClient({
+      apiOrigin: "https://chat.example/",
+      fetch: async (input) => {
+        expect(String(input)).toContain("/api/suggestions");
+        return new Response(JSON.stringify({ suggestions: ["Tell me more"] }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await expect(
+      client.generateSuggestions({ lastAssistantText: "Hello" }),
+    ).resolves.toEqual(["Tell me more"]);
+  });
+
   it("rejects an HTML SPA fallback with a proxy-specific error", async () => {
     const client = createClient({
       response: new Response("<!doctype html><html></html>", {
