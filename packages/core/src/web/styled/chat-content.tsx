@@ -1,8 +1,8 @@
-import type { FileUIPart, UIMessage } from "ai";
 import { useState, type RefObject } from "react";
 import { ArrowDownIcon, ArrowUpIcon, PaperclipIcon, SquareIcon } from "lucide-react";
 
-import type { QueuedFollowUp } from "../chat-session-machine.ts";
+import type { Attachment, ChatMessage } from "../../protocol/index.ts";
+import type { QueuedFollowUpState } from "../../runtime/index.ts";
 import { Bubble, BubbleContent } from "./ui/bubble.tsx";
 import { Button } from "./ui/button.tsx";
 import { Message, MessageContent, MessageFooter } from "./ui/message.tsx";
@@ -10,7 +10,7 @@ import { Textarea } from "./ui/textarea.tsx";
 import { ChatSidebarToggle } from "./chat-sidebar.tsx";
 import { cn } from "./ui/utils.ts";
 
-const messageText = (message: UIMessage): string =>
+const messageText = (message: ChatMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
 export const ChatHeader = ({
@@ -85,7 +85,7 @@ export const MessageMinimap = ({
   messages,
   onSelect,
 }: {
-  messages: UIMessage[];
+  messages: ReadonlyArray<ChatMessage>;
   onSelect: (messageId: string) => void;
 }) => (
   <aside
@@ -123,7 +123,7 @@ export const MessageViewport = ({
   onSelectMinimapMessage,
   onBranchMessage,
 }: {
-  messages: UIMessage[];
+  messages: ReadonlyArray<ChatMessage>;
   conversationId: string | undefined;
   temporary: boolean;
   streaming: boolean;
@@ -221,8 +221,8 @@ export const FollowUpQueue = ({
   onForceSend,
   onRemove,
 }: {
-  followUps: QueuedFollowUp[];
-  onForceSend: (followUp: QueuedFollowUp) => void;
+  followUps: ReadonlyArray<QueuedFollowUpState>;
+  onForceSend: (followUp: QueuedFollowUpState) => void;
   onRemove: (followUpId: string) => void;
 }) => {
   if (followUps.length === 0) return null;
@@ -232,7 +232,7 @@ export const FollowUpQueue = ({
       {followUps.map((followUp) => (
         <div className="flex items-center gap-2" key={followUp.id}>
           <span className="min-w-0 flex-1 truncate text-sm">
-            {followUp.text || `${followUp.files.length} attachment(s)`}
+            {followUp.text || `${followUp.attachments.length} attachment(s)`}
           </span>
           <Button onClick={() => onForceSend(followUp)} size="xs">
             Force send
@@ -262,13 +262,13 @@ export const ChatComposer = ({
   onRemoveFile,
 }: {
   draft: string;
-  files: FileUIPart[];
+  files: ReadonlyArray<Attachment>;
   streaming: boolean;
   placeholder: string;
   onDraftChange: (draft: string) => void;
   onFilesSelected: (files: FileList | undefined) => void;
   onSubmit: () => void;
-  onRemoveFile: (file: FileUIPart) => void;
+  onRemoveFile: (file: Attachment) => void;
 }) => (
   <div className="shrink-0 border-t p-3 md:p-4">
     <form
@@ -309,7 +309,7 @@ export const ChatComposer = ({
       <div className="mx-auto mt-2 flex w-full max-w-3xl flex-wrap gap-2">
         {files.map((file) => (
           <Button key={file.url} onClick={() => onRemoveFile(file)} size="xs" variant="secondary">
-            {file.filename ?? "Attachment"} ×
+            {file.name} ×
           </Button>
         ))}
       </div>

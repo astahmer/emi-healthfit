@@ -1,7 +1,6 @@
 import { createChatRuntime } from "@emi/core";
 import { ChatApp } from "@emi/core/components/styled";
-import { ConnectedSidebar, Sidebar } from "@emi/core/components";
-import { ChatProvider, useChatActions, useChatSelector } from "@emi/core/react";
+import { ChatProvider } from "@emi/core/react";
 import { useMemo } from "react";
 
 import "./app.css";
@@ -40,114 +39,6 @@ const createAnonymousSessionFetch = ({
     if (!(await sessionPromise)) return response;
     return fetch(input, requestInit);
   };
-};
-
-const Settings = () => {
-  const settings = useChatSelector((state) => state.settings);
-  const actions = useChatActions();
-  const update = (patch: Partial<typeof settings>) => actions.updateSettings({ patch });
-  return (
-    <details>
-      <summary>Settings</summary>
-      <label>
-        API key
-        <input
-          aria-label="API key"
-          onChange={(event) => update({ apiKey: event.target.value })}
-          type="password"
-          value={settings.apiKey}
-        />
-      </label>
-      <label>
-        Default model
-        <input
-          aria-label="Default model"
-          onChange={(event) => update({ model: event.target.value })}
-          value={settings.model}
-        />
-      </label>
-      <label>
-        Title model
-        <input
-          aria-label="Title model"
-          onChange={(event) => update({ titleModel: event.target.value })}
-          value={settings.titleModel}
-        />
-      </label>
-      <label>
-        Memory model
-        <input
-          aria-label="Memory model"
-          onChange={(event) => update({ memoryModel: event.target.value })}
-          value={settings.memoryModel}
-        />
-      </label>
-      <label>
-        Default system prompt
-        <textarea
-          aria-label="Default system prompt"
-          onChange={(event) => update({ systemPrompt: event.target.value })}
-          value={settings.systemPrompt}
-        />
-      </label>
-      <label>
-        <input
-          aria-label="Remember useful details from replies"
-          checked={settings.memoryEnabled}
-          onChange={(event) => update({ memoryEnabled: event.target.checked })}
-          type="checkbox"
-        />
-        Remember useful details from replies
-      </label>
-      <label>
-        Theme
-        <select
-          aria-label="Theme"
-          onChange={(event) => update({ theme: event.target.value === "dark" ? "dark" : "light" })}
-          value={settings.theme}
-        >
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label>
-    </details>
-  );
-};
-
-const ChatScreen = () => {
-  const temporary = useChatSelector((state) => state.temporary);
-  const actions = useChatActions();
-  return (
-    <ChatApp
-      slots={{
-        header: (
-          <header>
-            <h2>How can I help?</h2>
-            <p>Provider-neutral chat powered by the actor runtime.</p>
-          </header>
-        ),
-        sidebar: (
-          <Sidebar>
-            <h1>{genericChatAppConfig.name}</h1>
-            <button onClick={() => actions.startNewConversation()} type="button">
-              New chat
-            </button>
-            <ConnectedSidebar />
-            <Settings />
-            <label>
-              <input
-                aria-label="Temporary chat"
-                checked={temporary}
-                onChange={(event) => actions.setTemporary({ temporary: event.target.checked })}
-                type="checkbox"
-              />
-              Temporary chat
-            </label>
-          </Sidebar>
-        ),
-      }}
-    />
-  );
 };
 
 export const App = () => {
@@ -196,7 +87,11 @@ export const App = () => {
 
   return (
     <ChatProvider runtime={runtime}>
-      <ChatScreen />
+      <ChatApp
+        appName={genericChatAppConfig.name}
+        releaseNotes={genericChatAppConfig.releaseNotes}
+        version={genericChatAppConfig.version}
+      />
     </ChatProvider>
   );
 };
