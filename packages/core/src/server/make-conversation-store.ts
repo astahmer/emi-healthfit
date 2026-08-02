@@ -39,6 +39,18 @@ export class ConversationStoreLive {
         create: (title) => ConversationDatabase.createConversation(db, userId, title),
         delete: (conversationId) =>
           ConversationDatabase.deleteConversation(db, userId, conversationId),
+        rename: ({ conversationId, title }) =>
+          ConversationDatabase.renameConversation(db, userId, conversationId, title),
+        updateState: ({ conversationId, status, pinned }) =>
+          ConversationDatabase.updateConversationState({
+            db,
+            userId,
+            conversationId,
+            status,
+            pinned,
+          }),
+        clone: (conversationId) =>
+          ConversationDatabase.cloneConversation({ db, userId, conversationId }),
       },
       messageStore: {
         saveMessages: ({ conversationId, parentId, messages }) =>
@@ -57,7 +69,15 @@ export class ConversationStoreLive {
           ConversationDatabase.createThread(db, userId, conversationId, anchorMessageId, title),
         addThreadMessage: ({ threadId, messageId }) =>
           ConversationDatabase.addThreadMessage(db, userId, threadId, messageId),
+        list: (conversationId) => ConversationDatabase.getThreads(db, userId, conversationId),
         getThread: (threadId) => ConversationDatabase.getThread(db, userId, threadId),
+        getMessages: (threadId) => ConversationDatabase.getThreadMessages(db, userId, threadId),
+        rename: ({ threadId, title }) =>
+          ConversationDatabase.renameThread(db, userId, threadId, title),
+        setPinned: ({ threadId, pinned }) =>
+          ConversationDatabase.pinThread(db, userId, threadId, pinned),
+        discard: (threadId) => ConversationDatabase.discardThread(db, userId, threadId),
+        restore: (threadId) => ConversationDatabase.restoreThread(db, userId, threadId),
       },
     };
   }

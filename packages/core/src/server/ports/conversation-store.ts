@@ -6,6 +6,7 @@ export interface SaveMessagesInput {
   conversationId: string;
   parentId: string | null;
   messages: Array<{
+    id?: string;
     role: Message["role"];
     parts: unknown[];
     usage?: MessageUsage;
@@ -24,6 +25,22 @@ export interface AddThreadMessageInput {
   messageId: string;
 }
 
+export interface UpdateConversationInput {
+  conversationId: string;
+  status?: "regular" | "archived";
+  pinned?: boolean;
+}
+
+export interface RenameThreadInput {
+  threadId: string;
+  title: string;
+}
+
+export interface SetThreadPinnedInput {
+  threadId: string;
+  pinned: boolean;
+}
+
 export interface ConversationReaderShape<TEnvironment = never> {
   readonly get: (conversationId: string) => Effect.Effect<Conversation | null, never, TEnvironment>;
   readonly list: (search?: string) => Effect.Effect<Conversation[], never, TEnvironment>;
@@ -32,6 +49,16 @@ export interface ConversationReaderShape<TEnvironment = never> {
 export interface ConversationWriterShape<TEnvironment = never> {
   readonly create: (title?: string) => Effect.Effect<string, never, TEnvironment>;
   readonly delete: (conversationId: string) => Effect.Effect<void, never, TEnvironment>;
+  readonly rename: (input: {
+    readonly conversationId: string;
+    readonly title: string;
+  }) => Effect.Effect<void, never, TEnvironment>;
+  readonly updateState: (
+    input: UpdateConversationInput,
+  ) => Effect.Effect<void, never, TEnvironment>;
+  readonly clone: (
+    conversationId: string,
+  ) => Effect.Effect<Conversation | null, never, TEnvironment>;
 }
 
 export interface MessageStoreShape<TEnvironment = never> {
@@ -46,7 +73,13 @@ export interface ThreadStoreShape<TEnvironment = never> {
   readonly addThreadMessage: (
     input: AddThreadMessageInput,
   ) => Effect.Effect<boolean, never, TEnvironment>;
+  readonly list: (conversationId: string) => Effect.Effect<Thread[], never, TEnvironment>;
   readonly getThread: (threadId: string) => Effect.Effect<Thread | null, never, TEnvironment>;
+  readonly getMessages: (threadId: string) => Effect.Effect<Message[], never, TEnvironment>;
+  readonly rename: (input: RenameThreadInput) => Effect.Effect<void, never, TEnvironment>;
+  readonly setPinned: (input: SetThreadPinnedInput) => Effect.Effect<void, never, TEnvironment>;
+  readonly discard: (threadId: string) => Effect.Effect<void, never, TEnvironment>;
+  readonly restore: (threadId: string) => Effect.Effect<void, never, TEnvironment>;
 }
 
 export class ConversationReader extends Context.Service<
