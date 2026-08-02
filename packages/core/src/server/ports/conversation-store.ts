@@ -7,6 +7,13 @@ import type {
   MessageUsage,
   Thread,
 } from "../db/conversations.ts";
+import type { DatabaseQueryError } from "../db/query-database.ts";
+
+type DatabaseEffect<Value, Error = never, Environment = never> = Effect.Effect<
+  Value,
+  Error | DatabaseQueryError,
+  Environment
+>;
 
 export interface SaveMessagesInput {
   conversationId: string;
@@ -48,44 +55,48 @@ export interface SetThreadPinnedInput {
 }
 
 export interface ConversationReaderShape<TEnvironment = never> {
-  readonly get: (conversationId: string) => Effect.Effect<Conversation | null, never, TEnvironment>;
-  readonly list: (search?: string) => Effect.Effect<Conversation[], never, TEnvironment>;
+  readonly get: (
+    conversationId: string,
+  ) => DatabaseEffect<Conversation | null, never, TEnvironment>;
+  readonly list: (search?: string) => DatabaseEffect<Conversation[], never, TEnvironment>;
 }
 
 export interface ConversationWriterShape<TEnvironment = never> {
-  readonly create: (title?: string) => Effect.Effect<string, never, TEnvironment>;
-  readonly delete: (conversationId: string) => Effect.Effect<void, never, TEnvironment>;
+  readonly create: (title?: string) => DatabaseEffect<string, never, TEnvironment>;
+  readonly delete: (conversationId: string) => DatabaseEffect<void, never, TEnvironment>;
   readonly rename: (input: {
     readonly conversationId: string;
     readonly title: string;
-  }) => Effect.Effect<void, never, TEnvironment>;
+  }) => DatabaseEffect<void, never, TEnvironment>;
   readonly updateState: (
     input: UpdateConversationInput,
-  ) => Effect.Effect<void, never, TEnvironment>;
+  ) => DatabaseEffect<void, never, TEnvironment>;
   readonly clone: (
     conversationId: string,
-  ) => Effect.Effect<Conversation | null, ConversationCloneError, TEnvironment>;
+  ) => DatabaseEffect<Conversation | null, ConversationCloneError, TEnvironment>;
 }
 
 export interface MessageStoreShape<TEnvironment = never> {
-  readonly saveMessages: (input: SaveMessagesInput) => Effect.Effect<string[], never, TEnvironment>;
-  readonly getMessages: (conversationId: string) => Effect.Effect<Message[], never, TEnvironment>;
+  readonly saveMessages: (
+    input: SaveMessagesInput,
+  ) => DatabaseEffect<string[], never, TEnvironment>;
+  readonly getMessages: (conversationId: string) => DatabaseEffect<Message[], never, TEnvironment>;
 }
 
 export interface ThreadStoreShape<TEnvironment = never> {
   readonly createThread: (
     input: CreateThreadInput,
-  ) => Effect.Effect<string | null, never, TEnvironment>;
+  ) => DatabaseEffect<string | null, never, TEnvironment>;
   readonly addThreadMessage: (
     input: AddThreadMessageInput,
-  ) => Effect.Effect<boolean, never, TEnvironment>;
-  readonly list: (conversationId: string) => Effect.Effect<Thread[], never, TEnvironment>;
-  readonly getThread: (threadId: string) => Effect.Effect<Thread | null, never, TEnvironment>;
-  readonly getMessages: (threadId: string) => Effect.Effect<Message[], never, TEnvironment>;
-  readonly rename: (input: RenameThreadInput) => Effect.Effect<void, never, TEnvironment>;
-  readonly setPinned: (input: SetThreadPinnedInput) => Effect.Effect<void, never, TEnvironment>;
-  readonly discard: (threadId: string) => Effect.Effect<void, never, TEnvironment>;
-  readonly restore: (threadId: string) => Effect.Effect<void, never, TEnvironment>;
+  ) => DatabaseEffect<boolean, never, TEnvironment>;
+  readonly list: (conversationId: string) => DatabaseEffect<Thread[], never, TEnvironment>;
+  readonly getThread: (threadId: string) => DatabaseEffect<Thread | null, never, TEnvironment>;
+  readonly getMessages: (threadId: string) => DatabaseEffect<Message[], never, TEnvironment>;
+  readonly rename: (input: RenameThreadInput) => DatabaseEffect<void, never, TEnvironment>;
+  readonly setPinned: (input: SetThreadPinnedInput) => DatabaseEffect<void, never, TEnvironment>;
+  readonly discard: (threadId: string) => DatabaseEffect<void, never, TEnvironment>;
+  readonly restore: (threadId: string) => DatabaseEffect<void, never, TEnvironment>;
 }
 
 export class ConversationReader extends Context.Service<

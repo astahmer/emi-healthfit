@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import { withInternalError } from "./errors.ts";
 
 export const discordHandlers = () =>
   HttpApiBuilder.group(CoreApi, "discord", (handlers) =>
@@ -18,7 +19,7 @@ export const discordHandlers = () =>
               database.listLinkCodes({ userId: user.id }),
             ]);
             return { links, codes };
-          }),
+          }, withInternalError),
         )
         .handle(
           "createCode",
@@ -32,7 +33,7 @@ export const discordHandlers = () =>
               });
             }
             return created;
-          }),
+          }, withInternalError),
         )
         .handle(
           "revokeCode",
@@ -44,7 +45,7 @@ export const discordHandlers = () =>
             });
             if (!removed) return yield* new NotFound({ message: "Link code not found" });
             return { success: true as const };
-          }),
+          }, withInternalError),
         )
         .handle(
           "unlink",
@@ -56,7 +57,7 @@ export const discordHandlers = () =>
             });
             if (!removed) return yield* new NotFound({ message: "Discord link not found" });
             return { success: true as const };
-          }),
+          }, withInternalError),
         );
     }),
   );

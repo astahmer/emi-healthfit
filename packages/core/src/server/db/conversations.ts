@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { ConversationRevision } from "./conversation-revision.ts";
-import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
+import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
 
 const textEncoder = new TextEncoder();
@@ -20,6 +20,13 @@ export class ConversationCloneError extends Schema.TaggedErrorClass<Conversation
   { message: Schema.String },
 ) {}
 
+export class ConversationHashError extends Schema.TaggedErrorClass<ConversationHashError>()(
+  "ConversationHashError",
+  { message: Schema.String },
+) {}
+
+type DatabaseEffect<Value, Error = never> = Effect.Effect<Value, Error | DatabaseQueryError>;
+
 const requireMappedId = (
   ids: Map<string, string>,
   originalId: string,
@@ -33,12 +40,16 @@ const requireMappedId = (
 const hashSuggestionsKey = (
   lastAssistantText: string,
   lastUserText?: string,
-): Effect.Effect<string> =>
+): Effect.Effect<string, ConversationHashError> =>
   Effect.gen(function* () {
     const input = `${lastAssistantText}\0${lastUserText ?? ""}`;
-    const buffer = yield* Effect.promise(() =>
-      crypto.subtle.digest("SHA-256", textEncoder.encode(input)),
-    );
+    const buffer = yield* Effect.tryPromise({
+      try: () => crypto.subtle.digest("SHA-256", textEncoder.encode(input)),
+      catch: (cause) =>
+        new ConversationHashError({
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+    });
     return arrayBufferToHex(buffer);
   });
 
@@ -136,7 +147,7 @@ const createConversation = <TEnvironment>(
     const id = db.runtime.createId();
     const createdAt = db.runtime.now();
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("conversations")
         .values({
@@ -162,7 +173,7 @@ const getConversations = <TEnvironment>(
     const kysely = yield* db.kysely;
     if (search !== undefined && search.trim() !== "") {
       const term = `%${search.trim()}%`;
-      const result = yield* Effect.promise(() =>
+      const result = yield* QueryDatabase.tryPromise(() =>
         kysely
           .selectFrom("conversations as c")
           .leftJoin("messages as m", (join) =>
@@ -189,7 +200,7 @@ const getConversations = <TEnvironment>(
       return result.map(mapConversationRow);
     }
 
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("conversations")
         .selectAll()
@@ -213,7 +224,7 @@ const getConversation = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("conversations")
         .selectAll()
@@ -233,7 +244,7 @@ const deleteConversation = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .deleteFrom("conversations")
         .where("user_id", "=", userId)
@@ -257,7 +268,7 @@ const updateConversationState = Effect.fn("conversation.updateState")(function* 
 }) {
   if (status === undefined && pinned === undefined) return;
   const kysely = yield* db.kysely;
-  yield* Effect.promise(() =>
+  yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("conversations")
       .set({
@@ -285,7 +296,7 @@ const cloneConversation = Effect.fn("conversation.clone")(function* <TEnvironmen
   const originalMessages = yield* getConversationMessages(db, userId, conversationId);
   const originalThreads = yield* getThreadsIncludingDiscarded(db, userId, conversationId);
   const kysely = yield* db.kysely;
-  const threadMessageRows = yield* Effect.promise(() =>
+  const threadMessageRows = yield* QueryDatabase.tryPromise(() =>
     kysely
       .selectFrom("thread_messages as tm")
       .innerJoin("threads as t", (join) =>
@@ -378,7 +389,7 @@ const renameConversation = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .updateTable("conversations")
         .set({ title, updated_at: db.runtime.now() })
@@ -395,7 +406,7 @@ const getConversationMessages = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    return yield* Effect.promise(() =>
+    return yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("messages")
         .select([
@@ -587,7 +598,7 @@ const getThreads = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("threads")
         .selectAll()
@@ -608,7 +619,7 @@ const getThreadsIncludingDiscarded = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("threads")
         .selectAll()
@@ -628,7 +639,7 @@ const getThread = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("threads")
         .selectAll()
@@ -647,7 +658,7 @@ const getThreadByAnchor = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("threads")
         .selectAll()
@@ -670,7 +681,7 @@ const renameThread = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .updateTable("threads")
         .set({ title, updated_at: db.runtime.now() })
@@ -688,7 +699,7 @@ const pinThread = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .updateTable("threads")
         .set({ pinned, updated_at: db.runtime.now() })
@@ -705,7 +716,7 @@ const discardThread = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .updateTable("threads")
         .set({ status: "discarded", updated_at: db.runtime.now() })
@@ -753,7 +764,7 @@ const addThreadMessage = <TEnvironment>(
     if (message === null || message.conversation_id !== thread.conversation_id) return false;
 
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("thread_messages")
         .values({
@@ -774,7 +785,7 @@ const getThreadMessages = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    return yield* Effect.promise(() =>
+    return yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("messages as m")
         .innerJoin("thread_messages as tm", (join) =>
@@ -806,7 +817,7 @@ const getMessage = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("messages")
         .select([
@@ -876,7 +887,7 @@ const getSuggestionsById = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("suggestions")
         .select(["id", "suggestions", "created_at"])
@@ -895,7 +906,7 @@ const saveSuggestions = <TEnvironment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("suggestions")
         .values({
@@ -914,96 +925,96 @@ export interface ConversationDatabaseShape {
     readonly userId: string;
     readonly threadId: string;
     readonly messageId: string;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly cloneConversation: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<Conversation | null, ConversationCloneError>;
+  }) => DatabaseEffect<Conversation | null, ConversationCloneError>;
   readonly createConversation: (input: {
     readonly userId: string;
     readonly title?: string;
-  }) => Effect.Effect<string>;
+  }) => DatabaseEffect<string>;
   readonly createThread: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly anchorMessageId: string;
     readonly title?: string;
-  }) => Effect.Effect<string | null>;
+  }) => DatabaseEffect<string | null>;
   readonly deleteConversation: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly discardThread: (input: {
     readonly userId: string;
     readonly threadId: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly getConversation: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<Conversation | null>;
+  }) => DatabaseEffect<Conversation | null>;
   readonly getConversationMessages: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<ReadonlyArray<Message>>;
+  }) => DatabaseEffect<ReadonlyArray<Message>>;
   readonly getConversations: (input: {
     readonly userId: string;
     readonly search?: string;
-  }) => Effect.Effect<ReadonlyArray<Conversation>>;
+  }) => DatabaseEffect<ReadonlyArray<Conversation>>;
   readonly getMessage: (input: {
     readonly userId: string;
     readonly messageId: string;
-  }) => Effect.Effect<Message | null>;
+  }) => DatabaseEffect<Message | null>;
   readonly getSuggestionsById: (input: {
     readonly userId: string;
     readonly id: string;
-  }) => Effect.Effect<SuggestionRecord | null>;
+  }) => DatabaseEffect<SuggestionRecord | null>;
   readonly getThread: (input: {
     readonly userId: string;
     readonly threadId: string;
-  }) => Effect.Effect<Thread | null>;
+  }) => DatabaseEffect<Thread | null>;
   readonly getThreadByAnchor: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly anchorMessageId: string;
-  }) => Effect.Effect<Thread | null>;
+  }) => DatabaseEffect<Thread | null>;
   readonly getThreadMessages: (input: {
     readonly userId: string;
     readonly threadId: string;
-  }) => Effect.Effect<ReadonlyArray<Message>>;
+  }) => DatabaseEffect<ReadonlyArray<Message>>;
   readonly getThreads: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<ReadonlyArray<Thread>>;
+  }) => DatabaseEffect<ReadonlyArray<Thread>>;
   readonly getThreadsIncludingDiscarded: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<ReadonlyArray<Thread>>;
+  }) => DatabaseEffect<ReadonlyArray<Thread>>;
   readonly pinThread: (input: {
     readonly userId: string;
     readonly threadId: string;
     readonly pinned: boolean;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly renameConversation: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly title: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly renameThread: (input: {
     readonly userId: string;
     readonly threadId: string;
     readonly title: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly restoreThread: (input: {
     readonly userId: string;
     readonly threadId: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly reviseConversationMessage: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly messageId: string;
     readonly parts: ReadonlyArray<unknown>;
     readonly threadId?: string;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly saveConversationMessages: (input: {
     readonly userId: string;
     readonly conversationId: string;
@@ -1015,24 +1026,24 @@ export interface ConversationDatabaseShape {
       readonly usage?: MessageUsage;
       readonly model?: string;
     }>;
-  }) => Effect.Effect<ReadonlyArray<string>>;
+  }) => DatabaseEffect<ReadonlyArray<string>>;
   readonly saveSuggestions: (input: {
     readonly userId: string;
     readonly id: string;
     readonly suggestions: ReadonlyArray<string>;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly summarizeThread: (input: {
     readonly userId: string;
     readonly threadId: string;
     readonly summaryText: string;
     readonly targetMessageId?: string;
-  }) => Effect.Effect<string | null>;
+  }) => DatabaseEffect<string | null>;
   readonly updateConversationState: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly status?: "regular" | "archived";
     readonly pinned?: boolean;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
 }
 
 export class ConversationDatabase extends Context.Service<

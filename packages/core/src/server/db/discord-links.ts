@@ -1,7 +1,8 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { QueryDatabaseClient } from "./query-database.ts";
+import * as Schema from "effect/Schema";
+import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { DiscordDatabaseSchema } from "./discord-schema.ts";
 
 type DiscordDb<Environment = never> = QueryDatabaseClient<DiscordDatabaseSchema, Environment>;
@@ -14,13 +15,26 @@ const MAX_ACTIVE_CODES_PER_USER = 3;
 const bytesToHex = (bytes: ArrayBuffer): string =>
   [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-const hashDiscordLinkCode = (code: string): Effect.Effect<string> =>
-  Effect.promise(async () => {
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(code.trim().toUpperCase()),
-    );
-    return bytesToHex(digest);
+export class DiscordLinkHashError extends Schema.TaggedErrorClass<DiscordLinkHashError>()(
+  "DiscordLinkHashError",
+  { message: Schema.String },
+) {}
+
+type DatabaseEffect<Value, Error = never> = Effect.Effect<Value, Error | DatabaseQueryError>;
+
+const hashDiscordLinkCode = (code: string): Effect.Effect<string, DiscordLinkHashError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(code.trim().toUpperCase()),
+      );
+      return bytesToHex(digest);
+    },
+    catch: (cause) =>
+      new DiscordLinkHashError({
+        message: cause instanceof Error ? cause.message : String(cause),
+      }),
   });
 
 const randomLinkCode = (randomBytes: (length: number) => Uint8Array): string => {
@@ -50,7 +64,7 @@ export interface DiscordAccountLinkView {
 const listDiscordLinkCodes = <Environment>(db: DiscordDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const rows = yield* Effect.promise(() =>
+    const rows = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("discord_link_codes")
         .select(["id", "expires_at", "created_at", "consumed_at"])
@@ -64,7 +78,7 @@ const listDiscordLinkCodes = <Environment>(db: DiscordDb<Environment>, userId: s
 const listDiscordAccountLinks = <Environment>(db: DiscordDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const rows = yield* Effect.promise(() =>
+    const rows = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("discord_account_links")
         .select(["discord_user_id", "created_at"])
@@ -78,7 +92,7 @@ const listDiscordAccountLinks = <Environment>(db: DiscordDb<Environment>, userId
 const createDiscordLinkCode = <Environment>(db: DiscordDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const active = yield* Effect.promise(() =>
+    const active = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("discord_link_codes")
         .select((eb) => eb.fn.countAll<number>().as("c"))
@@ -95,7 +109,7 @@ const createDiscordLinkCode = <Environment>(db: DiscordDb<Environment>, userId: 
     const expiresAt = new Date(db.runtime.nowMilliseconds() + CODE_TTL_MS).toISOString();
     const id = db.runtime.createId();
 
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("discord_link_codes")
         .values({
@@ -124,7 +138,7 @@ const revokeDiscordLinkCode = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .deleteFrom("discord_link_codes")
         .where("user_id", "=", userId)
@@ -141,7 +155,7 @@ const unlinkDiscordAccount = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .deleteFrom("discord_account_links")
         .where("user_id", "=", userId)
@@ -157,7 +171,7 @@ const getLinkedUserIdForDiscord = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const row = yield* Effect.promise(() =>
+    const row = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("discord_account_links")
         .select("user_id")
@@ -173,7 +187,7 @@ const unlinkDiscordAccountByDiscordUserId = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .deleteFrom("discord_account_links")
         .where("discord_user_id", "=", discordUserId)
@@ -196,7 +210,7 @@ const consumeDiscordLinkCode = <Environment>(
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const codeHash = yield* hashDiscordLinkCode(options.code);
-    const row = yield* Effect.promise(() =>
+    const row = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("discord_link_codes")
         .select(["id", "user_id", "expires_at", "consumed_at"])
@@ -208,7 +222,7 @@ const consumeDiscordLinkCode = <Environment>(
     if (row.expires_at <= db.runtime.now()) return { ok: false, reason: "expired" } as const;
 
     const consumedAt = db.runtime.now();
-    const updateResult = yield* Effect.promise(() =>
+    const updateResult = yield* QueryDatabase.tryPromise(() =>
       kysely
         .updateTable("discord_link_codes")
         .set({ consumed_at: consumedAt })
@@ -220,7 +234,7 @@ const consumeDiscordLinkCode = <Environment>(
     if (Number(updateResult.numUpdatedRows) === 0) {
       return { ok: false, reason: "consumed" } as const;
     }
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("discord_account_links")
         .values({
@@ -243,30 +257,30 @@ export interface DiscordLinkDatabaseShape {
   readonly consumeLinkCode: (input: {
     readonly code: string;
     readonly discordUserId: string;
-  }) => Effect.Effect<ConsumeDiscordLinkCodeResult>;
+  }) => DatabaseEffect<ConsumeDiscordLinkCodeResult, DiscordLinkHashError>;
   readonly createLinkCode: (input: {
     readonly userId: string;
-  }) => Effect.Effect<CreatedDiscordLinkCode | null>;
+  }) => DatabaseEffect<CreatedDiscordLinkCode | null, DiscordLinkHashError>;
   readonly getLinkedUserId: (input: {
     readonly discordUserId: string;
-  }) => Effect.Effect<string | null>;
+  }) => DatabaseEffect<string | null>;
   readonly listAccountLinks: (input: {
     readonly userId: string;
-  }) => Effect.Effect<ReadonlyArray<DiscordAccountLinkView>>;
+  }) => DatabaseEffect<ReadonlyArray<DiscordAccountLinkView>>;
   readonly listLinkCodes: (input: {
     readonly userId: string;
-  }) => Effect.Effect<ReadonlyArray<DiscordLinkCodeView>>;
+  }) => DatabaseEffect<ReadonlyArray<DiscordLinkCodeView>>;
   readonly revokeLinkCode: (input: {
     readonly userId: string;
     readonly codeId: string;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly unlinkAccount: (input: {
     readonly userId: string;
     readonly discordUserId: string;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly unlinkAccountByDiscordUserId: (input: {
     readonly discordUserId: string;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
 }
 
 export class DiscordLinkDatabase extends Context.Service<

@@ -112,7 +112,9 @@ export const makeSqliteDatabase = () => {
     raw: Effect.succeed(d1),
     prepare: (sql: string) => new Statement(sqlite, sql),
     batch: (statements: Statement[]) =>
-      Effect.promise(() => d1.batch(statements.map((statement) => statement.toD1Statement()))),
+      ServerDatabase.query.tryPromise(() =>
+        d1.batch(statements.map((statement) => statement.toD1Statement())),
+      ),
   } as unknown as RawQueryDatabaseClient;
   return {
     db: makeQueryDatabaseClient({ query, runtime: testDatabaseRuntime }),

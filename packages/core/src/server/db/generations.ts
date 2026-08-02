@@ -6,8 +6,10 @@ import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import { UiMessageChunkDecoder, UiMessageChunkDecodeError } from "../decode-ui-message-chunk.ts";
 import { getConversationForGeneration } from "./conversations.ts";
-import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
+import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
+
+type DatabaseEffect<Value, Error = never> = Effect.Effect<Value, Error | DatabaseQueryError>;
 
 const Json = Schema.String.pipe(
   Schema.decodeTo(Schema.Unknown, SchemaTransformation.fromJsonString),
@@ -136,7 +138,7 @@ const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(functi
   generationId: string;
 }) {
   const kysely = yield* db.kysely;
-  yield* Effect.promise(() =>
+  yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("chat_generations")
       .set({ status: "streaming", updated_at: db.runtime.now() })
@@ -165,7 +167,7 @@ const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(func
   outputTokens: number;
 }) {
   const kysely = yield* db.kysely;
-  yield* Effect.promise(() =>
+  yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("chat_generations")
       .set({
@@ -258,7 +260,7 @@ const finishGeneration = Effect.fn("chatGeneration.finish")(function* <TEnvironm
 }) {
   const kysely = yield* db.kysely;
   const timestamp = db.runtime.now();
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("chat_generations")
       .set({
@@ -295,7 +297,7 @@ const cancelRunningGenerations = Effect.fn("chatGeneration.cancelRunning")(funct
 }) {
   const kysely = yield* db.kysely;
   const timestamp = db.runtime.now();
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("chat_generations")
       .set({
@@ -333,7 +335,7 @@ const recordChatEvent = Effect.fn("chatEvent.record")(function* <TEnvironment>({
   payload?: Record<string, unknown>;
 }) {
   const kysely = yield* db.kysely;
-  yield* Effect.promise(() =>
+  yield* QueryDatabase.tryPromise(() =>
     kysely
       .insertInto("chat_events")
       .values({
@@ -361,7 +363,7 @@ const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function*
 }) {
   const kysely = yield* db.kysely;
   const timestamp = db.runtime.now();
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("chat_generations")
       .set({
@@ -394,7 +396,7 @@ const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished
 }) {
   const kysely = yield* db.kysely;
   const timestamp = db.runtime.now();
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .updateTable("chat_generations")
       .set({
@@ -445,7 +447,7 @@ const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(func
   const cutoff = new Date(
     db.runtime.nowMilliseconds() - retentionDays * 24 * 60 * 60 * 1_000,
   ).toISOString();
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .deleteFrom("chat_generations")
       .where("user_id", "=", userId)
@@ -466,7 +468,7 @@ const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* <T
   conversationId: string;
 }) {
   const kysely = yield* db.kysely;
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .selectFrom("chat_generations")
       .selectAll()
@@ -489,7 +491,7 @@ const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(function
   conversationId: string;
 }) {
   const kysely = yield* db.kysely;
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .selectFrom("chat_generations")
       .selectAll()
@@ -514,7 +516,7 @@ const getGeneration = Effect.fn("chatGeneration.get")(function* <TEnvironment>({
   generationId: string;
 }) {
   const kysely = yield* db.kysely;
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .selectFrom("chat_generations")
       .selectAll()
@@ -539,7 +541,7 @@ const getGenerationByRequestId = Effect.fn("chatGeneration.getByRequestId")(func
   requestId: string;
 }) {
   const kysely = yield* db.kysely;
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .selectFrom("chat_generations")
       .selectAll()
@@ -564,7 +566,7 @@ const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* <TEn
   afterSequence: number;
 }) {
   const kysely = yield* db.kysely;
-  const result = yield* Effect.promise(() =>
+  const result = yield* QueryDatabase.tryPromise(() =>
     kysely
       .selectFrom("chat_generation_chunks")
       .select(["sequence", "chunk"])
@@ -587,22 +589,22 @@ export interface GenerationDatabaseShape {
     readonly generationId: string;
     readonly sequence: number;
     readonly chunk: unknown;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly appendGenerationChunks: (input: {
     readonly userId: string;
     readonly generationId: string;
     readonly chunks: ReadonlyArray<GenerationChunkInput>;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly cancelRunningGenerations: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly reason: string;
     readonly error?: string;
-  }) => Effect.Effect<number>;
+  }) => DatabaseEffect<number>;
   readonly cleanupGenerationHistory: (input: {
     readonly userId: string;
     readonly retentionDays?: number;
-  }) => Effect.Effect<number>;
+  }) => DatabaseEffect<number>;
   readonly createGeneration: (input: {
     readonly userId: string;
     readonly generationId: string;
@@ -610,8 +612,8 @@ export interface GenerationDatabaseShape {
     readonly requestId?: string;
     readonly traceId?: string;
     readonly model?: string;
-  }) => Effect.Effect<boolean, GenerationAlreadyActiveError | GenerationDatabaseError>;
-  readonly expireStaleGenerations: (input: { readonly userId: string }) => Effect.Effect<number>;
+  }) => DatabaseEffect<boolean, GenerationAlreadyActiveError | GenerationDatabaseError>;
+  readonly expireStaleGenerations: (input: { readonly userId: string }) => DatabaseEffect<number>;
   readonly finishGeneration: (input: {
     readonly userId: string;
     readonly generationId: string;
@@ -620,36 +622,36 @@ export interface GenerationDatabaseShape {
     readonly finishReason?: string;
     readonly inputTokens?: number;
     readonly outputTokens?: number;
-  }) => Effect.Effect<boolean>;
+  }) => DatabaseEffect<boolean>;
   readonly getGeneration: (input: {
     readonly userId: string;
     readonly generationId: string;
-  }) => Effect.Effect<ChatGeneration | null>;
+  }) => DatabaseEffect<ChatGeneration | null>;
   readonly getGenerationByRequestId: (input: {
     readonly userId: string;
     readonly conversationId: string;
     readonly requestId: string;
-  }) => Effect.Effect<ChatGeneration | null>;
+  }) => DatabaseEffect<ChatGeneration | null>;
   readonly getGenerationChunks: (input: {
     readonly userId: string;
     readonly generationId: string;
     readonly afterSequence: number;
-  }) => Effect.Effect<ReadonlyArray<StoredGenerationChunk>, UiMessageChunkDecodeError>;
+  }) => DatabaseEffect<ReadonlyArray<StoredGenerationChunk>, UiMessageChunkDecodeError>;
   readonly getResumableGeneration: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<ChatGeneration | null>;
+  }) => DatabaseEffect<ChatGeneration | null>;
   readonly getRunningGeneration: (input: {
     readonly userId: string;
     readonly conversationId: string;
-  }) => Effect.Effect<ChatGeneration | null>;
+  }) => DatabaseEffect<ChatGeneration | null>;
   readonly markGenerationStreaming: (input: {
     readonly userId: string;
     readonly generationId: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly reconcileFinishedGenerations: (input: {
     readonly userId: string;
-  }) => Effect.Effect<number>;
+  }) => DatabaseEffect<number>;
   readonly recordChatEvent: (input: {
     readonly userId: string;
     readonly conversationId: string;
@@ -658,14 +660,14 @@ export interface GenerationDatabaseShape {
     readonly traceId: string;
     readonly type: string;
     readonly payload?: Record<string, unknown>;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly updateGenerationMetadata: (input: {
     readonly userId: string;
     readonly generationId: string;
     readonly finishReason: string;
     readonly inputTokens: number;
     readonly outputTokens: number;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
 }
 
 export class GenerationDatabase extends Context.Service<

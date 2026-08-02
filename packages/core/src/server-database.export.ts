@@ -88,7 +88,7 @@ import type {
   MemorySummaryStoreShape as MemorySummaryStoreRecord,
   MemoryWriterShape as MemoryWriterRecord,
 } from "./server/ports/memory-store.ts";
-import { QueryDatabase } from "./server/db/query-database.ts";
+import { DatabaseQueryError, QueryDatabase } from "./server/db/query-database.ts";
 import type {
   DatabaseRuntime as DatabaseRuntimeRecord,
   QueryDatabaseClient as QueryDatabaseClientRecord,
@@ -144,6 +144,7 @@ export class ServerDatabase {
   static readonly memorySummaryStore = MemorySummaryStore;
   static readonly memoryStoreLive = MemoryStoreLive;
   static readonly errors = {
+    databaseQuery: DatabaseQueryError,
     generationAlreadyActive: GenerationAlreadyActiveError,
     generationConflict: GenerationConflictError,
   } as const;

@@ -1,5 +1,16 @@
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import type { Compilable, Kysely } from "kysely";
+
+export class DatabaseQueryError extends Schema.TaggedErrorClass<DatabaseQueryError>()(
+  "DatabaseQueryError",
+  { message: Schema.String },
+) {}
+
+const toDatabaseQueryError = (cause: unknown): DatabaseQueryError =>
+  new DatabaseQueryError({
+    message: cause instanceof Error ? cause.message : String(cause),
+  });
 
 export interface DatabaseRuntime {
   readonly createId: () => string;
@@ -9,10 +20,10 @@ export interface DatabaseRuntime {
 }
 
 export interface QueryDatabaseClient<TSchema, TEnvironment = never> {
-  readonly kysely: Effect.Effect<Kysely<TSchema>, never, TEnvironment>;
+  readonly kysely: Effect.Effect<Kysely<TSchema>, DatabaseQueryError, TEnvironment>;
   readonly batch: (
     statements: ReadonlyArray<Compilable<unknown>>,
-  ) => Effect.Effect<Array<{ meta: { changes: number } }>, never, TEnvironment>;
+  ) => Effect.Effect<Array<{ meta: { changes: number } }>, DatabaseQueryError, TEnvironment>;
   readonly runtime: DatabaseRuntime;
 }
 
@@ -27,6 +38,15 @@ const chunk = <T>(items: ReadonlyArray<T>, size: number): Array<ReadonlyArray<T>
 };
 
 export class QueryDatabase {
+  static tryPromise<Value>(
+    execute: () => Promise<Value>,
+  ): Effect.Effect<Value, DatabaseQueryError> {
+    return Effect.tryPromise({
+      try: execute,
+      catch: toDatabaseQueryError,
+    });
+  }
+
   static transaction<TSchema, TEnvironment>(
     db: QueryDatabaseClient<TSchema, TEnvironment>,
     statements: ReadonlyArray<Compilable<unknown>>,

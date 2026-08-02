@@ -2,7 +2,11 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import * as Effect from "effect/Effect";
 import { Kysely, SqliteDialect, type Compilable } from "kysely";
 import type { SqliteDatabase, SqliteStatement } from "kysely";
-import type { QueryDatabaseClient, DatabaseRuntime } from "../../src/server/db/query-database.ts";
+import {
+  QueryDatabase,
+  type DatabaseRuntime,
+  type QueryDatabaseClient,
+} from "../../src/server/db/query-database.ts";
 
 const normalizeParameter = (value: unknown): SQLInputValue => {
   if (typeof value === "boolean") return Number(value);
@@ -76,7 +80,7 @@ export const makeSqliteDatabase = <TSchema>({
     kysely: Effect.succeed(kysely),
     runtime,
     batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
-      Effect.promise(async () => {
+      QueryDatabase.tryPromise(async () => {
         const results: Array<{ meta: { changes: number } }> = [];
         for (const statement of statements) {
           const compiled = statement.compile();

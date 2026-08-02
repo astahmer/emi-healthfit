@@ -18,6 +18,7 @@ import {
   threadsHandlers,
 } from "./core/http/conversations.ts";
 import { discordHandlers } from "./core/http/discord.ts";
+import { withInternalError } from "./core/http/errors.ts";
 import {
   analyticsHandlers,
   dataHandlers,
@@ -73,7 +74,7 @@ const notesHandlers = () => {
                     limit,
                   });
             return { notes: notes.map(toApiNote) };
-          }),
+          }, withInternalError),
         )
         .handle(
           "create",
@@ -84,7 +85,7 @@ const notesHandlers = () => {
               content: payload.content,
             });
             return { id: requireIdentifier(id) };
-          }),
+          }, withInternalError),
         )
         .handle(
           "update",
@@ -96,7 +97,7 @@ const notesHandlers = () => {
               content: payload.content,
             });
             return { success: true } satisfies { success: true };
-          }),
+          }, withInternalError),
         )
         .handle(
           "remove",
@@ -104,7 +105,7 @@ const notesHandlers = () => {
             const user = yield* CoreCloudflare.user.CurrentUser;
             yield* MemoryDatabase.deleteNote({ userId: user.id, id: params.id });
             return { success: true } satisfies { success: true };
-          }),
+          }, withInternalError),
         );
     }),
   );
@@ -129,7 +130,7 @@ const memoriesHandlers = () => {
                     options: { limit },
                   });
             return { memories: memories.map(toApiMemory) };
-          }),
+          }, withInternalError),
         )
         .handle(
           "create",
@@ -143,7 +144,7 @@ const memoriesHandlers = () => {
               messageId: payload.messageId,
             });
             return { id: requireIdentifier(id) };
-          }),
+          }, withInternalError),
         )
         .handle(
           "remove",
@@ -151,7 +152,7 @@ const memoriesHandlers = () => {
             const user = yield* CoreCloudflare.user.CurrentUser;
             yield* MemoryDatabase.deleteMemory({ userId: user.id, id: params.id });
             return { success: true } satisfies { success: true };
-          }),
+          }, withInternalError),
         )
         .handle(
           "removeByMessage",
@@ -162,7 +163,7 @@ const memoriesHandlers = () => {
               messageId: params.messageId,
             });
             return { success: true } satisfies { success: true };
-          }),
+          }, withInternalError),
         );
     }),
   );

@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
-import { Content, Created, Deleted, Identifier, Limit } from "./common.ts";
+import { Content, Created, Deleted, Identifier, Limit, StandardErrors } from "./common.ts";
 
 export const Note = Schema.Struct({
   id: Schema.String,
@@ -28,12 +28,14 @@ export class NotesApi extends HttpApiGroup.make("notes")
         limit: Schema.optional(Limit),
       },
       success: Schema.Struct({ notes: Schema.Array(Note) }),
+      error: StandardErrors,
     }),
   )
   .add(
     HttpApiEndpoint.post("create", "/notes", {
       payload: Schema.Struct({ content: Content }),
       success: Created.pipe(HttpApiSchema.status(201)),
+      error: StandardErrors,
     }),
   )
   .add(
@@ -41,12 +43,14 @@ export class NotesApi extends HttpApiGroup.make("notes")
       params: { id: Identifier },
       payload: Schema.Struct({ content: Content }),
       success: Deleted,
+      error: StandardErrors,
     }),
   )
   .add(
     HttpApiEndpoint.delete("remove", "/notes/:id", {
       params: { id: Identifier },
       success: Deleted,
+      error: StandardErrors,
     }),
   )
   .prefix("/api") {}
@@ -59,6 +63,7 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
         limit: Schema.optional(Limit),
       },
       success: Schema.Struct({ memories: Schema.Array(Memory) }),
+      error: StandardErrors,
     }),
   )
   .add(
@@ -70,18 +75,21 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
         messageId: Schema.optional(Schema.String),
       }),
       success: Created.pipe(HttpApiSchema.status(201)),
+      error: StandardErrors,
     }),
   )
   .add(
     HttpApiEndpoint.delete("remove", "/memories/:id", {
       params: { id: Identifier },
       success: Deleted,
+      error: StandardErrors,
     }),
   )
   .add(
     HttpApiEndpoint.delete("removeByMessage", "/memories/message/:messageId", {
       params: { messageId: Identifier },
       success: Deleted,
+      error: StandardErrors,
     }),
   )
   .prefix("/api") {}

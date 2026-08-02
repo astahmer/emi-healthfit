@@ -1,10 +1,12 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
+import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { MemoryDatabaseSchema } from "./schema.ts";
 
 type MemoriesDb<Environment = never> = QueryDatabaseClient<MemoryDatabaseSchema, Environment>;
+
+type DatabaseEffect<Value, Error = never> = Effect.Effect<Value, Error | DatabaseQueryError>;
 
 const normalizeContent = (content: string): string => content.trim().replace(/\s+/g, " ");
 
@@ -38,7 +40,7 @@ const insertMemories = <Environment>(
     if (candidates.length === 0) return [];
 
     const kysely = yield* db.kysely;
-    const existing = yield* Effect.promise(() =>
+    const existing = yield* QueryDatabase.tryPromise(() =>
       kysely.selectFrom("memories").select("content").where("user_id", "=", userId).execute(),
     );
     const existingKeys = new Set(existing.map((memory) => normalizeMemoryKey(memory.content)));
@@ -127,7 +129,7 @@ const searchMemories = <Environment>(
     const term = query.trim();
     const kysely = yield* db.kysely;
     if (term === "") {
-      const result = yield* Effect.promise(() =>
+      const result = yield* QueryDatabase.tryPromise(() =>
         kysely
           .selectFrom("memories")
           .select(["id", "content", "source", "thread_id", "created_at"])
@@ -140,7 +142,7 @@ const searchMemories = <Environment>(
     }
 
     const lowerTerm = term.toLowerCase();
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("memories")
         .select((expressionBuilder) => [
@@ -185,7 +187,7 @@ const getMemories = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    return yield* Effect.promise(() =>
+    return yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("memories")
         .select(["id", "content", "source", "thread_id", "created_at"])
@@ -199,7 +201,7 @@ const getMemories = <Environment>(
 const getMemorySummary = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    return yield* Effect.promise(() =>
+    return yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("memory_summaries")
         .select(["content", "memory_count", "updated_at"])
@@ -217,7 +219,7 @@ const upsertMemorySummary = <Environment>(
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const updatedAt = db.runtime.now();
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("memory_summaries")
         .values({
@@ -244,7 +246,7 @@ const listMemoryIdsForMessage = <Environment>(
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    const result = yield* Effect.promise(() =>
+    const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("memories")
         .select("id")
@@ -288,7 +290,7 @@ const insertNote = <Environment>(db: MemoriesDb<Environment>, userId: string, co
     const kysely = yield* db.kysely;
     const id = db.runtime.createId();
     const createdAt = db.runtime.now();
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .insertInto("notes")
         .values({
@@ -315,7 +317,7 @@ const updateNote = <Environment>(
     if (trimmed === "") return;
 
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely
         .updateTable("notes")
         .set({ content: trimmed, updated_at: db.runtime.now() })
@@ -328,7 +330,7 @@ const updateNote = <Environment>(
 const deleteNote = <Environment>(db: MemoriesDb<Environment>, userId: string, id: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    yield* Effect.promise(() =>
+    yield* QueryDatabase.tryPromise(() =>
       kysely.deleteFrom("notes").where("user_id", "=", userId).where("id", "=", id).execute(),
     );
   });
@@ -336,7 +338,7 @@ const deleteNote = <Environment>(db: MemoriesDb<Environment>, userId: string, id
 const getNotes = <Environment>(db: MemoriesDb<Environment>, userId: string, limit = 100) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    return yield* Effect.promise(() =>
+    return yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("notes")
         .select(["id", "content", "created_at", "updated_at"])
@@ -358,7 +360,7 @@ const searchNotes = <Environment>(
     if (term === "") return yield* getNotes(db, userId, limit);
 
     const kysely = yield* db.kysely;
-    return yield* Effect.promise(() =>
+    return yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("notes")
         .select(["id", "content", "created_at", "updated_at"])
@@ -380,65 +382,65 @@ export interface MemoryDatabaseShape {
   readonly deleteMemoriesByMessage: (input: {
     readonly userId: string;
     readonly messageId: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly deleteMemory: (input: {
     readonly userId: string;
     readonly id: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly deleteNote: (input: {
     readonly userId: string;
     readonly id: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly getMemories: (input: {
     readonly userId: string;
     readonly options?: { readonly limit?: number };
-  }) => Effect.Effect<ReadonlyArray<MemoryRecord>>;
+  }) => DatabaseEffect<ReadonlyArray<MemoryRecord>>;
   readonly getMemorySummary: (input: {
     readonly userId: string;
-  }) => Effect.Effect<MemorySummary | undefined>;
+  }) => DatabaseEffect<MemorySummary | undefined>;
   readonly getNotes: (input: {
     readonly userId: string;
     readonly limit?: number;
-  }) => Effect.Effect<ReadonlyArray<Note>>;
+  }) => DatabaseEffect<ReadonlyArray<Note>>;
   readonly insertMemories: (input: {
     readonly userId: string;
     readonly inputs: ReadonlyArray<MemoryInput>;
-  }) => Effect.Effect<ReadonlyArray<string>>;
+  }) => DatabaseEffect<ReadonlyArray<string>>;
   readonly insertMemory: (input: {
     readonly userId: string;
     readonly content: string;
     readonly source?: string;
     readonly threadId?: string;
     readonly messageId?: string;
-  }) => Effect.Effect<string | null>;
+  }) => DatabaseEffect<string | null>;
   readonly insertNote: (input: {
     readonly userId: string;
     readonly content: string;
-  }) => Effect.Effect<string | null>;
+  }) => DatabaseEffect<string | null>;
   readonly listMemoryIdsForMessage: (input: {
     readonly userId: string;
     readonly messageId: string;
-  }) => Effect.Effect<ReadonlyArray<string>>;
+  }) => DatabaseEffect<ReadonlyArray<string>>;
   readonly searchMemories: (input: {
     readonly userId: string;
     readonly query: string;
     readonly options?: { readonly limit?: number };
-  }) => Effect.Effect<ReadonlyArray<MemorySearchResult>>;
+  }) => DatabaseEffect<ReadonlyArray<MemorySearchResult>>;
   readonly searchNotes: (input: {
     readonly userId: string;
     readonly query: string;
     readonly limit?: number;
-  }) => Effect.Effect<ReadonlyArray<Note>>;
+  }) => DatabaseEffect<ReadonlyArray<Note>>;
   readonly updateNote: (input: {
     readonly userId: string;
     readonly id: string;
     readonly content: string;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
   readonly upsertMemorySummary: (input: {
     readonly userId: string;
     readonly content: string;
     readonly memoryCount: number;
-  }) => Effect.Effect<void>;
+  }) => DatabaseEffect<void>;
 }
 
 export class MemoryDatabase extends Context.Service<MemoryDatabase, MemoryDatabaseShape>()(

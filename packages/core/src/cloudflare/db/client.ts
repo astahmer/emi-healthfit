@@ -4,6 +4,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import { Kysely, type Compilable } from "kysely";
 import { D1Dialect } from "kysely-d1";
+import { DatabaseQueryError } from "../../server/db/query-database.ts";
 import type {
   DatabaseRuntime as DatabaseRuntimeRecord,
   QueryDatabaseClient,
@@ -14,8 +15,13 @@ export type DatabaseRuntime = DatabaseRuntimeRecord;
 export type RawQueryDatabaseClient = Effect.Success<ReturnType<typeof Cloudflare.D1.QueryDatabase>>;
 
 export interface CloudflareQueryDatabaseClient<TSchema> extends QueryDatabaseClient<TSchema> {
-  readonly raw: Effect.Effect<Effect.Success<RawQueryDatabaseClient["raw"]>>;
+  readonly raw: Effect.Effect<Effect.Success<RawQueryDatabaseClient["raw"]>, DatabaseQueryError>;
 }
+
+const toDatabaseQueryError = (cause: unknown): DatabaseQueryError =>
+  new DatabaseQueryError({
+    message: cause instanceof Error ? cause.message : String(cause),
+  });
 
 const isTransientD1Error = (error: unknown): boolean =>
   /D1_ERROR: Network connection lost/i.test(error instanceof Error ? error.message : String(error));
@@ -33,10 +39,14 @@ export class CloudflareDatabase {
     runtime: DatabaseRuntime;
   }): CloudflareQueryDatabaseClient<TSchema> {
     return {
-      raw: query.raw.pipe(Effect.provide(RuntimeContext.phantom)),
+      raw: query.raw.pipe(
+        Effect.provide(RuntimeContext.phantom),
+        Effect.mapError(toDatabaseQueryError),
+      ),
       runtime,
       kysely: query.raw.pipe(
         Effect.provide(RuntimeContext.phantom),
+        Effect.mapError(toDatabaseQueryError),
         Effect.map((database) => CloudflareDatabase.makeD1Kysely<TSchema>(database)),
       ),
       batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
@@ -50,6 +60,7 @@ export class CloudflareDatabase {
           .pipe(
             Effect.provide(RuntimeContext.phantom),
             Effect.retry({ times: 2, while: isTransientD1Error }),
+            Effect.mapError(toDatabaseQueryError),
             Effect.map((results) =>
               results.map((result) => ({ meta: { changes: Number(result.meta.changes) } })),
             ),
