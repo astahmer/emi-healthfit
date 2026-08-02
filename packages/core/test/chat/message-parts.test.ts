@@ -28,4 +28,22 @@ describe("ChatMessageParts", () => {
 
     assert.deepEqual(parts, [{ type: "text", text: "Ready" }]);
   });
+
+  it("keeps malformed normalized parts in the tagged Effect error channel", async () => {
+    const result = await Effect.runPromiseExit(
+      ChatMessageParts.buildAssistantPartsEffect([
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1", input: {} }],
+        },
+      ]),
+    );
+
+    assert.equal(result._tag, "Failure");
+    if (result._tag === "Failure") {
+      const reason = result.cause.reasons[0];
+      assert.equal(reason?._tag, "Fail");
+      if (reason?._tag === "Fail") assert.equal(reason.error._tag, "ChatMessagePartsError");
+    }
+  });
 });
