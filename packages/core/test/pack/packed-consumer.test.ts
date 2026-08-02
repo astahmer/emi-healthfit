@@ -85,6 +85,24 @@ describe("@emi/core packed consumer", () => {
         ],
         consumerDirectory,
       );
+
+      const noAdapterConsumerDirectory = join(temporaryDirectory, "no-adapter-consumer");
+      run("mkdir", ["-p", noAdapterConsumerDirectory], temporaryDirectory);
+      await writeFile(
+        join(noAdapterConsumerDirectory, "package.json"),
+        JSON.stringify({
+          name: "packed-no-adapter-consumer",
+          private: true,
+          type: "module",
+          dependencies: { "@emi/core": `file:${join(temporaryDirectory, tarball)}` },
+        }),
+      );
+      run("pnpm", ["install", "--offline", "--ignore-scripts"], noAdapterConsumerDirectory);
+      await writeFile(
+        join(noAdapterConsumerDirectory, "index.mjs"),
+        'import "@emi/core"; import "@emi/core/protocol"; import "@emi/core/server";\n',
+      );
+      run("node", ["index.mjs"], noAdapterConsumerDirectory);
     } finally {
       await rm(temporaryDirectory, { recursive: true, force: true });
     }
