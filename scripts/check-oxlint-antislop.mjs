@@ -49,6 +49,30 @@ const main = async () => {
       1,
       `invalid generic-contract fixture ${relative(repositoryRoot, invalidProtocolPath)}`,
     );
+
+    const effectDirectory = join(temporaryRoot, "packages/core/src/server/ports");
+    const effectFixtures = [
+      ["no-effect-context-reprovide", "context"],
+      ["no-catch-if-tagged-error", "catch"],
+      ["no-service-flat-map-facade", "flat-map"],
+    ];
+    await mkdir(effectDirectory, { recursive: true });
+    for (const [fixtureName, suffix] of effectFixtures) {
+      const validEffectPath = join(effectDirectory, `valid-effect-${suffix}.ts`);
+      const invalidEffectPath = join(effectDirectory, `invalid-effect-${suffix}.ts`);
+      await writeFile(validEffectPath, await fixture(`${fixtureName}.valid.ts`));
+      await writeFile(invalidEffectPath, await fixture(`${fixtureName}.invalid.ts`));
+      assertExit(
+        runOxlint([validEffectPath]),
+        0,
+        `valid ${fixtureName} fixture ${relative(repositoryRoot, validEffectPath)}`,
+      );
+      assertExit(
+        runOxlint([invalidEffectPath]),
+        1,
+        `invalid ${fixtureName} fixture ${relative(repositoryRoot, invalidEffectPath)}`,
+      );
+    }
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -58,6 +82,8 @@ const main = async () => {
     "packages/core/src/server/use-cases",
     "packages/core/src/protocol",
     "packages/core/src/contract",
+    "packages/core/src/server/db",
+    "packages/core/src/cloudflare",
   ];
   assertExit(runOxlint(sourcePaths), 0, "generic core Oxlint anti-slop scan");
   console.log("Oxlint anti-slop plugin checks passed.");

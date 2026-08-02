@@ -1,0 +1,13 @@
+id: no-service-flat-map-facade
+language: TypeScript
+files:
+  - packages/core/src/server/**/*.ts
+  - packages/core/src/server/**/*.tsx
+message: Do not expose static service-operation facades that repeatedly flatMap a Context.Service key; yield the service once and call its implementation methods.
+severity: error
+rule:
+  any:
+    - pattern: Effect.flatMap(ConversationDatabase, $$$ARGS)
+    - pattern: Effect.flatMap(GenerationDatabase, $$$ARGS)
+    - pattern: Effect.flatMap(MemoryDatabase, $$$ARGS)
+    - pattern: Effect.flatMap(DiscordLinkDatabase, $$$ARGS)

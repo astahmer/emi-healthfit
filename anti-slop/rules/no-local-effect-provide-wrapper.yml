@@ -1,0 +1,18 @@
+id: no-local-effect-provide-wrapper
+language: TypeScript
+files:
+  - apps/api/src/**/*.ts
+  - apps/api/src/**/*.tsx
+  - packages/core/src/**/*.ts
+  - packages/core/src/**/*.tsx
+  - packages/flavor-healthfit/src/**/*.ts
+  - packages/flavor-healthfit/src/**/*.tsx
+message: Do not hide repeated Effect.provide or Effect.provideContext calls behind local database/context helper functions.
+severity: error
+rule:
+  any:
+    - pattern: const provideDatabase = $$$VALUE
+    - pattern: const provideConversationDatabase = $$$VALUE
+    - pattern: const provideGenerationDatabase = $$$VALUE
+    - pattern: const provideMemoryDatabase = $$$VALUE
+    - pattern: const provideContext = $$$VALUE

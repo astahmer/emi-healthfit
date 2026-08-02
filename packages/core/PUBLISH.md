@@ -77,8 +77,9 @@ Its rules are:
   chunk decoder never enter `protocol`, `runtime`, React, or the primary `server` entry;
   its `QueryDatabaseClient` requires an injected `DatabaseRuntime` for IDs, clocks, and random
   bytes so persistence code has no ambient time or identity dependency. Each database domain is
-  an Effect `Context.Service` with a `Layer` constructor; its static accessors are only a
-  discoverable facade over the service tag and cannot run until the domain layer is provided;
+  an Effect `Context.Service` with a `Layer` constructor; the layer yields one implementation and
+  callers yield that service once for the surrounding Effect program instead of rebuilding or
+  re-providing it per operation;
 - `cloudflare` is an explicit platform route/auth boundary and may require the optional platform
   and provider peers listed in its matrix; common consumers do not import it;
 - `adapters/ai-sdk` is the only AI SDK boundary; its AI SDK packages are optional peers, so
@@ -117,8 +118,14 @@ canonical method returns `Effect<Success, Error, Requirements>` and preserves it
 channel. Promise APIs are derived at an outer boundary with `Effect.runPromise` or a named wrapper
 around it. Do not catch schema failures only to throw a new error from a synchronous helper; use
 `Schema.decodeUnknownEffect` and `Effect.mapError` so the success and error channels remain visible
-to composition and tests. The runtime's synchronous command methods are an intentional actor
-dispatch boundary, not a reason to flatten Effect-based server or protocol work into throws.
+to composition and tests. Service implementations should be built with `Layer.effect` or
+`Layer.succeed`, yield each dependency once, and return methods that are already Effect programs.
+Do not capture and re-provide context, create local `provideDatabase` helpers, or use
+`Effect.flatMap` as a static operation facade. Use `Effect.catch` or `Effect.catchTag` for tagged
+failures; reserve `Effect.catchIf` for genuine predicates. Pure synchronous transformations may
+stay synchronous when they have no environment or fallible boundary. The runtime's synchronous
+command methods are an intentional actor dispatch boundary, not a reason to flatten Effect-based
+server or protocol work into throws.
 
 ## R3 Effect-first server boundary
 

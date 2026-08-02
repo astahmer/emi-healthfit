@@ -39,8 +39,8 @@ The current checks protect these boundaries:
 - raw SQL domains may exist only as advanced adapter implementations; generic handlers consume
   granular Effect services supplied through `Layer`;
 - each advanced database domain keeps low-level query functions private and exposes one named
-  `Context.Service` with a `Layer`; static accessors are discovery/scoping aids, not a second
-  unprovided API;
+  `Context.Service` with a `Layer`; the layer yields the implementation once, and callers yield
+  that service once instead of rebuilding or re-providing it per operation;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
 - generic chat rendering, scrolling, and runtime state belong in `@emi/core`, while products supply
   only product renderers, extensions, and configuration.
@@ -73,17 +73,25 @@ separately discoverable contract item. Internal helpers should remain private to
 The Effect-first rule means a use case or adapter should first expose an `Effect` or `Stream` with
 qualified success and error types. A Promise-returning method is allowed only at a browser, HTTP, or
 other platform edge, and should be implemented by running the canonical Effect program rather than
-duplicating its logic.
+duplicating its logic. A service implementation should use `Layer.effect` or `Layer.succeed` and
+return an object whose methods are already Effect programs. Do not capture an Effect context and
+re-provide it inside a method, create local `provideDatabase` helpers, or use `Effect.flatMap` as a
+static operation facade. Use `Effect.catch` or `Effect.catchTag` for tagged failures; reserve
+`Effect.catchIf` for genuine predicates. Pure synchronous transformations may stay synchronous
+when they have no environment or fallible boundary; wrapping them in Effect solely for appearance
+is also slop.
 
 ## Oxlint contextual rules
 
 `scripts/oxlint/emi-plugin.mjs` complements ast-grep with ESLint-compatible rules that need source
 context. It rejects abstract core domain classes, empty private constructors, export forwarding,
-raw provider/platform imports in generic protocol and server contracts, and `Effect.run*` inside
-generic domain code. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise the plugin;
-`pnpm slop:check` runs both the fixture checks and a clean generic-core scan. Filesystem-aware
-boundary checks additionally reject legacy source paths, internal `index.ts` modules, raw SQL
-imports in generic handlers, and constructor-based server/adapter dependency injection.
+raw provider/platform imports in generic protocol and server contracts, `Effect.run*` inside
+generic domain code, context capture/re-provision, predicate-based handling of tagged errors, and
+static service-operation facades. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise
+the plugin; `pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
+Filesystem-aware boundary checks additionally reject legacy source paths, internal `index.ts`
+modules, raw SQL imports in generic handlers, and constructor-based server/adapter dependency
+injection.
 
 When a new smell is found, add its human rule with `antislop add`, then add the smallest
 deterministic rule or boundary assertion that can prevent recurrence. Every executable rule must

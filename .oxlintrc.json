@@ -15,6 +15,9 @@
     "emi/no-empty-private-constructor": "error",
     "emi/no-generic-platform-import": "error",
     "emi/no-domain-effect-run": "error",
+    "emi/no-effect-context-reprovide": "error",
+    "emi/no-catch-if-tagged-error": "error",
+    "emi/no-service-flat-map-facade": "error",
     "emi/no-export-forwarding": "error"
   },
   "ignorePatterns": [".next/**", ".alchemy/**", "dist/**", "coverage/**"]

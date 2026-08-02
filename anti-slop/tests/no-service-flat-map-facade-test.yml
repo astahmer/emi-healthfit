@@ -1,0 +1,18 @@
+id: no-service-flat-map-facade
+valid:
+  - |
+    const program = Effect.gen(function* () {
+      const database = yield* ConversationDatabase;
+      return yield* database.getConversation(input);
+    });
+  - |
+    const program = Effect.flatMap(readConversation(), (conversation) => Effect.succeed(conversation));
+invalid:
+  - |
+    static getConversation(input: Input) {
+      return Effect.flatMap(ConversationDatabase, (database) => database.getConversation(input));
+    }
+  - |
+    static getMemories(input: Input) {
+      return Effect.flatMap(MemoryDatabase, (database) => database.getMemories(input));
+    }

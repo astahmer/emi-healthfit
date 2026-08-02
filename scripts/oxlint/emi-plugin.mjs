@@ -23,6 +23,15 @@ const isEffectDomain = (filename) => {
   );
 };
 
+const isCoreEffectImplementation = (filename) => {
+  const normalizedFilename = normalizePath(filename);
+  return (
+    isCoreSource(filename) &&
+    !normalizedFilename.includes("/packages/core/src/adapters/") &&
+    !normalizedFilename.includes("/packages/core/src/advanced/")
+  );
+};
+
 const forbiddenPlatformImports =
   /^(?:ai|drizzle-orm|kysely|kysely-d1|@cloudflare\/workers-types)$|^@ai-sdk\//;
 
@@ -104,6 +113,65 @@ const plugin = {
               node,
               message:
                 "Generic ports and use cases must preserve Effect programs; run them only at an HTTP, browser, or platform edge.",
+            });
+          },
+        };
+      },
+    },
+    "no-effect-context-reprovide": {
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (!isCoreEffectImplementation(context.getFilename())) return;
+            if (node.callee?.type !== "MemberExpression") return;
+            if (node.callee.object?.type !== "Identifier") return;
+            if (node.callee.object.name !== "Effect") return;
+            const name = memberName(node.callee);
+            if (name !== "context" && name !== "provideContext") return;
+            context.report({
+              node,
+              message:
+                "Do not capture and re-provide Effect context inside core implementation code; yield Context.Service values once and provide platform context only at the outer adapter boundary.",
+            });
+          },
+        };
+      },
+    },
+    "no-catch-if-tagged-error": {
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (!isCoreEffectImplementation(context.getFilename())) return;
+            if (node.callee?.type !== "MemberExpression") return;
+            if (node.callee.object?.type !== "Identifier") return;
+            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "catchIf") return;
+            const predicate = node.arguments[0];
+            if (predicate === undefined) return;
+            if (!context.sourceCode.getText(predicate).includes("instanceof")) return;
+            context.report({
+              node,
+              message:
+                "Tagged Effect errors must be handled with Effect.catch or Effect.catchTag; catchIf is for predicates and loses the typed error intent.",
+            });
+          },
+        };
+      },
+    },
+    "no-service-flat-map-facade": {
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (!isCoreEffectImplementation(context.getFilename())) return;
+            if (node.callee?.type !== "MemberExpression") return;
+            if (node.callee.object?.type !== "Identifier") return;
+            if (node.callee.object.name !== "Effect" || memberName(node.callee) !== "flatMap") return;
+            const service = node.arguments[0];
+            if (service?.type !== "Identifier") return;
+            if (!/(?:Database|Reader|Writer|Store)$/.test(service.name)) return;
+            context.report({
+              node,
+              message:
+                "Yield Effect services once and call their implementation methods; do not build static operation facades with Effect.flatMap(ServiceKey, ...).",
             });
           },
         };
