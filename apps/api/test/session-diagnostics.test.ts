@@ -40,7 +40,7 @@ const session9745Bundle = (): DiagnosticBundle =>
         role: "assistant",
         parts: [
           {
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: "get_workout_history",
             state: "output-available",
             outcome: "success",

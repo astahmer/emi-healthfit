@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
-import { Conversation, CoreApi, Memory, Note } from "../../src/contract.export.ts";
+import { Conversation, CoreApi, Memory, Message, Note } from "../../src/contract.export.ts";
 
 const walk = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -47,6 +47,35 @@ describe("@emi/core/contract", () => {
       created_at: "2026-07-21T00:00:00.000Z",
     });
     assert.equal(memory.content, "memory");
+
+    const message = Schema.decodeUnknownSync(Message)({
+      id: "m1",
+      conversationId: "c1",
+      parentId: null,
+      role: "assistant",
+      parts: [{ type: "text", text: "reply" }],
+      createdAt: "2026-07-21T00:00:00.000Z",
+    });
+    assert.equal(message.parts[0]?.type, "text");
+    assert.throws(() =>
+      Schema.decodeUnknownSync(Message)({
+        ...message,
+        parts: [{ type: "provider-private", payload: { value: true } }],
+      }),
+    );
+  });
+
+  it("uses provider-neutral model configuration names at the contract boundary", async () => {
+    const contract = await import("../../src/contract.export.ts");
+    assert.equal("ModelClientConfiguration" in contract, true);
+    assert.equal("OpenAiClientConfig" in contract, false);
+    assert.deepEqual(
+      Schema.decodeUnknownSync(contract.ModelClientConfiguration)({
+        apiKey: "key",
+        model: "generic-model",
+      }),
+      { apiKey: "key", model: "generic-model" },
+    );
   });
 
   it("exposes only generic API groups", () => {
@@ -91,5 +120,18 @@ describe("@emi/core/contract", () => {
       )
     ).flat();
     assert.deepEqual(violations, []);
+  });
+
+  it("does not use unknown as a normal contract or assistant-part boundary", async () => {
+    const contractRoot = join(fileURLToPath(new URL("../../src/contract", import.meta.url)));
+    const messagePartsPath = join(
+      fileURLToPath(new URL("../../src/chat/message-parts.ts", import.meta.url)),
+    );
+    const contractFiles = await walk(contractRoot);
+    const sources = await Promise.all([
+      ...contractFiles.map((file) => readFile(file, "utf8")),
+      readFile(messagePartsPath, "utf8"),
+    ]);
+    assert.equal(sources.some((source) => source.includes("Schema.Unknown")), false);
   });
 });

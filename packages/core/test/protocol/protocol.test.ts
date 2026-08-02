@@ -34,10 +34,19 @@ const toolResult = {
   result: { callId: "call-1", output: { city: "Paris" }, isError: false },
 };
 
+const toolInvocation = {
+  type: "tool-invocation" as const,
+  toolName: "lookup",
+  toolCallId: "call-1",
+  state: "output-available" as const,
+  input: { query: "Paris" },
+  output: { city: "Paris" },
+};
+
 const message = {
   id: "message-1",
   role: "assistant" as const,
-  parts: [{ type: "text" as const, text: "Hello" }, toolCall, toolResult],
+  parts: [{ type: "text" as const, text: "Hello" }, toolCall, toolResult, toolInvocation],
   createdAt: "2026-08-02T00:00:00.000Z",
 };
 
@@ -53,6 +62,7 @@ describe("@emi/core/protocol", () => {
     assert.deepEqual(decode(ChatProtocol.schemas.attachment, browserAttachment), browserAttachment);
     assert.deepEqual(decode(ChatProtocol.schemas.toolCall, toolCall.call), toolCall.call);
     assert.deepEqual(decode(ChatProtocol.schemas.toolResult, toolResult.result), toolResult.result);
+    assert.deepEqual(decode(ChatProtocol.schemas.messagePart, toolInvocation), toolInvocation);
     assert.deepEqual(decode(ChatProtocol.schemas.messagePart, message.parts[0]), message.parts[0]);
     const decodedMessage = decode(ChatProtocol.schemas.chatMessage, message);
     assert.deepEqual(decodedMessage, message);

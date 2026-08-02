@@ -64,12 +64,30 @@ export const ToolResultMessagePartSchema = Schema.Struct({
 });
 export type ToolResultMessagePart = typeof ToolResultMessagePartSchema.Type;
 
+export const ToolInvocationStateSchema = Schema.Literals([
+  "input-available",
+  "output-available",
+  "output-error",
+]);
+
+export const ToolInvocationMessagePartSchema = Schema.Struct({
+  type: Schema.Literal("tool-invocation"),
+  toolName: nonEmptyText,
+  toolCallId: ToolCallIdSchema,
+  state: ToolInvocationStateSchema,
+  input: Schema.Json,
+  output: Schema.optional(Schema.Json),
+  errorText: Schema.optional(Schema.String),
+});
+export type ToolInvocationMessagePart = typeof ToolInvocationMessagePartSchema.Type;
+
 export const MessagePartSchema = Schema.Union([
   TextMessagePartSchema,
   ReasoningMessagePartSchema,
   FileMessagePartSchema,
   ToolCallMessagePartSchema,
   ToolResultMessagePartSchema,
+  ToolInvocationMessagePartSchema,
 ]);
 export type MessagePart = typeof MessagePartSchema.Type;
 

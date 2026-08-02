@@ -17,7 +17,7 @@ describe("ToolPart", () => {
 
     view.rerender(
       <CoreWebProvider contributions={{}}>
-        <ToolPart isStreaming={false} part={{ type: "tool-call", toolName: "weather" }} />
+        <ToolPart isStreaming={false} part={{ type: "tool-invocation", toolName: "weather" }} />
       </CoreWebProvider>,
     );
 

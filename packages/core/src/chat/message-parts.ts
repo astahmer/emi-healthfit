@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 const ToolOutput = Schema.Struct({
   type: Schema.Literals(["json", "text"]),
-  value: Schema.Unknown,
+  value: Schema.Json,
 });
 
 const ErrorOutput = Schema.Union([
@@ -15,14 +15,14 @@ const ProviderPart = Schema.Struct({
   type: Schema.String,
   toolCallId: Schema.optional(Schema.String),
   toolName: Schema.optional(Schema.String),
-  input: Schema.optional(Schema.Unknown),
-  output: Schema.optional(Schema.Unknown),
+  input: Schema.optional(Schema.Json),
+  output: Schema.optional(Schema.Json),
   text: Schema.optional(Schema.String),
 });
 
 const ProviderMessage = Schema.Struct({
   role: Schema.String,
-  content: Schema.optional(Schema.Unknown),
+  content: Schema.optional(Schema.Json),
 });
 
 const decodeProviderPart = Schema.decodeUnknownOption(ProviderPart);
@@ -30,9 +30,11 @@ const decodeProviderMessage = Schema.decodeUnknownOption(ProviderMessage);
 const decodeToolOutput = Schema.decodeUnknownOption(ToolOutput);
 const decodeErrorOutput = Schema.decodeUnknownOption(ErrorOutput);
 
-const normalizeToolOutput = (output: unknown): unknown => {
+const normalizeToolOutput = (output: unknown): Schema.Json => {
   const decoded = decodeToolOutput(output);
-  return Option.isSome(decoded) ? decoded.value.value : output;
+  if (Option.isSome(decoded)) return decoded.value.value;
+  const json = Schema.decodeUnknownOption(Schema.Json)(output);
+  return Option.isSome(json) ? json.value : null;
 };
 
 const isErrorOutput = (output: unknown): boolean => Option.isSome(decodeErrorOutput(output));
@@ -61,10 +63,10 @@ const messageParts = (content: unknown): (typeof ProviderPart.Type)[] => {
   });
 };
 
-export const buildAssistantParts = (messages: unknown[]): unknown[] => {
-  const assistantParts: unknown[] = [];
-  const toolCalls = new Map<string, { toolName: string; input: unknown }>();
-  const toolResults = new Map<string, { output: unknown; outcome: "success" | "error" }>();
+export const buildAssistantParts = (messages: unknown[]): Schema.Json[] => {
+  const assistantParts: Schema.Json[] = [];
+  const toolCalls = new Map<string, { toolName: string; input: Schema.Json }>();
+  const toolResults = new Map<string, { output: Schema.Json; outcome: "success" | "error" }>();
   const emittedToolCalls = new Set<string>();
 
   for (const candidate of messages) {
@@ -79,7 +81,7 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
       ) {
         toolCalls.set(part.toolCallId, {
           toolName: part.toolName ?? "",
-          input: part.input,
+          input: part.input ?? {},
         });
       } else if (
         message.role === "tool" &&
@@ -111,17 +113,17 @@ export const buildAssistantParts = (messages: unknown[]): unknown[] => {
         emittedToolCalls.add(part.toolCallId);
         if (result?.outcome === "success") {
           assistantParts.push({
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: call.toolName,
             toolCallId: part.toolCallId,
             input: call.input,
-            output: result.output,
             state: "output-available",
+            output: result.output,
           });
           continue;
         }
         assistantParts.push({
-          type: "dynamic-tool",
+          type: "tool-invocation",
           toolName: call.toolName,
           toolCallId: part.toolCallId,
           input: call.input,

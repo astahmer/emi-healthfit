@@ -97,6 +97,38 @@ const toUiMessage = (message: ChatMessage): UIMessage => {
       });
       continue;
     }
+    if (part.type === "tool-invocation") {
+      if (part.state === "input-available") {
+        parts.push({
+          type: "dynamic-tool",
+          toolName: part.toolName,
+          toolCallId: part.toolCallId,
+          state: "input-available",
+          input: part.input,
+        });
+        continue;
+      }
+      if (part.state === "output-error") {
+        parts.push({
+          type: "dynamic-tool",
+          toolName: part.toolName,
+          toolCallId: part.toolCallId,
+          state: "output-error",
+          errorText: part.errorText ?? "Tool invocation failed.",
+          input: part.input,
+        });
+        continue;
+      }
+      parts.push({
+        type: "dynamic-tool",
+        toolName: part.toolName,
+        toolCallId: part.toolCallId,
+        state: "output-available",
+        input: part.input,
+        output: part.output ?? null,
+      });
+      continue;
+    }
     if (part.result.isError === true) {
       parts.push({
         type: "dynamic-tool",

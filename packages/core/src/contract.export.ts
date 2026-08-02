@@ -22,7 +22,7 @@ import {
   ThreadWithMessages as ThreadWithMessagesSchema,
   ThreadsApi,
 } from "./contract/conversations.ts";
-import { MemoriesExtraApi, OpenAiClientConfig, SuggestionsApi } from "./contract/data.ts";
+import { MemoriesExtraApi, ModelClientConfiguration, SuggestionsApi } from "./contract/data.ts";
 import {
   CreatedDiscordLinkCode as CreatedDiscordLinkCodeSchema,
   DiscordAccountLink as DiscordAccountLinkSchema,
@@ -87,7 +87,7 @@ export {
   NotFoundSchema,
   Note,
   NotesApi,
-  OpenAiClientConfig,
+  ModelClientConfiguration,
   StandardErrors,
   SuggestionsApi,
   Thread,

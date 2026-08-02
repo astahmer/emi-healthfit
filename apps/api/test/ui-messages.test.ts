@@ -28,7 +28,7 @@ describe("stored UI messages", () => {
           role: "assistant",
           parts: [
             {
-              type: "dynamic-tool",
+              type: "tool-invocation",
               toolName: "render_component",
               toolCallId: "call-1",
               input: {},

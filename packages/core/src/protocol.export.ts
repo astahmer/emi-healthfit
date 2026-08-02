@@ -9,6 +9,7 @@ import type {
   ToolCallMessagePart,
   ToolResult,
   ToolResultMessagePart,
+  ToolInvocationMessagePart,
 } from "./protocol/parts.ts";
 import type {
   ChatMessage,
@@ -40,6 +41,7 @@ import type {
   ModelProvider,
   ModelProviderError,
 } from "./protocol/model.ts";
+import { MessagePartSchema } from "./protocol/parts.ts";
 import type { TransportError } from "./protocol/errors.ts";
 import { ProtocolDecodeError } from "./protocol/errors.ts";
 import { ChatProtocol } from "./protocol/mappers.ts";
@@ -78,9 +80,10 @@ export type {
   ToolCallMessagePart,
   ToolResult,
   ToolResultMessagePart,
+  ToolInvocationMessagePart,
   TransportError,
   ProtocolEffect,
   ProtocolSchemas,
 };
 
-export { ChatProtocol, ProtocolDecodeError };
+export { ChatProtocol, MessagePartSchema, ProtocolDecodeError };

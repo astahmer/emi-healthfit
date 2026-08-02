@@ -42,7 +42,11 @@ export const ToolPart = ({
 }): ReactNode => {
   const toolPart = Schema.decodeUnknownOption(ToolMessagePart)(part);
   const type = Option.isSome(toolPart) ? toolPart.value.type : "";
-  const isTool = type === "dynamic-tool" || type === "tool-call" || type.startsWith("tool-");
+  const isTool =
+    type === "dynamic-tool" ||
+    type === "tool-invocation" ||
+    type === "tool-call" ||
+    type.startsWith("tool-");
   const configuredToolName = Option.isSome(toolPart) ? toolPart.value.toolName : undefined;
   const toolName =
     configuredToolName !== undefined

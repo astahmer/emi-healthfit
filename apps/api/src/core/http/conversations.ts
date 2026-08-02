@@ -128,8 +128,8 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.list")(
           function* ({ query }) {
             const requestContext = yield* CoreCloudflare.request.CurrentRequestContext;
-            const store = ServerDatabase.storeLive.shape({ db: conversationDb, requestContext });
-            const conversations = yield* store.list(query.search);
+            const store = ServerDatabase.storeLive.shapes({ db: conversationDb, requestContext });
+            const conversations = yield* store.conversationReader.list(query.search);
             return { conversations: conversations.map(toApiConversation) };
           },
           withInternalError,
@@ -141,8 +141,8 @@ export const conversationsHandlers = ({
         Effect.fn("httpApi.conversations.create")(
           function* () {
             const requestContext = yield* CoreCloudflare.request.CurrentRequestContext;
-            const store = ServerDatabase.storeLive.shape({ db: conversationDb, requestContext });
-            const id = yield* store.create();
+            const store = ServerDatabase.storeLive.shapes({ db: conversationDb, requestContext });
+            const id = yield* store.conversationWriter.create();
             return { id };
           },
           withInternalError,

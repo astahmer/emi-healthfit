@@ -79,7 +79,7 @@ describe("core thread shell", () => {
       >
         <MessagePart
           part={{
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: "summary",
             state: "output-available",
             output: {},
@@ -88,7 +88,7 @@ describe("core thread shell", () => {
         />
         <MessagePart
           part={{
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: "ping",
             state: "output-available",
             output: "pong",
@@ -97,7 +97,7 @@ describe("core thread shell", () => {
         />
         <MessagePart
           part={{
-            type: "dynamic-tool",
+            type: "tool-invocation",
             toolName: "render_component",
             state: "output-available",
             output: {},

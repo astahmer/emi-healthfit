@@ -31,7 +31,7 @@ describe("buildAssistantParts", () => {
       output: { label: string; explanation: string };
       state: string;
     };
-    assert.strictEqual(toolPart.type, "dynamic-tool");
+    assert.strictEqual(toolPart.type, "tool-invocation");
     assert.strictEqual(toolPart.toolName, "get_recovery");
     assert.strictEqual(toolPart.toolCallId, "call-1");
     assert.deepStrictEqual(toolPart.input, {});
@@ -69,7 +69,7 @@ describe("buildAssistantParts", () => {
     assert.strictEqual(parts.length, 2);
     assert.deepStrictEqual(parts[0], { type: "text", text: "Here is the info:" });
     const toolPart = parts[1] as { type: string; toolName: string; output: { total: number } };
-    assert.strictEqual(toolPart.type, "dynamic-tool");
+    assert.strictEqual(toolPart.type, "tool-invocation");
     assert.strictEqual(toolPart.toolName, "get_summary");
     assert.strictEqual(toolPart.output.total, 100);
   });
@@ -124,7 +124,7 @@ describe("buildAssistantParts", () => {
     ]);
 
     assert.deepStrictEqual(parts[0], {
-      type: "dynamic-tool",
+      type: "tool-invocation",
       toolName: "get_workout_history",
       toolCallId: "failed-1",
       input: {},

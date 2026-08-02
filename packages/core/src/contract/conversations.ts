@@ -1,7 +1,8 @@
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi";
 import { Content, Created, Deleted, Identifier, StandardErrors } from "./common.ts";
-import { OpenAiClientConfig } from "./data.ts";
+import { ModelClientConfiguration } from "./data.ts";
+import { MessagePartSchema } from "../protocol/parts.ts";
 
 export const Conversation = Schema.Struct({
   id: Schema.String,
@@ -25,7 +26,7 @@ export const Message = Schema.Struct({
   conversationId: Schema.String,
   parentId: Schema.NullOr(Schema.String),
   role: Schema.Literals(["user", "assistant", "system", "summary"]),
-  parts: Schema.Array(Schema.Unknown),
+  parts: Schema.Array(MessagePartSchema),
   createdAt: Schema.String,
   model: Schema.optional(Schema.String),
   usage: Schema.optional(MessageUsage),
@@ -79,7 +80,7 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
         messages: Schema.Array(
           Schema.Struct({
             role: Schema.Literals(["user", "assistant", "system"]),
-            parts: Schema.Array(Schema.Unknown),
+            parts: Schema.Array(MessagePartSchema),
           }),
         ),
         title: Schema.optional(Content),
@@ -116,7 +117,7 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
   .add(
     HttpApiEndpoint.post("compact", "/conversations/:id/compact", {
       params: { id: Identifier },
-      payload: OpenAiClientConfig,
+      payload: ModelClientConfiguration,
       success: ConversationResponse.pipe(HttpApiSchema.status(201)),
       error: StandardErrors,
     }),
@@ -167,7 +168,7 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
           "client.refreshed",
           "client.retried",
         ]),
-        payload: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+        payload: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
       }),
       success: Schema.Struct({ recorded: Schema.Literal(true) }).pipe(HttpApiSchema.status(201)),
       error: StandardErrors,
@@ -177,7 +178,7 @@ export class ConversationsApi extends HttpApiGroup.make("conversations")
     HttpApiEndpoint.patch("reviseMessage", "/conversations/:id/messages/:messageId", {
       params: { id: Identifier, messageId: Identifier },
       payload: Schema.Struct({
-        parts: Schema.Array(Schema.Unknown),
+        parts: Schema.Array(MessagePartSchema),
         threadId: Schema.optional(Schema.String),
       }),
       success: Schema.Struct({ ok: Schema.Literal(true) }),

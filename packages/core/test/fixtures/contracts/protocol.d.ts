@@ -47,7 +47,16 @@ export type MessagePart =
   | { readonly type: "reasoning"; readonly text: string }
   | { readonly type: "file"; readonly file: Attachment }
   | { readonly type: "tool-call"; readonly call: ToolCall }
-  | { readonly type: "tool-result"; readonly result: ToolResult };
+  | { readonly type: "tool-result"; readonly result: ToolResult }
+  | {
+      readonly type: "tool-invocation";
+      readonly toolName: string;
+      readonly toolCallId: string;
+      readonly state: "input-available" | "output-available" | "output-error";
+      readonly input: JsonValue;
+      readonly output?: JsonValue;
+      readonly errorText?: string;
+    };
 
 export interface ChatMessage {
   readonly id: string;

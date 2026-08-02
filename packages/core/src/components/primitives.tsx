@@ -21,6 +21,13 @@ export const MessagePart = ({ part }: { readonly part: ProtocolMessagePart }): R
     return <img alt={part.file.name} src={part.file.url} />;
   }
   if (part.type === "tool-call") return <span>{part.call.name}</span>;
+  if (part.type === "tool-invocation")
+    return (
+      <details>
+        <summary>{part.toolName}</summary>
+        <pre>{JSON.stringify(part.output ?? part.errorText ?? part.input, null, 2)}</pre>
+      </details>
+    );
   return (
     <details>
       <summary>Tool result</summary>

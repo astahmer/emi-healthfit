@@ -172,7 +172,7 @@ describe("multi-step chat tool loop", () => {
           typeof part === "object" &&
           part !== null &&
           "type" in part &&
-          part.type === "dynamic-tool" &&
+          part.type === "tool-invocation" &&
           "output" in part &&
           typeof part.output === "object" &&
           part.output !== null &&

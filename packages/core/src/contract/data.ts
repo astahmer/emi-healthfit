@@ -2,7 +2,7 @@ import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
 import { Content, StandardErrors } from "./common.ts";
 
-export const OpenAiClientConfig = Schema.Struct({
+export const ModelClientConfiguration = Schema.Struct({
   apiKey: Content,
   baseUrl: Schema.optional(Schema.String),
   model: Schema.String,
@@ -16,7 +16,7 @@ export class SuggestionsApi extends HttpApiGroup.make("suggestions")
         messageId: Schema.optional(Schema.String),
         lastAssistantText: Content,
         lastUserText: Schema.optional(Schema.String),
-        config: OpenAiClientConfig,
+        config: ModelClientConfiguration,
       }),
       success: Schema.Struct({ suggestions: Schema.Array(Schema.String) }),
       error: StandardErrors,
@@ -32,7 +32,7 @@ export class MemoriesExtraApi extends HttpApiGroup.make("memoryExtraction")
         threadId: Schema.optional(Schema.String),
         messageId: Schema.optional(Schema.String),
         source: Schema.optional(Schema.Literals(["auto", "manual"])),
-        config: OpenAiClientConfig,
+        config: ModelClientConfiguration,
       }),
       success: Schema.Struct({ ids: Schema.Array(Schema.String), count: Schema.Number }),
       error: StandardErrors,

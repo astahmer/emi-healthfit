@@ -5,7 +5,7 @@ import {
   Memory,
   Message,
   Note,
-  OpenAiClientConfig,
+  ModelClientConfiguration,
   Thread,
   ThreadWithMessages,
 } from "@emi/core/contract";
@@ -41,10 +41,10 @@ const thread = {
 describe("HTTP response contracts", () => {
   it("requires a non-empty key for client OpenAI actions", () => {
     assert.throws(() =>
-      Schema.decodeUnknownSync(OpenAiClientConfig)({ apiKey: "", model: "gpt-5" }),
+      Schema.decodeUnknownSync(ModelClientConfiguration)({ apiKey: "", model: "gpt-5" }),
     );
     assert.deepStrictEqual(
-      Schema.decodeUnknownSync(OpenAiClientConfig)({ apiKey: "sk-test", model: "gpt-5" }),
+      Schema.decodeUnknownSync(ModelClientConfiguration)({ apiKey: "sk-test", model: "gpt-5" }),
       { apiKey: "sk-test", model: "gpt-5" },
     );
   });
