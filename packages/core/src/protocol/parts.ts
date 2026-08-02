@@ -4,7 +4,9 @@ import { AttachmentIdSchema, ToolCallIdSchema } from "./ids.ts";
 const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/));
 const safeAttachmentUrl = Schema.String.check(
   Schema.isMinLength(1),
-  Schema.isPattern(/^(?:https?:\/\/|\/(?!\/))/i),
+  Schema.isPattern(
+    /^(?:https?:\/\/|\/(?!\/)|data:(?!(?:application\/(?:ecmascript|javascript|xhtml\+xml)|image\/svg\+xml|text\/(?:html|javascript))(?:;|,))[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+(?:;[^,]*)?,)/i,
+  ),
 );
 const extensionNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/i));
 const extensionName = Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/i));

@@ -19,6 +19,11 @@ const attachment = {
   size: 5,
 };
 
+const browserAttachment = {
+  ...attachment,
+  url: "data:text/plain;base64,SGVsbG8=",
+};
+
 const toolCall = {
   type: "tool-call" as const,
   call: { id: "call-1", name: "lookup", input: { query: "Paris" } },
@@ -45,6 +50,7 @@ describe("@emi/core/protocol", () => {
 
   it("decodes provider-neutral messages, attachments, tools, and generation events", () => {
     assert.deepEqual(decode(ChatProtocol.schemas.attachment, attachment), attachment);
+    assert.deepEqual(decode(ChatProtocol.schemas.attachment, browserAttachment), browserAttachment);
     assert.deepEqual(decode(ChatProtocol.schemas.toolCall, toolCall.call), toolCall.call);
     assert.deepEqual(decode(ChatProtocol.schemas.toolResult, toolResult.result), toolResult.result);
     assert.deepEqual(decode(ChatProtocol.schemas.messagePart, message.parts[0]), message.parts[0]);
@@ -67,6 +73,12 @@ describe("@emi/core/protocol", () => {
     );
     assert.throws(() =>
       decode(ChatProtocol.schemas.attachment, { ...attachment, url: "javascript:alert(1)" }),
+    );
+    assert.throws(() =>
+      decode(ChatProtocol.schemas.attachment, {
+        ...browserAttachment,
+        url: "data:text/html;base64,PGh0bWw+",
+      }),
     );
     assert.throws(() =>
       decode(ChatProtocol.schemas.toolResult, { callId: "call-1", output: { value: undefined } }),
