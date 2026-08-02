@@ -192,8 +192,6 @@ const PackageJson = Schema.Struct({
       entrypointPaths: Schema.Record(Schema.String, Schema.String),
       advancedEntrypoints: Schema.Record(Schema.String, Schema.String),
       dependencyMatrix: Schema.Record(Schema.String, DependencyEntry),
-      legacySourceEntrypoints: Schema.Array(Schema.String),
-      legacyEntrypointPaths: Schema.Record(Schema.String, Schema.String),
       rewriteGates: Schema.Array(Schema.String),
     }),
   }),
@@ -222,25 +220,10 @@ describe("@emi/core R0 public catalog", () => {
       Object.keys(exports).some((entrypoint) => entrypoint.includes("*")),
       false,
     );
+    assert.deepEqual(Object.keys(exports).toSorted(), Object.keys(targetEntrypoints).toSorted());
     assert.deepEqual(packageJson.emi.publicApi.entrypoints, targetEntrypoints);
     assert.deepEqual(packageJson.emi.publicApi.entrypointPaths, targetEntrypointPaths);
     assert.deepEqual(packageJson.emi.publicApi.dependencyMatrix, dependencyMatrix);
     assert.deepEqual(packageJson.emi.publicApi.advancedEntrypoints, advancedEntrypoints);
-    assert.deepEqual(
-      packageJson.emi.publicApi.legacyEntrypointPaths,
-      {
-        "./contract": "./src/contract/index.ts",
-        "./chat": "./src/chat/index.ts",
-        "./chat/settings": "./src/chat/settings.ts",
-        "./chat/ui-messages": "./src/chat/ui-messages.ts",
-        "./server/legacy": "./src/server/legacy/index.ts",
-        "./web": "./src/web/index.ts",
-        "./web/contributions": "./src/web/contributions.tsx",
-        "./web/styled": "./src/web/styled/index.ts",
-        "./web/styled/styles.css": "./src/web/styled/styles.css",
-        "./cloudflare": "./src/cloudflare/index.ts",
-        "./discord": "./src/discord/index.ts",
-      },
-    );
   });
 });

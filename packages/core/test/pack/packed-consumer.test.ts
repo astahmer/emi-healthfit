@@ -26,7 +26,11 @@ describe("@emi/core packed consumer", () => {
       const tarball = (await readdir(temporaryDirectory)).find((file) => file.endsWith(".tgz"));
       assert.ok(tarball !== undefined, "pnpm pack did not create a tarball");
       run("mkdir", ["-p", packageDestination], temporaryDirectory);
-      run("tar", ["-xzf", join(temporaryDirectory, tarball), "-C", packageDestination], temporaryDirectory);
+      run(
+        "tar",
+        ["-xzf", join(temporaryDirectory, tarball), "-C", packageDestination],
+        temporaryDirectory,
+      );
 
       const consumerDirectory = join(temporaryDirectory, "consumer");
       await writeFile(
@@ -39,11 +43,18 @@ describe("@emi/core packed consumer", () => {
           name: "packed-consumer",
           private: true,
           type: "module",
-          dependencies: { "@emi/core": `file:${join(temporaryDirectory, tarball)}` },
+          dependencies: {
+            "@emi/core": `file:${join(temporaryDirectory, tarball)}`,
+            react: "19.2.7",
+            "react-dom": "19.2.7",
+          },
         }),
       );
       run("mkdir", ["-p", consumerDirectory], temporaryDirectory);
-      await writeFile(join(consumerDirectory, "package.json"), await readFile(join(temporaryDirectory, "consumer-package.json")));
+      await writeFile(
+        join(consumerDirectory, "package.json"),
+        await readFile(join(temporaryDirectory, "consumer-package.json")),
+      );
       run("pnpm", ["install", "--offline", "--ignore-scripts"], consumerDirectory);
 
       await writeFile(

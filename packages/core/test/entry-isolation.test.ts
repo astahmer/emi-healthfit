@@ -39,40 +39,6 @@ const assertNoMatches = async (options: {
 };
 
 describe("@emi/core entry isolation", () => {
-  it("contract never imports server, web, cloudflare, discord, or react", async () => {
-    await assertNoMatches({
-      entry: "contract",
-      forbidden: [
-        "@emi/core/server",
-        "@emi/core/web",
-        "@emi/core/cloudflare",
-        "@emi/core/discord",
-        'from "react"',
-        "from 'react'",
-        "drizzle-orm",
-        "kysely",
-        "alchemy",
-      ],
-    });
-  });
-
-  it("chat never imports server, web, cloudflare, discord, or react", async () => {
-    await assertNoMatches({
-      entry: "chat",
-      forbidden: [
-        "@emi/core/server",
-        "@emi/core/web",
-        "@emi/core/cloudflare",
-        "@emi/core/discord",
-        'from "react"',
-        "from 'react'",
-        "drizzle-orm",
-        "kysely",
-        "alchemy",
-      ],
-    });
-  });
-
   it("server never imports web, chat, discord, or react", async () => {
     await assertNoMatches({
       entry: "server",
@@ -87,35 +53,23 @@ describe("@emi/core entry isolation", () => {
     });
   });
 
-  it("web never imports server, cloudflare, or discord", async () => {
-    await assertNoMatches({
-      entry: "web",
-      forbidden: ["@emi/core/server", "@emi/core/cloudflare", "@emi/core/discord", "drizzle-orm"],
-    });
-  });
-
-  it("headless web entry does not pull the optional styled bundle", async () => {
-    const source = await readFile(join(packageRoot, "src", "web", "index.ts"), "utf8");
-
-    assert.doesNotMatch(source, /styled|lucide-react|radix-ui/);
-  });
-
-  it("discord never imports web, flavor, or react", async () => {
-    await assertNoMatches({
-      entry: "discord",
-      forbidden: [
-        "@emi/core/web",
-        "flavor-healthfit",
-        'from "react"',
-        "from 'react'",
-        "apps/chat",
-        "apps/api",
-      ],
-    });
-  });
-
   it("loads node-compatible public subpaths through package exports", async () => {
-    const subpaths = ["chat", "cloudflare", "contract", "discord", "react", "runtime", "server"];
+    const subpaths = [
+      "api",
+      "adapters/cloudflare",
+      "adapters/ai-sdk",
+      "advanced/xstate",
+      "components",
+      "components/styled",
+      "extensions",
+      "protocol",
+      "react",
+      "runtime",
+      "server",
+      "server/effect",
+      "server/fetch",
+      "testing",
+    ];
     const modules = await Promise.all([
       import("@emi/core"),
       ...subpaths.map((subpath) => import(`@emi/core/${subpath}`)),

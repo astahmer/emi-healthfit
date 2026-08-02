@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import * as styled from "@emi/core/web/styled";
-import * as web from "@emi/core/web";
+import * as components from "@emi/core/components";
+import * as styled from "@emi/core/components/styled";
 
-describe("@emi/core web package exports", () => {
-  it("loads headless and optional styled subpaths", () => {
-    expect(web.genericChatAppMachine).toBeDefined();
-    expect(web.ChatShell).toBeDefined();
-    expect(styled.ChatHeader).toBeDefined();
-    expect(styled.ChatSidebar).toBeDefined();
+describe("@emi/core component package exports", () => {
+  it("loads headless and optional styled target subpaths", () => {
+    expect(components.ConnectedThread).toBeDefined();
+    expect(components.ConnectedComposer).toBeDefined();
+    expect(styled.ChatApp).toBeDefined();
+    expect(styled.ChatShell).toBeDefined();
   });
 });

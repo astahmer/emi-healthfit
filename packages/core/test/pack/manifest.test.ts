@@ -14,9 +14,7 @@ describe("@emi/core R7 distribution manifest", () => {
     const sourceManifest = await readJson(join(packageRoot, "source-manifest.json"));
     const targetEntrypoints = Object.keys(packageJson.emi.publicApi.entrypointPaths);
     const manifestNames = new Set(
-      sourceManifest.entrypoints
-        .filter((entry: { legacy?: boolean }) => entry.legacy !== true)
-        .map((entry: { name: string }) => entry.name),
+      sourceManifest.entrypoints.map((entry: { name: string }) => entry.name),
     );
 
     assert.equal(packageJson.private, false);
@@ -28,11 +26,14 @@ describe("@emi/core R7 distribution manifest", () => {
       await access(join(packageRoot, importPath));
     }
     const publicSource = await Promise.all(
-      sourceManifest.entrypoints
-        .filter((entry: { legacy?: boolean }) => entry.legacy !== true)
-        .map(async (entry: { source: string }) => readFile(join(packageRoot, entry.source), "utf8")),
+      sourceManifest.entrypoints.map(async (entry: { source: string }) =>
+        readFile(join(packageRoot, entry.source), "utf8"),
+      ),
     );
-    assert.equal(publicSource.some((source) => /export \*/.test(source)), false);
+    assert.equal(
+      publicSource.some((source) => /export \*/.test(source)),
+      false,
+    );
     assert.equal(sourceManifest.provenance, "@emi/core source catalog r0");
     assert.ok(sourceManifest.sourceFiles.includes("src/index.ts"));
     assert.ok(sourceManifest.testFiles.includes("test/public-api/fixtures.test.ts"));
