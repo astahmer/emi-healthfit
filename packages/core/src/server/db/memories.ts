@@ -236,11 +236,7 @@ const listMemoryIdsForMessage = <Environment>(
     return result.map((row) => row.id);
   });
 
-const deleteMemory = <Environment>(
-  db: MemoriesDb<Environment>,
-  userId: string,
-  id: string,
-) =>
+const deleteMemory = <Environment>(db: MemoriesDb<Environment>, userId: string, id: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* QueryDatabase.transaction(db, [
@@ -265,11 +261,7 @@ const deleteMemoriesByMessage = <Environment>(
     ]);
   });
 
-const insertNote = <Environment>(
-  db: MemoriesDb<Environment>,
-  userId: string,
-  content: string,
-) =>
+const insertNote = <Environment>(db: MemoriesDb<Environment>, userId: string, content: string) =>
   Effect.gen(function* () {
     const trimmed = content.trim();
     if (trimmed === "") return null;

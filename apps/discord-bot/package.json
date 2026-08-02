@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@emi/core": "workspace:*",
-    "@emi/core": "workspace:*",
     "@emi/flavor-healthfit": "workspace:*",
     "alchemy": "catalog:",
     "effect": "catalog:"

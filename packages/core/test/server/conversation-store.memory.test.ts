@@ -59,6 +59,15 @@ const schemaDdl = `
   );
 `;
 
+let nextDatabaseId = 0;
+
+const databaseRuntime = {
+  createId: () => `conversation-test-id-${nextDatabaseId++}`,
+  now: () => "2026-08-02T00:00:00.000Z",
+  nowMilliseconds: () => Date.parse("2026-08-02T00:00:00.000Z"),
+  randomBytes: (length: number) => new Uint8Array(length).fill(7),
+};
+
 const normalizeParameter = (value: unknown): SQLInputValue => {
   if (typeof value === "boolean") return Number(value);
   if (
@@ -120,6 +129,7 @@ const makeInMemoryDb = (): QueryDatabaseClient<ConversationDatabaseSchema, never
   });
   return {
     kysely: Effect.succeed(kysely),
+    runtime: databaseRuntime,
     batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
       Effect.promise(async () => {
         const results: Array<{ meta: { changes: number } }> = [];

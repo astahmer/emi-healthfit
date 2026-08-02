@@ -10,9 +10,7 @@ describe("anonymous web session adapter", () => {
       return new Response(null, { status: 201 });
     };
 
-    expect(
-      await AnonymousSession.start({ apiOrigin: "https://chat.example/", fetch }),
-    ).toBe(true);
+    expect(await AnonymousSession.start({ apiOrigin: "https://chat.example/", fetch })).toBe(true);
     expect(requests).toEqual([
       {
         url: `https://chat.example${AnonymousSession.signInPath}`,

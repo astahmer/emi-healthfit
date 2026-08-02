@@ -9,8 +9,6 @@ const CODE_LENGTH = 8;
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ACTIVE_CODES_PER_USER = 3;
 
-const nowIso = () => new Date().toISOString();
-
 const bytesToHex = (bytes: ArrayBuffer): string =>
   [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
@@ -23,8 +21,8 @@ const hashDiscordLinkCode = (code: string): Effect.Effect<string> =>
     return bytesToHex(digest);
   });
 
-const randomLinkCode = (): string => {
-  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
+const randomLinkCode = (randomBytes: (length: number) => Uint8Array): string => {
+  const bytes = randomBytes(CODE_LENGTH);
   return [...bytes].map((byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join("");
 };
 
@@ -84,16 +82,16 @@ const createDiscordLinkCode = (db: DiscordDb, userId: string) =>
         .select((eb) => eb.fn.countAll<number>().as("c"))
         .where("user_id", "=", userId)
         .where("consumed_at", "is", null)
-        .where("expires_at", ">", nowIso())
+        .where("expires_at", ">", db.runtime.now())
         .executeTakeFirst(),
     );
     if ((active?.c ?? 0) >= MAX_ACTIVE_CODES_PER_USER) return null;
 
-    const code = randomLinkCode();
+    const code = randomLinkCode(db.runtime.randomBytes);
     const codeHash = yield* hashDiscordLinkCode(code);
-    const createdAt = nowIso();
-    const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
-    const id = crypto.randomUUID();
+    const createdAt = db.runtime.now();
+    const expiresAt = new Date(db.runtime.nowMilliseconds() + CODE_TTL_MS).toISOString();
+    const id = db.runtime.createId();
 
     yield* Effect.promise(() =>
       kysely
@@ -175,10 +173,7 @@ export type ConsumeDiscordLinkCodeResult =
       readonly reason: "invalid" | "expired" | "consumed";
     };
 
-const consumeDiscordLinkCode = (
-  db: DiscordDb,
-  options: { code: string; discordUserId: string },
-) =>
+const consumeDiscordLinkCode = (db: DiscordDb, options: { code: string; discordUserId: string }) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     const codeHash = yield* hashDiscordLinkCode(options.code);
@@ -191,9 +186,9 @@ const consumeDiscordLinkCode = (
     );
     if (row === undefined) return { ok: false, reason: "invalid" } as const;
     if (row.consumed_at !== null) return { ok: false, reason: "consumed" } as const;
-    if (row.expires_at <= nowIso()) return { ok: false, reason: "expired" } as const;
+    if (row.expires_at <= db.runtime.now()) return { ok: false, reason: "expired" } as const;
 
-    const consumedAt = nowIso();
+    const consumedAt = db.runtime.now();
     const updateResult = yield* Effect.promise(() =>
       kysely
         .updateTable("discord_link_codes")

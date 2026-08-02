@@ -16,9 +16,7 @@ const repositoriesLayer = CloudflareRepositories.layer({
 });
 
 const model = Effect.runPromise(
-  AiSdkModelProvider.use((provider) => Effect.succeed(provider)).pipe(
-    Effect.provide(modelLayer),
-  ),
+  AiSdkModelProvider.use((provider) => Effect.succeed(provider)).pipe(Effect.provide(modelLayer)),
 );
 const repositories = Effect.runPromise(
   CloudflareRepositories.use((value) => Effect.succeed(value)).pipe(

@@ -3,10 +3,7 @@ import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import type { ChatMessage } from "../../protocol/messages.ts";
 import type { Conversation } from "../../protocol/resources.ts";
-import type {
-  GenerationEvent,
-  ModelConfiguration,
-} from "../../protocol/model.ts";
+import type { GenerationEvent, ModelConfiguration } from "../../protocol/model.ts";
 import type { ChatExtension } from "../../extensions.ts";
 import type { ChatServerError } from "../use-cases/chat-server.ts";
 
@@ -15,9 +12,7 @@ export interface ChatServerPrincipal {
 }
 
 export interface AuthPortShape {
-  readonly authenticate: (
-    request: Request,
-  ) => Effect.Effect<ChatServerPrincipal, ChatServerError>;
+  readonly authenticate: (request: Request) => Effect.Effect<ChatServerPrincipal, ChatServerError>;
 }
 
 export class AuthPort extends Context.Service<AuthPort, AuthPortShape>()(
@@ -65,10 +60,9 @@ export interface ChatRepositoriesShape {
   readonly memories: MemoryRepositoryShape;
 }
 
-export class ChatRepositories extends Context.Service<
-  ChatRepositories,
-  ChatRepositoriesShape
->()("@emi/core/server/ChatRepositories") {}
+export class ChatRepositories extends Context.Service<ChatRepositories, ChatRepositoriesShape>()(
+  "@emi/core/server/ChatRepositories",
+) {}
 
 export interface ChatModelShape {
   readonly generate: (input: {

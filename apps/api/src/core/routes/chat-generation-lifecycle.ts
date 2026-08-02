@@ -164,7 +164,8 @@ const createGenerationReplayResponse = ({
         getGeneration: (generationId) =>
           Effect.gen(function* () {
             const current = yield* getGeneration({ db: conversationDb, userId, generationId });
-            if (current === null || !isGenerationStale(current)) return current;
+            const now = yield* Effect.clockWith((clock) => clock.currentTimeMillis);
+            if (current === null || !isGenerationStale(current, now)) return current;
             yield* finishGeneration({
               db: conversationDb,
               userId,

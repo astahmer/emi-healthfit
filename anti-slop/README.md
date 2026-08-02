@@ -30,6 +30,8 @@ The current checks protect these boundaries:
 - Effect server services are composed with `Context.Service` and `Layer`, not dependency-bearing constructors;
 - Effect is the canonical implementation surface: Promise helpers are thin outer adapters over typed
   Effect success and error channels;
+- generic server ports/use cases must not flatten Effect programs with `runPromise`/`runSync`;
+- actor-owned runtime state must not be duplicated with `useState` or `useReducer`;
 - generic protocol and server contracts do not import raw database, Cloudflare, or AI SDK types;
 - persistence code maps rows explicitly and stays behind ports/adapters;
 - external JSON, URLs, HTTP input, tagged errors, and schemas use the established typed policies;
@@ -46,6 +48,8 @@ cross-file context:
 | Public domain surface | A new non-exception public entrypoint grows into a flat utility barrel | One named domain class or owned instance; keep helpers private |
 | Public web/XState split | The common web entry imports or exposes an actor/machine | Put raw actor access in `@emi/core/advanced/xstate` |
 | Injected capabilities | Runtime or use-case code reads ambient time, randomness, fetch, or browser globals | Receive capabilities through runtime options, services, or layers |
+| Effect-first domain | A generic port/use case calls `Effect.runPromise` or `Effect.runSync` internally | Return the typed `Effect`/`Stream`; run it only at the HTTP/platform edge |
+| Actor-owned state | Runtime implementation duplicates actor state with React `useState`/`useReducer` | Read actor-owned snapshots through the runtime subscription facade |
 | Package self-boundary | A consumer reaches into `@emi/core/src` or `@emi/core/dist` | Import a declared package subpath |
 | Export topology | An implementation imports a boundary, wildcard, forwarding module, or `index.ts` | Import the owning implementation and bind explicit exports only at `.export.ts` |
 

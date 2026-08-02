@@ -8,30 +8,30 @@ against that catalog.
 
 ## R0 public catalog
 
-| Import                          | Responsibility                                                                 | Boundary                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `@emi/core`                     | `createChatRuntime` and core protocol types                                    | no React, provider, product, database, or platform APIs      |
-| `@emi/core/protocol`            | domain messages, parts, IDs, errors, schemas, and extension contracts          | no React, XState, AI SDK, database rows, or platform types   |
-| `@emi/core/api`                 | generic HTTP DTOs and `CoreApiClient`                                          | no product routes or persistence details                     |
-| `@emi/core/chat`                | provider-bound chat operations grouped under `Chat`                            | never part of the common provider-neutral path               |
-| `@emi/core/contract`            | generic HTTP schemas and `CoreApi` composition                                 | no HealthFit groups or platform details                      |
-| `@emi/core/cloudflare`          | explicit Cloudflare auth, database, and route adapters                        | optional platform/provider peers; not the generic server path |
-| `@emi/core/discord`             | provider-neutral Discord request, response, and signature boundary            | no React, product, or database coupling                      |
-| `@emi/core/runtime`             | actor-backed runtime facade, selectors, commands, lifecycle, and subscriptions | no React markup or framework hooks                           |
-| `@emi/core/react`               | `ChatProvider` and runtime hooks                                               | no styled recipes or module-scope browser globals            |
-| `@emi/core/components`          | controlled primitives and connected components                                 | no network, persistence, routing, or mandatory CSS framework |
-| `@emi/core/components/styled`   | opt-in connected recipes such as `ChatApp` and `ChatShell`                     | no HealthFit branding or product coupling                    |
-| `@emi/core/web`                 | generic browser views, contribution context, URL/attachment policy, and thread views | no raw XState actors or machines                         |
-| `@emi/core/styles.css`          | design tokens and structural styles                                            | explicit opt-in; no application theme ownership              |
-| `@emi/core/server`              | generic ports and server composition                                           | no raw D1, Drizzle, Kysely, or platform rows                 |
-| `@emi/core/server/effect`       | explicit Effect-native services and layers                                     | advanced server composition only                             |
-| `@emi/core/server/fetch`        | Fetch `Request`/`Response` handlers                                            | no platform bindings                                         |
-| `@emi/core/server/database`    | advanced SQL schemas, persistence domains, and replay helpers                 | optional database/AI peers; never a generic server contract  |
-| `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge                                                         | provider types stop at this adapter                          |
-| `@emi/core/adapters/cloudflare` | Cloudflare, D1, R2, and Worker bindings                                        | platform assumptions stay in the adapter                     |
-| `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition                  | product domains remain external packages                     |
-| `@emi/core/testing`             | `ChatTesting` deterministic dependencies, repositories, and actor harnesses    | test-only helpers, not production state                      |
-| `@emi/core/advanced/xstate`     | intentional actor refs and machine integration                                 | raw XState is never the common path                          |
+| Import                          | Responsibility                                                                       | Boundary                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `@emi/core`                     | `createChatRuntime` and core protocol types                                          | no React, provider, product, database, or platform APIs       |
+| `@emi/core/protocol`            | domain messages, parts, IDs, errors, schemas, and extension contracts                | no React, XState, AI SDK, database rows, or platform types    |
+| `@emi/core/api`                 | generic HTTP DTOs and `CoreApiClient`                                                | no product routes or persistence details                      |
+| `@emi/core/chat`                | provider-bound chat operations grouped under `Chat`                                  | never part of the common provider-neutral path                |
+| `@emi/core/contract`            | generic HTTP schemas and `CoreApi` composition                                       | no HealthFit groups or platform details                       |
+| `@emi/core/cloudflare`          | explicit Cloudflare auth, database, and route adapters                               | optional platform/provider peers; not the generic server path |
+| `@emi/core/discord`             | provider-neutral Discord request, response, and signature boundary                   | no React, product, or database coupling                       |
+| `@emi/core/runtime`             | actor-backed runtime facade, selectors, commands, lifecycle, and subscriptions       | no React markup or framework hooks                            |
+| `@emi/core/react`               | `ChatProvider` and runtime hooks                                                     | no styled recipes or module-scope browser globals             |
+| `@emi/core/components`          | controlled primitives and connected components                                       | no network, persistence, routing, or mandatory CSS framework  |
+| `@emi/core/components/styled`   | opt-in connected recipes such as `ChatApp` and `ChatShell`                           | no HealthFit branding or product coupling                     |
+| `@emi/core/web`                 | generic browser views, contribution context, URL/attachment policy, and thread views | no raw XState actors or machines                              |
+| `@emi/core/styles.css`          | design tokens and structural styles                                                  | explicit opt-in; no application theme ownership               |
+| `@emi/core/server`              | generic ports and server composition                                                 | no raw D1, Drizzle, Kysely, or platform rows                  |
+| `@emi/core/server/effect`       | explicit Effect-native services and layers                                           | advanced server composition only                              |
+| `@emi/core/server/fetch`        | Fetch `Request`/`Response` handlers                                                  | no platform bindings                                          |
+| `@emi/core/server/database`     | advanced SQL schemas, persistence domains, and replay helpers                        | optional database/AI peers; never a generic server contract   |
+| `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge                                                               | provider types stop at this adapter                           |
+| `@emi/core/adapters/cloudflare` | Cloudflare, D1, R2, and Worker bindings                                              | platform assumptions stay in the adapter                      |
+| `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition                        | product domains remain external packages                      |
+| `@emi/core/testing`             | `ChatTesting` deterministic dependencies, repositories, and actor harnesses          | test-only helpers, not production state                       |
+| `@emi/core/advanced/xstate`     | intentional actor refs and machine integration                                       | raw XState is never the common path                           |
 
 The explicit advanced Effect entrypoint is `@emi/core/server/effect`; R0 does not add a
 second `@emi/core/advanced/effect` alias. The common path is therefore:
@@ -75,6 +75,8 @@ Its rules are:
 - `server` and `server/fetch` keep generic server contracts free of database/platform packages;
 - `server/database` is an explicit advanced persistence boundary; its raw rows and optional AI
   chunk decoder never enter `protocol`, `runtime`, React, or the primary `server` entry;
+  its `QueryDatabaseClient` requires an injected `DatabaseRuntime` for IDs, clocks, and random
+  bytes so persistence code has no ambient time or identity dependency;
 - `cloudflare` is an explicit platform route/auth boundary and may require the optional platform
   and provider peers listed in its matrix; common consumers do not import it;
 - `adapters/ai-sdk` is the only AI SDK boundary; its AI SDK packages are optional peers, so
@@ -132,7 +134,9 @@ details.
 Database schemas and persistence implementations are available only through the explicitly
 advanced `@emi/core/server/database` subpath. The generic `@emi/core/server` contract remains
 port- and use-case-oriented, while HealthFit and platform workers own their product-specific
-schemas and adapters. The primary server export has no wildcard exports and does not import D1,
+schemas and adapters. The advanced database operations accept a `QueryDatabaseClient` with an
+injected `DatabaseRuntime`; Cloudflare and application edges construct that runtime from their
+platform capabilities. The primary server export has no wildcard exports and does not import D1,
 Drizzle, Kysely, Cloudflare, or AI SDK types.
 
 ## R4-R7 implementation and distribution

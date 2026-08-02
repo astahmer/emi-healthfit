@@ -133,7 +133,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
     context.distributionMode === "owned"
       ? [
           { path: "package.json", contents: templates.workspacePackageJson(context) },
-          { path: "pnpm-workspace.yaml", contents: templates.workspaceConfig(context) },
+          { path: "pnpm-workspace.yaml", contents: templates.workspaceConfig() },
           { path: ".oxfmtrc.json", contents: templates.workspaceFormatConfig() },
           { path: "core/package.json", contents: coreSourcePackageJson() },
           {

@@ -3,10 +3,7 @@ import { Chat } from "@emi/core/chat";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { ServerDatabase } from "@emi/core/server/database";
-import {
-  narrowQueryDatabaseClient,
-  type QueryDatabaseClient,
-} from "../../platform/db/client.ts";
+import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import type { ChatToolExecutor } from "./chat-hooks.ts";
 
 export const createChatToolExecutor = ({

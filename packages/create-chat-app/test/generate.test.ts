@@ -81,12 +81,7 @@ describe("buildGeneratedFiles", () => {
   });
 
   it("keeps the standalone catalog limited to generated project dependencies", () => {
-    const config = workspaceConfig({
-      appName: "Acme Chat",
-      coreVersion: DEFAULT_CORE_VERSION,
-      distributionMode: "owned",
-      slug: "acme-chat",
-    });
+    const config = workspaceConfig();
 
     for (const dependency of [
       "@ai-sdk/openai",
@@ -156,11 +151,12 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /@emi\/core\/components/);
     assert.match(app, /baseUrl: `\$\{apiOrigin\}\/api`/);
     assert.match(app, /ChatApp/);
+    assert.match(app, /AnonymousSession/);
     assert.match(app, /releaseNotes/);
     assert.doesNotMatch(app, /Temporary chat|Settings/);
     assert.doesNotMatch(
       app,
-      /genericChatAppMachine|conversation-store-event|createConversationClient|@emi\/core\/web/,
+      /genericChatAppMachine|conversation-store-event|createConversationClient/,
     );
     assert.doesNotMatch(app, /@xstate\/react|useActorRef|useSelector/);
     assert.equal(packageJson.dependencies.ai, undefined);

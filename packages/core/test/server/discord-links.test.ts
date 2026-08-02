@@ -24,6 +24,20 @@ const schemaDdl = `
   );
 `;
 
+let nextDatabaseId = 0;
+let nextRandomByte = 0;
+
+const databaseRuntime = {
+  createId: () => `discord-test-id-${nextDatabaseId++}`,
+  now: () => "2026-08-02T00:00:00.000Z",
+  nowMilliseconds: () => Date.parse("2026-08-02T00:00:00.000Z"),
+  randomBytes: (length: number) => {
+    const bytes = new Uint8Array(length);
+    bytes[0] = nextRandomByte++;
+    return bytes;
+  },
+};
+
 const normalizeParameter = (value: unknown): SQLInputValue => {
   if (typeof value === "boolean") return Number(value);
   if (
@@ -85,6 +99,7 @@ const makeInMemoryDb = (): QueryDatabaseClient<DiscordDatabaseSchema, never> => 
   });
   return {
     kysely: Effect.succeed(kysely),
+    runtime: databaseRuntime,
     batch: (statements: ReadonlyArray<Compilable<unknown>>) =>
       Effect.promise(async () => {
         const results: Array<{ meta: { changes: number } }> = [];
@@ -152,7 +167,7 @@ describe("discord link codes", () => {
     const kysely = await Effect.runPromise(db.kysely);
     await kysely
       .updateTable("discord_link_codes")
-      .set({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .set({ expires_at: new Date(db.runtime.nowMilliseconds() - 1000).toISOString() })
       .where("id", "=", created.id)
       .execute();
 

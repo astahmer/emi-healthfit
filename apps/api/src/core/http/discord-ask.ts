@@ -5,10 +5,7 @@ import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { ServerDatabase } from "@emi/core/server/database";
-import {
-  HealthFit,
-  type HealthfitDatabaseSchema,
-} from "@emi/flavor-healthfit";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { SecureCompare } from "../auth/secure-compare.ts";
 
@@ -129,8 +126,8 @@ export const handleDiscordAsk = Effect.fn("http.discord.ask")(function* ({
     conversationId,
     null,
     [
-    { role: "user", parts: [{ type: "text", text: body.question }] },
-    { role: "assistant", parts: [{ type: "text", text: answer }] },
+      { role: "user", parts: [{ type: "text", text: body.question }] },
+      { role: "assistant", parts: [{ type: "text", text: answer }] },
     ],
   );
 

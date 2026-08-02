@@ -62,9 +62,7 @@ const mergeTools = (definitions: ReadonlyArray<AppDefinition>): AppToolDefinitio
  * tool's earliest position. Prompt contributors are concatenated in
  * argument order, then stably sorted by `order` (undefined sorts last).
  */
-const mergeAppDefinitions = (
-  ...definitions: ReadonlyArray<AppDefinition>
-): AppDefinition => {
+const mergeAppDefinitions = (...definitions: ReadonlyArray<AppDefinition>): AppDefinition => {
   const identity = definitions.reduce<AppIdentity>(
     (merged, definition) => ({ ...merged, ...definition.identity }),
     { name: "" },

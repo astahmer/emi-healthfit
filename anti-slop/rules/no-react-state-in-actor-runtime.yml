@@ -1,0 +1,13 @@
+id: no-react-state-in-actor-runtime
+language: TypeScript
+files:
+  - packages/core/src/runtime/**/*.ts
+  - packages/core/src/runtime/**/*.tsx
+  - packages/core/src/web/chat-runtime/**/*.ts
+  - packages/core/src/web/chat-runtime/**/*.tsx
+message: Actor-owned runtime state must not be duplicated in React state; expose it through the runtime and its subscription facade.
+severity: error
+rule:
+  any:
+    - pattern: useState($$$ARGS)
+    - pattern: useReducer($$$ARGS)

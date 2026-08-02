@@ -62,7 +62,10 @@ export class ChatThreadScroll {
     return `${normalized.slice(0, maxLength - 1)}…`;
   }
 
-  private static readCache(): Record<string, Record<string, { scrollX?: number; scrollY?: number }>> {
+  private static readCache(): Record<
+    string,
+    Record<string, { scrollX?: number; scrollY?: number }>
+  > {
     try {
       return ChatThreadScroll.decodeScrollRestorationCache(
         sessionStorage.getItem(ChatThreadScroll.cacheStorageKey) ?? "{}",

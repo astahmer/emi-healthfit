@@ -114,7 +114,12 @@ describe("per-user ownership", () => {
     assert.deepStrictEqual(await run(searchMemories(memoryDb, bob, "Alice")), []);
 
     await run(
-      createGeneration({ db: generationDb, userId: alice, generationId: "generation-1", conversationId }),
+      createGeneration({
+        db: generationDb,
+        userId: alice,
+        generationId: "generation-1",
+        conversationId,
+      }),
     );
     await run(
       appendGenerationChunk({
@@ -135,7 +140,12 @@ describe("per-user ownership", () => {
     );
     assert.deepStrictEqual(
       await run(
-        getGenerationChunks({ db: generationDb, userId: bob, generationId: "generation-1", afterSequence: -1 }),
+        getGenerationChunks({
+          db: generationDb,
+          userId: bob,
+          generationId: "generation-1",
+          afterSequence: -1,
+        }),
       ),
       [],
     );
@@ -199,7 +209,7 @@ describe("per-user ownership", () => {
     assert.strictEqual(
       await run(
         appendGenerationChunk({
-        db: generationDb,
+          db: generationDb,
           userId: bob,
           generationId: "generation-missing",
           sequence: 0,

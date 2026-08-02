@@ -1,0 +1,8 @@
+id: no-domain-run-promise
+valid:
+  - "const result = effect.pipe(Effect.map(transform));"
+  - "const result = yield* effect;"
+invalid:
+  - "const result = await Effect.runPromise(effect);"
+  - "const result = await Effect.runPromiseWith(services)(effect);"
+  - "const result = Effect.runSync(effect);"

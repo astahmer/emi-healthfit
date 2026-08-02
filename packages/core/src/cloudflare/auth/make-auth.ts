@@ -64,4 +64,4 @@ export const makeAuth = ({
     },
   };
   return betterAuth(options);
-}
+};

@@ -124,7 +124,15 @@ export default Api.make(
   }),
   Effect.gen(function* () {
     const query = yield* Cloudflare.D1.QueryDatabase(DB);
-    const db = makeQueryDatabaseClient({ query });
+    const db = makeQueryDatabaseClient({
+      query,
+      runtime: {
+        createId: () => crypto.randomUUID(),
+        now: () => new Date().toISOString(),
+        nowMilliseconds: () => Date.now(),
+        randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+      },
+    });
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const assetsBinding = Schema.decodeUnknownOption(AssetsBinding)(env.ASSETS);
@@ -145,9 +153,9 @@ export default Api.make(
               userId,
               environment,
             }),
-              coachSystemPrompt: ServerDatabase.app.composeSystemPrompt(
-                healthFitAppDefinition.promptContributors,
-              ),
+          coachSystemPrompt: ServerDatabase.app.composeSystemPrompt(
+            healthFitAppDefinition.promptContributors,
+          ),
           tools: healthFitAppDefinition.tools ?? [],
           // Kysely schema invariance: narrow the app DatabaseSchema client to the
           // flavor tools schema at the composition boundary (see narrowQueryDatabaseClient).
@@ -215,7 +223,7 @@ export default Api.make(
         return yield* CoreCloudflare.auth.authenticateWorkerFetch({
           db,
           environment: env,
-            isProtectedPath: (pathname) =>
+          isProtectedPath: (pathname) =>
             CoreCloudflare.auth.isProtectedPath(pathname) &&
             pathname !== "/api/discord/ask" &&
             pathname !== "/api/discord/command",

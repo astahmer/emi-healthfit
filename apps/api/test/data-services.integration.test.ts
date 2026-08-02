@@ -95,31 +95,35 @@ describe("data service SQLite integration", () => {
     const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
     const userId = "user-a";
 
-    assert.deepStrictEqual(await run(previewIngestedDataImport({ db: healthfitDb, userId, data })), {
-      groups: {
-        dailyActivity: { received: 1, existing: 0, new: 1 },
-        healthWorkouts: { received: 1, existing: 0, new: 1 },
-        sleepSessions: { received: 1, existing: 0, new: 1 },
-        bodyMetrics: { received: 1, existing: 0, new: 1 },
-        hevySessions: { received: 1, existing: 0, new: 1 },
-        hevySets: { received: 1, existing: 0, new: 1 },
+    assert.deepStrictEqual(
+      await run(previewIngestedDataImport({ db: healthfitDb, userId, data })),
+      {
+        groups: {
+          dailyActivity: { received: 1, existing: 0, new: 1 },
+          healthWorkouts: { received: 1, existing: 0, new: 1 },
+          sleepSessions: { received: 1, existing: 0, new: 1 },
+          bodyMetrics: { received: 1, existing: 0, new: 1 },
+          hevySessions: { received: 1, existing: 0, new: 1 },
+          hevySets: { received: 1, existing: 0, new: 1 },
+        },
+        totals: { received: 6, existing: 0, new: 6 },
       },
-      totals: { received: 6, existing: 0, new: 6 },
-    });
+    );
     await run(importIngestedData({ db: healthfitDb, userId, data }));
     assert.deepStrictEqual(
       await run(previewIngestedDataImport({ db: healthfitDb, userId, data })),
       {
-      groups: {
-        dailyActivity: { received: 1, existing: 1, new: 0 },
-        healthWorkouts: { received: 1, existing: 1, new: 0 },
-        sleepSessions: { received: 1, existing: 1, new: 0 },
-        bodyMetrics: { received: 1, existing: 1, new: 0 },
-        hevySessions: { received: 1, existing: 1, new: 0 },
-        hevySets: { received: 1, existing: 1, new: 0 },
+        groups: {
+          dailyActivity: { received: 1, existing: 1, new: 0 },
+          healthWorkouts: { received: 1, existing: 1, new: 0 },
+          sleepSessions: { received: 1, existing: 1, new: 0 },
+          bodyMetrics: { received: 1, existing: 1, new: 0 },
+          hevySessions: { received: 1, existing: 1, new: 0 },
+          hevySets: { received: 1, existing: 1, new: 0 },
+        },
+        totals: { received: 6, existing: 6, new: 0 },
       },
-      totals: { received: 6, existing: 6, new: 0 },
-    });
+    );
     assert.deepStrictEqual(
       await run(getDataSummary(narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db), userId)),
       {

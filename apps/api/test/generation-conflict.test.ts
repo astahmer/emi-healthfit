@@ -7,11 +7,19 @@ import { ServerDatabase } from "@emi/core/server/database";
 describe("generation conflict helpers", () => {
   it("detects SQLite unique constraint messages", () => {
     assert.equal(
-      ServerDatabase.generations.isUniqueConstraintError(new Error("UNIQUE constraint failed: idx")),
+      ServerDatabase.generations.isUniqueConstraintError(
+        new Error("UNIQUE constraint failed: idx"),
+      ),
       true,
     );
-    assert.equal(ServerDatabase.generations.isUniqueConstraintError(new Error("constraint failed")), true);
-    assert.equal(ServerDatabase.generations.isUniqueConstraintError(new Error("network down")), false);
+    assert.equal(
+      ServerDatabase.generations.isUniqueConstraintError(new Error("constraint failed")),
+      true,
+    );
+    assert.equal(
+      ServerDatabase.generations.isUniqueConstraintError(new Error("network down")),
+      false,
+    );
   });
 
   it("builds a tagged already-active error for 409 mapping", async () => {

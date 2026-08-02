@@ -1,9 +1,6 @@
 import { BadRequest } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
-import {
-  HealthFit,
-  type HealthfitDatabaseSchema,
-} from "@emi/flavor-healthfit";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";

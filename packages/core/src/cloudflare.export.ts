@@ -35,10 +35,10 @@ import {
 import { makeGenericChatRoutes } from "./cloudflare/chat-routes.ts";
 import {
   CloudflareDatabase,
+  type DatabaseRuntime as DatabaseRuntimeRecord,
   type CloudflareQueryDatabaseClient,
   type RawQueryDatabaseClient,
 } from "./cloudflare/db/client.ts";
- 
 
 export class Cloudflare {
   private constructor() {}
@@ -89,3 +89,5 @@ export type {
   RawQueryDatabaseClient,
   RequestContext,
 };
+
+export type DatabaseRuntime = DatabaseRuntimeRecord;

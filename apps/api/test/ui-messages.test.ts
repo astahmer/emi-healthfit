@@ -21,22 +21,24 @@ describe("stored UI messages", () => {
   });
 
   it("rejects obsolete dynamic tool error payloads", async () => {
-    await assert.rejects(Chat.messages.validateStoredUIMessages([
-      {
-        id: "assistant-1",
-        role: "assistant",
-        parts: [
-          {
-            type: "dynamic-tool",
-            toolName: "render_component",
-            toolCallId: "call-1",
-            input: {},
-            output: { type: "error-text", value: "Invalid MetricCard props" },
-            outcome: "error",
-            state: "output-error",
-          },
-        ],
-      },
-    ]));
+    await assert.rejects(
+      Chat.messages.validateStoredUIMessages([
+        {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "dynamic-tool",
+              toolName: "render_component",
+              toolCallId: "call-1",
+              input: {},
+              output: { type: "error-text", value: "Invalid MetricCard props" },
+              outcome: "error",
+              state: "output-error",
+            },
+          ],
+        },
+      ]),
+    );
   });
 });

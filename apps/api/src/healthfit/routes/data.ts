@@ -2,12 +2,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import {
-  HealthFit,
-  type DataSummary,
-  type HealthfitDatabaseSchema,
-  type IngestedDataExport,
-} from "@emi/flavor-healthfit";
+import { HealthFit, type DataSummary, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
@@ -188,10 +183,7 @@ export const handleRecovery = (db: QueryDatabaseClient, environment: Record<stri
       userId: user.id,
       environment,
     });
-    const ctx = yield* buildChatContext(
-      toHealthfitDb(db),
-      user.id,
-    );
+    const ctx = yield* buildChatContext(toHealthfitDb(db), user.id);
     return yield* HttpServerResponse.json({
       today: ctx.today,
       label: ctx.recoveryLabel,
@@ -226,10 +218,7 @@ export const handleSummary = (db: QueryDatabaseClient, environment: Record<strin
       userId: user.id,
       environment,
     });
-    const summary = yield* getDataSummary(
-      toHealthfitDb(db),
-      user.id,
-    );
+    const summary = yield* getDataSummary(toHealthfitDb(db), user.id);
     summaryCache.set(user.id, summary, SUMMARY_CACHE_TTL_MS);
     return yield* HttpServerResponse.json(summary);
   }).pipe(
@@ -376,10 +365,7 @@ export const handleSourceDelete = (
 export const handleWorkouts = (db: QueryDatabaseClient) =>
   Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
-    const workouts = yield* getWorkouts(
-      toHealthfitDb(db),
-      user.id,
-    );
+    const workouts = yield* getWorkouts(toHealthfitDb(db), user.id);
     return yield* HttpServerResponse.json({ workouts });
   }).pipe(
     Effect.catch((error) => HttpServerResponse.json({ error: error.message }, { status: 500 })),

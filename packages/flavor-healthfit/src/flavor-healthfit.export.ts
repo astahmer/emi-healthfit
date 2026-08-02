@@ -117,7 +117,10 @@ import {
   HevySyncBusyError,
 } from "./integrations/hevy/hevy-sync.ts";
 import type { HevySyncSummary } from "./integrations/hevy/hevy-sync.ts";
-import { hevySessionIdForProviderWorkout, mapHevyWorkoutToRows } from "./integrations/hevy/map-workout.ts";
+import {
+  hevySessionIdForProviderWorkout,
+  mapHevyWorkoutToRows,
+} from "./integrations/hevy/map-workout.ts";
 import { executeTool, tools } from "./tools/api.ts";
 import type { HealthfitToolsDatabaseSchema, ToolDefinition } from "./tools/api.ts";
 

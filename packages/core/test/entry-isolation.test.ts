@@ -90,6 +90,7 @@ describe("@emi/core entry isolation", () => {
       "conversationStoreActor",
       "genericChatAppMachine",
       "settingsActor",
-    ]) assert.equal(name in web, false, name);
+    ])
+      assert.equal(name in web, false, name);
   });
 });

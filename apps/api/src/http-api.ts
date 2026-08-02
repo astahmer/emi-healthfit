@@ -1,8 +1,4 @@
-import {
-  CoreApi,
-  type Memory as ApiMemory,
-  type Note as ApiNote,
-} from "@emi/core/contract";
+import { CoreApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Context from "effect/Context";

@@ -67,7 +67,8 @@ describe("@emi/core target export surface", () => {
       "conversationStoreActor",
       "genericChatAppMachine",
       "settingsActor",
-    ]) assert.equal(name in web, false, name);
+    ])
+      assert.equal(name in web, false, name);
     assert.ok(sortedKeys(advancedXState).includes("chatRuntimeMachine"));
     assert.ok(sortedKeys(advancedXState).includes("createActor"));
     assert.ok(sortedKeys(advancedXState).includes("createChatRuntimeActor"));

@@ -186,16 +186,13 @@ export const createChatStream = async ({
       result.toUIMessageStream({
         generateMessageId: options.generateMessageId ?? (() => crypto.randomUUID()),
         sendReasoning: options.sendReasoning ?? true,
-        onError: options.onError ?? ((error) => (error instanceof Error ? error.message : String(error))),
+        onError:
+          options.onError ?? ((error) => (error instanceof Error ? error.message : String(error))),
       }),
   };
 };
 
-export const toUiMessageStream = ({
-  result,
-}: {
-  result: ChatStreamResult;
-}) =>
+export const toUiMessageStream = ({ result }: { result: ChatStreamResult }) =>
   result.toUIMessageStream({
     generateMessageId: () => crypto.randomUUID(),
     sendReasoning: true,

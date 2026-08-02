@@ -6,10 +6,7 @@ import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
-import {
-  HealthFit,
-  type HealthfitDatabaseSchema,
-} from "@emi/flavor-healthfit";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { withInternalError } from "../../core/http/errors.ts";
 
@@ -18,8 +15,12 @@ type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.Read
 const toHealthfitDb = (db: QueryDatabaseClient) =>
   narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
 
-const { getAnalyticsOverview, getIngestedDataExportSummary, getRawUploadRetentionDays, getWorkouts } =
-  HealthFit.data;
+const {
+  getAnalyticsOverview,
+  getIngestedDataExportSummary,
+  getRawUploadRetentionDays,
+  getWorkouts,
+} = HealthFit.data;
 const { deleteIngestedSource, updateRawUploadRetentionDays } = HealthFit.ingest;
 const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
 
@@ -65,7 +66,8 @@ export const suggestionsHandlers = ({
           const user = yield* CoreCloudflare.user.CurrentUser;
           const lastAssistantText = payload.lastAssistantText.trim();
           const key = yield* hashSuggestionsKey(lastAssistantText, payload.lastUserText);
-          const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
+          const conversationDb =
+            narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
           const cached = yield* getSuggestionsById(conversationDb, user.id, key);
           if (cached !== null) {
             return { suggestions: Chat.generation.normalizeGeneratedStrings(cached.suggestions) };

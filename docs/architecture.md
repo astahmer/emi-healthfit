@@ -84,6 +84,9 @@ source mode is the fork-friendly path generated from the same catalog.
 
 - **Alchemy** provisions and deploys stage-isolated Workers, D1, R2, and secrets. Alchemy is the deployment authority; Wrangler is for ops/diagnostics only.
 - **Effect** owns request handling, typed failures, and database access on the Worker.
+- **Persistence capabilities** are injected: advanced database clients carry explicit clock, ID,
+  and random-byte providers; platform edges construct those providers, while database operations
+  remain deterministic under tests.
 - **Better Auth** handles Google and anonymous sessions; `ALLOWED_EMAILS` is an application allowlist on top of identity.
 - **Ownership** is per authenticated user id. Repositories scope reads and writes; personal data is not shared across accounts.
 - **Chat generation** uses the provider-neutral core protocol; the AI SDK adapter checkpoints

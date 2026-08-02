@@ -30,7 +30,10 @@ describe("chat operation budget", () => {
   });
 
   it("prevents tool loops before invoking another expensive tool", () => {
-    const budget = Chat.operations.createChatOperationBudget({ maximumOperations: 8, maximumToolCalls: 2 });
+    const budget = Chat.operations.createChatOperationBudget({
+      maximumOperations: 8,
+      maximumToolCalls: 2,
+    });
 
     assert.equal(budget.tryStartToolCall(), true);
     assert.equal(budget.tryStartToolCall(), true);

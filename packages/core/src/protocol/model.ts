@@ -1,9 +1,9 @@
 import * as Schema from "effect/Schema";
 import type * as Stream from "effect/Stream";
 import { GenerationIdSchema } from "./ids.ts";
-import { ChatMessageSchema, type ChatMessage } from "./messages.ts";
-import { MessagePartSchema, type MessagePart } from "./parts.ts";
-import { TransportErrorSchema, type TransportError } from "./errors.ts";
+import { ChatMessageSchema } from "./messages.ts";
+import { MessagePartSchema } from "./parts.ts";
+import { TransportErrorSchema } from "./errors.ts";
 
 export const ModelConfigurationSchema = Schema.Struct({
   model: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),

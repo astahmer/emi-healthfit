@@ -6,7 +6,10 @@ import type {
   Selector as RuntimeSelector,
 } from "./runtime";
 import { createChatRuntime as createRuntime } from "./runtime";
-import type { ChatMessage as ProtocolChatMessage, MessagePart as ProtocolMessagePart } from "./protocol";
+import type {
+  ChatMessage as ProtocolChatMessage,
+  MessagePart as ProtocolMessagePart,
+} from "./protocol";
 
 export const createChatRuntime: typeof createRuntime;
 export type ChatActions = RuntimeChatActions;

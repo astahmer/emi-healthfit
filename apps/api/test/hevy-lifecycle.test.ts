@@ -170,13 +170,13 @@ describe("Hevy lifecycle", () => {
       }),
     );
 
-  await run(
-    deleteIngestedSource({
-      db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
-      userId: "user-1",
-      source: "hevy",
-    }),
-  );
+    await run(
+      deleteIngestedSource({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        source: "hevy",
+      }),
+    );
 
     const kysely = await run(db.kysely);
     assert.equal(

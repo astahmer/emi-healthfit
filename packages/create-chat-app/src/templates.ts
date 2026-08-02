@@ -65,7 +65,7 @@ export const workspacePackageJson = (context: TemplateContext): string =>
     2,
   ) + "\n";
 
-export const workspaceConfig = (context?: TemplateContext): string =>
+export const workspaceConfig = (): string =>
   lines([
     "packages:",
     '  - "core"',

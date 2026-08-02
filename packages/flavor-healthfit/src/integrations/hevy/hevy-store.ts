@@ -335,31 +335,33 @@ export const deleteHevyWorkoutByProviderId = Effect.fn("hevy.store.deleteWorkout
   return true;
 });
 
-export const findUnlinkedSessionForReconciliation = Effect.fn("hevy.store.findUnlinked")(function* ({
-  db,
-  userId,
-  title,
-  startTime,
-}: {
-  db: HevyDb;
-  userId: string;
-  title: string | null;
-  startTime: string;
-}) {
-  const kysely = yield* db.kysely;
-  let query = kysely
-    .selectFrom("hevy_sessions")
-    .selectAll()
-    .where("user_id", "=", userId)
-    .where("provider_workout_id", "is", null)
-    .where("start_time", "=", startTime);
-  query = title === null ? query.where("title", "is", null) : query.where("title", "=", title);
-  const matches = yield* Effect.promise(() => query.execute());
-  if (matches.length !== 1) {
-    return { kind: "ambiguous_or_none" as const, count: matches.length };
-  }
-  return { kind: "match" as const, session: matches[0]! };
-});
+export const findUnlinkedSessionForReconciliation = Effect.fn("hevy.store.findUnlinked")(
+  function* ({
+    db,
+    userId,
+    title,
+    startTime,
+  }: {
+    db: HevyDb;
+    userId: string;
+    title: string | null;
+    startTime: string;
+  }) {
+    const kysely = yield* db.kysely;
+    let query = kysely
+      .selectFrom("hevy_sessions")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("provider_workout_id", "is", null)
+      .where("start_time", "=", startTime);
+    query = title === null ? query.where("title", "is", null) : query.where("title", "=", title);
+    const matches = yield* Effect.promise(() => query.execute());
+    if (matches.length !== 1) {
+      return { kind: "ambiguous_or_none" as const, count: matches.length };
+    }
+    return { kind: "match" as const, session: matches[0]! };
+  },
+);
 
 export const attachProviderIdToSession = Effect.fn("hevy.store.attachProviderId")(function* ({
   db,

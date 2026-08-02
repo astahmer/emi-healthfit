@@ -6,11 +6,7 @@ import {
 } from "./web/attachments/attachments.ts";
 import { AnonymousSession } from "./web/auth/anonymous-session.ts";
 import { ChatShell } from "./web/chat-shell.tsx";
-import {
-  CoreWebProvider,
-  useCoreWebContributions,
-  useToolRenderer,
-} from "./web/contributions.tsx";
+import { CoreWebProvider, useCoreWebContributions, useToolRenderer } from "./web/contributions.tsx";
 import type {
   CoreWebContributions,
   NavContribution,
@@ -18,9 +14,7 @@ import type {
   ResolvedCoreWebContributions,
   ToolRendererContribution,
 } from "./web/contributions.tsx";
-import {
-  conversationMarkdown,
-} from "./web/conversation/conversation-markdown.ts";
+import { conversationMarkdown } from "./web/conversation/conversation-markdown.ts";
 import {
   getChildMessages,
   getConversationViewMessages,
@@ -54,7 +48,10 @@ import { useIsMobile } from "./web/styled/ui/use-mobile.ts";
 import { ChatThreadScroll } from "./web/thread/chat-thread-scroll.ts";
 import { MessageRail, formatMessageRailTime } from "./web/thread/message-rail.tsx";
 import type { MessageRailItem } from "./web/thread/message-rail.tsx";
-import { ThreadViewportScroll, useThreadViewportScroll } from "./web/thread/use-thread-viewport-scroll.ts";
+import {
+  ThreadViewportScroll,
+  useThreadViewportScroll,
+} from "./web/thread/use-thread-viewport-scroll.ts";
 import type {
   ComposerControls,
   ComposerModelOption,

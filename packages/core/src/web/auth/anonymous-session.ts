@@ -10,13 +10,10 @@ export class AnonymousSession {
   }): Promise<boolean> {
     const normalizedApiOrigin = AnonymousSession.normalizeOrigin(apiOrigin);
     try {
-      const response = await fetch(
-        `${normalizedApiOrigin}${AnonymousSession.signInPath}`,
-        {
-          credentials: "include",
-          method: "POST",
-        },
-      );
+      const response = await fetch(`${normalizedApiOrigin}${AnonymousSession.signInPath}`, {
+        credentials: "include",
+        method: "POST",
+      });
       return response.ok;
     } catch {
       return false;

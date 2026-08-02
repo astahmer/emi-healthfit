@@ -266,9 +266,7 @@ describe("@emi/core R0 public catalog", () => {
         assert.equal(exportValue, "./dist/styles/styles.css");
         continue;
       }
-      const outputPath = sourcePath
-        .replace(/^\.\/src\//, "")
-        .replace(/\.(?:tsx?|mts|cts)$/, ".js");
+      const outputPath = sourcePath.replace(/^\.\/src\//, "").replace(/\.(?:tsx?|mts|cts)$/, ".js");
       assert.deepEqual(exportValue, {
         types: `./dist/types/${outputPath.replace(/\.js$/, ".d.ts")}`,
         import: `./dist/${outputPath}`,

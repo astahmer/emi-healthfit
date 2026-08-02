@@ -27,7 +27,7 @@ import {
 } from "@emi/core/web";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { Message, MessageContent, MessageFooter } from "@/components/ui/message";
+import { Message, MessageContent } from "@/components/ui/message";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -37,7 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { useChatRuntime } from "@/app/chat/chat-runtime-context";
 import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@/app/chat/follow-up-queue";
 import type { ChatModel } from "@/app/models";
@@ -359,7 +358,8 @@ export const Thread = ({
                     assistantLabel="Coach"
                     metadata={{
                       modelLabel: chatModels.find(
-                        (candidate) => candidate.id === usage.metaByMessageId.get(message.id)?.model,
+                        (candidate) =>
+                          candidate.id === usage.metaByMessageId.get(message.id)?.model,
                       )?.label,
                       totalTokens: usage.usageByMessageId.get(message.id)?.totalTokens ?? undefined,
                       createdAt: usage.metaByMessageId.get(message.id)?.createdAt,

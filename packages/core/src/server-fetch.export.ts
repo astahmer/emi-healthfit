@@ -7,10 +7,9 @@ export interface ChatFetchHandlersShape {
   readonly handle: (request: Request) => Effect.Effect<Response, ChatServerError>;
 }
 
-export class ChatFetchHandlers extends Context.Service<
-  ChatFetchHandlers,
-  ChatFetchHandlersShape
->()("@emi/core/server/ChatFetchHandlers") {
+export class ChatFetchHandlers extends Context.Service<ChatFetchHandlers, ChatFetchHandlersShape>()(
+  "@emi/core/server/ChatFetchHandlers",
+) {
   static layer() {
     return Layer.effect(
       ChatFetchHandlers,

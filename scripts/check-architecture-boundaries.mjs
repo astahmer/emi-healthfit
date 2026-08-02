@@ -100,7 +100,7 @@ const collectPublicValueExports = (source) => {
 
 const ambientDependencyPatterns = [
   {
-    expression: /Date\.now\s*\(|new\s+Date\s*\(|Math\.random\s*\(|crypto\.randomUUID\s*\(/g,
+    expression: /Date\.now\s*\(\s*\)|new\s+Date\s*\(\s*\)|Math\.random\s*\(|crypto\.randomUUID\s*\(/g,
     message:
       "actor and use-case code must receive time and identity through injected dependencies, not ambient clocks or randomness.",
   },
@@ -238,6 +238,7 @@ const main = async () => {
     join(coreSource, "web/chat-runtime"),
     join(coreSource, "server/ports"),
     join(coreSource, "server/use-cases"),
+    join(coreSource, "server/db"),
   ];
   for (const directory of deterministicPaths) {
     for (const path of await filesUnder(directory)) await scanText(path, ambientDependencyPatterns);

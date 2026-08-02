@@ -42,8 +42,6 @@ export interface StoredGenerationChunk {
   chunk: UIMessageChunk;
 }
 
-const nowIso = (): string => new Date().toISOString();
-
 const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => {
   const parsed = Schema.decodeUnknownSync(Json)(value);
   const validate = uiMessageChunkSchema().validate;
@@ -53,7 +51,7 @@ const decodeGenerationChunk = async (value: string): Promise<UIMessageChunk> => 
   return result.value;
 };
 
-const isGenerationStale = (generation: ChatGeneration, now = Date.now()): boolean =>
+const isGenerationStale = (generation: ChatGeneration, now: number): boolean =>
   (generation.status === "pending" || generation.status === "streaming") &&
   now - new Date(generation.updated_at).getTime() >= generationStaleMilliseconds;
 
@@ -83,7 +81,7 @@ const createGeneration = Effect.fn("chatGeneration.create")(function* <TEnvironm
   if (conversation === null) return false;
 
   const kysely = yield* db.kysely;
-  const timestamp = nowIso();
+  const timestamp = db.runtime.now();
   yield* Effect.tryPromise({
     try: () =>
       kysely
@@ -111,9 +109,7 @@ const createGeneration = Effect.fn("chatGeneration.create")(function* <TEnvironm
   return true;
 });
 
-const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* <
-  TEnvironment,
->({
+const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -126,7 +122,7 @@ const markGenerationStreaming = Effect.fn("chatGeneration.markStreaming")(functi
   yield* Effect.promise(() =>
     kysely
       .updateTable("chat_generations")
-      .set({ status: "streaming", updated_at: nowIso() })
+      .set({ status: "streaming", updated_at: db.runtime.now() })
       .where("user_id", "=", userId)
       .where("id", "=", generationId)
       .where("status", "=", "pending")
@@ -159,7 +155,7 @@ const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(func
         finish_reason: finishReason,
         input_tokens: inputTokens,
         output_tokens: outputTokens,
-        updated_at: nowIso(),
+        updated_at: db.runtime.now(),
       })
       .where("user_id", "=", userId)
       .where("id", "=", generationId)
@@ -167,9 +163,7 @@ const updateGenerationMetadata = Effect.fn("chatGeneration.updateMetadata")(func
   );
 });
 
-const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* <
-  TEnvironment,
->({
+const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -190,9 +184,7 @@ const appendGenerationChunk = Effect.fn("chatGeneration.appendChunk")(function* 
   });
 });
 
-const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function* <
-  TEnvironment,
->({
+const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function* <TEnvironment>({
   db,
   userId,
   generationId,
@@ -208,7 +200,7 @@ const appendGenerationChunks = Effect.fn("chatGeneration.appendChunks")(function
   if (generation === null) return false;
 
   const kysely = yield* db.kysely;
-  const timestamp = nowIso();
+  const timestamp = db.runtime.now();
   yield* QueryDatabase.transaction(db, [
     ...chunks.map(({ sequence, chunk }) =>
       kysely.insertInto("chat_generation_chunks").values({
@@ -248,7 +240,7 @@ const finishGeneration = Effect.fn("chatGeneration.finish")(function* <TEnvironm
   outputTokens?: number;
 }) {
   const kysely = yield* db.kysely;
-  const timestamp = nowIso();
+  const timestamp = db.runtime.now();
   const result = yield* Effect.promise(() =>
     kysely
       .updateTable("chat_generations")
@@ -285,7 +277,7 @@ const cancelRunningGenerations = Effect.fn("chatGeneration.cancelRunning")(funct
   error?: string;
 }) {
   const kysely = yield* db.kysely;
-  const timestamp = nowIso();
+  const timestamp = db.runtime.now();
   const result = yield* Effect.promise(() =>
     kysely
       .updateTable("chat_generations")
@@ -329,9 +321,9 @@ const recordChatEvent = Effect.fn("chatEvent.record")(function* <TEnvironment>({
       .insertInto("chat_events")
       .values({
         conversation_id: conversationId,
-        created_at: nowIso(),
+        created_at: db.runtime.now(),
         generation_id: generationId,
-        id: crypto.randomUUID(),
+        id: db.runtime.createId(),
         payload: JSON.stringify(payload),
         request_id: requestId,
         schema_version: 1,
@@ -343,9 +335,7 @@ const recordChatEvent = Effect.fn("chatEvent.record")(function* <TEnvironment>({
   );
 });
 
-const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function* <
-  TEnvironment,
->({
+const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function* <TEnvironment>({
   db,
   userId,
 }: {
@@ -353,7 +343,7 @@ const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function*
   userId: string;
 }) {
   const kysely = yield* db.kysely;
-  const timestamp = nowIso();
+  const timestamp = db.runtime.now();
   const result = yield* Effect.promise(() =>
     kysely
       .updateTable("chat_generations")
@@ -366,58 +356,62 @@ const expireStaleGenerations = Effect.fn("chatGeneration.expireStale")(function*
       })
       .where("user_id", "=", userId)
       .where("status", "in", ["pending", "streaming"])
-      .where("updated_at", "<", new Date(Date.now() - generationStaleMilliseconds).toISOString())
+      .where(
+        "updated_at",
+        "<",
+        new Date(db.runtime.nowMilliseconds() - generationStaleMilliseconds).toISOString(),
+      )
       .executeTakeFirst(),
   );
   return Number(result.numUpdatedRows);
 });
 
-const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished")(
-  function* <TEnvironment>({
-    db,
-    userId,
-  }: {
-    db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>;
-    userId: string;
-  }) {
-    const kysely = yield* db.kysely;
-    const timestamp = nowIso();
-    const result = yield* Effect.promise(() =>
-      kysely
-        .updateTable("chat_generations")
-        .set({
-          error: null,
-          finish_reason: "stop",
-          finished_at: timestamp,
-          status: "completed",
-          updated_at: timestamp,
-        })
-        .where("user_id", "=", userId)
-        .where("status", "in", ["pending", "streaming"])
-        .where((expressionBuilder) =>
-          expressionBuilder.exists(
-            expressionBuilder
-              .selectFrom("chat_generation_chunks")
-              .select("sequence")
-              .whereRef("chat_generation_chunks.user_id", "=", "chat_generations.user_id")
-              .whereRef("generation_id", "=", "chat_generations.id")
-              .where((chunkExpressionBuilder) =>
-                chunkExpressionBuilder(
-                  chunkExpressionBuilder.fn<string>("json_extract", [
-                    "chunk",
-                    chunkExpressionBuilder.val("$.type"),
-                  ]),
-                  "=",
-                  "finish",
-                ),
+const reconcileFinishedGenerations = Effect.fn("chatGeneration.reconcileFinished")(function* <
+  TEnvironment,
+>({
+  db,
+  userId,
+}: {
+  db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>;
+  userId: string;
+}) {
+  const kysely = yield* db.kysely;
+  const timestamp = db.runtime.now();
+  const result = yield* Effect.promise(() =>
+    kysely
+      .updateTable("chat_generations")
+      .set({
+        error: null,
+        finish_reason: "stop",
+        finished_at: timestamp,
+        status: "completed",
+        updated_at: timestamp,
+      })
+      .where("user_id", "=", userId)
+      .where("status", "in", ["pending", "streaming"])
+      .where((expressionBuilder) =>
+        expressionBuilder.exists(
+          expressionBuilder
+            .selectFrom("chat_generation_chunks")
+            .select("sequence")
+            .whereRef("chat_generation_chunks.user_id", "=", "chat_generations.user_id")
+            .whereRef("generation_id", "=", "chat_generations.id")
+            .where((chunkExpressionBuilder) =>
+              chunkExpressionBuilder(
+                chunkExpressionBuilder.fn<string>("json_extract", [
+                  "chunk",
+                  chunkExpressionBuilder.val("$.type"),
+                ]),
+                "=",
+                "finish",
               ),
-          ),
-        )
-        .executeTakeFirst(),
-    );
-    return Number(result.numUpdatedRows);
-  },
-);
+            ),
+        ),
+      )
+      .executeTakeFirst(),
+  );
+  return Number(result.numUpdatedRows);
+});
 
 const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(function* <
   TEnvironment,
@@ -431,7 +425,9 @@ const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(func
   retentionDays?: number;
 }) {
   const kysely = yield* db.kysely;
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1_000).toISOString();
+  const cutoff = new Date(
+    db.runtime.nowMilliseconds() - retentionDays * 24 * 60 * 60 * 1_000,
+  ).toISOString();
   const result = yield* Effect.promise(() =>
     kysely
       .deleteFrom("chat_generations")
@@ -443,9 +439,7 @@ const cleanupGenerationHistory = Effect.fn("chatGeneration.cleanupHistory")(func
   return Number(result.numDeletedRows);
 });
 
-const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* <
-  TEnvironment,
->({
+const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* <TEnvironment>({
   db,
   userId,
   conversationId,
@@ -468,9 +462,7 @@ const getRunningGeneration = Effect.fn("chatGeneration.getRunning")(function* <
   return result ?? null;
 });
 
-const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(function* <
-  TEnvironment,
->({
+const getResumableGeneration = Effect.fn("chatGeneration.getResumable")(function* <TEnvironment>({
   db,
   userId,
   conversationId,

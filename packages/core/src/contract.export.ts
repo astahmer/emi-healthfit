@@ -47,10 +47,7 @@ import type {
   DiscordAccountLink as DiscordAccountLinkType,
   DiscordLinkCode as DiscordLinkCodeType,
 } from "./contract/discord.ts";
-import type {
-  Memory as MemoryType,
-  Note as NoteType,
-} from "./contract/notes-and-memories.ts";
+import type { Memory as MemoryType, Note as NoteType } from "./contract/notes-and-memories.ts";
 import { HttpApi } from "effect/unstable/httpapi";
 
 const Conversation = ConversationSchema;

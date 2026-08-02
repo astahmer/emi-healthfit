@@ -10,8 +10,7 @@ import {
 
 const topLevelSubcommand = (
   interaction: Discord.ApplicationCommandInteraction,
-): string | undefined =>
-  interaction.data.options?.[0]?.name;
+): string | undefined => interaction.data.options?.[0]?.name;
 
 const requireLinkedUserId = (
   services: HealthfitCommandServices,

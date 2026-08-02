@@ -15,10 +15,9 @@ const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
   migrationsDir: "./migrations",
 });
 
-type GenericDatabaseSchema =
-  & ServerDatabase.ConversationDatabaseSchema
-  & ServerDatabase.AuthDatabaseSchema
-  & ServerDatabase.MemoryDatabaseSchema;
+type GenericDatabaseSchema = ServerDatabase.ConversationDatabaseSchema &
+  ServerDatabase.AuthDatabaseSchema &
+  ServerDatabase.MemoryDatabaseSchema;
 
 export class GenericWorker extends Cloudflare.Worker<GenericWorker, {}>()("GenericWorker") {}
 
@@ -39,7 +38,15 @@ export default GenericWorker.make(
   })),
   Effect.gen(function* () {
     const query = yield* Cloudflare.D1.QueryDatabase(DB);
-    const db = CoreCloudflare.database.makeQueryDatabaseClient<GenericDatabaseSchema>({ query });
+    const db = CoreCloudflare.database.makeQueryDatabaseClient<GenericDatabaseSchema>({
+      query,
+      runtime: {
+        createId: () => crypto.randomUUID(),
+        now: () => new Date().toISOString(),
+        nowMilliseconds: () => Date.now(),
+        randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+      },
+    });
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const router = yield* HttpRouter.make;
     const routes = CoreCloudflare.routes.makeGenericChatRoutes({

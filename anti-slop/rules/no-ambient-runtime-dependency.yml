@@ -8,6 +8,7 @@ files:
   - packages/core/src/server/ports/**/*.ts
   - packages/core/src/server/use-cases/**/*.ts
   - packages/core/src/server/use-cases/**/*.tsx
+  - packages/core/src/server/db/**/*.ts
 message: Runtime actors and server use cases must receive time, identity, transport, and browser capabilities through injected dependencies.
 severity: error
 rule:

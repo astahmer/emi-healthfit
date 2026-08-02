@@ -95,7 +95,8 @@ const requestFor = ({ conversationId, requestId }: { conversationId: string; req
 describe("generic core chat route", () => {
   it("admits the generation before persisting a concurrent user message", async () => {
     const { db: database } = makeSqliteDatabase();
-    const conversationDatabase = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
+    const conversationDatabase =
+      narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const conversationId = await run(
       ServerDatabase.conversations.createConversation(
         conversationDatabase,

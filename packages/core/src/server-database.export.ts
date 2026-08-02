@@ -49,7 +49,10 @@ import type {
   MemorySummary as MemorySummaryRecord,
 } from "./server/db/memories.ts";
 import { QueryDatabase } from "./server/db/query-database.ts";
-import type { QueryDatabaseClient as QueryDatabaseClientRecord } from "./server/db/query-database.ts";
+import type {
+  DatabaseRuntime as DatabaseRuntimeRecord,
+  QueryDatabaseClient as QueryDatabaseClientRecord,
+} from "./server/db/query-database.ts";
 import {
   chatEvents,
   chatGenerationChunks,
@@ -150,6 +153,7 @@ export namespace ServerDatabase {
     TSchema,
     TEnvironment
   >;
+  export type DatabaseRuntime = DatabaseRuntimeRecord;
   export type SaveMessagesInput = SaveMessagesRecord;
   export type StoredGenerationChunk = StoredGenerationChunkRecord;
   export type SuggestionsRow = SuggestionsRowRecord;

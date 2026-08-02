@@ -9,7 +9,6 @@ import type {
   MemoryRepositoryShape,
   MessageRepositoryShape,
 } from "../server/ports/chat-server.ts";
-import { ChatRepositories } from "../server/ports/chat-server.ts";
 import { ChatServerError } from "../server/use-cases/chat-server.ts";
 
 interface CloudflareBoundStatement {
@@ -26,20 +25,18 @@ interface CloudflareDatabaseShape {
   readonly prepare: (query: string) => CloudflarePreparedStatement;
 }
 
-class CloudflareDatabase extends Context.Service<
-  CloudflareDatabase,
-  CloudflareDatabaseShape
->()("@emi/core/adapters/cloudflare/Database") {}
+class CloudflareDatabase extends Context.Service<CloudflareDatabase, CloudflareDatabaseShape>()(
+  "@emi/core/adapters/cloudflare/Database",
+) {}
 
 export interface CloudflareRuntimeShape {
   readonly createId: () => string;
   readonly now: () => string;
 }
 
-class CloudflareRuntime extends Context.Service<
-  CloudflareRuntime,
-  CloudflareRuntimeShape
->()("@emi/core/adapters/cloudflare/Runtime") {}
+class CloudflareRuntime extends Context.Service<CloudflareRuntime, CloudflareRuntimeShape>()(
+  "@emi/core/adapters/cloudflare/Runtime",
+) {}
 
 interface CloudflareAdapterOptions {
   readonly database: CloudflareDatabaseShape;
@@ -74,7 +71,11 @@ const queryAll = ({
   readonly parameters: ReadonlyArray<unknown>;
 }) =>
   Effect.tryPromise({
-    try: () => database.prepare(query).bind(...parameters).all(),
+    try: () =>
+      database
+        .prepare(query)
+        .bind(...parameters)
+        .all(),
     catch: (cause) => toServerError("internal", errorMessage(cause)),
   });
 
@@ -88,7 +89,11 @@ const queryFirst = ({
   readonly parameters: ReadonlyArray<unknown>;
 }) =>
   Effect.tryPromise({
-    try: () => database.prepare(query).bind(...parameters).first(),
+    try: () =>
+      database
+        .prepare(query)
+        .bind(...parameters)
+        .first(),
     catch: (cause) => toServerError("internal", errorMessage(cause)),
   });
 
@@ -104,7 +109,11 @@ const execute = ({
   readonly conflict?: boolean;
 }) =>
   Effect.tryPromise({
-    try: () => database.prepare(query).bind(...parameters).run(),
+    try: () =>
+      database
+        .prepare(query)
+        .bind(...parameters)
+        .run(),
     catch: (cause) => {
       const message = errorMessage(cause);
       if (conflict && /constraint|unique/i.test(message)) return toServerError("conflict", message);
@@ -280,10 +289,7 @@ export class CloudflareRepositories extends Context.Service<
       Layer.succeed(CloudflareDatabase, database),
       Layer.succeed(CloudflareRuntime, { createId, now }),
     );
-    return Layer.merge(
-      dependencies,
-      cloudflareRepositoriesLive.pipe(Layer.provide(dependencies)),
-    );
+    return Layer.merge(dependencies, cloudflareRepositoriesLive.pipe(Layer.provide(dependencies)));
   }
 }
 

@@ -26,7 +26,6 @@ import type {
 } from "./protocol/resources.ts";
 import type {
   AttachmentId,
-  ConversationId,
   GenerationId,
   MemoryId,
   MessageId,

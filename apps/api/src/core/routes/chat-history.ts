@@ -106,12 +106,14 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   );
   const requestWithHistory: ChatStreamRequest = {
     ...chatRequest,
-    messages: Chat.messages.getProviderMessages({
-      existingRows,
-      existingMessages,
-      incomingMessages,
-      replaceMessageId: chatRequest.replaceMessageId,
-    }).map(({ id: _id, ...message }) => message),
+    messages: Chat.messages
+      .getProviderMessages({
+        existingRows,
+        existingMessages,
+        incomingMessages,
+        replaceMessageId: chatRequest.replaceMessageId,
+      })
+      .map(({ id: _id, ...message }) => message),
     sessionId,
     tools: toolRecord,
   };
@@ -138,7 +140,12 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
       yield* Effect.forEach(
         incomingIds,
         (messageId) =>
-          ServerDatabase.conversations.addThreadMessage(conversationDb, userId, thread.id, messageId),
+          ServerDatabase.conversations.addThreadMessage(
+            conversationDb,
+            userId,
+            thread.id,
+            messageId,
+          ),
         { discard: true },
       );
     }

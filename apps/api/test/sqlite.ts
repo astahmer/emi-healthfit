@@ -4,13 +4,18 @@ import { fileURLToPath } from "node:url";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import type { RawQueryDatabaseClient } from "@emi/core/cloudflare";
-import {
-  makeQueryDatabaseClient,
-  type QueryDatabaseClient,
-} from "../src/platform/db/client.ts";
+import { makeQueryDatabaseClient, type QueryDatabaseClient } from "../src/platform/db/client.ts";
 
 const migrationsDirectory = fileURLToPath(new URL("../migrations", import.meta.url));
 const generatedAuthMigrationName = "20260802113108_add-auth-tables.sql";
+let nextTestDatabaseId = 0;
+
+const testDatabaseRuntime = {
+  createId: () => `test-database-id-${nextTestDatabaseId++}`,
+  now: () => new Date().toISOString(),
+  nowMilliseconds: () => Date.now(),
+  randomBytes: (length: number) => crypto.getRandomValues(new Uint8Array(length)),
+};
 
 const migrationNames = readdirSync(migrationsDirectory)
   .filter((name) => name.endsWith(".sql"))
@@ -108,7 +113,7 @@ export const makeSqliteDatabase = () => {
       Effect.promise(() => d1.batch(statements.map((statement) => statement.toD1Statement()))),
   } as unknown as RawQueryDatabaseClient;
   return {
-    db: makeQueryDatabaseClient({ query }),
+    db: makeQueryDatabaseClient({ query, runtime: testDatabaseRuntime }),
     sqlite,
   } satisfies { db: QueryDatabaseClient; sqlite: DatabaseSync };
 };

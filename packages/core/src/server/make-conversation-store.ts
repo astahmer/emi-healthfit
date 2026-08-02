@@ -24,7 +24,13 @@ export class ConversationStoreLive {
       delete: (conversationId) =>
         ConversationDatabase.deleteConversation(db, userId, conversationId),
       saveMessages: ({ conversationId, parentId, messages }) =>
-        ConversationDatabase.saveConversationMessages(db, userId, conversationId, parentId, messages),
+        ConversationDatabase.saveConversationMessages(
+          db,
+          userId,
+          conversationId,
+          parentId,
+          messages,
+        ),
       createThread: ({ conversationId, anchorMessageId, title }) =>
         ConversationDatabase.createThread(db, userId, conversationId, anchorMessageId, title),
       addThreadMessage: ({ threadId, messageId }) =>

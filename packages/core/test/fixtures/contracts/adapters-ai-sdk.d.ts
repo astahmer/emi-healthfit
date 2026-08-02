@@ -10,10 +10,9 @@ export interface AiSdkModelConfiguration {
   readonly createId?: () => string;
 }
 
-export declare class AiSdkModelProvider
-  extends Context.Service<AiSdkModelProvider, ModelProvider>()(
-    "@emi/core/adapters/AiSdkModelProvider",
-  )
-{
+export declare class AiSdkModelProvider extends Context.Service<
+  AiSdkModelProvider,
+  ModelProvider
+>()("@emi/core/adapters/AiSdkModelProvider") {
   static layer(configuration: AiSdkModelConfiguration): Layer.Layer<AiSdkModelProvider>;
 }

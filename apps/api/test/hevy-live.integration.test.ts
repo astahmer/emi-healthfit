@@ -7,8 +7,11 @@ import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
-const { connect: connectHevy, getIntegrationStatus: getHevyIntegrationStatus, sync: syncHevy } =
-  HealthFit.hevy;
+const {
+  connect: connectHevy,
+  getIntegrationStatus: getHevyIntegrationStatus,
+  sync: syncHevy,
+} = HealthFit.hevy;
 
 const loadRepoDotEnv = () => {
   const envPath = fileURLToPath(new URL("../../../.env", import.meta.url));

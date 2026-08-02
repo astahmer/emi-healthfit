@@ -134,7 +134,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
       onSuccess: () =>
         Effect.all([Ref.get(streamError), Ref.get(finishReason), Ref.get(sawFinish)]).pipe(
           Effect.flatMap(([streamErrorValue, reason, finished]) => {
-  const terminal = Chat.generation.resolveGenerationTerminalState({
+            const terminal = Chat.generation.resolveGenerationTerminalState({
               streamError: streamErrorValue,
               sawFinish: finished,
             });

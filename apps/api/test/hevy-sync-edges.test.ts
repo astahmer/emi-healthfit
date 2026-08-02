@@ -5,7 +5,12 @@ import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 
-const { connect: connectHevy, encryptApiKey: encryptHevyApiKey, sync: syncHevy, upsertConnection: upsertHevyConnection } = HealthFit.hevy;
+const {
+  connect: connectHevy,
+  encryptApiKey: encryptHevyApiKey,
+  sync: syncHevy,
+  upsertConnection: upsertHevyConnection,
+} = HealthFit.hevy;
 
 const originalFetch = globalThis.fetch;
 

@@ -63,7 +63,6 @@ const {
   getGenerationChunks,
   getResumableGeneration,
   markGenerationStreaming,
-  GenerationAlreadyActiveError,
 } = GenerationDatabase;
 const createGenerationReplayStream = GenerationReplay.stream;
 const {

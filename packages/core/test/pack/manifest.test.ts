@@ -35,7 +35,7 @@ describe("@emi/core R7 distribution manifest", () => {
       false,
     );
     assert.equal(sourceManifest.provenance, "@emi/core source catalog r0");
-assert.ok(sourceManifest.sourceFiles.includes("src/core.export.ts"));
+    assert.ok(sourceManifest.sourceFiles.includes("src/core.export.ts"));
     assert.ok(sourceManifest.testFiles.includes("test/public-api/fixtures.test.ts"));
   });
 });

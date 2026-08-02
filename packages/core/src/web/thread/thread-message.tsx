@@ -104,8 +104,7 @@ export const ThreadMessage = ({
   const canEdit = isUser && !isStreaming && editingDraft === undefined && onEditStart !== undefined;
   const canRegenerate =
     !isUser && !isStreaming && onRegenerate !== undefined && editingDraft === undefined;
-  const canRemember =
-    !isUser && !isStreaming && text.trim() !== "" && onRemember !== undefined;
+  const canRemember = !isUser && !isStreaming && text.trim() !== "" && onRemember !== undefined;
 
   const handleCopy = async (): Promise<void> => {
     try {

@@ -3,12 +3,8 @@ import * as Schema from "effect/Schema";
 import type { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import { toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import { isAuthorizedAuthEmail, parseAllowedEmails } from "../../server/auth/emails.ts";
 import {
-  isAuthorizedAuthEmail,
-  parseAllowedEmails,
-} from "../../server/auth/emails.ts";
-import {
-  CurrentUser,
   makeAuthRequestContext,
   withCurrentUser,
   type AuthPrincipal,

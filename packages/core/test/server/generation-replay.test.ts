@@ -31,15 +31,24 @@ const generation = (
 describe("generation persistence", () => {
   it("expires active generations after five silent minutes", () => {
     assert.equal(
-      GenerationDatabase.isGenerationStale(generation("streaming"), Date.parse("2026-07-14T00:04:00Z")),
+      GenerationDatabase.isGenerationStale(
+        generation("streaming"),
+        Date.parse("2026-07-14T00:04:00Z"),
+      ),
       false,
     );
     assert.equal(
-      GenerationDatabase.isGenerationStale(generation("streaming"), Date.parse("2026-07-14T00:05:00Z")),
+      GenerationDatabase.isGenerationStale(
+        generation("streaming"),
+        Date.parse("2026-07-14T00:05:00Z"),
+      ),
       true,
     );
     assert.equal(
-      GenerationDatabase.isGenerationStale(generation("completed"), Date.parse("2026-07-14T01:00:00Z")),
+      GenerationDatabase.isGenerationStale(
+        generation("completed"),
+        Date.parse("2026-07-14T01:00:00Z"),
+      ),
       false,
     );
   });

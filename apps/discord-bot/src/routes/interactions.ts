@@ -41,8 +41,7 @@ export const handleInteractionsRequest = Effect.fn("discord-bot.handleInteractio
         Effect.succeed(Discord.responses.unauthorized("invalid request signature")),
       StaleTimestamp: () =>
         Effect.succeed(Discord.responses.unauthorized("stale request timestamp")),
-      MalformedInteraction: (error) =>
-        Effect.succeed(Discord.responses.badRequest(error.message)),
+      MalformedInteraction: (error) => Effect.succeed(Discord.responses.badRequest(error.message)),
     }),
   );
 });

@@ -52,8 +52,7 @@ export interface HealthfitCommandServices {
 
 export const discordUserIdOf = (
   interaction: Discord.ApplicationCommandInteraction,
-): string | undefined =>
-  interaction.user?.id ?? interaction.member?.user?.id;
+): string | undefined => interaction.user?.id ?? interaction.member?.user?.id;
 
 export const optionString = (
   interaction: Discord.ApplicationCommandInteraction,

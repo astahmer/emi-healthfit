@@ -32,10 +32,7 @@ describe("MessageRail", () => {
     await user.hover(items[1]!);
     const preview = screen.getByTestId("message-rail-preview");
     expect(preview).toHaveTextContent("Second user question about sleep");
-    expect(preview.querySelector("time")).toHaveAttribute(
-      "datetime",
-      "2026-07-14T10:05:00.000Z",
-    );
+    expect(preview.querySelector("time")).toHaveAttribute("datetime", "2026-07-14T10:05:00.000Z");
     await user.click(items[0]!);
     expect(onSelect).toHaveBeenCalledWith("u1");
   });

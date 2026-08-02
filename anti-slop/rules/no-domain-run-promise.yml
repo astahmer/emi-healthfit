@@ -1,0 +1,13 @@
+id: no-domain-run-promise
+language: TypeScript
+files:
+  - packages/core/src/server/ports/**/*.ts
+  - packages/core/src/server/use-cases/**/*.ts
+  - packages/core/src/server/use-cases/**/*.tsx
+message: Generic server ports and use cases must preserve Effect programs; run Promise only at an outer adapter boundary.
+severity: error
+rule:
+  any:
+    - pattern: Effect.runPromise($$$ARGS)
+    - pattern: Effect.runPromiseWith($$$ARGS)
+    - pattern: Effect.runSync($$$ARGS)

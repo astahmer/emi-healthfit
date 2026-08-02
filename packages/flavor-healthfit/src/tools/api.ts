@@ -33,14 +33,8 @@ export type HealthfitToolsDatabaseSchema = ToolsDatabaseSchema;
 
 type ToolsDb = ServerDatabase.QueryDatabaseClient<ToolsDatabaseSchema>;
 
-const {
-  createThread,
-  getMessage,
-  getThread,
-  getThreadMessages,
-  getThreads,
-  summarizeThread,
-} = ServerDatabase.conversations;
+const { createThread, getMessage, getThread, getThreadMessages, getThreads, summarizeThread } =
+  ServerDatabase.conversations;
 const { searchMemories } = ServerDatabase.memories;
 
 /**
@@ -489,9 +483,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       narrow<ServerDatabase.ConversationDatabaseSchema>(db),
       userId,
       threadId,
-    ).pipe(
-      Effect.provideContext(services),
-    );
+    ).pipe(Effect.provideContext(services));
     if (thread === null || thread.conversation_id !== conversationId) {
       return yield* toolError({ tool, message: "Thread not found." });
     }
@@ -625,12 +617,9 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       ),
     ),
     search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
-      searchMemories(
-        narrow<ServerDatabase.MemoryDatabaseSchema>(db),
-        userId,
-        query,
-        { limit: limit ?? 10 },
-      ).pipe(
+      searchMemories(narrow<ServerDatabase.MemoryDatabaseSchema>(db), userId, query, {
+        limit: limit ?? 10,
+      }).pipe(
         Effect.provideContext(services),
         Effect.map((results) => ({ results })),
       ),
@@ -641,9 +630,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         narrow<ServerDatabase.ConversationDatabaseSchema>(db),
         userId,
         conversationId,
-      ).pipe(
-        Effect.provideContext(services),
-      );
+      ).pipe(Effect.provideContext(services));
     }),
     read_thread: Effect.fn("FitnessToolkit.readThread")(function* ({ thread_id }) {
       yield* requireThread({ tool: "read_thread", threadId: thread_id });
@@ -696,9 +683,7 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         narrow<ServerDatabase.ConversationDatabaseSchema>(db),
         userId,
         threadId,
-      ).pipe(
-        Effect.provideContext(services),
-      );
+      ).pipe(Effect.provideContext(services));
     }),
     summarize_thread: Effect.fn("FitnessToolkit.summarizeThreadTool")(({ thread_id }) =>
       summarize({ threadId: thread_id, tool: "summarize_thread" }),

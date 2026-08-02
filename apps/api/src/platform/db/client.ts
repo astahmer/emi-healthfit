@@ -3,6 +3,7 @@ import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import type {
   CloudflareQueryDatabaseClient,
+  DatabaseRuntime,
   RawQueryDatabaseClient,
 } from "@emi/core/cloudflare";
 import { HealthFit } from "@emi/flavor-healthfit";
@@ -59,9 +60,11 @@ export const makeD1Kysely = (database: D1Database) =>
 
 export const makeQueryDatabaseClient = ({
   query,
+  runtime,
 }: {
   query: RawQueryDatabaseClient;
-}): QueryDatabaseClient => makePlatformQueryDatabaseClient<DatabaseSchema>({ query });
+  runtime: DatabaseRuntime;
+}): QueryDatabaseClient => makePlatformQueryDatabaseClient<DatabaseSchema>({ query, runtime });
 
 /**
  * Kysely's `Transaction`/`withRecursive` typings make `Kysely<T>` (and thus

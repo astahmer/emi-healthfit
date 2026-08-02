@@ -29,11 +29,7 @@ describe("generation store SQLite integration", () => {
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-a";
     const conversationId = await run(
-      ServerDatabase.conversations.createConversation(
-        db,
-        userId,
-        "Streaming",
-      ),
+      ServerDatabase.conversations.createConversation(db, userId, "Streaming"),
     );
 
     await run(
@@ -231,11 +227,7 @@ describe("generation store SQLite integration", () => {
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-cancel";
     const conversationId = await run(
-      ServerDatabase.conversations.createConversation(
-        db,
-        userId,
-        "Cancel running",
-      ),
+      ServerDatabase.conversations.createConversation(db, userId, "Cancel running"),
     );
 
     await run(
@@ -305,11 +297,7 @@ describe("generation store SQLite integration", () => {
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-late-finish";
     const conversationId = await run(
-      ServerDatabase.conversations.createConversation(
-        db,
-        userId,
-        "Late finish",
-      ),
+      ServerDatabase.conversations.createConversation(db, userId, "Late finish"),
     );
 
     await run(
@@ -357,11 +345,7 @@ describe("generation store SQLite integration", () => {
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-supersede";
     const conversationId = await run(
-      ServerDatabase.conversations.createConversation(
-        db,
-        userId,
-        "Supersede",
-      ),
+      ServerDatabase.conversations.createConversation(db, userId, "Supersede"),
     );
 
     await run(
@@ -405,11 +389,7 @@ describe("generation store SQLite integration", () => {
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
     const userId = "user-unique";
     const conversationId = await run(
-      ServerDatabase.conversations.createConversation(
-        db,
-        userId,
-        "Unique active",
-      ),
+      ServerDatabase.conversations.createConversation(db, userId, "Unique active"),
     );
 
     await run(

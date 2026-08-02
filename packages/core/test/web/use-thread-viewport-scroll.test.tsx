@@ -88,10 +88,10 @@ describe("ThreadViewportScroll.findPreviousUserMessageId", () => {
     const u1 = document.getElementById("message-u1")!;
     const u2 = document.getElementById("message-u2")!;
     const u3 = document.getElementById("message-u3")!;
-    viewport.getBoundingClientRect = () => ({ top: 100 } as DOMRect);
-    u1.getBoundingClientRect = () => ({ top: 10 } as DOMRect);
-    u2.getBoundingClientRect = () => ({ top: 60 } as DOMRect);
-    u3.getBoundingClientRect = () => ({ top: 200 } as DOMRect);
+    viewport.getBoundingClientRect = () => ({ top: 100 }) as DOMRect;
+    u1.getBoundingClientRect = () => ({ top: 10 }) as DOMRect;
+    u2.getBoundingClientRect = () => ({ top: 60 }) as DOMRect;
+    u3.getBoundingClientRect = () => ({ top: 200 }) as DOMRect;
 
     expect(
       ThreadViewportScroll.findPreviousUserMessageId({
@@ -105,8 +105,10 @@ describe("ThreadViewportScroll.findPreviousUserMessageId", () => {
     document.body.innerHTML = '<div id="viewport"></div><div id="message-u1"></div>';
     const viewport = document.getElementById("viewport")!;
     const u1 = document.getElementById("message-u1")!;
-    viewport.getBoundingClientRect = () => ({ top: 100 } as DOMRect);
-    u1.getBoundingClientRect = () => ({ top: 150 } as DOMRect);
-    expect(ThreadViewportScroll.findPreviousUserMessageId({ viewport, messageIds: ["u1"] })).toBeUndefined();
+    viewport.getBoundingClientRect = () => ({ top: 100 }) as DOMRect;
+    u1.getBoundingClientRect = () => ({ top: 150 }) as DOMRect;
+    expect(
+      ThreadViewportScroll.findPreviousUserMessageId({ viewport, messageIds: ["u1"] }),
+    ).toBeUndefined();
   });
 });

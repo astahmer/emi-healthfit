@@ -1,7 +1,5 @@
 import { ServerDatabase } from "@emi/core/server/database";
-import {
-  HealthFit,
-} from "@emi/flavor-healthfit";
+import { HealthFit } from "@emi/flavor-healthfit";
 
 const {
   bodyMetrics: healthfitBodyMetrics,

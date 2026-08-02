@@ -5,11 +5,7 @@ import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
 const { getDataSummary, getRawUploadRetentionDays } = HealthFit.data;
-const {
-  deleteIngestedSource,
-  updateRawUploadRetentionDays,
-  updateSyncCursor,
-} = HealthFit.ingest;
+const { deleteIngestedSource, updateRawUploadRetentionDays, updateSyncCursor } = HealthFit.ingest;
 const {
   insertHealthWorkouts,
   upsertBodyMetrics,

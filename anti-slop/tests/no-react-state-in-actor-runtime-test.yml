@@ -1,0 +1,7 @@
+id: no-react-state-in-actor-runtime
+valid:
+  - "const value = runtime.getSnapshot();"
+  - "const subscribe = (listener) => runtime.subscribe(listener);"
+invalid:
+  - "const [value, setValue] = useState(initialValue);"
+  - "const [state, dispatch] = useReducer(reducer, initialState);"

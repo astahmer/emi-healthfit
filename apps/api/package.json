@@ -29,7 +29,6 @@
   "dependencies": {
     "@ai-sdk/openai": "catalog:",
     "@emi/core": "workspace:*",
-    "@emi/core": "workspace:*",
     "@emi/flavor-healthfit": "workspace:*",
     "ai": "catalog:",
     "alchemy": "catalog:",

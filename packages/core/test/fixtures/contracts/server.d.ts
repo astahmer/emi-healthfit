@@ -1,12 +1,7 @@
 import type * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type {
-  ChatMessage,
-  Conversation,
-  GenerationEvent,
-  ModelConfiguration,
-} from "./protocol";
+import type { ChatMessage, Conversation, GenerationEvent, ModelConfiguration } from "./protocol";
 
 export declare class ChatServerError extends Error {
   readonly kind: "unauthorized" | "conflict" | "invalid-input" | "internal";

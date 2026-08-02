@@ -222,9 +222,7 @@ const deleteConversation = <TEnvironment>(
     );
   });
 
-const updateConversationState = Effect.fn("conversation.updateState")(function* <
-  TEnvironment,
->({
+const updateConversationState = Effect.fn("conversation.updateState")(function* <TEnvironment>({
   db,
   userId,
   conversationId,
@@ -283,9 +281,7 @@ const cloneConversation = Effect.fn("conversation.clone")(function* <TEnvironmen
   const messageIds = new Map(
     originalMessages.map((message) => [message.id, db.runtime.createId()]),
   );
-  const threadIds = new Map(
-    originalThreads.map((thread) => [thread.id, db.runtime.createId()]),
-  );
+  const threadIds = new Map(originalThreads.map((thread) => [thread.id, db.runtime.createId()]));
 
   yield* QueryDatabase.transaction(db, [
     kysely.insertInto("conversations").values({
@@ -353,7 +349,7 @@ const renameConversation = <TEnvironment>(
     yield* Effect.promise(() =>
       kysely
         .updateTable("conversations")
-      .set({ title, updated_at: db.runtime.now() })
+        .set({ title, updated_at: db.runtime.now() })
         .where("user_id", "=", userId)
         .where("id", "=", conversationId)
         .execute(),
@@ -389,9 +385,7 @@ const getConversationMessages = <TEnvironment>(
     );
   });
 
-const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(function* <
-  TEnvironment,
->({
+const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(function* <TEnvironment>({
   db,
   userId,
   conversationId,
@@ -417,7 +411,7 @@ const reviseConversationMessage = Effect.fn("conversation.reviseMessage")(functi
   const messageIndex = scopedRows.findIndex((row) => row.id === messageId);
   if (messageIndex < 0) return false;
 
-    const deletedMessageIds = ConversationRevision.getDeletionIds({
+  const deletedMessageIds = ConversationRevision.getDeletionIds({
     conversationRows,
     scopedRows,
     messageId,

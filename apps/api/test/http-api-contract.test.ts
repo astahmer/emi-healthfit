@@ -142,17 +142,22 @@ describe("HTTP response contracts", () => {
   });
 
   it("recovers a JSON suggestion array wrapped in a malformed response", () => {
-    assert.deepStrictEqual(Chat.generation.normalizeGeneratedStrings('["First question", "Second question"]}'), [
-      "First question",
-      "Second question",
-    ]);
+    assert.deepStrictEqual(
+      Chat.generation.normalizeGeneratedStrings('["First question", "Second question"]}'),
+      ["First question", "Second question"],
+    );
   });
 
   it("validates persisted generation chunks with the AI SDK schema", async () => {
-    assert.deepStrictEqual(await ServerDatabase.generations.decodeGenerationChunk('{"type":"finish"}'), {
-      type: "finish",
-    });
-    await assert.rejects(() => ServerDatabase.generations.decodeGenerationChunk('{"type":"unknown"}'));
+    assert.deepStrictEqual(
+      await ServerDatabase.generations.decodeGenerationChunk('{"type":"finish"}'),
+      {
+        type: "finish",
+      },
+    );
+    await assert.rejects(() =>
+      ServerDatabase.generations.decodeGenerationChunk('{"type":"unknown"}'),
+    );
     await assert.rejects(() => ServerDatabase.generations.decodeGenerationChunk("not-json"));
   });
 });

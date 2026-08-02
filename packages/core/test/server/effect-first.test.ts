@@ -108,9 +108,8 @@ describe("@emi/core/server Effect-first surface", () => {
   it("uses Context services and preserves Effect composition", async () => {
     const events: Array<string> = [];
     const conversations = await Effect.runPromise(
-      useServer(
-        makeServices(events),
-        (server) => server.listConversations(new Request("https://example.test/api/conversations")),
+      useServer(makeServices(events), (server) =>
+        server.listConversations(new Request("https://example.test/api/conversations")),
       ),
     );
 
