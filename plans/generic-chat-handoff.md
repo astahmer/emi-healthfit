@@ -12,6 +12,7 @@ Make `apps/generic-web` and `apps/generic-worker` a polished, working canonical 
 - `plans/002-xstate-actor-architecture.md`
 - `plans/001-core-web-chat-runtime.md`
 - `plans/core-chat-platform.md`, especially **Current status and remaining migration slices**
+- `plans/core-api-rewrite-plan.md`, especially the packet for the slice being implemented
 - `improvements.md`
 - `apps/generic-web/src/app.tsx`, `app.css`, and `vite.config.ts`
 - `apps/generic-worker/src/generic.worker.ts`
