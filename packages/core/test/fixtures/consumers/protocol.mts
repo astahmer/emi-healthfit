@@ -16,6 +16,7 @@ import {
   fromConversationDto,
   fromMemoryDto,
   fromThreadDto,
+  ProtocolDecodeError,
   protocolSchemas,
   toChatMessageDto,
   toConversationDto,
@@ -68,6 +69,7 @@ void ThreadDtoSchema;
 void ToolCallSchema;
 void ToolResultSchema;
 void fromChatMessageDto;
+void ProtocolDecodeError;
 void fromConversationDto;
 void fromMemoryDto;
 void fromThreadDto;

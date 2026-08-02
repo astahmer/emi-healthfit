@@ -121,9 +121,7 @@ export interface ModelGenerationInput {
 }
 
 export interface ModelProvider {
-  readonly generate: (
-    input: ModelGenerationInput,
-  ) => AsyncIterable<GenerationEvent>;
+  readonly generate: (input: ModelGenerationInput) => AsyncIterable<GenerationEvent>;
 }
 
 export declare const AttachmentSchema: unknown;
@@ -134,13 +132,20 @@ export declare const MessagePartSchema: unknown;
 export declare const ChatMessageSchema: unknown;
 export declare const ChatMessageDtoSchema: unknown;
 export declare const ConversationDtoSchema: unknown;
+export declare const ConversationSchema: unknown;
 export declare const ThreadDtoSchema: unknown;
+export declare const ThreadSchema: unknown;
 export declare const MemoryDtoSchema: unknown;
+export declare const MemorySchema: unknown;
+export declare const MessageRoleSchema: unknown;
+export declare const MessageUsageSchema: unknown;
 export declare const GenerationEventSchema: unknown;
 export declare const ErrorResponseDtoSchema: unknown;
 export declare const ModelConfigurationSchema: unknown;
+export declare const ModelGenerationInputSchema: unknown;
 
 export declare const fromChatMessageDto: (input: unknown) => ChatMessage;
+export declare const decodeErrorResponseDto: (input: unknown) => ErrorResponseDto;
 export declare const toChatMessageDto: (input: ChatMessage) => ChatMessageDto;
 export declare const fromConversationDto: (input: unknown) => Conversation;
 export declare const toConversationDto: (input: Conversation) => ConversationDto;
@@ -148,6 +153,7 @@ export declare const fromThreadDto: (input: unknown) => Thread;
 export declare const toThreadDto: (input: Thread) => ThreadDto;
 export declare const fromMemoryDto: (input: unknown) => Memory;
 export declare const toMemoryDto: (input: Memory) => MemoryDto;
+export declare class ProtocolDecodeError extends Error {}
 
 export interface ProtocolSchemas {
   readonly attachment: unknown;
