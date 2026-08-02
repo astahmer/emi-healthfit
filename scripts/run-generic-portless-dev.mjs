@@ -20,9 +20,7 @@ const webUrl = `${portlessScheme}://generic-chat.localhost${portSuffix}`;
 
 const createEnvironmentFile = async () => {
   const source = await readFile(join(repositoryDirectory, ".env"), "utf8");
-  const lines = source
-    .split("\n")
-    .filter((line) => line.startsWith("BETTER_AUTH_SECRET="));
+  const lines = source.split("\n").filter((line) => line.startsWith("BETTER_AUTH_SECRET="));
   lines.push(`BETTER_AUTH_URL=${webUrl}`);
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "emi-generic-portless-"));
   const environmentFile = join(temporaryDirectory, ".env");

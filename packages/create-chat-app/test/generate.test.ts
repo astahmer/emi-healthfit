@@ -158,8 +158,8 @@ describe("buildGeneratedFiles", () => {
     assert.match(app, /@emi\/core\/components/);
     assert.match(app, /baseUrl: `\$\{apiOrigin\}\/api`/);
     assert.match(app, /ChatApp/);
-    assert.match(app, /Temporary chat/);
-    assert.match(app, /Settings/);
+    assert.match(app, /releaseNotes/);
+    assert.doesNotMatch(app, /Temporary chat|Settings/);
     assert.doesNotMatch(
       app,
       /genericChatAppMachine|conversation-store-event|createConversationClient|@emi\/core\/web/,
