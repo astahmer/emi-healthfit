@@ -1,5 +1,8 @@
 import * as Option from "effect/Option";
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import type { MessagePart } from "../protocol/parts.ts";
+import { MessagePartSchema } from "../protocol/parts.ts";
 
 const ToolOutput = Schema.Struct({
   type: Schema.Literals(["json", "text"]),
@@ -89,8 +92,17 @@ const messageParts = (content: unknown): (typeof ProviderPart.Type)[] => {
   });
 };
 
+export class ChatMessagePartsError extends Schema.TaggedErrorClass<ChatMessagePartsError>()(
+  "ChatMessagePartsError",
+  { message: Schema.String },
+) {}
+
 export class ChatMessageParts {
-  static readonly buildAssistantParts = (messages: unknown[]): Schema.Json[] => {
+  static readonly buildAssistantPartsEffect: (
+    messages: ReadonlyArray<unknown>,
+  ) => Effect.Effect<ReadonlyArray<MessagePart>, ChatMessagePartsError> = Effect.fn(
+    "chat.messageParts.buildAssistantParts",
+  )(function* (messages: ReadonlyArray<unknown>) {
     const assistantParts: Schema.Json[] = [];
     const toolCalls = new Map<string, { toolName: string; input: Schema.Json }>();
     const toolResults = new Map<string, { output: Schema.Json; outcome: "success" | "error" }>();
@@ -161,6 +173,15 @@ export class ChatMessageParts {
       }
     }
 
-    return assistantParts;
-  };
+    return yield* Effect.forEach(assistantParts, (part) =>
+      Schema.decodeUnknownEffect(MessagePartSchema)(part).pipe(
+        Effect.mapError((error) => new ChatMessagePartsError({ message: error.message })),
+      ),
+    );
+  });
+
+  static readonly buildAssistantParts = (
+    messages: ReadonlyArray<unknown>,
+  ): Promise<ReadonlyArray<MessagePart>> =>
+    Effect.runPromise(ChatMessageParts.buildAssistantPartsEffect(messages));
 }

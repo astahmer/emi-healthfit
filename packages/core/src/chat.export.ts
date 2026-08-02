@@ -41,6 +41,7 @@ export class Chat {
   } as const;
 
   static readonly stream = {
+    createChatStreamEffect: OpenAiChat.createChatStreamEffect,
     createChatStream: OpenAiChat.createChatStream,
     createChatStreamResponse: StreamResponse.createChatStreamResponse,
     toUiMessageStream: OpenAiChat.toUiMessageStream,
@@ -55,19 +56,25 @@ export class Chat {
   } as const;
 
   static readonly memory = {
+    extractMemoriesEffect: OpenAiChat.extractMemoriesEffect,
     extractMemories: OpenAiChat.extractMemories,
+    generateMemorySummaryEffect: OpenAiChat.generateMemorySummaryEffect,
     generateMemorySummary: OpenAiChat.generateMemorySummary,
   } as const;
 
   static readonly generation = {
+    generateConversationSummaryEffect: OpenAiChat.generateConversationSummaryEffect,
     generateConversationSummary: OpenAiChat.generateConversationSummary,
+    generateConversationTitleEffect: OpenAiChat.generateConversationTitleEffect,
     generateConversationTitle: OpenAiChat.generateConversationTitle,
+    generateSuggestionsEffect: OpenAiChat.generateSuggestionsEffect,
     generateSuggestions: OpenAiChat.generateSuggestions,
     normalizeGeneratedStrings: OpenAiChat.normalizeGeneratedStrings,
     resolveGenerationTerminalState: GenerationTerminalState.resolveGenerationTerminalState,
   } as const;
 
   static readonly messages = {
+    buildAssistantPartsEffect: MessageParts.ChatMessageParts.buildAssistantPartsEffect,
     buildAssistantParts: MessageParts.ChatMessageParts.buildAssistantParts,
     firstUserText: ChatRequest.firstUserText,
     getProviderMessages: OrphanTurn.getProviderMessages,

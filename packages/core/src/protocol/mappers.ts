@@ -43,6 +43,7 @@ import {
   GenerationEventSchema,
   ModelConfigurationSchema,
   ModelGenerationInputSchema,
+  type ModelProviderError,
 } from "./model.ts";
 import { MessageRoleSchema, MessageUsageSchema } from "./messages.ts";
 import { TransportErrorSchema } from "./errors.ts";
@@ -76,6 +77,7 @@ const protocolSchemas = {
   modelConfiguration: ModelConfigurationSchema,
   modelGenerationInput: ModelGenerationInputSchema,
   transportError: TransportErrorSchema,
+  modelProviderError: TransportErrorSchema,
 } as const;
 
 export type ProtocolSchemas = typeof protocolSchemas;
@@ -180,6 +182,10 @@ export class ChatProtocol {
 
   static decodeErrorResponseDto(input: unknown): ProtocolEffect<ErrorResponseDto> {
     return ChatProtocol.decode(ChatProtocol.schemas.errorResponseDto, input);
+  }
+
+  static decodeModelProviderError(input: unknown): ProtocolEffect<ModelProviderError> {
+    return ChatProtocol.decode(ChatProtocol.schemas.modelProviderError, input);
   }
 
   static runPromise<Value, Error>(effect: Effect.Effect<Value, Error>): Promise<Value> {

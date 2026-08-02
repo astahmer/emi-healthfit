@@ -14,10 +14,14 @@ export const Conversation = Schema.Struct({
 });
 export type Conversation = typeof Conversation.Type;
 
+const tokenCount = Schema.NullOr(
+  Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+);
+
 export const MessageUsage = Schema.Struct({
-  promptTokens: Schema.NullOr(Schema.Number),
-  completionTokens: Schema.NullOr(Schema.Number),
-  totalTokens: Schema.NullOr(Schema.Number),
+  promptTokens: tokenCount,
+  completionTokens: tokenCount,
+  totalTokens: tokenCount,
 });
 export type MessageUsage = typeof MessageUsage.Type;
 

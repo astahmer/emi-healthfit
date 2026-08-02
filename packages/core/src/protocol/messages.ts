@@ -5,10 +5,14 @@ import { MessagePartSchema } from "./parts.ts";
 export const MessageRoleSchema = Schema.Literals(["user", "assistant", "system", "tool"]);
 export type MessageRole = typeof MessageRoleSchema.Type;
 
+const tokenCount = Schema.NullOr(
+  Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+);
+
 export const MessageUsageSchema = Schema.Struct({
-  promptTokens: Schema.NullOr(Schema.Number),
-  completionTokens: Schema.NullOr(Schema.Number),
-  totalTokens: Schema.NullOr(Schema.Number),
+  promptTokens: tokenCount,
+  completionTokens: tokenCount,
+  totalTokens: tokenCount,
 });
 export type MessageUsage = typeof MessageUsageSchema.Type;
 

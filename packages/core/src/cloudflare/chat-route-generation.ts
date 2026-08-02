@@ -9,7 +9,6 @@ import type {
   GenerationChunkRecord,
   GenerationChunkWriterShape,
   GenerationRecord,
-  GenerationStoreError,
   GenerationWriterShape,
 } from "../server/ports/generation-store.ts";
 
@@ -47,35 +46,35 @@ export class ChatRouteGeneration {
     generationId: string;
     stream: ReadableStream<UiMessageChunk>;
   }) {
-    const reader = stream.getReader();
-    let sequence = 0;
     let error: string | undefined;
     let finishReason: string | undefined;
     let sawFinish = false;
-    const readChunk = Effect.tryPromise({
-      try: () => reader.read(),
-      catch: (cause) =>
-        new ChatRouteGenerationError({
-          message: cause instanceof Error ? cause.message : String(cause),
-        }),
-    });
     const persist = Effect.gen(function* () {
       yield* writer.markStreaming(generationId);
-      while (true) {
-        const next = yield* readChunk;
-        if (next.done) break;
-        yield* chunkWriter.append({
-          generationId,
-          sequence,
-          chunk: next.value,
-        });
-        if (next.value.type === "error") error = next.value.errorText;
-        if (next.value.type === "finish") {
-          sawFinish = true;
-          finishReason = "finishReason" in next.value ? next.value.finishReason : undefined;
-        }
-        sequence += 1;
-      }
+      yield* Stream.fromReadableStream({
+        evaluate: () => stream,
+        onError: (cause) =>
+          new ChatRouteGenerationError({
+            message: cause instanceof Error ? cause.message : String(cause),
+          }),
+        releaseLockOnEnd: true,
+      }).pipe(
+        Stream.zipWithIndex,
+        Stream.runForEach(([chunk, index]) =>
+          Effect.gen(function* () {
+            yield* chunkWriter.append({
+              generationId,
+              sequence: index,
+              chunk,
+            });
+            if (chunk.type === "error") error = chunk.errorText;
+            if (chunk.type === "finish") {
+              sawFinish = true;
+              finishReason = "finishReason" in chunk ? chunk.finishReason : undefined;
+            }
+          }),
+        ),
+      );
       yield* writer.finish({
         generationId,
         status: error === undefined && sawFinish ? "completed" : "failed",
@@ -84,13 +83,12 @@ export class ChatRouteGeneration {
       });
     });
     yield* persist.pipe(
-      Effect.catch((cause: GenerationStoreError | ChatRouteGenerationError) =>
+      Effect.catch((cause) =>
         writer.finish({ generationId, status: "failed", error: cause.message }).pipe(
           Effect.catch(() => Effect.void),
           Effect.andThen(Effect.fail(cause)),
         ),
       ),
-      Effect.ensuring(Effect.sync(() => reader.releaseLock())),
     );
   });
 }

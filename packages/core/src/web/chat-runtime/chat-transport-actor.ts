@@ -1,5 +1,7 @@
+import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { fromCallback } from "xstate";
 
 import type { ChatMessage } from "../../protocol/messages.ts";
@@ -54,6 +56,11 @@ const WireChunk = Schema.Union([
 
 type WireChunk = typeof WireChunk.Type;
 
+class ChatTransportStreamError extends Schema.TaggedErrorClass<ChatTransportStreamError>()(
+  "ChatTransportStreamError",
+  { message: Schema.String },
+) {}
+
 const errorMessage = ({ cause, fallback }: { cause: unknown; fallback: string }): string =>
   cause instanceof Error ? cause.message : fallback;
 
@@ -86,10 +93,71 @@ const appendText = ({
 const assistantText = (message: ChatMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
-const responseStream = (response: Response): ReadableStream<string> => {
-  if (response.body === null) throw new Error("Chat response did not contain a stream.");
-  return response.body.pipeThrough(new TextDecoderStream());
-};
+const consumeStreamEffect = Effect.fn("chat.transport.consumeStream")(function* ({
+  activeOperation,
+  response,
+  now,
+  createId,
+  sendSession,
+  isCurrent,
+}: {
+  activeOperation: number;
+  response: Response;
+  now: () => string;
+  createId: () => string;
+  sendSession: (event: ChatSessionEvent) => void;
+  isCurrent: (activeOperation: number) => boolean;
+}) {
+  const body = response.body;
+  if (body === null)
+    return yield* Effect.fail(
+      new ChatTransportStreamError({ message: "Chat response did not contain a stream." }),
+    );
+
+  let buffer = "";
+  let message: ChatMessage | undefined;
+  yield* Stream.fromReadableStream({
+    evaluate: () => body.pipeThrough(new TextDecoderStream()),
+    onError: (cause) =>
+      new ChatTransportStreamError({
+        message: cause instanceof Error ? cause.message : String(cause),
+      }),
+    releaseLockOnEnd: true,
+  }).pipe(
+    Stream.takeWhile(() => isCurrent(activeOperation)),
+    Stream.runForEach((chunk) =>
+      Effect.sync(() => {
+        buffer += chunk;
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const event of events) {
+          const data = event
+            .split("\n")
+            .find((line) => line.startsWith("data:"))
+            ?.slice("data:".length)
+            .trim();
+          if (data === undefined || data === "[DONE]") continue;
+          const decoded = readWireChunk(data);
+          if (Option.isNone(decoded)) continue;
+          if (decoded.value.type === "start") {
+            message = {
+              id: decoded.value.messageId ?? createId(),
+              role: "assistant",
+              parts: [],
+              createdAt: now(),
+            };
+            sendSession({ type: "stream-message", message });
+          }
+          if (decoded.value.type === "text-delta") {
+            message = appendText({ message, text: decoded.value.delta, now });
+            sendSession({ type: "stream-message", message });
+          }
+        }
+      }),
+    ),
+  );
+  return message;
+});
 
 export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTransportActorInput>(
   ({ input, receive }) => {
@@ -140,50 +208,16 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         input.sendSession({ type: "conversation-identified", conversationId });
       }
       if (!response.ok) throw new Error(`Chat request failed (${response.status}).`);
-      return await consumeStream({ activeOperation, response, now: input.now });
-    };
-
-    const consumeStream = async ({
-      activeOperation,
-      response,
-      now,
-    }: {
-      activeOperation: number;
-      response: Response;
-      now: () => string;
-    }): Promise<ChatMessage | undefined> => {
-      let buffer = "";
-      let message: ChatMessage | undefined;
-      for await (const chunk of responseStream(response)) {
-        if (activeOperation !== operation) return;
-        buffer += chunk;
-        const events = buffer.split("\n\n");
-        buffer = events.pop() ?? "";
-        for (const event of events) {
-          const data = event
-            .split("\n")
-            .find((line) => line.startsWith("data:"))
-            ?.slice("data:".length)
-            .trim();
-          if (data === undefined || data === "[DONE]") continue;
-          const decoded = readWireChunk(data);
-          if (Option.isNone(decoded)) continue;
-          if (decoded.value.type === "start") {
-            message = {
-              id: decoded.value.messageId ?? input.createId(),
-              role: "assistant",
-              parts: [],
-              createdAt: now(),
-            };
-            input.sendSession({ type: "stream-message", message });
-          }
-          if (decoded.value.type === "text-delta") {
-            message = appendText({ message, text: decoded.value.delta, now });
-            input.sendSession({ type: "stream-message", message });
-          }
-        }
-      }
-      return message;
+      return await Effect.runPromise(
+        consumeStreamEffect({
+          activeOperation,
+          response,
+          now: input.now,
+          createId: input.createId,
+          sendSession: input.sendSession,
+          isCurrent: (currentOperation) => currentOperation === operation,
+        }),
+      );
     };
 
     const run = async ({
@@ -241,7 +275,16 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
             },
           );
           if (!response.ok) throw new Error(`Chat resume failed (${response.status}).`);
-          await consumeStream({ activeOperation, response, now: input.now });
+          await Effect.runPromise(
+            consumeStreamEffect({
+              activeOperation,
+              response,
+              now: input.now,
+              createId: input.createId,
+              sendSession: input.sendSession,
+              isCurrent: (currentOperation) => currentOperation === operation,
+            }),
+          );
         } catch (cause) {
           if (controller.signal.aborted || activeOperation !== operation) return;
           input.sendSession({

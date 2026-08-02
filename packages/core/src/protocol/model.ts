@@ -3,7 +3,7 @@ import type * as Stream from "effect/Stream";
 import { GenerationIdSchema } from "./ids.ts";
 import { ChatMessageSchema } from "./messages.ts";
 import { MessagePartSchema } from "./parts.ts";
-import { TransportErrorSchema } from "./errors.ts";
+import { TransportErrorSchema, type TransportError } from "./errors.ts";
 
 export const ModelConfigurationSchema = Schema.Struct({
   model: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
@@ -26,11 +26,7 @@ export const GenerationEventSchema = Schema.Union([
 ]);
 export type GenerationEvent = typeof GenerationEventSchema.Type;
 
-export interface ModelProviderError {
-  readonly code: string;
-  readonly message: string;
-  readonly retryable: boolean;
-}
+export type ModelProviderError = TransportError;
 
 export interface ModelProvider {
   readonly generate: (

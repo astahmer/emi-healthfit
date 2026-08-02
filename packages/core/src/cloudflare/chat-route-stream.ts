@@ -217,73 +217,71 @@ export class ChatRouteStream {
               new ChatRouteStreamError({ message: "No tools are configured for this chat." }),
             ),
           ),
-        onFinish: async (event) => {
+        onFinish: (event) => {
           if (temporary) return;
-          const parts = ChatMessageParts.buildAssistantParts(event.response?.messages ?? []);
-          const assistantParts = parts.length > 0 ? parts : [{ type: "text", text: event.text }];
-          const savedAssistantIds = await Effect.runPromise(
-            conversationStore.messageStore.saveMessages({
-              conversationId,
-              parentId: assistantParentId,
-              messages: [
-                {
-                  role: "assistant",
-                  parts: assistantParts,
-                  model: decoded.value.config.model,
-                  usage: {
-                    prompt_tokens: event.usage.inputTokens,
-                    completion_tokens: event.usage.outputTokens,
-                    total_tokens: event.usage.totalTokens,
+          return Effect.runPromise(
+            Effect.gen(function* () {
+              const parts = yield* ChatMessageParts.buildAssistantPartsEffect(
+                event.response?.messages ?? [],
+              );
+              const assistantParts =
+                parts.length > 0 ? parts : [{ type: "text" as const, text: event.text }];
+              const savedAssistantIds = yield* conversationStore.messageStore.saveMessages({
+                conversationId,
+                parentId: assistantParentId,
+                messages: [
+                  {
+                    role: "assistant",
+                    parts: [...assistantParts],
+                    model: decoded.value.config.model,
+                    usage: {
+                      prompt_tokens: event.usage.inputTokens,
+                      completion_tokens: event.usage.outputTokens,
+                      total_tokens: event.usage.totalTokens,
+                    },
                   },
-                },
-              ],
-            }),
-          );
-          if (existingThread !== null) {
-            await Effect.runPromise(
-              Effect.forEach(
-                savedAssistantIds,
-                (messageId) =>
-                  conversationStore.threadStore.addThreadMessage({
-                    threadId: existingThread.id,
-                    messageId,
-                  }),
-                { discard: true },
-              ),
-            );
-          }
-          if (memoryEnabled && event.text.trim() !== "") {
-            await Effect.runPromise(
-              Effect.gen(function* () {
-                const existingMemories = yield* memoryStore.reader.list({ limit: 60 });
-                const snippets = yield* OpenAiChat.extractMemoriesEffect({
-                  configuration: memoryConfiguration,
-                  text: event.text,
-                  existingMemories: existingMemories.map((memoryRecord) => memoryRecord.content),
-                });
-                const ids = yield* memoryStore.writer.insertMany(
-                  snippets.map((content) => ({
-                    content,
-                    source: "auto",
-                    threadId: existingThread?.id,
-                    messageId: savedAssistantIds.at(-1),
-                  })),
+                ],
+              });
+              if (existingThread !== null) {
+                yield* Effect.forEach(
+                  savedAssistantIds,
+                  (messageId) =>
+                    conversationStore.threadStore.addThreadMessage({
+                      threadId: existingThread.id,
+                      messageId,
+                    }),
+                  { discard: true },
                 );
-                if (ids.length === 0) return;
-                yield* ChatRouteSupport.refreshMemorySummary({
-                  reader: memoryStore.reader,
-                  summary: memoryStore.summary,
-                  configuration: memoryConfiguration,
-                });
-              }).pipe(Effect.catch(() => Effect.void)),
-            );
-          }
-          if (titleSource !== undefined) {
-            const storedConversation = await Effect.runPromise(
-              conversationStore.conversationReader.get(conversationId),
-            );
-            if (storedConversation?.title === null) {
-              const title = await OpenAiChat.generateConversationTitle({
+              }
+              if (memoryEnabled && event.text.trim() !== "") {
+                yield* Effect.gen(function* () {
+                  const existingMemories = yield* memoryStore.reader.list({ limit: 60 });
+                  const snippets = yield* OpenAiChat.extractMemoriesEffect({
+                    configuration: memoryConfiguration,
+                    text: event.text,
+                    existingMemories: existingMemories.map((memoryRecord) => memoryRecord.content),
+                  });
+                  const ids = yield* memoryStore.writer.insertMany(
+                    snippets.map((content) => ({
+                      content,
+                      source: "auto",
+                      threadId: existingThread?.id,
+                      messageId: savedAssistantIds.at(-1),
+                    })),
+                  );
+                  if (ids.length === 0) return;
+                  yield* ChatRouteSupport.refreshMemorySummary({
+                    reader: memoryStore.reader,
+                    summary: memoryStore.summary,
+                    configuration: memoryConfiguration,
+                  });
+                }).pipe(Effect.catch(() => Effect.void));
+              }
+              if (titleSource === undefined) return;
+              const storedConversation =
+                yield* conversationStore.conversationReader.get(conversationId);
+              if (storedConversation?.title !== null) return;
+              const title = yield* OpenAiChat.generateConversationTitleEffect({
                 configuration: {
                   apiKey: decoded.value.config.apiKey,
                   baseUrl: decoded.value.config.baseUrl,
@@ -292,13 +290,10 @@ export class ChatRouteStream {
                 firstUserMessage: titleSource,
                 prompt: decoded.value.title?.prompt,
               });
-              if (title !== "") {
-                await Effect.runPromise(
-                  conversationStore.conversationWriter.rename({ conversationId, title }),
-                );
-              }
-            }
-          }
+              if (title === "") return;
+              yield* conversationStore.conversationWriter.rename({ conversationId, title });
+            }),
+          );
         },
       }).pipe(Effect.tapError(markGenerationFailed));
       const stream = OpenAiChat.toUiMessageStream({ result });

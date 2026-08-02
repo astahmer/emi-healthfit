@@ -18,16 +18,16 @@ export interface ChatExtensionDefinition {
   readonly id: string;
   readonly namespace?: string;
   readonly parts?: Readonly<Record<string, Schema.ConstraintDecoder<unknown>>>;
-  readonly tools?: Readonly<Record<string, unknown>>;
-  readonly navigation?: ReadonlyArray<unknown>;
+  readonly tools?: Readonly<Record<string, Schema.ConstraintDecoder<unknown>>>;
+  readonly navigation?: ReadonlyArray<Schema.Json>;
 }
 
 export interface ChatExtension {
   readonly id: string;
   readonly namespace: string;
   readonly parts: Readonly<Record<string, Schema.ConstraintDecoder<unknown>>>;
-  readonly tools: Readonly<Record<string, unknown>>;
-  readonly navigation: ReadonlyArray<unknown>;
+  readonly tools: Readonly<Record<string, Schema.ConstraintDecoder<unknown>>>;
+  readonly navigation: ReadonlyArray<Schema.Json>;
 }
 
 export class ChatExtensionError extends Schema.TaggedErrorClass<ChatExtensionError>()(
@@ -71,12 +71,21 @@ export class ChatExtensions {
         if (!Schema.isSchema(parts[name]))
           return yield* Effect.fail(invalidDefinition(`part ${name}: schema is required`));
       }
+      for (const name of Object.keys(tools)) {
+        if (!Schema.isSchema(tools[name]))
+          return yield* Effect.fail(invalidDefinition(`tool ${name}: schema is required`));
+      }
+      const navigation = yield* Effect.forEach(definition.navigation ?? [], (item) =>
+        Schema.decodeUnknownEffect(Schema.Json)(item).pipe(
+          Effect.mapError((error) => invalidDefinition(`navigation: ${error.message}`)),
+        ),
+      );
       return Object.freeze({
         id,
         namespace,
         parts: Object.freeze({ ...parts }),
         tools: Object.freeze({ ...tools }),
-        navigation: Object.freeze([...(definition.navigation ?? [])]),
+        navigation: Object.freeze([...navigation]),
       });
     });
   }
@@ -100,7 +109,7 @@ export class ChatExtensions {
           );
         ids.add(normalizedId);
         namespaces.add(normalizedNamespace);
-        for (const name of Object.keys(extension.parts)) {
+        for (const name of [...Object.keys(extension.parts), ...Object.keys(extension.tools)]) {
           const normalizedName = name.toLowerCase();
           if (contributions.has(normalizedName))
             return yield* Effect.fail(
@@ -126,7 +135,7 @@ export class ChatExtensions {
     readonly extension: ChatExtension;
     readonly name: string;
     readonly value: unknown;
-  }): Effect.Effect<unknown, ChatExtensionError> {
+  }): Effect.Effect<Schema.Json, ChatExtensionError> {
     const schema = extension.parts[name];
     if (schema === undefined)
       return Effect.fail(
@@ -136,6 +145,7 @@ export class ChatExtensions {
         }),
       );
     return Schema.decodeUnknownEffect(schema)(value).pipe(
+      Effect.flatMap((decoded) => Schema.decodeUnknownEffect(Schema.Json)(decoded)),
       Effect.mapError(
         (error) =>
           new ChatExtensionError({
