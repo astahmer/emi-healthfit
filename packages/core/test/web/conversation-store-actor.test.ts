@@ -194,6 +194,37 @@ describe("conversationStoreActor", () => {
     actor.stop();
   });
 
+  it("does not start a replacement stream when revision persistence fails", async () => {
+    const { actor, transportEvents } = createStore({
+      client: createClient({
+        reviseConversationMessage: async () => Promise.reject(new Error("Denied.")),
+      }),
+    });
+
+    actor.send({
+      type: "conversation-message-revision-requested",
+      conversationId: conversation.id,
+      messageId: message.id,
+      parts: [{ type: "text", text: "Revised" }],
+      request: {
+        conversationId: conversation.id,
+        threadId: undefined,
+        temporary: false,
+        messages: [],
+        text: "Revised",
+        files: [],
+        messageId: message.id,
+        replaceMessageId: message.id,
+        body: {},
+      },
+    });
+
+    await vi.waitFor(() => expect(actor.getSnapshot().context.error).toBe("Denied."));
+    expect(actor.getSnapshot().context.loading.mutation).toBe(false);
+    expect(transportEvents).toEqual([]);
+    actor.stop();
+  });
+
   it("emits one typed success event for a successful conversation deletion", async () => {
     let deleteCalls = 0;
     const { actor, sessionEvents } = createStore({
