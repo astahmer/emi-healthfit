@@ -7,22 +7,6 @@ import type { DiscordDatabaseSchema } from "../../src/server/db/discord-schema.t
 import type { QueryDatabaseClient } from "../../src/server/db/query-database.ts";
 import { makeSqliteDatabase } from "./sqlite.ts";
 
-const schemaDdl = `
-  CREATE TABLE discord_account_links (
-    discord_user_id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE discord_link_codes (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL,
-    code_hash TEXT NOT NULL UNIQUE,
-    expires_at TEXT NOT NULL,
-    consumed_at TEXT,
-    created_at TEXT NOT NULL
-  );
-`;
-
 let nextDatabaseId = 0;
 let nextRandomByte = 0;
 
@@ -39,7 +23,6 @@ const databaseRuntime = {
 
 const makeInMemoryDb = () =>
   makeSqliteDatabase<DiscordDatabaseSchema>({
-    schemaDdl,
     runtime: databaseRuntime,
   });
 

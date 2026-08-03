@@ -14,56 +14,6 @@ import { makeRequestContext } from "../../src/server/request-context.ts";
 import type { ConversationDatabaseSchema } from "../../src/server/db/schema.ts";
 import { makeSqliteDatabase } from "./sqlite.ts";
 
-const schemaDdl = `
-  CREATE TABLE conversations (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    title TEXT,
-    status TEXT NOT NULL DEFAULT 'regular',
-    pinned INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE messages (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    parent_id TEXT,
-    role TEXT NOT NULL,
-    parts TEXT NOT NULL,
-    prompt_tokens INTEGER,
-    completion_tokens INTEGER,
-    total_tokens INTEGER,
-    model TEXT,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE threads (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    anchor_message_id TEXT NOT NULL,
-    title TEXT,
-    status TEXT NOT NULL DEFAULT 'regular',
-    pinned INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE thread_messages (
-    user_id TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
-    message_id TEXT NOT NULL,
-    included_at TEXT NOT NULL,
-    PRIMARY KEY (user_id, thread_id, message_id)
-  );
-  CREATE TABLE suggestions (
-    user_id TEXT NOT NULL,
-    id TEXT NOT NULL,
-    suggestions TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (user_id, id)
-  );
-`;
-
 let nextDatabaseId = 0;
 
 const databaseRuntime = {
@@ -75,7 +25,6 @@ const databaseRuntime = {
 
 const makeInMemoryDb = () =>
   makeSqliteDatabase<ConversationDatabaseSchema>({
-    schemaDdl,
     runtime: databaseRuntime,
   });
 

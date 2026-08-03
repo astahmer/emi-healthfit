@@ -7,6 +7,7 @@ import {
   type DatabaseRuntime,
   type QueryDatabaseClient,
 } from "../../src/server/db/query-database.ts";
+import { schemaStatements } from "./schema.ts";
 
 const normalizeParameter = (value: unknown): SQLInputValue => {
   if (typeof value === "boolean") return Number(value);
@@ -62,16 +63,14 @@ class NodeSqliteDatabaseAdapter implements SqliteDatabase {
 }
 
 export const makeSqliteDatabase = <TSchema>({
-  schemaDdl,
   runtime,
   setup,
 }: {
-  readonly schemaDdl: string;
   readonly runtime: DatabaseRuntime;
   readonly setup?: (sqlite: DatabaseSync) => void;
 }): QueryDatabaseClient<TSchema> => {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(schemaDdl);
+  for (const statement of schemaStatements) sqlite.exec(statement);
   setup?.(sqlite);
   const kysely = new Kysely<TSchema>({
     dialect: new SqliteDialect({ database: new NodeSqliteDatabaseAdapter(sqlite) }),

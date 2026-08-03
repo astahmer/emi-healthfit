@@ -12,37 +12,12 @@ import type { MemoryDatabaseSchema } from "../../src/server/db/schema.ts";
 import { makeRequestContext } from "../../src/server/request-context.ts";
 import { makeSqliteDatabase } from "./sqlite.ts";
 
-const schemaDdl = `
-  CREATE TABLE memories (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    source TEXT,
-    thread_id TEXT,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE memory_summaries (
-    user_id TEXT PRIMARY KEY,
-    content TEXT NOT NULL,
-    memory_count INTEGER NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE notes (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`;
-
 const run = <Value, Error>(effect: Effect.Effect<Value, Error, never>) => Effect.runPromise(effect);
 
 describe("MemoryTools", () => {
   it("searches the merged summary first and source entries independently", async () => {
     const layer = MemoryStoreLive.layer({
       db: makeSqliteDatabase<MemoryDatabaseSchema>({
-        schemaDdl,
         runtime: {
           createId: () => "memory-1",
           now: () => "2026-08-03T00:00:00.000Z",

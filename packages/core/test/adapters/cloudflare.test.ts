@@ -5,52 +5,9 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import { CloudflareRepositories } from "../../src/adapters/cloudflare.export.ts";
 import { ChatServerError } from "../../src/server/use-cases/chat-server.ts";
+import { schemaStatements } from "../server/schema.ts";
 
 type CloudflareDatabaseShape = Parameters<typeof CloudflareRepositories.layer>[0]["database"];
-
-const schemaDdl = `
-  CREATE TABLE conversations (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL,
-    title TEXT,
-    status TEXT NOT NULL,
-    pinned INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE messages (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    parent_id TEXT,
-    role TEXT NOT NULL,
-    parts TEXT NOT NULL,
-    prompt_tokens INTEGER,
-    completion_tokens INTEGER,
-    total_tokens INTEGER,
-    model TEXT,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE chat_generations (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    request_id TEXT NOT NULL,
-    trace_id TEXT NOT NULL,
-    status TEXT NOT NULL,
-    error TEXT,
-    finish_reason TEXT,
-    model TEXT,
-    input_tokens INTEGER,
-    output_tokens INTEGER,
-    retry_count INTEGER NOT NULL,
-    started_at TEXT NOT NULL,
-    finished_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE (conversation_id, request_id)
-  );
-`;
 
 const toSqlInputValue = (value: unknown): SQLInputValue => {
   if (
@@ -110,11 +67,7 @@ class SqliteDatabase implements CloudflareDatabaseShape {
 
 const makeDatabase = (): CloudflareDatabaseShape => {
   const database = new DatabaseSync(":memory:");
-  for (const statement of schemaDdl
-    .split(";")
-    .map((value) => value.trim())
-    .filter(Boolean))
-    database.exec(statement);
+  for (const statement of schemaStatements) database.exec(statement);
   database
     .prepare(
       "INSERT INTO conversations (id, user_id, title, status, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",

@@ -132,6 +132,7 @@
     "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
     "esbuild": "catalog:",
     "jsdom": "catalog:",

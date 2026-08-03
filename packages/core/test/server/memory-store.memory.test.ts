@@ -11,30 +11,6 @@ import { makeRequestContext } from "../../src/server/request-context.ts";
 import type { MemoryDatabaseSchema } from "../../src/server/db/schema.ts";
 import { makeSqliteDatabase } from "./sqlite.ts";
 
-const schemaDdl = `
-  CREATE TABLE memories (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    source TEXT,
-    thread_id TEXT,
-    created_at TEXT NOT NULL
-  );
-  CREATE TABLE memory_summaries (
-    user_id TEXT PRIMARY KEY,
-    content TEXT NOT NULL,
-    memory_count INTEGER NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE notes (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`;
-
 const databaseRuntime = {
   createId: () => "memory-test-id",
   now: () => "2026-08-02T00:00:00.000Z",
@@ -44,7 +20,6 @@ const databaseRuntime = {
 
 const makeInMemoryDb = () =>
   makeSqliteDatabase<MemoryDatabaseSchema>({
-    schemaDdl,
     runtime: databaseRuntime,
   });
 

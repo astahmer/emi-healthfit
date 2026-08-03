@@ -15,45 +15,6 @@ import type { ConversationDatabaseSchema } from "../../src/server/db/schema.ts";
 import type { DatabaseSync } from "node:sqlite";
 import { makeSqliteDatabase } from "./sqlite.ts";
 
-const schemaDdl = `
-  CREATE TABLE conversations (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    title TEXT,
-    status TEXT NOT NULL,
-    pinned INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-  CREATE TABLE chat_generations (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    request_id TEXT NOT NULL,
-    trace_id TEXT NOT NULL,
-    status TEXT NOT NULL,
-    error TEXT,
-    finish_reason TEXT,
-    model TEXT,
-    input_tokens INTEGER,
-    output_tokens INTEGER,
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    started_at TEXT NOT NULL,
-    finished_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE (conversation_id, request_id)
-  );
-  CREATE TABLE chat_generation_chunks (
-    user_id TEXT NOT NULL,
-    generation_id TEXT NOT NULL,
-    sequence INTEGER NOT NULL,
-    chunk TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (user_id, generation_id, sequence)
-  );
-`;
-
 const databaseRuntime = {
   createId: () => "generation-test-id",
   now: () => "2026-08-02T00:00:00.000Z",
@@ -63,7 +24,6 @@ const databaseRuntime = {
 
 const makeInMemoryDb = () =>
   makeSqliteDatabase<ConversationDatabaseSchema>({
-    schemaDdl,
     runtime: databaseRuntime,
     setup: (sqlite: DatabaseSync) =>
       sqlite
