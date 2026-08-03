@@ -17,6 +17,21 @@ describe("chat request", () => {
     );
   });
 
+  it("rejects whitespace-only provider credentials and model names", () => {
+    assert.throws(() =>
+      Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+        messages: [],
+        config: { provider: "openai", apiKey: " ", model: "chat-model" },
+      }),
+    );
+    assert.throws(() =>
+      Schema.decodeUnknownSync(ChatStreamRequestSchema)({
+        messages: [],
+        config: { provider: "openai", apiKey: "key", model: " " },
+      }),
+    );
+  });
+
   it("accepts an optional title model and prompt override", () => {
     const decoded = Schema.decodeUnknownSync(ChatStreamRequestSchema)({
       messages: [],

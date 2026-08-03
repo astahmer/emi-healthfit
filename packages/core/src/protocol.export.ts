@@ -1,5 +1,8 @@
 import type {
   Attachment,
+  DynamicComponentElement,
+  DynamicComponentEnvelope,
+  DynamicComponentSpec,
   ExtensionPart,
   FileMessagePart,
   MessagePart,
@@ -58,6 +61,9 @@ export type {
   Conversation,
   ConversationDto,
   ExtensionPart,
+  DynamicComponentElement,
+  DynamicComponentEnvelope,
+  DynamicComponentSpec,
   FileMessagePart,
   GenerationEvent,
   GenerationId,

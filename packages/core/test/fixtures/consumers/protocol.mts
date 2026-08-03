@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   Conversation,
   ConversationDto,
+  DynamicComponentEnvelope,
   ErrorResponseDto,
   ExtensionPart,
   GenerationEvent,
@@ -36,6 +37,12 @@ const extensionPart: ExtensionPart = {
   namespace: "example.chat",
   name: "citation",
   data: { sourceId: "source-1" },
+};
+const dynamicComponent: DynamicComponentEnvelope = {
+  spec: {
+    root: "root",
+    elements: { root: { type: "card", props: { label: "Hello" } } },
+  },
 };
 declare const provider: ModelProvider;
 declare const conversation: ConversationDto;
@@ -71,6 +78,7 @@ const providerErrorPromise: Promise<ModelProviderError> = ChatProtocol.runPromis
 );
 
 void ChatProtocol.schemas.attachment;
+void ChatProtocol.schemas.dynamicComponentEnvelope;
 void ChatProtocol.schemas.chatMessage;
 void ChatProtocol.schemas.conversation;
 void ChatProtocol.schemas.errorResponseDto;
@@ -81,6 +89,7 @@ void ChatProtocol.schemas.thread;
 void ChatProtocol.schemas.memory;
 void event;
 void extensionPart;
+void dynamicComponent;
 void provider;
 void ids;
 void memory;

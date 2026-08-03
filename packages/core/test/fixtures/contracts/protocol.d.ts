@@ -25,6 +25,22 @@ export interface ExtensionPart {
   readonly data: JsonValue;
 }
 
+export interface DynamicComponentElement {
+  readonly type: string;
+  readonly props: JsonValueRecord;
+  readonly children?: ReadonlyArray<string>;
+  readonly visible?: boolean;
+}
+
+export interface DynamicComponentSpec {
+  readonly root: string;
+  readonly elements: Readonly<Record<string, DynamicComponentElement>>;
+}
+
+export interface DynamicComponentEnvelope {
+  readonly spec: DynamicComponentSpec;
+}
+
 export type JsonValue =
   | null
   | boolean
@@ -32,6 +48,7 @@ export type JsonValue =
   | string
   | ReadonlyArray<JsonValue>
   | { readonly [key: string]: JsonValue };
+export type JsonValueRecord = { readonly [key: string]: JsonValue };
 
 export type AttachmentId = string;
 export type ConversationId = string;
@@ -153,6 +170,9 @@ export declare class ProtocolDecodeError extends Error {}
 
 export interface ProtocolSchemas {
   readonly attachment: unknown;
+  readonly dynamicComponentElement: unknown;
+  readonly dynamicComponentEnvelope: unknown;
+  readonly dynamicComponentSpec: unknown;
   readonly attachmentId: unknown;
   readonly conversationId: unknown;
   readonly generationId: unknown;

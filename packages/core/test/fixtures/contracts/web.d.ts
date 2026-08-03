@@ -10,6 +10,21 @@ export interface WebMcpModelContext {
   ): Promise<void>;
 }
 
+export interface ComponentRendererContribution {
+  readonly name: string;
+  readonly component: (input: {
+    readonly props: Readonly<Record<string, unknown>>;
+    readonly children: unknown;
+    readonly className?: string;
+  }) => unknown;
+}
+
+export declare const decodeDynamicComponent: (value: unknown) => unknown;
+export declare const DynamicComponentRenderer: (input: {
+  readonly value: unknown;
+  readonly className?: string;
+}) => unknown;
+
 export declare class WebMcp {
   static detect(source: object): WebMcpModelContext | undefined;
 }

@@ -462,10 +462,14 @@ describe("generic web and worker local API topology", () => {
         method: "POST",
       });
       expect(compactResponse.status).toBe(201);
-      const compacted = Schema.decodeUnknownSync(
-        Schema.Struct({ conversation: Schema.Struct({ title: Schema.NullOr(Schema.String) }) }),
-      )(await compactResponse.json()).conversation;
-      expect(compacted.title).toContain("compacted");
+      const compactedPayload = Schema.decodeUnknownSync(
+        Schema.Struct({
+          conversation: Schema.Struct({ title: Schema.NullOr(Schema.String) }),
+          summary: Schema.Struct({ content: Schema.String, sourceConversationId: Schema.String }),
+        }),
+      )(await compactResponse.json());
+      expect(compactedPayload.conversation.title).toContain("compacted");
+      expect(compactedPayload.summary.sourceConversationId).toBe(conversationId);
 
       const temporaryResponse = await authenticated("/api/chat", {
         body: JSON.stringify({

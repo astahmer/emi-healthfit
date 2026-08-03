@@ -6,6 +6,7 @@ export declare class Chat {
     readonly chatModelConfiguration: unknown;
     readonly chatStreamRequest: unknown;
     readonly compactConversationRequest: unknown;
+    readonly compactedSummary: unknown;
     readonly genericChatSettings: unknown;
     readonly release: unknown;
     readonly releaseHistory: unknown;

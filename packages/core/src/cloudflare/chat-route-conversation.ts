@@ -1,4 +1,4 @@
-import { CompactConversationRequestSchema } from "../chat/request.ts";
+import { CompactConversationRequestSchema, CompactedSummarySchema } from "../chat/request.ts";
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
 import { ConversationDatabase } from "../server/db/conversations.ts";
@@ -183,7 +183,13 @@ export class ChatRouteConversation {
         );
       }
       return yield* HttpServerResponse.json(
-        { conversation: ChatRouteSupport.conversationResponse(compacted) },
+        {
+          conversation: ChatRouteSupport.conversationResponse(compacted),
+          summary: Schema.decodeUnknownSync(CompactedSummarySchema)({
+            content: summary,
+            sourceConversationId: conversationId,
+          }),
+        },
         { status: 201 },
       );
     });

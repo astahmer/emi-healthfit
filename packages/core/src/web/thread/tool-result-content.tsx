@@ -5,6 +5,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { useToolRenderer } from "../contributions.tsx";
 import { cn } from "../cn.ts";
+import { decodeDynamicComponent, DynamicComponentRenderer } from "../dynamic-components.tsx";
 import { isSafeMarkdownHref } from "./markdown-url-policy.ts";
 
 interface Citation {
@@ -29,7 +30,6 @@ const ErrorText = Schema.Struct({
   type: Schema.Literal("error-text"),
   value: Schema.optional(Schema.Unknown),
 });
-const RenderComponentResult = Schema.Struct({ spec: Schema.Unknown });
 const JsonResult = Schema.fromJsonString(Schema.Unknown);
 
 const parseResult = (result: unknown): unknown =>
@@ -117,13 +117,15 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({
     return <WebSearchCitations citations={citations} />;
   }
 
-  const renderComponentResult = Schema.decodeUnknownOption(RenderComponentResult)(parsed);
-  if (
-    toolName === "render_component" &&
-    Option.isSome(renderComponentResult) &&
-    renderComponent !== undefined
-  ) {
-    return <>{renderComponent(renderComponentResult.value.spec)}</>;
+  if (toolName === "render_component") {
+    const dynamicComponent = decodeDynamicComponent(parsed);
+    if (dynamicComponent === undefined) {
+      return (
+        <FallbackResult value={{ type: "dynamic-component-fallback", reason: "invalid-spec" }} />
+      );
+    }
+    if (renderComponent !== undefined) return <>{renderComponent(dynamicComponent.spec)}</>;
+    return <DynamicComponentRenderer className={className} value={dynamicComponent} />;
   }
 
   return <FallbackResult value={parsed} className={className} />;

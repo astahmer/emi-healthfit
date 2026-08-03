@@ -9,7 +9,12 @@ import { AuthSession } from "./web/auth/auth-session.ts";
 import { WebMcp } from "./web/webmcp.ts";
 import type { WebMcpModelContext } from "./web/webmcp.ts";
 import { ChatShell } from "./web/chat-shell.tsx";
-import { CoreWebProvider, useCoreWebContributions, useToolRenderer } from "./web/contributions.tsx";
+import {
+  CoreWebProvider,
+  useComponentRenderer,
+  useCoreWebContributions,
+  useToolRenderer,
+} from "./web/contributions.tsx";
 import type {
   CoreWebContributions,
   NavContribution,
@@ -17,6 +22,11 @@ import type {
   ResolvedCoreWebContributions,
   ToolRendererContribution,
 } from "./web/contributions.tsx";
+import { decodeDynamicComponent, DynamicComponentRenderer } from "./web/dynamic-components.tsx";
+import type {
+  ComponentRendererContribution,
+  DynamicComponentRendererProps,
+} from "./web/dynamic-components.tsx";
 import { conversationMarkdown } from "./web/conversation/conversation-markdown.ts";
 import {
   getChildMessages,
@@ -72,6 +82,8 @@ export {
   ChatShell,
   conversationMarkdown,
   CoreWebProvider,
+  decodeDynamicComponent,
+  DynamicComponentRenderer,
   AnonymousSession,
   AuthSession,
   createConversationClient,
@@ -98,6 +110,7 @@ export {
   ToolPart,
   ToolResultContent,
   useCoreWebContributions,
+  useComponentRenderer,
   useIsMobile,
   useThreadViewportScroll,
   useToolRenderer,
@@ -108,6 +121,7 @@ export {
 
 export type {
   ComposerControls,
+  ComponentRendererContribution,
   ComposerModelOption,
   ConversationMessageNode,
   ConversationMessagePart,
@@ -123,5 +137,6 @@ export type {
   ResolvedCoreWebContributions,
   ThreadViewportProps,
   ToolRendererContribution,
+  DynamicComponentRendererProps,
   WebMcpModelContext,
 };

@@ -22,6 +22,7 @@ const Json = Schema.String.pipe(
   Schema.decodeTo(Schema.Unknown, SchemaTransformation.fromJsonString),
 );
 const GeneratedStrings = Schema.Array(Schema.String);
+const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/));
 
 export interface OpenAiCompatibleConfiguration {
   provider: "openai";
@@ -35,8 +36,8 @@ export interface OpenAiCompatibleConfiguration {
 export const OpenAiCompatibleConfigurationSchema = Schema.Struct({
   provider: Schema.Literal("openai"),
   baseUrl: Schema.optional(Schema.String),
-  apiKey: Schema.String.check(Schema.isMinLength(1)),
-  model: Schema.String.check(Schema.isMinLength(1)),
+  apiKey: nonEmptyText,
+  model: nonEmptyText,
   system: Schema.optional(Schema.String),
 });
 

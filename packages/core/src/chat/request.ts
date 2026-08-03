@@ -2,11 +2,13 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { ChatMessageSchema } from "../protocol/messages.ts";
 
+const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/));
+
 export const ChatModelConfigurationSchema = Schema.Struct({
-  provider: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
+  provider: nonEmptyText,
   baseUrl: Schema.optional(Schema.String),
-  apiKey: Schema.String.check(Schema.isMinLength(1)),
-  model: Schema.String.check(Schema.isMinLength(1)),
+  apiKey: nonEmptyText,
+  model: nonEmptyText,
   system: Schema.optional(Schema.String),
 });
 
@@ -16,9 +18,15 @@ export const CompactConversationRequestSchema = Schema.Struct({
   config: ChatModelConfigurationSchema,
 });
 
+export const CompactedSummarySchema = Schema.Struct({
+  content: nonEmptyText,
+  sourceConversationId: nonEmptyText,
+});
+export type CompactedSummary = typeof CompactedSummarySchema.Type;
+
 export const ChatMemoryRequestSchema = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
-  model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+  model: Schema.optional(nonEmptyText),
 });
 
 export const ChatStreamRequestSchema = Schema.Struct({
@@ -27,7 +35,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
   config: ChatModelConfigurationSchema,
   title: Schema.optional(
     Schema.Struct({
-      model: Schema.optional(Schema.String.check(Schema.isMinLength(1))),
+      model: Schema.optional(nonEmptyText),
       prompt: Schema.optional(Schema.String),
     }),
   ),

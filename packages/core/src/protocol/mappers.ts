@@ -10,6 +10,9 @@ import {
 } from "./messages.ts";
 import {
   AttachmentSchema,
+  DynamicComponentElementSchema,
+  DynamicComponentEnvelopeSchema,
+  DynamicComponentSpecSchema,
   ExtensionPartSchema,
   MessagePartSchema,
   ToolCallSchema,
@@ -56,6 +59,9 @@ import { TransportErrorSchema } from "./errors.ts";
 
 const protocolSchemas = {
   attachment: AttachmentSchema,
+  dynamicComponentElement: DynamicComponentElementSchema,
+  dynamicComponentEnvelope: DynamicComponentEnvelopeSchema,
+  dynamicComponentSpec: DynamicComponentSpecSchema,
   attachmentId: AttachmentIdSchema,
   conversationId: ConversationIdSchema,
   generationId: GenerationIdSchema,

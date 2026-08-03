@@ -21,6 +21,7 @@ import type {
   ChatOperationCategory as ChatOperationCategoryType,
 } from "./chat/operation-budget.ts";
 import type { GenericChatSettings as GenericChatSettingsType } from "./chat/settings.ts";
+import type { CompactedSummary as CompactedSummaryType } from "./chat/request.ts";
 
 export class Chat {
   static readonly schemas = {
@@ -29,6 +30,7 @@ export class Chat {
     chatModelConfiguration: ChatRequest.ChatModelConfigurationSchema,
     chatStreamRequest: ChatRequest.ChatStreamRequestSchema,
     compactConversationRequest: ChatRequest.CompactConversationRequestSchema,
+    compactedSummary: ChatRequest.CompactedSummarySchema,
     genericChatSettings: ChatSettings.GenericChatSettingsSchema,
     openAiCompatibleConfiguration: OpenAiChat.configurationSchema,
     release: AppConfig.ChatReleaseSchema,
@@ -117,3 +119,4 @@ export type ChatAppConfig = AppConfig.ChatAppConfig;
 export type ChatRelease = AppConfig.ChatRelease;
 export type ChatReleaseHistory = AppConfig.ChatReleaseHistory;
 export type ChatSettingsDescriptor = AppConfig.ChatSettingsDescriptor;
+export type CompactedSummary = CompactedSummaryType;

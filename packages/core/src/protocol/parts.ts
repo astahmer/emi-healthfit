@@ -10,6 +10,10 @@ const safeAttachmentUrl = Schema.String.check(
 );
 const extensionNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/i));
 const extensionName = Schema.String.check(Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/i));
+const componentIdentifier = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/i),
+);
 
 export const AttachmentSchema = Schema.Struct({
   id: AttachmentIdSchema,
@@ -98,3 +102,22 @@ export const ExtensionPartSchema = Schema.Struct({
   data: Schema.Json,
 });
 export type ExtensionPart = typeof ExtensionPartSchema.Type;
+
+export const DynamicComponentElementSchema = Schema.Struct({
+  type: componentIdentifier,
+  props: Schema.Record(Schema.String, Schema.Json),
+  children: Schema.optional(Schema.Array(componentIdentifier)),
+  visible: Schema.optional(Schema.Boolean),
+});
+export type DynamicComponentElement = typeof DynamicComponentElementSchema.Type;
+
+export const DynamicComponentSpecSchema = Schema.Struct({
+  root: componentIdentifier,
+  elements: Schema.Record(Schema.String, DynamicComponentElementSchema),
+});
+export type DynamicComponentSpec = typeof DynamicComponentSpecSchema.Type;
+
+export const DynamicComponentEnvelopeSchema = Schema.Struct({
+  spec: DynamicComponentSpecSchema,
+});
+export type DynamicComponentEnvelope = typeof DynamicComponentEnvelopeSchema.Type;

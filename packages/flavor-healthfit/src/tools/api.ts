@@ -7,6 +7,7 @@ import * as Stream from "effect/Stream";
 import * as Tool from "effect/unstable/ai/Tool";
 import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
+import { ChatProtocol } from "@emi/core/protocol";
 import { ConversationSearchTool, MemoryTools } from "@emi/core/server";
 import { ServerDatabase } from "@emi/core/server/database";
 import { buildChatContext } from "../chat/context.ts";
@@ -266,13 +267,15 @@ const RenderComponent = Tool.make("render_component", {
       description:
         "WorkoutTable, ExerciseProgress, SleepTrend, WorkoutStreak, TrainingLoad, RecoveryTimeline, GoalProgress, NextWorkout, RecoveryCard, MetricCard, or SetList.",
     }),
-    props: Schema.Record(Schema.String, Schema.Unknown).annotate({
+    props: Schema.Record(Schema.String, Schema.Json).annotate({
       description: "Props for the selected component.",
     }),
   }),
-  success: Schema.Unknown,
+  success: ChatProtocol.schemas.dynamicComponentEnvelope,
   failure: Schema.Unknown,
 });
+
+const DynamicComponentProps = Schema.Record(Schema.String, Schema.Json);
 
 const MetricCardProps = Schema.Struct({
   label: Schema.String,
@@ -690,13 +693,20 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
           message: `Invalid ${component} props: ${String(parsed.failure)}`,
         });
       }
+      const jsonProps = Schema.decodeUnknownResult(DynamicComponentProps)(parsed.success);
+      if (Result.isFailure(jsonProps)) {
+        return yield* toolError({
+          tool: "render_component",
+          message: `Invalid ${component} JSON props: ${String(jsonProps.failure)}`,
+        });
+      }
       return {
         spec: {
           root: "root",
           elements: {
             root: {
               type: component,
-              props: parsed.success,
+              props: jsonProps.success,
             },
           },
         },

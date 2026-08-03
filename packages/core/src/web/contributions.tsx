@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ComponentType, type ReactNode } from "react";
+import type { ComponentRendererContribution } from "./dynamic-components.tsx";
 
 export interface NavContribution {
   id: string;
@@ -24,6 +25,7 @@ export interface CoreWebContributions {
   nav?: NavContribution[];
   pages?: PageContribution[];
   toolRenderers?: ToolRendererContribution[];
+  componentRenderers?: ComponentRendererContribution[];
 }
 
 export interface ResolvedCoreWebContributions {
@@ -31,6 +33,8 @@ export interface ResolvedCoreWebContributions {
   pages: PageContribution[];
   toolRenderers: ToolRendererContribution[];
   toolRendererByName: ReadonlyMap<string, ToolRendererContribution["component"]>;
+  componentRenderers: ComponentRendererContribution[];
+  componentRendererByName: ReadonlyMap<string, ComponentRendererContribution["component"]>;
 }
 
 const byOrder = (a: NavContribution, b: NavContribution): number => {
@@ -57,7 +61,18 @@ const resolveContributions = (
   const toolRendererByName = new Map(
     toolRenderers.map((renderer) => [renderer.toolName, renderer.component]),
   );
-  return { nav, pages, toolRenderers, toolRendererByName };
+  const componentRenderers = contributions.componentRenderers ?? [];
+  const componentRendererByName = new Map(
+    componentRenderers.map((renderer) => [renderer.name, renderer.component]),
+  );
+  return {
+    nav,
+    pages,
+    toolRenderers,
+    toolRendererByName,
+    componentRenderers,
+    componentRendererByName,
+  };
 };
 
 const emptyContributions = resolveContributions({});
@@ -87,4 +102,11 @@ export const useToolRenderer = (
 ): ToolRendererContribution["component"] | undefined => {
   const { toolRendererByName } = useCoreWebContributions();
   return toolRendererByName.get(toolName);
+};
+
+export const useComponentRenderer = (
+  name: string,
+): ComponentRendererContribution["component"] | undefined => {
+  const { componentRendererByName } = useCoreWebContributions();
+  return componentRendererByName.get(name);
 };
