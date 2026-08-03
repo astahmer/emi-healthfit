@@ -2,12 +2,13 @@
 
 ## Core architecture
 
-| Plan                                                          | Status             | Role                                                                                                  |
-| ------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
-| [Core API rewrite](./core-api-rewrite-plan.md)                | ACTIVE / NORMATIVE | Clean-slate public API, architecture, distribution model, and agent work packets.                     |
-| [Core audit report](./core-audit-report.md)                   | REFERENCE          | Evidence, completed fixes, remaining findings, and release-gate history.                              |
-| [Core maintainability audit](./core-maintainability-audit.md) | REFERENCE          | Whole-codebase findings, Effect follow-ups, safe improvements, and unresolved architecture questions. |
-| [Core chat platform](./core-chat-platform.md)                 | ACTIVE             | Broader generic chat product, generated-app, and deployment migration.                                |
+| Plan                                                                  | Status             | Role                                                                                                  |
+| --------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| [Core API rewrite](./core-api-rewrite-plan.md)                        | ACTIVE / NORMATIVE | Clean-slate public API, architecture, distribution model, and agent work packets.                     |
+| [Core audit report](./core-audit-report.md)                           | REFERENCE          | Evidence, completed fixes, remaining findings, and release-gate history.                              |
+| [Core maintainability audit](./core-maintainability-audit.md)         | REFERENCE          | Whole-codebase findings, Effect follow-ups, safe improvements, and unresolved architecture questions. |
+| [Core chat solutions comparison](./core-chat-solutions-comparison.md) | REFERENCE          | Comparable chat products, SDKs, capability gaps, and recommended next boundaries.                     |
+| [Core chat platform](./core-chat-platform.md)                         | ACTIVE             | Broader generic chat product, generated-app, and deployment migration.                                |
 
 Start core work with the rewrite plan. Use the audit report to understand why a boundary exists;
 use the platform plan for product-level fixture and deployment work.
