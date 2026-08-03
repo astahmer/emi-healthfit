@@ -13,6 +13,8 @@ export interface ChatSession {
   threadId: string | undefined;
   messages: ChatMessage[];
   resumeMessageId: string | undefined;
+  streamOrigin: "send" | "resume" | undefined;
+  streamOutcome: "completed" | "failed" | "cancelled" | undefined;
   draft: string;
   files: Attachment[];
   temporary: boolean;
@@ -33,6 +35,8 @@ export type ChatSessionEvent =
   | { type: "stream-started"; messages: ChatMessage[] }
   | { type: "stream-resumed" }
   | { type: "stream-message"; message: ChatMessage }
+  | { type: "stream-completed" }
+  | { type: "stream-cancelled" }
   | { type: "stream-finished" }
   | { type: "error-reported"; error: string; messageId?: string }
   | { type: "error-cleared" }
@@ -47,6 +51,8 @@ export const initialChatSession: ChatSession = {
   threadId: undefined,
   messages: [],
   resumeMessageId: undefined,
+  streamOrigin: undefined,
+  streamOutcome: undefined,
   draft: "",
   files: [],
   temporary: false,
@@ -119,6 +125,8 @@ export const chatSessionMachine = setup({
         ? {
             messages: event.messages,
             resumeMessageId: undefined,
+            streamOrigin: "send",
+            streamOutcome: undefined,
             draft: "",
             files: [],
             error: undefined,
@@ -131,6 +139,8 @@ export const chatSessionMachine = setup({
       return {
         error: undefined,
         resumeMessageId: lastMessage?.role === "assistant" ? lastMessage.id : undefined,
+        streamOrigin: "resume",
+        streamOutcome: undefined,
       };
     }),
     updateStream: assign(({ context, event }) => {
@@ -144,10 +154,12 @@ export const chatSessionMachine = setup({
         resumeMessageId: undefined,
       };
     }),
+    completeStream: assign({ streamOutcome: () => "completed" as const }),
+    cancelStream: assign({ streamOutcome: () => "cancelled" as const }),
     finishStream: assign({ resumeMessageId: () => undefined }),
     reportError: assign(({ event }) =>
       event.type === "error-reported"
-        ? { error: event.error, errorMessageId: event.messageId }
+        ? { error: event.error, errorMessageId: event.messageId, streamOutcome: "failed" as const }
         : {},
     ),
     clearError: assign({ error: () => undefined, errorMessageId: () => undefined }),
@@ -223,6 +235,8 @@ export const chatSessionMachine = setup({
         "thread-opened": { target: "idle", actions: "openThread" },
         "conversation-identified": { actions: "identifyConversation" },
         "stream-message": { actions: "updateStream" },
+        "stream-completed": { actions: "completeStream" },
+        "stream-cancelled": { actions: "cancelStream" },
         "stream-finished": { target: "idle", actions: "finishStream" },
         "error-reported": { actions: "reportError" },
         "error-cleared": { actions: "clearError" },

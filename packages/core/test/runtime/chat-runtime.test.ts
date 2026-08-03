@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createChatRuntime } from "../../src/runtime.export.ts";
+import type { ChatMessage } from "../../src/protocol/messages.ts";
 
 const conversation = {
   id: "conversation-1",
@@ -58,6 +59,7 @@ const createFetch =
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const pathname = new URL(url, "http://localhost").pathname;
     if (pathname === "/api/chat") return streamResponse();
+    if (pathname === "/api/chat/conversation-1/stream") return new Response(null, { status: 204 });
     if (pathname === "/api/conversations") return response({ conversations: [conversation] });
     if (pathname === "/api/conversations/conversation-1/messages/user-original")
       return response({ ok: true });
@@ -90,9 +92,15 @@ const createStorage = () => {
 const createOptions = ({
   drafts = createStorage(),
   conversationMessages = [],
+  onStreamCompleted,
 }: {
   drafts?: ReturnType<typeof createStorage>;
   conversationMessages?: StoredMessage[];
+  onStreamCompleted?: (input: {
+    conversationId: string;
+    message: ChatMessage;
+    temporary: boolean;
+  }) => void;
 } = {}) => {
   const settings = createStorage();
   let onlineListener: ((online: boolean) => void) | undefined;
@@ -125,6 +133,7 @@ const createOptions = ({
       },
     },
     identity: { createId: () => "user-1", now: () => "2026-01-01T00:00:00.000Z" },
+    lifecycle: onStreamCompleted === undefined ? undefined : { onStreamCompleted },
   };
   return { options, setOnline: (online: boolean) => onlineListener?.(online) };
 };
@@ -245,6 +254,35 @@ describe("createChatRuntime", () => {
     expect(revisionBody).toEqual({
       parts: [{ type: "text", text: "Revised" }],
     });
+    runtime.dispose();
+  });
+
+  it("notifies the lifecycle adapter only after a completed send stream", async () => {
+    const target = {
+      id: "user-original",
+      role: "user" as const,
+      parts: JSON.stringify([{ type: "text", text: "Original" }]),
+      model: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    } satisfies StoredMessage;
+    const onStreamCompleted = vi.fn();
+    const fixture = createOptions({
+      conversationMessages: [target],
+      onStreamCompleted,
+    });
+    const runtime = createChatRuntime(fixture.options);
+
+    runtime.start();
+    runtime.actions.selectConversation({ conversationId: conversation.id });
+    await vi.waitFor(() => {
+      expect(runtime.getState().activeThread.messages).toHaveLength(1);
+    });
+
+    runtime.actions.sendMessage({ text: "New question" });
+    await vi.waitFor(() => expect(onStreamCompleted).toHaveBeenCalledTimes(1));
+    expect(onStreamCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: conversation.id, temporary: false }),
+    );
     runtime.dispose();
   });
 });

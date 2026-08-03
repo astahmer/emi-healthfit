@@ -99,6 +99,25 @@ describe("chatSessionMachine", () => {
     expect(actor.getSnapshot().context.messages).toEqual([message, persistedAssistant]);
   });
 
+  it("records a completed send separately from stream cleanup", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message],
+    });
+    actor.send({ type: "stream-started", messages: [message] });
+    actor.send({ type: "stream-message", message: persistedAssistant });
+    actor.send({ type: "stream-completed" });
+
+    expect(actor.getSnapshot().context.streamOrigin).toBe("send");
+    expect(actor.getSnapshot().context.streamOutcome).toBe("completed");
+
+    actor.send({ type: "stream-finished" });
+    expect(actor.getSnapshot().context.streamOutcome).toBe("completed");
+  });
+
   it("removes a queued follow-up after a stream has already finished", () => {
     const actor = createActor(chatSessionMachine);
     actor.start();

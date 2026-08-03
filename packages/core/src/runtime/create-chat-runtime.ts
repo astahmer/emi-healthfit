@@ -250,7 +250,31 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
 
   const invalidate = () => {
     const session = actor.getSnapshot().children.session;
-    const isStreaming = session?.getSnapshot().matches("streaming") ?? false;
+    const sessionSnapshot = session?.getSnapshot();
+    const sessionContext = sessionSnapshot?.context;
+    const isStreaming = sessionSnapshot?.matches("streaming") ?? false;
+    const onStreamCompleted = options.lifecycle?.onStreamCompleted;
+    const completedMessage = sessionContext?.messages.findLast(
+      (message) => message.role === "assistant",
+    );
+    const completedConversationId = sessionContext?.conversationId;
+    if (
+      wasStreaming &&
+      !isStreaming &&
+      sessionContext?.streamOrigin === "send" &&
+      sessionContext.streamOutcome === "completed" &&
+      completedConversationId !== undefined &&
+      completedMessage !== undefined &&
+      onStreamCompleted !== undefined
+    ) {
+      void (async () => {
+        await onStreamCompleted({
+          conversationId: completedConversationId,
+          message: completedMessage,
+          temporary: sessionContext.temporary,
+        });
+      })().catch(() => undefined);
+    }
     const shouldDrain = autoDrainQueuedFollowUps && wasStreaming && !isStreaming;
     wasStreaming = isStreaming;
     cachedActorSnapshot = undefined;
@@ -297,6 +321,8 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         threadId: undefined,
         messages: [],
         resumeMessageId: undefined,
+        streamOrigin: undefined,
+        streamOutcome: undefined,
         draft: "",
         files: [],
         temporary: false,

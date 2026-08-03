@@ -319,6 +319,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               config: Schema.decodeUnknownSync(ChatModelConfigurationSchema)(request.body.config),
             });
         }
+        input.sendSession({ type: "stream-completed" });
       } catch (cause) {
         if (controller.signal.aborted || activeOperation !== operation) return;
         input.sendSession({
@@ -374,6 +375,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               isCurrent: (currentOperation) => currentOperation === operation,
             }),
           );
+          input.sendSession({ type: "stream-completed" });
         } catch (cause) {
           if (controller.signal.aborted || activeOperation !== operation) return;
           input.sendSession({
@@ -398,6 +400,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         resume(event.conversationId);
       if (event.type === "stream-cancelled") {
         supersede();
+        input.sendSession({ type: "stream-cancelled" });
         input.sendSession({ type: "stream-finished" });
       }
       if (event.type === "queued-follow-up-force-requested") {

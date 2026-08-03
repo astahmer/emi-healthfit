@@ -70,6 +70,13 @@ export interface ChatRuntimeOptions {
     readonly suggestions?: boolean;
     readonly webSearch?: boolean;
   };
+  readonly lifecycle?: {
+    readonly onStreamCompleted?: (input: {
+      readonly conversationId: string;
+      readonly message: ChatMessage;
+      readonly temporary: boolean;
+    }) => void | Promise<void>;
+  };
 }
 
 export interface WebMcpState {

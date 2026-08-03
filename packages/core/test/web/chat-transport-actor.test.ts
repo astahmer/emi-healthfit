@@ -110,6 +110,7 @@ describe("chatTransportActor", () => {
       type: "conversation-identified",
       conversationId: "chat-1",
     });
+    expect(sessionEvents).toContainEqual({ type: "stream-completed" });
     expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
       expect.objectContaining({ type: "text", text: "Hi there" }),
     );
@@ -237,6 +238,7 @@ describe("chatTransportActor", () => {
     actor.send({ type: "stream-cancelled" });
 
     expect(observedSignal?.aborted).toBe(true);
+    expect(sessionEvents.at(-2)).toEqual({ type: "stream-cancelled" });
     expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
     actor.stop();
   });
@@ -270,6 +272,7 @@ describe("chatTransportActor", () => {
       expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
     });
     expect(sessionEvents).toContainEqual({ type: "stream-resumed" });
+    expect(sessionEvents).toContainEqual({ type: "stream-completed" });
     expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
       expect.objectContaining({ type: "text", text: "Resumed" }),
     );
@@ -286,6 +289,7 @@ describe("chatTransportActor", () => {
 
     await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
     expect(sessionEvents).not.toContainEqual(expect.objectContaining({ type: "error-reported" }));
+    expect(sessionEvents).not.toContainEqual({ type: "stream-completed" });
     actor.stop();
   });
 
