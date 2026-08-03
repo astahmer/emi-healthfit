@@ -72,7 +72,7 @@ const toQueuedFollowUp = ({
   files: attachments.map(toFilePart),
 });
 
-const toCoreMessages = ({ messages }: { messages: ReadonlyArray<ChatMessage> }) =>
+const toUiMessages = ({ messages }: { messages: ReadonlyArray<ChatMessage> }) =>
   messages.map(toUiMessage);
 
 const decodeTransportError = async ({
@@ -127,7 +127,7 @@ export const ChatRuntimeProvider = ({
           createConversation,
           streamDecoder: healthFitChatStreamDecoder,
           errorDecoder: decodeTransportError,
-          messageEncoder: ({ messages }) => toCoreMessages({ messages: messages.slice(-1) }),
+          messageEncoder: ({ messages }) => toUiMessages({ messages: messages.slice(-1) }),
           requestBody: ({ settings: coreSettings }) => {
             const currentSettings = settingsRef.current;
             const currentConfig = configRef.current;
