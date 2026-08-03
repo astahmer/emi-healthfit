@@ -4,7 +4,6 @@ import type * as Stream from "effect/Stream";
 import type { ChatMessage } from "../../protocol/messages.ts";
 import type { Conversation } from "../../protocol/resources.ts";
 import type { GenerationEvent, ModelConfiguration } from "../../protocol/model.ts";
-import type { ChatExtension } from "../../extensions.ts";
 import type { ChatServerError } from "../use-cases/chat-server.ts";
 
 export interface ChatServerPrincipal {
@@ -79,7 +78,6 @@ export class ChatModel extends Context.Service<ChatModel, ChatModelShape>()(
 
 export interface ChatServerConfigurationShape {
   readonly model: ModelConfiguration;
-  readonly extensions: ReadonlyArray<ChatExtension>;
 }
 
 export class ChatServerConfiguration extends Context.Service<

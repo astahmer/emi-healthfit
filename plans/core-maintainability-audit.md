@@ -22,15 +22,16 @@ mostly consolidation problems: some advanced boundaries still contain provider-s
 some domains are too large to reason about locally, and the repository currently has two server
 composition models. Those are solvable, but several require an explicit architectural decision.
 
-## Safe improvement made during this audit
+## Safe improvements made during this audit
 
 The earlier core API documentation referred to the removed `packages/core/src/chat/openai.ts`. The
 implementation is now under `packages/core/src/adapters/ai-sdk/openai-chat.ts`; the current API
 contract lives in `docs/core-api.md` so future agents do not follow a dead path. This report remains
 in the plans index because its maintainability follow-ups are not complete.
 
-No runtime behavior was changed during this audit. The existing working-copy revision
-`refactor(api): consume Effect-first chat programs` was preserved as-is.
+The unused `ChatServerConfiguration.extensions` field was removed from the server configuration
+contract. Extensions remain available through the explicit extension composition surface until
+server prompt/tool composition has a real owner.
 
 ## What is strong and should stay
 
@@ -78,7 +79,7 @@ between quick syntax checks and cross-file/package checks is the correct model.
 | P1       | Persistence domains are too large despite granular ports.                            | `packages/core/src/server/db/conversations.ts` is 1,116 lines; `generations.ts` is 775; `memories.ts` is 471.                                                                                                                | Split implementation files by domain capability—conversation, message, thread, suggestion, generation lifecycle—while retaining one composite adapter where that is useful. Keep the current granular ports; do not create one mock for the entire database.                | Strong recommendation                      |
 | P1       | HealthFit persistence still uses Promise-first database composition.                 | `packages/flavor-healthfit/src/db/fitness.ts` is 1,121 lines and contains dozens of `Effect.promise` calls; `hevy-store.ts`, `ingested-data.ts`, and chat context have the same pattern.                                     | Migrate product persistence to tagged errors, `QueryDatabase.tryPromise`-style boundaries, `Context.Service`, and `Layer`. Split `fitness.ts` before migrating so the error channels stay understandable.                                                                   | Strong recommendation, large scope         |
 | P1       | Core API route code still has raw Promise boundaries.                                | `apps/api/src/core/routes/chat-generation-lifecycle.ts`, `chat-history.ts`, `http/conversations.ts`, and `diagnostics/bundle.ts` contain `Effect.promise` calls.                                                             | Replace each with a named typed boundary—usually `Effect.tryPromise` plus a domain error—and map errors once at the HTTP edge. Do not create a generic `decode` wrapper that hides the error channel.                                                                       | Strong recommendation                      |
-| P1       | `ChatServerConfiguration.extensions` is declared but never consumed.                 | `packages/core/src/server/ports/chat-server.ts` defines the field; the live server only yields model/configuration and never reads extensions.                                                                               | Either wire extensions into prompt/tool/route composition with tests, or remove the field until the use case exists. Dead configuration is worse than a smaller contract.                                                                                                   | Small decision needed                      |
+| P1       | `ChatServerConfiguration.extensions` was declared but never consumed.                | `packages/core/src/server/ports/chat-server.ts` defined the field; the live server only yielded model/configuration and never read extensions.                                                                               | Removed in `refactor(core): remove unused server extension configuration`; extensions remain available through the explicit extension composition surface until server prompt/tool composition has a real owner.                              | Resolved                                   |
 | P1       | Layer composition is repeated in request store factories.                            | `packages/core/src/server/make-conversation-store.ts`, `make-generation-store.ts`, and `make-memory-store.ts` each construct a database layer and provide it to a store layer.                                               | First decide whether these are intentionally request-scoped. If not, compose a long-lived database `ManagedRuntime`/worker layer once and provide only request-specific identity at the edge. Do not introduce local `provideDatabase` helpers.                             | Runtime-lifecycle decision needed          |
 | P2       | `ServerDatabase` is an effective advanced registry but exposes a very broad surface. | `packages/core/src/server-database.export.ts` groups tables, schemas, database services, stores, replay, and errors.                                                                                                         | Keep it for the current advanced boundary, but consider separate `server/database-schema` and `server/database-services` subpaths if consumers begin importing unrelated concerns. Do not split merely for file count.                                                      | Monitor first                              |
 | P2       | Generic UI ownership is improved but the main app still has large wrappers.          | `apps/chat/components/chat/thread.tsx` is 763 lines; `apps/chat/app/chat/conversation-machine.ts` is 635; generic core owns many of the underlying primitives already.                                                       | Keep product-specific wrappers for memory, settings, navigation, and renderers. Move only behavior that is demonstrably provider-neutral and duplicated; do not move the entire product page into core.                                                                     | Strong recommendation                      |
@@ -92,8 +93,7 @@ I would remove these once the corresponding decisions are made and acceptance te
    truly provider-neutral.
 2. AI SDK chunk types from generic persistence, if replay is promoted to a core capability rather
    than an AI SDK transport detail.
-3. The unused `ChatServerConfiguration.extensions` field if extensions are not part of the next
-   server composition packet.
+3. Any extension wiring that is not owned by a real server prompt/tool composition packet.
 4. One of the two production-grade server orchestration paths. Maintaining both indefinitely is
    the largest source of semantic drift I see.
 5. Product wrappers in `apps/chat` only after their generic behavior has a real owner in core and
@@ -172,8 +172,8 @@ These are intentionally left unanswered for now:
    canonical server and the generic server be clearly labeled as a starter/reference?
 4. Should the database implementation split preserve one composite `ConversationDatabase` service,
    or should each capability become a separately provided `Context.Service`?
-5. Should extensions participate in server prompt/tool composition now, or should the unused
-   configuration field be removed until that packet is real?
+5. Should extensions participate in server prompt/tool composition now, or remain an explicit
+   composition surface until that packet is real?
 6. Should the Worker build a long-lived `ManagedRuntime`/Layer graph, with only request identity
    provided per request?
 7. Do we want a first-class generic model capability contract for suggestions and web search, or

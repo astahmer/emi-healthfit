@@ -88,7 +88,6 @@ const makeServices = (events: Array<string>, authOverride?: AuthPortShape) => {
   };
   const configuration: ChatServerConfigurationShape = {
     model: { model: "generic-model" },
-    extensions: [],
   };
   const ports = Layer.mergeAll(
     Layer.succeed(AuthPort, auth),
@@ -168,7 +167,7 @@ describe("@emi/core/server Effect-first surface", () => {
       }),
       Layer.succeed(ChatRepositories, conflictRepositories),
       Layer.succeed(ChatModel, { generate: () => Stream.empty }),
-      Layer.succeed(ChatServerConfiguration, { model: { model: "generic-model" }, extensions: [] }),
+      Layer.succeed(ChatServerConfiguration, { model: { model: "generic-model" } }),
     );
     const exit = await Effect.runPromiseExit(
       ChatServer.use((server) =>
