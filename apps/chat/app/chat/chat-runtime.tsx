@@ -234,7 +234,6 @@ export const ChatRuntimeProvider = ({
         webSearch: config.webSearch,
       },
     });
-    runtime.actions.setWebSearch({ enabled: config.webSearch });
     runtime.actions.syncRoute({
       historyReady: config.historyReady,
       sessionId: config.sessionId,
