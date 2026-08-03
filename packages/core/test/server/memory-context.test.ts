@@ -1,17 +1,18 @@
-import assert from "node:assert";
+import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { appendMemoryContext } from "../src/core/chat/memory-context.ts";
 
-describe("memory context", () => {
+import { ServerDatabase } from "../../src/server-database.export.ts";
+
+describe("ServerDatabase.memoryContext", () => {
   it("keeps the configured system prompt untouched without a summary", () => {
-    assert.strictEqual(
-      appendMemoryContext({ system: "Coach safely.", summary: undefined }),
+    assert.equal(
+      ServerDatabase.memoryContext.append({ system: "Coach safely.", summary: undefined }),
       "Coach safely.",
     );
   });
 
   it("adds a compact memory summary with retrieval guidance", () => {
-    const system = appendMemoryContext({
+    const system = ServerDatabase.memoryContext.append({
       system: "Coach safely.",
       summary: "- Prefers morning runs.",
     });

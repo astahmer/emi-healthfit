@@ -14,13 +14,13 @@ import { GenerationDatabase } from "../server/db/generations.ts";
 import { MemoryDatabase } from "../server/db/memories.ts";
 import { ConversationSearchTool } from "../server/conversation-search-tool.ts";
 import { MemoryTools } from "../server/memory-tools.ts";
+import { MemoryContext } from "../server/memory-context.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { GenerationStoreLive } from "../server/make-generation-store.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
 import { ChatRouteGeneration } from "./chat-route-generation.ts";
-import { ChatRouteSupport } from "./chat-route-support.ts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -198,7 +198,7 @@ export class ChatRouteStream {
       const memorySummary =
         temporary || !memoryEnabled
           ? undefined
-          : yield* ChatRouteSupport.loadMemorySummary({
+          : yield* MemoryContext.loadStoreEffect({
               reader: memoryStore.reader,
               summary: memoryStore.summary,
               configuration: memoryConfiguration,
@@ -206,7 +206,7 @@ export class ChatRouteStream {
       const result = yield* OpenAiChat.createChatStreamEffect({
         request: {
           messages,
-          system: ChatRouteSupport.appendMemoryContext({
+          system: MemoryContext.append({
             system: decoded.value.system,
             summary: memorySummary,
           }),
@@ -305,7 +305,7 @@ export class ChatRouteStream {
                     })),
                   );
                   if (ids.length === 0) return;
-                  yield* ChatRouteSupport.refreshMemorySummary({
+                  yield* MemoryContext.refreshStoreEffect({
                     reader: memoryStore.reader,
                     summary: memoryStore.summary,
                     configuration: memoryConfiguration,

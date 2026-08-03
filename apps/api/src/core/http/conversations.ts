@@ -13,7 +13,6 @@ import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
 import { withInternalError } from "./errors.ts";
 
@@ -544,11 +543,13 @@ export const memoryExtractionHandlers = () => {
             })),
           });
           if (ids.length > 0) {
-            yield* refreshMemorySummary({
-              database: MemoryDatabase,
-              userId: user.id,
-              config: payload.config,
-            }).pipe(Effect.catch(() => Effect.void));
+            yield* ServerDatabase.memoryContext
+              .refreshEffect({
+                database: MemoryDatabase,
+                userId: user.id,
+                configuration: payload.config,
+              })
+              .pipe(Effect.catch(() => Effect.void));
           }
           return { ids, count: ids.length };
         }, withInternalError),

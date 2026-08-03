@@ -21,7 +21,6 @@ import { persistGenerationStream } from "./chat-stream-persistence.ts";
 import { ChatStreamRequestSchema, getFirstUserText } from "./chat-request-codec.ts";
 import { prepareChatHistory } from "./chat-history.ts";
 import { createChatToolExecutor } from "./chat-tool-execution.ts";
-import { appendMemoryContext, loadMemorySummary } from "../chat/memory-context.ts";
 import { decodeJsonOption } from "../lib/json-codec.ts";
 import type { ChatLifecycleHooks } from "./chat-hooks.ts";
 
@@ -345,11 +344,13 @@ export const handleAiSdkChat = (
     } = preparedHistory;
 
     const memorySummary = isInitialContext
-      ? yield* loadMemorySummary({
-          database: memoryDatabase,
-          userId: user.id,
-          config: chatRequest.config,
-        }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      ? yield* ServerDatabase.memoryContext
+          .loadEffect({
+            database: memoryDatabase,
+            userId: user.id,
+            configuration: chatRequest.config,
+          })
+          .pipe(Effect.catch(() => Effect.succeed(undefined)))
       : undefined;
 
     const executionContext = isTemporary
@@ -443,7 +444,7 @@ export const handleAiSdkChat = (
     const result = yield* createChatStreamEffect({
       request: {
         ...requestWithHistory,
-        system: appendMemoryContext({
+        system: ServerDatabase.memoryContext.append({
           system: requestWithHistory.coachMode
             ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
             : requestWithHistory.system,

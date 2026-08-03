@@ -83,6 +83,7 @@ import type {
   MemorySummary as MemorySummaryRecord,
 } from "./server/db/memories.ts";
 import { MemoryStoreLive } from "./server/make-memory-store.ts";
+import { MemoryContext } from "./server/memory-context.ts";
 import { MemoryReader, MemorySummaryStore, MemoryWriter } from "./server/ports/memory-store.ts";
 import type {
   MemoryReaderShape as MemoryReaderRecord,
@@ -144,6 +145,7 @@ export class ServerDatabase {
   static readonly memoryWriter = MemoryWriter;
   static readonly memorySummaryStore = MemorySummaryStore;
   static readonly memoryStoreLive = MemoryStoreLive;
+  static readonly memoryContext = MemoryContext;
   static readonly errors = {
     databaseQuery: DatabaseQueryError,
     generationAlreadyActive: GenerationAlreadyActiveError,

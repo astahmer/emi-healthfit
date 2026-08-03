@@ -31,6 +31,7 @@ export declare class ServerDatabase {
   static readonly memoryWriter: Record<string, unknown>;
   static readonly memorySummaryStore: Record<string, unknown>;
   static readonly memoryStoreLive: Record<string, unknown>;
+  static readonly memoryContext: Record<string, unknown>;
   static readonly errors: Record<string, unknown>;
   static readonly tables: Record<string, unknown>;
 }
