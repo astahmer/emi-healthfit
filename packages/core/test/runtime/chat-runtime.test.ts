@@ -92,10 +92,12 @@ const createStorage = () => {
 const createOptions = ({
   drafts = createStorage(),
   conversationMessages = [],
+  apiKey = "test-key",
   onStreamCompleted,
 }: {
   drafts?: ReturnType<typeof createStorage>;
   conversationMessages?: StoredMessage[];
+  apiKey?: string;
   onStreamCompleted?: (input: {
     conversationId: string;
     message: ChatMessage;
@@ -108,7 +110,7 @@ const createOptions = ({
     "emi-core-chat-settings",
     JSON.stringify({
       provider: "openai",
-      apiKey: "test-key",
+      apiKey,
       baseUrl: "",
       model: "test-model",
       systemPrompt: "",
@@ -267,6 +269,37 @@ describe("createChatRuntime", () => {
     expect(revisionBody).toEqual({
       parts: [{ type: "text", text: "Revised" }],
     });
+    runtime.dispose();
+  });
+
+  it("rejects revisions before persistence when the browser is offline", async () => {
+    const fixture = createOptions();
+    const runtime = createChatRuntime(fixture.options);
+    runtime.start();
+    fixture.setOnline(false);
+
+    runtime.actions.editMessage({ messageId: "user-original", text: "Revised" });
+
+    await vi.waitFor(() => {
+      expect(runtime.getState().error).toBe(
+        "You are offline. Your draft is saved locally until you reconnect.",
+      );
+    });
+    expect(runtime.getState().activeThread.isStreaming).toBe(false);
+    runtime.dispose();
+  });
+
+  it("rejects revisions before persistence without model credentials", async () => {
+    const fixture = createOptions({ apiKey: "" });
+    const runtime = createChatRuntime(fixture.options);
+    runtime.start();
+
+    runtime.actions.editMessage({ messageId: "user-original", text: "Revised" });
+
+    await vi.waitFor(() => {
+      expect(runtime.getState().error).toBe("Add an API key in settings before sending a message.");
+    });
+    expect(runtime.getState().activeThread.isStreaming).toBe(false);
     runtime.dispose();
   });
 

@@ -551,6 +551,21 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   const sendRevision = ({ messageId, text }: { messageId: string; text: string }) => {
     const session = currentSession();
     const settings = currentSettings();
+    const browser = currentBrowser();
+    if (!browser.online) {
+      sendSession({
+        type: "error-reported",
+        error: "You are offline. Your draft is saved locally until you reconnect.",
+      });
+      return;
+    }
+    if (settings.apiKey.trim() === "") {
+      sendSession({
+        type: "error-reported",
+        error: "Add an API key in settings before sending a message.",
+      });
+      return;
+    }
     const targetIndex = session.messages.findIndex((message) => message.id === messageId);
     if (targetIndex === -1) {
       sendSession({ type: "error-reported", error: "Message no longer exists." });
