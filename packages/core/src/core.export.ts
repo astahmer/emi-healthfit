@@ -1,6 +1,11 @@
 import { createChatRuntime } from "./runtime/create-chat-runtime.ts";
 import type {
   ChatActions,
+  ChatQueueForceSendPayload,
+  ChatQueueSyncAdapter,
+  ChatQueueSyncMessage,
+  ChatQueueSyncPayload,
+  ChatRouteInput,
   ChatRuntime,
   ChatRuntimeOptions,
   ChatSelectors,
@@ -17,6 +22,11 @@ export { createChatRuntime };
 
 export type {
   ChatActions,
+  ChatQueueForceSendPayload,
+  ChatQueueSyncAdapter,
+  ChatQueueSyncMessage,
+  ChatQueueSyncPayload,
+  ChatRouteInput,
   ChatMessage,
   ChatRuntime,
   ChatRuntimeOptions,

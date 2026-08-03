@@ -21,6 +21,8 @@ import { createChatRuntimeActor } from "./runtime/create-chat-runtime.ts";
 import { chatSessionMachine } from "./web/chat-session-machine.ts";
 import { browserStateActor } from "./web/chat-runtime/browser-state-actor.ts";
 import { chatTransportActor } from "./web/chat-runtime/chat-transport-actor.ts";
+import { chatLifecycleActor } from "./web/chat-runtime/chat-lifecycle-actor.ts";
+import { followUpQueueActor } from "./web/chat-runtime/follow-up-queue-actor.ts";
 import type {
   ChatTransportActorInput,
   ChatTransportRequest,
@@ -40,6 +42,8 @@ export {
   chatRuntimeMachine,
   chatSessionMachine,
   chatTransportActor,
+  chatLifecycleActor,
+  followUpQueueActor,
   chatUiActor,
   conversationStoreActor,
   createActor,

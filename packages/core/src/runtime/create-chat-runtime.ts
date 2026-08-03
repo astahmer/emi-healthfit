@@ -229,6 +229,10 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
       features: {
         suggestions: options.features?.suggestions ?? false,
       },
+      queueSync: options.queueSync,
+      onSessionCreated: options.lifecycle?.onSessionCreated,
+      onHistoryChanged: options.lifecycle?.onHistoryChanged,
+      onStreamCompleted: options.lifecycle?.onStreamCompleted,
     },
   });
 };
@@ -249,36 +253,8 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   let drainQueuedFollowUp = () => undefined;
 
   const invalidate = () => {
-    const session = actor.getSnapshot().children.session;
-    const sessionSnapshot = session?.getSnapshot();
-    const sessionContext = sessionSnapshot?.context;
+    const sessionSnapshot = actor.getSnapshot().children.session?.getSnapshot();
     const isStreaming = sessionSnapshot?.matches("streaming") ?? false;
-    const onStreamCompleted = options.lifecycle?.onStreamCompleted;
-    const completedMessage =
-      sessionContext?.streamMessageId === undefined
-        ? undefined
-        : sessionContext.messages.find(
-            (message) =>
-              message.id === sessionContext.streamMessageId && message.role === "assistant",
-          );
-    const completedConversationId = sessionContext?.conversationId;
-    if (
-      wasStreaming &&
-      !isStreaming &&
-      sessionContext?.streamOrigin === "send" &&
-      sessionContext.streamOutcome === "completed" &&
-      completedConversationId !== undefined &&
-      completedMessage !== undefined &&
-      onStreamCompleted !== undefined
-    ) {
-      void (async () => {
-        await onStreamCompleted({
-          conversationId: completedConversationId,
-          message: completedMessage,
-          temporary: sessionContext.temporary,
-        });
-      })().catch(() => undefined);
-    }
     const shouldDrain = autoDrainQueuedFollowUps && wasStreaming && !isStreaming;
     wasStreaming = isStreaming;
     cachedActorSnapshot = undefined;
@@ -768,6 +744,10 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       });
     },
     setTemporary: ({ temporary }) => sendSession({ type: "temporary-changed", temporary }),
+    syncRoute: (route) => {
+      autoDrainQueuedFollowUps = false;
+      actor.send({ type: "route-sync-requested", route });
+    },
     forceSendQueuedFollowUp: ({ id }) => {
       const session = currentSession();
       const followUp = session.queuedFollowUps.find((item) => item.id === id);

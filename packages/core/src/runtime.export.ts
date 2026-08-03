@@ -1,6 +1,11 @@
 import { createChatRuntime, createWebMcpRegistration } from "./runtime/create-chat-runtime.ts";
 import type {
   ChatActions,
+  ChatQueueForceSendPayload,
+  ChatQueueSyncAdapter,
+  ChatQueueSyncMessage,
+  ChatQueueSyncPayload,
+  ChatRouteInput,
   ChatRuntime,
   ChatRuntimeOptions,
   ChatSelectors,
@@ -26,6 +31,11 @@ export { createChatRuntime, createWebMcpRegistration };
 
 export type {
   ChatActions,
+  ChatQueueForceSendPayload,
+  ChatQueueSyncAdapter,
+  ChatQueueSyncMessage,
+  ChatQueueSyncPayload,
+  ChatRouteInput,
   ChatRuntime,
   ChatRuntimeOptions,
   ChatSelectors,

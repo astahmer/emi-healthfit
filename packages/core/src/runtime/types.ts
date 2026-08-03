@@ -18,6 +18,41 @@ export interface KeyValueStorage {
   remove(key: string): void | Promise<void>;
 }
 
+export interface ChatRouteInput {
+  readonly historyReady: boolean;
+  readonly sessionId: string | undefined;
+  readonly threadId: string | undefined;
+  readonly temporary: boolean;
+}
+
+export interface ChatQueueSyncPayload {
+  readonly type: "queue.sync";
+  readonly sessionId: string;
+  readonly tabId: string;
+  readonly revision: number;
+  readonly items: ReadonlyArray<QueuedFollowUpState>;
+}
+
+export interface ChatQueueForceSendPayload {
+  readonly type: "queue.force-send";
+  readonly sessionId: string;
+  readonly tabId: string;
+  readonly itemId: string;
+}
+
+export type ChatQueueSyncMessage = ChatQueueSyncPayload | ChatQueueForceSendPayload;
+
+export interface ChatQueueSyncAdapter {
+  readonly tabId: string;
+  readonly read: (sessionId: string) => ChatQueueSyncPayload | null;
+  readonly write: (payload: ChatQueueSyncPayload) => void;
+  readonly subscribe: (
+    sessionId: string,
+    listener: (message: ChatQueueSyncMessage) => void,
+  ) => () => void;
+  readonly broadcast: (message: ChatQueueSyncMessage) => void;
+}
+
 export interface ChatRuntimeOptions {
   readonly transport: {
     readonly baseUrl: string;
@@ -71,11 +106,20 @@ export interface ChatRuntimeOptions {
     readonly webSearch?: boolean;
   };
   readonly lifecycle?: {
+    readonly onSessionCreated?: (input: { readonly conversationId: string }) => void;
+    readonly onHistoryChanged?: (input: {
+      readonly conversationId: string;
+      readonly signal: AbortSignal;
+    }) => void | Promise<void>;
     readonly onStreamCompleted?: (input: {
       readonly conversationId: string;
       readonly message: ChatMessage;
       readonly temporary: boolean;
     }) => void | Promise<void>;
+  };
+  readonly queueSync?: {
+    readonly adapter: ChatQueueSyncAdapter;
+    readonly onRemoteForceSend?: (input: { readonly id: string }) => void;
   };
 }
 
@@ -261,6 +305,7 @@ export interface ChatActions {
   startNewConversation(): void;
   createBranch(input: { readonly messageId: string }): void;
   setTemporary(input: { readonly temporary: boolean }): void;
+  syncRoute(input: ChatRouteInput): void;
   forceSendQueuedFollowUp(input: { readonly id: string }): void;
   updateQueuedFollowUp(input: {
     readonly id: string;

@@ -1,5 +1,10 @@
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import type {
+  ChatQueueSyncAdapter,
+  ChatQueueSyncMessage,
+  ChatQueueSyncPayload,
+} from "@emi/core/runtime";
 import type { QueuedFollowUp } from "./chat-runtime-context";
 
 export const FOLLOW_UP_QUEUE_STORAGE_PREFIX = "emi-chat:follow-up-queue:";
@@ -43,16 +48,6 @@ const QueueChannelMessageSchema = Schema.Union([
 export type QueueSyncPayload = typeof QueueSyncPayloadSchema.Type;
 export type QueueForceSendPayload = typeof QueueForceSendPayloadSchema.Type;
 export type QueueChannelMessage = typeof QueueChannelMessageSchema.Type;
-
-type QueueComparable = {
-  id: string;
-  text: string;
-  files: readonly {
-    url: string;
-    mediaType: string;
-    filename?: string;
-  }[];
-};
 
 export const followUpQueueStorageKey = (sessionId: string): string =>
   `${FOLLOW_UP_QUEUE_STORAGE_PREFIX}${sessionId}`;
@@ -107,65 +102,6 @@ export const parseFollowUpQueueSyncJson = (raw: string): QueueSyncPayload | null
   return Option.isSome(decoded) ? decoded.value : null;
 };
 
-export const shouldApplyRemoteFollowUpQueue = ({
-  payload,
-  sessionId,
-  tabId,
-  revision,
-}: {
-  payload: QueueSyncPayload;
-  sessionId: string | undefined;
-  tabId: string;
-  revision: number;
-}): boolean => {
-  if (sessionId === undefined) return false;
-  if (payload.sessionId !== sessionId) return false;
-  if (payload.tabId === tabId) return false;
-  return payload.revision >= revision;
-};
-
-export const shouldHandleRemoteForceSend = ({
-  payload,
-  sessionId,
-  tabId,
-  isStreaming,
-}: {
-  payload: QueueForceSendPayload;
-  sessionId: string | undefined;
-  tabId: string;
-  isStreaming: boolean;
-}): boolean => {
-  if (!isStreaming) return false;
-  if (sessionId === undefined) return false;
-  if (payload.sessionId !== sessionId) return false;
-  return payload.tabId !== tabId;
-};
-
-export const queuesEqual = ({
-  left,
-  right,
-}: {
-  left: readonly QueueComparable[];
-  right: readonly QueueComparable[];
-}): boolean => {
-  if (left.length !== right.length) return false;
-  return left.every((item, index) => {
-    const other = right[index];
-    if (other === undefined) return false;
-    if (item.id !== other.id || item.text !== other.text) return false;
-    if (item.files.length !== other.files.length) return false;
-    return item.files.every((file, fileIndex) => {
-      const otherFile = other.files[fileIndex];
-      return (
-        otherFile !== undefined &&
-        file.url === otherFile.url &&
-        file.mediaType === otherFile.mediaType &&
-        file.filename === otherFile.filename
-      );
-    });
-  });
-};
-
 export const readStoredFollowUpQueue = ({
   sessionId,
   storage = globalThis.localStorage,
@@ -217,4 +153,112 @@ export const writeStoredFollowUpQueue = ({
       // ignore quota / private-mode failures
     }
   }
+};
+
+const toCoreQueuePayload = (payload: QueueSyncPayload): ChatQueueSyncPayload => ({
+  type: "queue.sync",
+  sessionId: payload.sessionId,
+  tabId: payload.tabId,
+  revision: payload.revision,
+  items: payload.items.map((item) => ({
+    id: item.id,
+    text: item.text,
+    attachments: item.files.map((file) => ({
+      id: `attachment:${file.url}`,
+      name: file.filename ?? "Attachment",
+      mediaType: file.mediaType,
+      url: file.url,
+    })),
+  })),
+});
+
+const toStoredQueuePayload = (payload: ChatQueueSyncPayload): QueueSyncPayload => ({
+  type: "queue.sync",
+  sessionId: payload.sessionId,
+  tabId: payload.tabId,
+  revision: payload.revision,
+  items: payload.items.map((item) => ({
+    id: item.id,
+    text: item.text,
+    files: item.attachments.map((attachment) => ({
+      type: "file" as const,
+      mediaType: attachment.mediaType,
+      filename: attachment.name,
+      url: attachment.url,
+    })),
+  })),
+});
+
+const toCoreQueueMessage = (message: QueueChannelMessage): ChatQueueSyncMessage => {
+  if (message.type === "queue.sync") return toCoreQueuePayload(message);
+  return message;
+};
+
+export const createFollowUpQueueSyncAdapter = (): ChatQueueSyncAdapter => {
+  const tabId = crypto.randomUUID();
+  return {
+    tabId,
+    read: (sessionId) => {
+      const stored = readStoredFollowUpQueue({ sessionId });
+      return stored === null ? null : toCoreQueuePayload(stored);
+    },
+    write: (payload) => {
+      const stored = toStoredQueuePayload(payload);
+      writeStoredFollowUpQueue({
+        sessionId: stored.sessionId,
+        tabId: stored.tabId,
+        revision: stored.revision,
+        items: stored.items.map((item) => ({
+          id: item.id,
+          text: item.text,
+          files: [...item.files],
+        })),
+      });
+    },
+    subscribe: (sessionId, listener) => {
+      const channel =
+        typeof BroadcastChannel === "undefined"
+          ? null
+          : new BroadcastChannel(FOLLOW_UP_QUEUE_CHANNEL);
+      const onChannelMessage = (event: MessageEvent<unknown>) => {
+        const message = parseFollowUpQueueChannelMessage(event.data);
+        if (message !== null) listener(toCoreQueueMessage(message));
+      };
+      channel?.addEventListener("message", onChannelMessage);
+      const onStorage = (event: StorageEvent) => {
+        if (event.key !== followUpQueueStorageKey(sessionId)) return;
+        if (event.newValue === null) {
+          listener({
+            type: "queue.sync",
+            sessionId,
+            tabId: "storage:cleared",
+            revision: Number.MAX_SAFE_INTEGER,
+            items: [],
+          });
+          return;
+        }
+        const payload = parseFollowUpQueueSyncJson(event.newValue);
+        if (payload !== null) listener(toCoreQueuePayload(payload));
+      };
+      if (typeof window !== "undefined") window.addEventListener("storage", onStorage);
+      return () => {
+        if (typeof window !== "undefined") window.removeEventListener("storage", onStorage);
+        channel?.removeEventListener("message", onChannelMessage);
+        channel?.close();
+      };
+    },
+    broadcast: (message) => {
+      if (typeof BroadcastChannel === "undefined") return;
+      const channel = new BroadcastChannel(FOLLOW_UP_QUEUE_CHANNEL);
+      try {
+        channel.postMessage(
+          message.type === "queue.sync" ? toStoredQueuePayload(message) : message,
+        );
+      } catch {
+        return;
+      } finally {
+        channel.close();
+      }
+    },
+  };
 };

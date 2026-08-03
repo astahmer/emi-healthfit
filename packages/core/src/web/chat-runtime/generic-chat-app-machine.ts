@@ -1,6 +1,7 @@
 import { sendTo, setup } from "xstate";
 
 import { chatSessionMachine, type ChatSessionEvent } from "../chat-session-machine.ts";
+import type { ChatRouteInput } from "../../runtime/types.ts";
 import { chatTransportActor } from "./chat-transport-actor.ts";
 import type { ChatTransportActorEvent, ChatTransportActorInput } from "./transport-types.ts";
 import {
@@ -24,6 +25,12 @@ import {
   type SuggestionsActorEvent,
   type SuggestionsActorInput,
 } from "./suggestions-actor.ts";
+import {
+  chatLifecycleActor,
+  type ChatLifecycleActorEvent,
+  type ChatLifecycleActorInput,
+} from "./chat-lifecycle-actor.ts";
+import { followUpQueueActor, type FollowUpQueueActorInput } from "./follow-up-queue-actor.ts";
 
 const invalidForwardingEvent = (): never => {
   throw new Error("Generic chat app received an invalid forwarding event.");
@@ -45,10 +52,12 @@ export interface GenericChatAppInput
     >,
     Pick<ConversationStoreActorInput, "client">,
     Pick<SettingsActorInput, "storage" | "storageKey" | "defaults">,
-    Pick<BrowserStateActorInput, "browser" | "draftStorageKey"> {
+    Pick<BrowserStateActorInput, "browser" | "draftStorageKey">,
+    Pick<ChatLifecycleActorInput, "onSessionCreated" | "onHistoryChanged" | "onStreamCompleted"> {
   readonly features?: {
     readonly suggestions?: boolean;
   };
+  readonly queueSync?: Pick<FollowUpQueueActorInput, "adapter" | "onRemoteForceSend">;
 }
 
 export type GenericChatAppEvent =
@@ -62,7 +71,14 @@ export type GenericChatAppEvent =
   | { type: "browser-state-event"; event: BrowserStateActorEvent }
   | { type: "browser-state-session-event"; event: ChatSessionEvent }
   | { type: "chat-ui-event"; event: ChatUiActorEvent }
-  | { type: "suggestions-event"; event: SuggestionsActorEvent };
+  | { type: "suggestions-event"; event: SuggestionsActorEvent }
+  | { type: "lifecycle-event"; event: ChatLifecycleActorEvent }
+  | { type: "lifecycle-session-command"; event: ChatSessionEvent }
+  | { type: "lifecycle-transport-command"; event: ChatTransportActorEvent }
+  | { type: "lifecycle-conversation-store-command"; event: ConversationStoreActorEvent }
+  | { type: "lifecycle-chat-ui-command"; event: ChatUiActorEvent }
+  | { type: "route-sync-requested"; route: ChatRouteInput }
+  | { type: "queue-session-command"; event: ChatSessionEvent };
 
 export const genericChatAppMachine = setup({
   types: {
@@ -78,6 +94,8 @@ export const genericChatAppMachine = setup({
     browserState: browserStateActor,
     chatUi: chatUiActor,
     suggestions: suggestionsActor,
+    lifecycle: chatLifecycleActor,
+    followUpQueue: followUpQueueActor,
   },
   actions: {
     forwardSessionEvent: sendTo("session", ({ event }) => {
@@ -115,6 +133,60 @@ export const genericChatAppMachine = setup({
     }),
     forwardSuggestionsEvent: sendTo("suggestions", ({ event }) => {
       if (event.type === "suggestions-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardLifecycleEvent: sendTo("lifecycle", ({ event }) => {
+      if (event.type === "lifecycle-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardLifecycleSessionCommand: sendTo("session", ({ event }) => {
+      if (event.type === "lifecycle-session-command") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardLifecycleTransportCommand: sendTo("transport", ({ event }) => {
+      if (event.type === "lifecycle-transport-command") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardLifecycleConversationStoreCommand: sendTo("conversationStore", ({ event }) => {
+      if (event.type === "lifecycle-conversation-store-command") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardLifecycleChatUiCommand: sendTo("chatUi", ({ event }) => {
+      if (event.type === "lifecycle-chat-ui-command") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardSessionToLifecycle: sendTo("lifecycle", ({ event }) => {
+      if (event.type === "session-event") return { type: "session-event", event: event.event };
+      if (event.type === "transport-session-event")
+        return { type: "session-event", event: event.event };
+      if (event.type === "conversation-store-session-event")
+        return { type: "session-event", event: event.event };
+      if (event.type === "browser-state-session-event")
+        return { type: "session-event", event: event.event };
+      return invalidForwardingEvent();
+    }),
+    forwardRouteToLifecycle: sendTo("lifecycle", ({ event }) => {
+      if (event.type === "route-sync-requested")
+        return { type: "route-sync-requested", route: event.route };
+      return invalidForwardingEvent();
+    }),
+    forwardRouteToQueue: sendTo("followUpQueue", ({ event }) => {
+      if (event.type === "route-sync-requested")
+        return { type: "route-sync-requested", route: event.route };
+      return invalidForwardingEvent();
+    }),
+    forwardSessionToQueue: sendTo("followUpQueue", ({ event }) => {
+      if (event.type === "session-event") return { type: "session-event", event: event.event };
+      if (event.type === "transport-session-event")
+        return { type: "session-event", event: event.event };
+      if (event.type === "conversation-store-session-event")
+        return { type: "session-event", event: event.event };
+      if (event.type === "browser-state-session-event")
+        return { type: "session-event", event: event.event };
+      return invalidForwardingEvent();
+    }),
+    forwardQueueSessionCommand: sendTo("session", ({ event }) => {
+      if (event.type === "queue-session-command") return event.event;
       return invalidForwardingEvent();
     }),
     forwardChildSessionEvent: sendTo("session", ({ event }) => {
@@ -185,20 +257,70 @@ export const genericChatAppMachine = setup({
           enabled: context.features?.suggestions ?? false,
         }) satisfies SuggestionsActorInput,
     },
+    {
+      id: "lifecycle",
+      src: "lifecycle",
+      input: ({ context, self }) => ({
+        sendSession: (event) => self.send({ type: "lifecycle-session-command", event }),
+        sendTransport: (event) => self.send({ type: "lifecycle-transport-command", event }),
+        sendConversationStore: (event) =>
+          self.send({ type: "lifecycle-conversation-store-command", event }),
+        sendChatUi: (event) => self.send({ type: "lifecycle-chat-ui-command", event }),
+        onSessionCreated: context.onSessionCreated,
+        onHistoryChanged: context.onHistoryChanged,
+        onStreamCompleted: context.onStreamCompleted,
+      }),
+    },
+    {
+      id: "followUpQueue",
+      src: "followUpQueue",
+      input: ({ context, self }) => ({
+        adapter: context.queueSync?.adapter,
+        sendSession: (event) => self.send({ type: "queue-session-command", event }),
+        onRemoteForceSend: context.queueSync?.onRemoteForceSend,
+      }),
+    },
   ],
   on: {
-    "session-event": { actions: ["forwardSessionEvent", "forwardSessionToBrowserState"] },
+    "session-event": {
+      actions: [
+        "forwardSessionEvent",
+        "forwardSessionToBrowserState",
+        "forwardSessionToLifecycle",
+        "forwardSessionToQueue",
+      ],
+    },
     "transport-event": { actions: "forwardTransportEvent" },
     "conversation-store-event": { actions: "forwardConversationStoreEvent" },
     "transport-session-event": {
-      actions: ["forwardChildSessionEvent", "forwardSessionToConversationStore"],
+      actions: [
+        "forwardChildSessionEvent",
+        "forwardSessionToConversationStore",
+        "forwardSessionToLifecycle",
+        "forwardSessionToQueue",
+      ],
     },
-    "conversation-store-session-event": { actions: "forwardChildSessionEvent" },
+    "conversation-store-session-event": {
+      actions: ["forwardChildSessionEvent", "forwardSessionToLifecycle", "forwardSessionToQueue"],
+    },
     "conversation-store-transport-event": { actions: "forwardConversationStoreTransportEvent" },
     "settings-event": { actions: "forwardSettingsEvent" },
     "browser-state-event": { actions: "forwardBrowserStateEvent" },
-    "browser-state-session-event": { actions: "forwardChildSessionEvent" },
+    "browser-state-session-event": {
+      actions: ["forwardChildSessionEvent", "forwardSessionToLifecycle", "forwardSessionToQueue"],
+    },
     "chat-ui-event": { actions: "forwardChatUiEvent" },
     "suggestions-event": { actions: "forwardSuggestionsEvent" },
+    "lifecycle-event": { actions: "forwardLifecycleEvent" },
+    "lifecycle-session-command": { actions: "forwardLifecycleSessionCommand" },
+    "lifecycle-transport-command": { actions: "forwardLifecycleTransportCommand" },
+    "lifecycle-conversation-store-command": {
+      actions: "forwardLifecycleConversationStoreCommand",
+    },
+    "lifecycle-chat-ui-command": { actions: "forwardLifecycleChatUiCommand" },
+    "route-sync-requested": {
+      actions: ["forwardRouteToLifecycle", "forwardRouteToQueue"],
+    },
+    "queue-session-command": { actions: "forwardQueueSessionCommand" },
   },
 });

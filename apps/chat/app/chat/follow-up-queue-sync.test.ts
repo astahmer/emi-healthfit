@@ -3,8 +3,6 @@ import {
   FOLLOW_UP_QUEUE_STORAGE_MAX_CHARS,
   parseFollowUpQueueSyncJson,
   serializeFollowUpQueue,
-  shouldApplyRemoteFollowUpQueue,
-  shouldHandleRemoteForceSend,
   stripHeavyQueueFiles,
   writeStoredFollowUpQueue,
   readStoredFollowUpQueue,
@@ -33,40 +31,6 @@ describe("follow-up queue sync", () => {
       revision: 3,
       items: [item("q1", "Hello")],
     });
-  });
-
-  it("ignores own-tab and stale remote payloads", () => {
-    const payload = {
-      type: "queue.sync" as const,
-      sessionId: "one",
-      tabId: "tab-a",
-      revision: 2,
-      items: [item("q1", "Hello")],
-    };
-    expect(
-      shouldApplyRemoteFollowUpQueue({
-        payload,
-        sessionId: "one",
-        tabId: "tab-a",
-        revision: 1,
-      }),
-    ).toBe(false);
-    expect(
-      shouldApplyRemoteFollowUpQueue({
-        payload: { ...payload, tabId: "tab-b", revision: 1 },
-        sessionId: "one",
-        tabId: "tab-a",
-        revision: 2,
-      }),
-    ).toBe(false);
-    expect(
-      shouldApplyRemoteFollowUpQueue({
-        payload: { ...payload, tabId: "tab-b", revision: 2 },
-        sessionId: "one",
-        tabId: "tab-a",
-        revision: 2,
-      }),
-    ).toBe(true);
   });
 
   it("strips oversized file urls before persistence overflow", () => {
@@ -117,30 +81,5 @@ describe("follow-up queue sync", () => {
       storage,
     });
     expect(store.has(followUpQueueStorageKey("one"))).toBe(false);
-  });
-
-  it("only lets the streaming tab handle remote force-send", () => {
-    const payload = {
-      type: "queue.force-send" as const,
-      sessionId: "one",
-      tabId: "tab-b",
-      itemId: "q1",
-    };
-    expect(
-      shouldHandleRemoteForceSend({
-        payload,
-        sessionId: "one",
-        tabId: "tab-a",
-        isStreaming: true,
-      }),
-    ).toBe(true);
-    expect(
-      shouldHandleRemoteForceSend({
-        payload,
-        sessionId: "one",
-        tabId: "tab-a",
-        isStreaming: false,
-      }),
-    ).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { createChatRuntime } from "@emi/core";
 import { Chat } from "@emi/core/chat";
+import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import { prepareAttachmentParts } from "@emi/core/web";
 import { buildNotesContext } from "../notes";
@@ -35,7 +36,7 @@ import {
   type ChatRuntimeValue,
   type QueuedFollowUp,
 } from "./chat-runtime-context";
-import { useFollowUpQueueSync } from "./use-follow-up-queue-sync";
+import { createFollowUpQueueSyncAdapter } from "./follow-up-queue-sync";
 
 const toUiMessage = (message: ChatMessage): UIMessage =>
   Chat.messages.fromProtocolMessage({
@@ -104,20 +105,20 @@ export const ChatRuntimeProvider = ({
   const settingsRef = useRef(settings);
   const notesRef = useRef(notes);
   const configRef = useRef(config);
-  const syncedHistoryRef = useRef("");
-  const notifiedSessionRef = useRef<string | undefined>(undefined);
-  const ignoredConversationRef = useRef<string | undefined>(undefined);
-  const createdConversationRef = useRef<string | undefined>(undefined);
-  const requestedSessionRef = useRef<string | null | undefined>(undefined);
-  const previousSessionIdRef = useRef(config.sessionId);
+  const onSessionCreatedRef = useRef(onSessionCreated);
+  const onHistoryChangedRef = useRef(onHistoryChanged);
+  const remoteForceSendRef = useRef<(id: string) => void>(() => undefined);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
 
   settingsRef.current = settings;
   notesRef.current = notes;
   configRef.current = config;
+  onSessionCreatedRef.current = onSessionCreated;
+  onHistoryChangedRef.current = onHistoryChanged;
 
   const persistence = useMemo(() => createHealthFitConversationClient(), []);
+  const queueSyncAdapter = useMemo(() => createFollowUpQueueSyncAdapter(), []);
   const runtime = useMemo(
     () =>
       createChatRuntime({
@@ -149,7 +150,16 @@ export const ChatRuntimeProvider = ({
           },
         },
         persistence,
+        queueSync: {
+          adapter: queueSyncAdapter,
+          onRemoteForceSend: ({ id }) => remoteForceSendRef.current(id),
+        },
         lifecycle: {
+          onSessionCreated: ({ conversationId }) => onSessionCreatedRef.current?.(conversationId),
+          onHistoryChanged: ({ conversationId, signal }) =>
+            fetchConversationMessages(conversationId, signal).then((snapshot) =>
+              signal.aborted ? undefined : onHistoryChangedRef.current?.(snapshot),
+            ),
           onStreamCompleted: ({ conversationId, message, temporary }) =>
             extractHealthFitAssistantMemories({
               conversationId,
@@ -211,14 +221,10 @@ export const ChatRuntimeProvider = ({
           webSearch: true,
         },
       }),
-    [persistence],
+    [persistence, queueSyncAdapter],
   );
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
-
-  useEffect(() => {
-    runtime.start();
-    return () => runtime.dispose();
-  }, [runtime]);
+  remoteForceSendRef.current = (id) => runtime.actions.forceSendQueuedFollowUp({ id });
 
   useEffect(() => {
     runtime.actions.updateSettings({
@@ -232,56 +238,21 @@ export const ChatRuntimeProvider = ({
       },
     });
     runtime.actions.setWebSearch({ enabled: config.webSearch });
-    runtime.actions.setTemporary({ temporary: config.temporary });
-  }, [config.model, config.temporary, config.webSearch, runtime, settings]);
-
-  useEffect(() => {
-    if (!config.historyReady) return;
-    if (
-      createdConversationRef.current !== undefined &&
-      createdConversationRef.current === config.sessionId
-    ) {
-      createdConversationRef.current = undefined;
-      return;
-    }
-    const previousSessionId = previousSessionIdRef.current;
-    previousSessionIdRef.current = config.sessionId;
-    const enteringNewRoute = previousSessionId !== undefined && config.sessionId === undefined;
-    if (enteringNewRoute) {
-      ignoredConversationRef.current = state.activeThread.conversationId;
-    } else if (
-      config.sessionId === undefined &&
-      (state.activeThread.isStreaming || state.activeThread.messages.length > 0)
-    ) {
-      return;
-    }
-    if (
-      !config.temporary &&
-      config.sessionId !== undefined &&
-      state.activeThread.conversationId === config.sessionId
-    ) {
-      const threadId = config.threadId;
-      if (threadId !== undefined && state.activeThread.id !== threadId)
-        runtime.actions.selectThread({ threadId });
-      return;
-    }
-    const requestedSession = config.sessionId ?? null;
-    if (requestedSessionRef.current === requestedSession) return;
-    requestedSessionRef.current = requestedSession;
-    runtime.actions.startNewConversation();
-    if (config.sessionId !== undefined) {
-      runtime.actions.selectConversation({ conversationId: config.sessionId });
-    }
+    runtime.actions.syncRoute({
+      historyReady: config.historyReady,
+      sessionId: config.sessionId,
+      threadId: config.threadId,
+      temporary: config.temporary,
+    });
   }, [
     config.historyReady,
     config.sessionId,
     config.temporary,
     config.threadId,
+    config.webSearch,
+    config.model,
     runtime,
-    state.activeThread.conversationId,
-    state.activeThread.id,
-    state.activeThread.isStreaming,
-    state.activeThread.messages.length,
+    settings,
   ]);
 
   const selectionMatches = config.temporary
@@ -291,30 +262,6 @@ export const ChatRuntimeProvider = ({
     ? state.activeThread.messages.map(toUiMessage)
     : config.initialMessages;
   const sessionId = selectionMatches ? state.activeThread.conversationId : config.sessionId;
-  const messageSignature = `${sessionId ?? "new"}:${messages.map((message) => `${message.id}:${message.parts.length}`).join(",")}`;
-
-  useEffect(() => {
-    const conversationId = state.activeThread.conversationId;
-    if (conversationId === undefined) return;
-    if (ignoredConversationRef.current === conversationId) return;
-    if (config.sessionId === undefined && notifiedSessionRef.current !== conversationId) {
-      notifiedSessionRef.current = conversationId;
-      ignoredConversationRef.current = undefined;
-      createdConversationRef.current = conversationId;
-      onSessionCreated?.(conversationId);
-    }
-  }, [config.sessionId, onSessionCreated, state.activeThread.conversationId]);
-
-  useEffect(() => {
-    const conversationId = state.activeThread.conversationId;
-    if (conversationId === undefined || state.activeThread.isStreaming) return;
-    const historyKey = `${conversationId}:${messageSignature}`;
-    if (syncedHistoryRef.current === historyKey) return;
-    syncedHistoryRef.current = historyKey;
-    void fetchConversationMessages(conversationId)
-      .then((snapshot) => onHistoryChanged?.(snapshot))
-      .catch(() => undefined);
-  }, [messageSignature, onHistoryChanged, state.activeThread]);
 
   const clearAttachments = useCallback(() => {
     for (const attachment of state.composer.attachments)
@@ -405,14 +352,6 @@ export const ChatRuntimeProvider = ({
   }, [state.error, state.errorMessageId]);
   const queuedFollowUps = state.queuedFollowUps.map(toQueuedFollowUp);
   const queueSessionId = config.temporary ? undefined : (sessionId ?? config.sessionId);
-  const { requestForceSendAcrossTabs } = useFollowUpQueueSync({
-    runtime,
-    sessionId: queueSessionId,
-    temporary: config.temporary,
-    active: selectionMatches,
-    queuedFollowUps,
-    isStreaming: selectionMatches && state.activeThread.isStreaming,
-  });
   const forceSendQueued = useCallback(
     async (id?: string) => {
       const targetId = id ?? queuedFollowUps[0]?.id;
@@ -421,11 +360,18 @@ export const ChatRuntimeProvider = ({
         runtime.actions.forceSendQueuedFollowUp({ id: targetId });
         return;
       }
-      requestForceSendAcrossTabs(targetId);
+      if (queueSessionId === undefined) return;
+      queueSyncAdapter.broadcast({
+        type: "queue.force-send",
+        sessionId: queueSessionId,
+        tabId: queueSyncAdapter.tabId,
+        itemId: targetId,
+      });
     },
     [
       queuedFollowUps,
-      requestForceSendAcrossTabs,
+      queueSessionId,
+      queueSyncAdapter,
       runtime,
       selectionMatches,
       state.activeThread.isStreaming,
@@ -487,5 +433,9 @@ export const ChatRuntimeProvider = ({
     ],
   );
 
-  return <ChatRuntimeContext.Provider value={value}>{children}</ChatRuntimeContext.Provider>;
+  return (
+    <ChatProvider runtime={runtime}>
+      <ChatRuntimeContext.Provider value={value}>{children}</ChatRuntimeContext.Provider>
+    </ChatProvider>
+  );
 };

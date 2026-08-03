@@ -1,0 +1,221 @@
+import { fromCallback, sendTo, setup } from "xstate";
+
+import type { ChatRouteInput } from "../../runtime/types.ts";
+import type { ChatSessionEvent, QueuedFollowUp } from "../chat-session-machine.ts";
+import type {
+  QueuedFollowUpState,
+  ChatQueueSyncAdapter,
+  ChatQueueSyncMessage,
+} from "../../runtime/types.ts";
+
+export interface FollowUpQueueActorInput {
+  readonly adapter: ChatQueueSyncAdapter | undefined;
+  readonly sendSession: (event: ChatSessionEvent) => void;
+  readonly onRemoteForceSend?: (input: { readonly id: string }) => void;
+}
+
+export type FollowUpQueueActorEvent =
+  | { type: "route-sync-requested"; route: ChatRouteInput }
+  | { type: "session-event"; event: ChatSessionEvent };
+
+const toQueueState = (items: QueuedFollowUp[]): QueuedFollowUpState[] =>
+  items.map((item) => ({
+    id: item.id,
+    text: item.text,
+    attachments: [...item.files],
+  }));
+
+const toSessionItems = (items: ReadonlyArray<QueuedFollowUpState>): QueuedFollowUp[] =>
+  items.map((item) => ({
+    id: item.id,
+    text: item.text,
+    files: [...item.attachments],
+  }));
+
+const queuesEqual = (
+  left: ReadonlyArray<QueuedFollowUpState>,
+  right: ReadonlyArray<QueuedFollowUpState>,
+): boolean => {
+  if (left.length !== right.length) return false;
+  return left.every((item, index) => {
+    const other = right[index];
+    if (other === undefined || item.id !== other.id || item.text !== other.text) return false;
+    if (item.attachments.length !== other.attachments.length) return false;
+    return item.attachments.every((attachment, attachmentIndex) => {
+      const otherAttachment = other.attachments[attachmentIndex];
+      return (
+        otherAttachment !== undefined &&
+        attachment.url === otherAttachment.url &&
+        attachment.mediaType === otherAttachment.mediaType &&
+        attachment.name === otherAttachment.name
+      );
+    });
+  });
+};
+
+const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQueueActorInput>(
+  ({ input, receive }) => {
+    let route: ChatRouteInput = {
+      historyReady: false,
+      sessionId: undefined,
+      threadId: undefined,
+      temporary: false,
+    };
+    let queue: QueuedFollowUpState[] = [];
+    let revision = 0;
+    let hydrated = false;
+    let unsubscribe: (() => void) | undefined;
+    let isStreaming = false;
+    let appliedRouteKey: string | undefined;
+
+    const activeSessionId = () =>
+      route.historyReady && !route.temporary ? route.sessionId : undefined;
+
+    const clearSubscription = () => {
+      unsubscribe?.();
+      unsubscribe = undefined;
+    };
+
+    const writeQueue = () => {
+      const sessionId = activeSessionId();
+      const adapter = input.adapter;
+      if (!hydrated || sessionId === undefined || adapter === undefined) return;
+      revision += 1;
+      const payload = {
+        type: "queue.sync" as const,
+        sessionId,
+        tabId: adapter.tabId,
+        revision,
+        items: queue,
+      };
+      adapter.write(payload);
+      adapter.broadcast(payload);
+    };
+
+    const applyRemoteMessage = (message: ChatQueueSyncMessage) => {
+      const sessionId = activeSessionId();
+      const adapter = input.adapter;
+      if (sessionId === undefined || adapter === undefined || message.tabId === adapter.tabId)
+        return;
+      if (message.sessionId !== sessionId) return;
+      if (message.type === "queue.force-send") {
+        if (isStreaming) input.onRemoteForceSend?.({ id: message.itemId });
+        return;
+      }
+      if (message.revision < revision) return;
+      revision = message.revision;
+      if (queuesEqual(queue, message.items)) return;
+      queue = message.items.map((item) => ({
+        id: item.id,
+        text: item.text,
+        attachments: [...item.attachments],
+      }));
+      input.sendSession({
+        type: "queued-follow-ups-replaced",
+        items: toSessionItems(queue),
+      });
+    };
+
+    const hydrate = () => {
+      clearSubscription();
+      queue = [];
+      revision = 0;
+      hydrated = false;
+      isStreaming = false;
+      const sessionId = activeSessionId();
+      const adapter = input.adapter;
+      if (sessionId === undefined || adapter === undefined) {
+        hydrated = true;
+        return;
+      }
+      const stored = adapter.read(sessionId);
+      if (stored !== null) {
+        revision = stored.revision;
+        queue = stored.items.map((item) => ({
+          id: item.id,
+          text: item.text,
+          attachments: [...item.attachments],
+        }));
+        input.sendSession({
+          type: "queued-follow-ups-replaced",
+          items: toSessionItems(queue),
+        });
+      }
+      hydrated = true;
+      unsubscribe = adapter.subscribe(sessionId, applyRemoteMessage);
+    };
+
+    const handleSessionEvent = (event: ChatSessionEvent) => {
+      if (event.type === "stream-started" || event.type === "stream-resumed") {
+        isStreaming = true;
+        return;
+      }
+      if (event.type === "stream-finished") {
+        isStreaming = false;
+        return;
+      }
+      if (event.type === "follow-up-queued") {
+        queue = [...queue, ...toQueueState([event.followUp])];
+        writeQueue();
+        return;
+      }
+      if (event.type === "queued-follow-up-forced") {
+        queue = queue.filter((item) => item.id !== event.id);
+        writeQueue();
+        return;
+      }
+      if (event.type === "queued-follow-up-updated") {
+        queue = queue.map((item) =>
+          item.id === event.id
+            ? { ...item, text: event.text, attachments: [...event.files] }
+            : item,
+        );
+        writeQueue();
+        return;
+      }
+      if (event.type === "queued-follow-up-removed") {
+        queue = queue.filter((item) => item.id !== event.id);
+        writeQueue();
+        return;
+      }
+      if (event.type === "queued-follow-ups-replaced") {
+        queue = toQueueState(event.items);
+        writeQueue();
+      }
+    };
+
+    receive((event) => {
+      if (event.type === "route-sync-requested") {
+        const nextRouteKey = `${event.route.historyReady ? "ready" : "waiting"}:${event.route.sessionId ?? "new"}:${event.route.temporary ? "temporary" : "persistent"}`;
+        if (nextRouteKey === appliedRouteKey) return;
+        appliedRouteKey = nextRouteKey;
+        route = event.route;
+        hydrate();
+        return;
+      }
+      if (event.type === "session-event") handleSessionEvent(event.event);
+    });
+
+    return clearSubscription;
+  },
+);
+
+export const followUpQueueActor = setup({
+  types: {
+    context: {} as FollowUpQueueActorInput,
+    input: {} as FollowUpQueueActorInput,
+    events: {} as FollowUpQueueActorEvent,
+  },
+  actors: { operations: followUpQueueOperations },
+  actions: {
+    forwardEvent: sendTo("operations", ({ event }) => event),
+  },
+}).createMachine({
+  id: "followUpQueue",
+  context: ({ input }) => input,
+  invoke: { id: "operations", src: "operations", input: ({ context }) => context },
+  on: {
+    "route-sync-requested": { actions: "forwardEvent" },
+    "session-event": { actions: "forwardEvent" },
+  },
+});
