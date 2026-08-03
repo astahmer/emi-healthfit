@@ -16,7 +16,8 @@ const parsePrice = ({ modelId, value }) => {
 
 const parseStandardPricing = (markdown) => {
   const sectionStart = markdown.indexOf("### Standard pricing data");
-  if (sectionStart === -1) throw new Error("Official pricing table has no standard pricing section");
+  if (sectionStart === -1)
+    throw new Error("Official pricing table has no standard pricing section");
   const nextSection = markdown.indexOf("\n### ", sectionStart + 1);
   const section = markdown.slice(sectionStart, nextSection === -1 ? undefined : nextSection);
   const prices = new Map();
@@ -123,7 +124,10 @@ const main = async () => {
     return;
   }
 
-  await writeFile(catalogUrl, `${JSON.stringify(updateCatalog({ catalog, officialPrices }), null, 2)}\n`);
+  await writeFile(
+    catalogUrl,
+    `${JSON.stringify(updateCatalog({ catalog, officialPrices }), null, 2)}\n`,
+  );
   console.log(`Updated ${catalog.models.length} models from ${pricingUrl}.`);
 };
 
