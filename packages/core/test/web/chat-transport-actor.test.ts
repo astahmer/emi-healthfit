@@ -197,6 +197,52 @@ describe("chatTransportActor", () => {
     actor.stop();
   });
 
+  it("keeps stream completion successful when suggestion metadata is unavailable", async () => {
+    const suggestions = vi.fn();
+    const { input, sessionEvents } = createInput({
+      fetch: async () => streamResponse({ chunks: assistantChunks({ text: "Completed" }) }),
+    });
+    input.sendSuggestions = suggestions;
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({ type: "stream-send-requested", request: { ...request, body: {} } });
+
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+    expect(sessionEvents).toContainEqual({ type: "stream-completed" });
+    expect(sessionEvents).not.toContainEqual(expect.objectContaining({ type: "error-reported" }));
+    expect(suggestions).not.toHaveBeenCalled();
+    actor.stop();
+  });
+
+  it("keeps stream completion successful when suggestion dispatch fails", async () => {
+    const { input, sessionEvents } = createInput({
+      fetch: async () => streamResponse({ chunks: assistantChunks({ text: "Completed" }) }),
+    });
+    input.sendSuggestions = () => {
+      throw new Error("Suggestions unavailable.");
+    };
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({
+      type: "stream-send-requested",
+      request: {
+        ...request,
+        body: {
+          config: {
+            provider: "openai",
+            apiKey: "test-key",
+            model: "test-model",
+          },
+        },
+      },
+    });
+
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+    expect(sessionEvents).toContainEqual({ type: "stream-completed" });
+    expect(sessionEvents).not.toContainEqual(expect.objectContaining({ type: "error-reported" }));
+    actor.stop();
+  });
+
   it("drops chunks from a superseded stream operation", async () => {
     const first = pendingResponse();
     let requests = 0;

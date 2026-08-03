@@ -202,6 +202,16 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       return operation;
     };
 
+    const sendSuggestions = (
+      suggestion: Parameters<NonNullable<ChatTransportActorInput["sendSuggestions"]>>[0],
+    ) => {
+      try {
+        input.sendSuggestions?.(suggestion);
+      } catch {
+        return;
+      }
+    };
+
     const sendRequest = async ({
       activeOperation,
       controller,
@@ -314,16 +324,21 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       try {
         const message = await sendRequest({ activeOperation, controller, request });
         if (controller.signal.aborted || activeOperation !== operation) return;
-        if (message !== undefined && input.sendSuggestions !== undefined) {
+        if (message !== undefined) {
           const text = assistantText(message);
-          if (text !== "")
-            input.sendSuggestions({
-              lastAssistantText: text,
-              lastUserText: request.text,
-              threadId: request.threadId,
-              messageId: message.id,
-              config: Schema.decodeUnknownSync(ChatModelConfigurationSchema)(request.body.config),
-            });
+          if (text !== "") {
+            const config = Schema.decodeUnknownOption(ChatModelConfigurationSchema)(
+              request.body.config,
+            );
+            if (Option.isSome(config))
+              sendSuggestions({
+                lastAssistantText: text,
+                lastUserText: request.text,
+                threadId: request.threadId,
+                messageId: message.id,
+                config: config.value,
+              });
+          }
         }
         input.sendSession({ type: "stream-completed" });
       } catch (cause) {
