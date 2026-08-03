@@ -24,6 +24,20 @@ test("boots the documented runtime/provider/recipe path", async ({ page }) => {
   expect(api.anonymousSessionCalls()).toBe(1);
 });
 
+test("shows and edits the merged memory summary alongside source memories", async ({ page }) => {
+  await openGenericChat(page);
+
+  await page.getByText("Memories", { exact: true }).click();
+  await expect(page.getByLabel("Memory summary")).toHaveValue(
+    "The user prefers concise worker answers.",
+  );
+  await page.getByLabel("Memory summary").fill("The user prefers edited worker answers.");
+  await page.getByRole("button", { name: "Save summary", exact: true }).click();
+  await expect(page.getByLabel("Memory summary")).toHaveValue(
+    "The user prefers edited worker answers.",
+  );
+});
+
 test("sends a protocol message through the actor runtime and renders the stream", async ({
   page,
 }) => {

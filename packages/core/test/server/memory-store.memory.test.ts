@@ -84,6 +84,7 @@ describe("makeMemoryStore", () => {
       },
     ]);
     assert.equal((await run(services.reader.search("typed")))[0]?.id, "memory-test-id");
+    assert.equal(await run(services.reader.count()), 1);
 
     await run(services.summary.upsert({ content: "One memory", memoryCount: 1 }));
     const summary = await run(services.summary.get());

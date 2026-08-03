@@ -4,7 +4,14 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import * as Schema from "effect/Schema";
-import { Conversation, CoreApi, Memory, Message, Note } from "../../src/contract.export.ts";
+import {
+  Conversation,
+  CoreApi,
+  Memory,
+  MemorySummary,
+  Message,
+  Note,
+} from "../../src/contract.export.ts";
 
 const walk = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -47,6 +54,13 @@ describe("@emi/core/contract", () => {
       created_at: "2026-07-21T00:00:00.000Z",
     });
     assert.equal(memory.content, "memory");
+
+    const summary = Schema.decodeUnknownSync(MemorySummary)({
+      content: "merged memory",
+      memory_count: 1,
+      updated_at: "2026-07-21T00:00:00.000Z",
+    });
+    assert.equal(summary.memory_count, 1);
 
     const message = Schema.decodeUnknownSync(Message)({
       id: "m1",

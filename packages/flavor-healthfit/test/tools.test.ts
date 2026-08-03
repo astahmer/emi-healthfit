@@ -17,6 +17,7 @@ describe("HealthFit tools", () => {
         "get_exercise_progress",
         "get_sleep_trend",
         "get_workout_streak",
+        "search_memory_summary",
         "search_memories",
         "search_conversations",
         "render_component",

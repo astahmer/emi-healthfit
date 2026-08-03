@@ -226,6 +226,23 @@ describe("generic web and worker local API topology", () => {
     )(await memoriesResponse.json());
     expect(memories.memories).toHaveLength(1);
 
+    const missingSummaryResponse = await authenticated("/api/memories/summary");
+    expect(missingSummaryResponse.status).toBe(200);
+    expect(await missingSummaryResponse.json()).toEqual({ summary: null });
+
+    const updatedSummaryResponse = await authenticated("/api/memories/summary", {
+      body: JSON.stringify({ content: "The user prefers worker-backed chats." }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    expect(updatedSummaryResponse.status).toBe(200);
+    expect(await updatedSummaryResponse.json()).toMatchObject({
+      summary: {
+        content: "The user prefers worker-backed chats.",
+        memoryCount: 1,
+      },
+    });
+
     const invalidMemoryResponse = await authenticated("/api/memories", {
       body: JSON.stringify({ content: "" }),
       headers: { "content-type": "application/json" },

@@ -32,6 +32,7 @@ describe("memories SQLite integration", () => {
       }),
     );
     assert.ok(strengthId);
+    assert.equal(await run(memoryDatabase.countMemories({ userId: alice })), 2);
     await run(
       memoryDatabase.insertMemory({
         userId: bob,
