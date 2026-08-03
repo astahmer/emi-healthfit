@@ -427,14 +427,7 @@ const createTools = ({
     {
       name: "fill_message_composer",
       description: "Fill the visible message composer without sending a message.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          text: { type: "string", description: "Text to place in the visible composer." },
-        },
-        required: ["text"],
-        additionalProperties: false,
-      },
+      inputSchema: draftInputSchema,
       annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: false },
       execute: (input) =>
         executeTool({
