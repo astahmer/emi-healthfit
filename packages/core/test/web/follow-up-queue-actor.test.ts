@@ -80,6 +80,11 @@ describe("follow-up queue actor", () => {
     await tick();
     actor.send({
       type: "session-event",
+      event: { type: "conversation-opened", conversationId: "conversation-1", messages: [] },
+    });
+    await tick();
+    actor.send({
+      type: "session-event",
       event: {
         type: "follow-up-queued",
         followUp: { id: "local", text: "local", files: [] },
@@ -88,6 +93,10 @@ describe("follow-up queue actor", () => {
     await tick();
 
     expect(sessionEvents).toEqual([
+      {
+        type: "queued-follow-ups-replaced",
+        items: [{ id: "stored", text: "stored", files: item("stored").attachments }],
+      },
       {
         type: "queued-follow-ups-replaced",
         items: [{ id: "stored", text: "stored", files: item("stored").attachments }],

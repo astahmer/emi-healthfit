@@ -92,6 +92,24 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
       adapter.broadcast(payload);
     };
 
+    const restoreStoredQueue = () => {
+      const sessionId = activeSessionId();
+      const adapter = input.adapter;
+      if (!hydrated || sessionId === undefined || adapter === undefined) return;
+      const stored = adapter.read(sessionId);
+      if (stored === null || stored.revision < revision) return;
+      revision = stored.revision;
+      queue = stored.items.map((item) => ({
+        id: item.id,
+        text: item.text,
+        attachments: [...item.attachments],
+      }));
+      input.sendSession({
+        type: "queued-follow-ups-replaced",
+        items: toSessionItems(queue),
+      });
+    };
+
     const applyRemoteMessage = (message: ChatQueueSyncMessage) => {
       const sessionId = activeSessionId();
       const adapter = input.adapter;
@@ -146,6 +164,10 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
     };
 
     const handleSessionEvent = (event: ChatSessionEvent) => {
+      if (event.type === "conversation-opened" || event.type === "thread-opened") {
+        restoreStoredQueue();
+        return;
+      }
       if (event.type === "stream-started" || event.type === "stream-resumed") {
         isStreaming = true;
         return;
