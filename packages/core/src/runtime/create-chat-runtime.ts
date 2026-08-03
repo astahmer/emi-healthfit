@@ -12,7 +12,7 @@ import {
   type ConversationThread,
   type Memory,
 } from "../web/chat-runtime/conversation-client.ts";
-import type { ChatSession, ChatSessionEvent } from "../web/chat-session-machine.ts";
+import type { ChatSession, ChatSessionEvent, QueuedFollowUp } from "../web/chat-session-machine.ts";
 import type { GenericChatSettings } from "../chat/settings.ts";
 import type { ChatUiActorEvent } from "../web/chat-runtime/chat-ui-actor.ts";
 import type {
@@ -26,7 +26,7 @@ import type {
 import type { BrowserStateContext } from "../web/chat-runtime/browser-state-actor.ts";
 import type { ChatUiContext } from "../web/chat-runtime/chat-ui-actor.ts";
 import type { SuggestionsState } from "./types.ts";
-import type { ChatTransportActorEvent } from "../web/chat-runtime/chat-transport-actor.ts";
+import type { ChatTransportActorEvent } from "../web/chat-runtime/transport-types.ts";
 import type {
   ChatActions,
   ChatRuntime,
@@ -139,24 +139,42 @@ const createStorageAdapter = (storage: ChatRuntimeOptions["storage"]["settings"]
   removeItem: (key: string) => storage.remove(key),
 });
 
-const requestBody = (settings: GenericChatSettings): Record<string, unknown> => ({
-  system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
-  config: {
-    provider: settings.provider,
-    apiKey: settings.apiKey,
-    ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
-    model: settings.model,
-  },
-  memory: {
-    enabled: settings.memoryEnabled,
-    ...(settings.memoryModel === "" ? {} : { model: settings.memoryModel }),
-  },
-  title: {
-    ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
-    ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
-  },
-  webSearch: settings.webSearch,
-});
+const requestBody = ({
+  settings,
+  request,
+  createRequestBody,
+}: {
+  settings: GenericChatSettings;
+  request: {
+    conversationId: string | undefined;
+    threadId: string | undefined;
+    temporary: boolean;
+    messages: ReadonlyArray<ChatMessage>;
+    text: string;
+    files: ReadonlyArray<import("../protocol/parts.ts").Attachment>;
+  };
+  createRequestBody: ChatRuntimeOptions["transport"]["requestBody"];
+}): Record<string, unknown> => {
+  if (createRequestBody !== undefined) return createRequestBody({ settings, ...request });
+  return {
+    system: settings.systemPrompt === "" ? undefined : settings.systemPrompt,
+    config: {
+      provider: settings.provider,
+      apiKey: settings.apiKey,
+      ...(settings.baseUrl === "" ? {} : { baseUrl: settings.baseUrl }),
+      model: settings.model,
+    },
+    memory: {
+      enabled: settings.memoryEnabled,
+      ...(settings.memoryModel === "" ? {} : { model: settings.memoryModel }),
+    },
+    title: {
+      ...(settings.titleModel === "" ? {} : { model: settings.titleModel }),
+      ...(settings.titlePrompt === "" ? {} : { prompt: settings.titlePrompt }),
+    },
+    webSearch: settings.webSearch,
+  };
+};
 
 const messageText = (message: ChatMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
@@ -164,8 +182,12 @@ const messageText = (message: ChatMessage): string =>
 const messageFiles = (message: ChatMessage) =>
   message.parts.flatMap((part) => (part.type === "file" ? [part.file] : []));
 
-const buildDefaults = (model: ModelConfiguration | undefined): GenericChatSettings => ({
+const buildDefaults = (
+  model: ModelConfiguration | undefined,
+  defaults: GenericChatSettings | undefined,
+): GenericChatSettings => ({
   ...defaultGenericChatSettings,
+  ...defaults,
   ...(model === undefined ? {} : { model: model.model }),
 });
 
@@ -177,20 +199,26 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
   const settingsStorageKey = options.storage.keys?.settings ?? defaultSettingsStorageKey;
   const draftStorageKey = options.storage.keys?.drafts ?? `${settingsStorageKey}:draft`;
   const normalizedBaseUrl = normalizeBaseUrl(options.transport.baseUrl);
-  const client = createConversationClient({
-    apiOrigin: originFromBaseUrl(normalizedBaseUrl),
-    fetch: options.transport.fetch,
-  });
+  const client =
+    options.persistence ??
+    createConversationClient({
+      apiOrigin: originFromBaseUrl(normalizedBaseUrl),
+      fetch: options.transport.fetch,
+    });
   return createActor(genericChatAppMachine, {
     input: {
       api: chatApiFromBaseUrl(normalizedBaseUrl),
       fetch: options.transport.fetch,
+      createConversation: options.transport.createConversation,
       createId: options.identity.createId,
       now: options.identity.now,
+      streamDecoder: options.transport.streamDecoder,
+      errorDecoder: options.transport.errorDecoder,
+      messageEncoder: options.transport.messageEncoder,
       client,
       storage: settingsStorage,
       storageKey: settingsStorageKey,
-      defaults: buildDefaults(options.model),
+      defaults: buildDefaults(options.model, options.settings?.defaults),
       browser: {
         online: () => options.browser.online,
         subscribeOnline: options.browser.subscribeOnline,
@@ -214,11 +242,26 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   let started = false;
   let stopped = false;
   let disposed = false;
+  let wasStreaming = false;
+  let drainScheduled = false;
+  let autoDrainQueuedFollowUps = false;
+  let drainQueuedFollowUp = () => undefined;
 
   const invalidate = () => {
+    const session = actor.getSnapshot().children.session;
+    const isStreaming = session?.getSnapshot().matches("streaming") ?? false;
+    const shouldDrain = autoDrainQueuedFollowUps && wasStreaming && !isStreaming;
+    wasStreaming = isStreaming;
     cachedActorSnapshot = undefined;
     cachedState = undefined;
     for (const listener of listeners) listener();
+    if (shouldDrain && !drainScheduled) {
+      drainScheduled = true;
+      queueMicrotask(() => {
+        drainScheduled = false;
+        drainQueuedFollowUp();
+      });
+    }
   };
   const actorSubscription = actor.subscribe(invalidate);
 
@@ -257,6 +300,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         temporary: false,
         error: undefined,
         queuedFollowUps: [],
+        errorMessageId: undefined,
       }
     );
   };
@@ -389,6 +433,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         attachments: followUp.files,
       })),
       error: session.error ?? store.error ?? currentBrowser().error ?? undefined,
+      errorMessageId: session.errorMessageId,
       ui: {
         conversationSearch: ui.conversationSearch,
         memorySearch: ui.memorySearch,
@@ -428,6 +473,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     const files = attachments === undefined ? session.files : [...attachments];
     if (text.trim() === "" && files.length === 0) return;
     if (childSnapshot("session")?.matches("streaming")) {
+      autoDrainQueuedFollowUps = true;
       sendSession({
         type: "follow-up-queued",
         followUp: { id: options.identity.createId(), text, files },
@@ -450,7 +496,18 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         messages: session.messages,
         text,
         files,
-        body: requestBody(settings),
+        body: requestBody({
+          settings,
+          request: {
+            conversationId: session.conversationId,
+            threadId: session.threadId,
+            temporary: session.temporary,
+            messages: session.messages,
+            text,
+            files,
+          },
+          createRequestBody: options.transport.requestBody,
+        }),
       },
     });
   };
@@ -484,7 +541,18 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         files: messageFiles(target),
         messageId: target.id,
         replaceMessageId: target.id,
-        body: requestBody(settings),
+        body: requestBody({
+          settings,
+          request: {
+            conversationId: session.conversationId,
+            threadId: session.threadId,
+            temporary: false,
+            messages: session.messages.slice(0, targetIndex),
+            text,
+            files: messageFiles(target),
+          },
+          createRequestBody: options.transport.requestBody,
+        }),
       },
     });
   };
@@ -509,6 +577,42 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       return;
     }
     sendRevision({ messageId: userMessage.id, text: messageText(userMessage) });
+  };
+
+  const sendQueuedFollowUp = ({ followUp }: { followUp: QueuedFollowUp }) => {
+    const session = currentSession();
+    sendTransport({
+      type: "queued-follow-up-force-requested",
+      followUp,
+      request: {
+        conversationId: session.conversationId,
+        threadId: session.threadId,
+        temporary: session.temporary,
+        messages: session.messages,
+        body: requestBody({
+          settings: currentSettings(),
+          request: {
+            conversationId: session.conversationId,
+            threadId: session.threadId,
+            temporary: session.temporary,
+            messages: session.messages,
+            text: followUp.text,
+            files: followUp.files,
+          },
+          createRequestBody: options.transport.requestBody,
+        }),
+      },
+    });
+  };
+
+  drainQueuedFollowUp = () => {
+    const session = currentSession();
+    const followUp = session.queuedFollowUps[0];
+    if (followUp === undefined) {
+      autoDrainQueuedFollowUps = false;
+      return;
+    }
+    sendQueuedFollowUp({ followUp });
   };
 
   const actions: ChatActions = {
@@ -584,6 +688,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       sendSession({ type: "files-changed", files });
     },
     startNewConversation: () => {
+      autoDrainQueuedFollowUps = false;
       sendTransport({ type: "stream-cancelled" });
       sendSession({ type: "fresh-started" });
       sendConversationStore({ type: "threads-cleared" });
@@ -602,18 +707,19 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       const session = currentSession();
       const followUp = session.queuedFollowUps.find((item) => item.id === id);
       if (followUp === undefined) return;
-      sendTransport({
-        type: "queued-follow-up-force-requested",
-        followUp,
-        request: {
-          conversationId: session.conversationId,
-          threadId: session.threadId,
-          temporary: session.temporary,
-          messages: session.messages,
-          body: requestBody(currentSettings()),
-        },
-      });
+      sendQueuedFollowUp({ followUp });
     },
+    updateQueuedFollowUp: ({ id, text, attachments }) =>
+      sendSession({ type: "queued-follow-up-updated", id, text, files: [...attachments] }),
+    replaceQueuedFollowUps: ({ items }) =>
+      sendSession({
+        type: "queued-follow-ups-replaced",
+        items: items.map((item) => ({
+          id: item.id,
+          text: item.text,
+          files: [...item.attachments],
+        })),
+      }),
     removeQueuedFollowUp: ({ id }) => sendSession({ type: "queued-follow-up-removed", id }),
     setConversationSearch: ({ search }) => {
       sendChatUi({ type: "conversation-search-changed", search });
@@ -644,6 +750,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     deleteMemory: ({ memoryId }) =>
       sendConversationStore({ type: "memory-delete-requested", memoryId }),
     reportError: ({ error }) => sendSession({ type: "error-reported", error }),
+    clearError: () => sendSession({ type: "error-cleared" }),
   };
 
   const selectors = {

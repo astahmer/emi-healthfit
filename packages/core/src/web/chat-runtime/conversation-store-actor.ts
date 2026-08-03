@@ -3,7 +3,7 @@ import { assign, fromCallback, sendTo, setup } from "xstate";
 import type { ChatMessage } from "../../protocol/messages.ts";
 import type { MemorySummary } from "../../protocol/resources.ts";
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
-import type { ChatTransportActorEvent } from "./chat-transport-actor.ts";
+import type { ChatTransportActorEvent } from "./transport-types.ts";
 import type {
   Conversation,
   ConversationClient,

@@ -54,6 +54,42 @@ describe("chatSessionMachine", () => {
     expect(actor.getSnapshot().matches("idle")).toBe(true);
   });
 
+  it("removes a queued follow-up after a stream has already finished", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "queued-follow-ups-replaced",
+      items: [{ id: "follow-up-1", text: "Send next", files: [] }],
+    });
+    actor.send({ type: "queued-follow-up-forced", id: "follow-up-1" });
+
+    expect(actor.getSnapshot().context.draft).toBe("Send next");
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([]);
+  });
+
+  it("updates a queued follow-up without moving it in the queue", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "queued-follow-ups-replaced",
+      items: [
+        { id: "follow-up-1", text: "First", files: [] },
+        { id: "follow-up-2", text: "Second", files: [] },
+      ],
+    });
+    actor.send({
+      type: "queued-follow-up-updated",
+      id: "follow-up-1",
+      text: "Updated first",
+      files: [],
+    });
+
+    expect(actor.getSnapshot().context.queuedFollowUps).toEqual([
+      { id: "follow-up-1", text: "Updated first", files: [] },
+      { id: "follow-up-2", text: "Second", files: [] },
+    ]);
+  });
+
   it("switches to a branch without losing its conversation identity", () => {
     const actor = createActor(chatSessionMachine);
     actor.start();

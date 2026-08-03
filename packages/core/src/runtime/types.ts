@@ -3,7 +3,14 @@ import type { Attachment } from "../protocol/parts.ts";
 import type { Conversation, Memory, MemorySummary, Thread } from "../protocol/resources.ts";
 import type { ModelConfiguration } from "../protocol/model.ts";
 import type { ChatExtension } from "../extensions.ts";
+import type { GenericChatSettings } from "../chat/settings.ts";
 import type { WebMcpModelContext } from "../web/webmcp.ts";
+import type { ConversationClient } from "../web/chat-runtime/conversation-client.ts";
+import type {
+  ChatMessageEncoder,
+  ChatStreamDecoder,
+  ChatTransportErrorDecoder,
+} from "../web/chat-runtime/transport-types.ts";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;
@@ -15,7 +22,21 @@ export interface ChatRuntimeOptions {
   readonly transport: {
     readonly baseUrl: string;
     readonly fetch: typeof globalThis.fetch;
+    readonly createConversation?: () => Promise<string>;
+    readonly streamDecoder?: ChatStreamDecoder;
+    readonly errorDecoder?: ChatTransportErrorDecoder;
+    readonly messageEncoder?: ChatMessageEncoder;
+    readonly requestBody?: (input: {
+      readonly settings: GenericChatSettings;
+      readonly conversationId: string | undefined;
+      readonly threadId: string | undefined;
+      readonly temporary: boolean;
+      readonly messages: ReadonlyArray<ChatMessage>;
+      readonly text: string;
+      readonly files: ReadonlyArray<Attachment>;
+    }) => Record<string, unknown>;
   };
+  readonly persistence?: ConversationClient;
   readonly storage: {
     readonly settings: KeyValueStorage;
     readonly drafts: KeyValueStorage;
@@ -37,6 +58,9 @@ export interface ChatRuntimeOptions {
     readonly now: () => string;
   };
   readonly model?: ModelConfiguration;
+  readonly settings?: {
+    readonly defaults?: GenericChatSettings;
+  };
   readonly extensions?: ReadonlyArray<ChatExtension>;
   readonly features?: {
     readonly attachments?: boolean;
@@ -169,6 +193,7 @@ export interface ChatState {
   readonly temporary: boolean;
   readonly queuedFollowUps: ReadonlyArray<QueuedFollowUpState>;
   readonly error: string | undefined;
+  readonly errorMessageId: string | undefined;
   readonly ui: {
     readonly conversationSearch: string;
     readonly memorySearch: string;
@@ -228,6 +253,12 @@ export interface ChatActions {
   createBranch(input: { readonly messageId: string }): void;
   setTemporary(input: { readonly temporary: boolean }): void;
   forceSendQueuedFollowUp(input: { readonly id: string }): void;
+  updateQueuedFollowUp(input: {
+    readonly id: string;
+    readonly text: string;
+    readonly attachments: ReadonlyArray<Attachment>;
+  }): void;
+  replaceQueuedFollowUps(input: { readonly items: ReadonlyArray<QueuedFollowUpState> }): void;
   removeQueuedFollowUp(input: { readonly id: string }): void;
   setConversationSearch(input: { readonly search: string }): void;
   setMemorySearch(input: { readonly search: string }): void;
@@ -239,6 +270,7 @@ export interface ChatActions {
   saveMemorySummary(): void;
   deleteMemory(input: { readonly memoryId: string }): void;
   reportError(input: { readonly error: string }): void;
+  clearError(): void;
 }
 
 export interface ChatRuntime {

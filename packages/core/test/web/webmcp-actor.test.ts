@@ -63,6 +63,7 @@ const createState = (): ChatState => ({
   temporary: false,
   queuedFollowUps: [],
   error: undefined,
+  errorMessageId: undefined,
   ui: {
     conversationSearch: "",
     memorySearch: "",

@@ -20,11 +20,11 @@ import type {
 import { createChatRuntimeActor } from "./runtime/create-chat-runtime.ts";
 import { chatSessionMachine } from "./web/chat-session-machine.ts";
 import { browserStateActor } from "./web/chat-runtime/browser-state-actor.ts";
-import {
-  chatTransportActor,
-  type ChatTransportActorInput,
-  type ChatTransportRequest,
-} from "./web/chat-runtime/chat-transport-actor.ts";
+import { chatTransportActor } from "./web/chat-runtime/chat-transport-actor.ts";
+import type {
+  ChatTransportActorInput,
+  ChatTransportRequest,
+} from "./web/chat-runtime/transport-types.ts";
 import { chatUiActor } from "./web/chat-runtime/chat-ui-actor.ts";
 import { conversationStoreActor } from "./web/chat-runtime/conversation-store-actor.ts";
 import { genericChatAppMachine as chatRuntimeMachine } from "./web/chat-runtime/generic-chat-app-machine.ts";

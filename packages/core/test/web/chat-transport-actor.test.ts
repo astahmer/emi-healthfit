@@ -4,11 +4,11 @@ import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage } from "../../src/protocol.export.ts";
-import {
-  chatTransportActor,
-  type ChatTransportActorInput,
-  type ChatTransportRequest,
-} from "../../src/web/chat-runtime/chat-transport-actor.ts";
+import { chatTransportActor } from "../../src/web/chat-runtime/chat-transport-actor.ts";
+import type {
+  ChatTransportActorInput,
+  ChatTransportRequest,
+} from "../../src/web/chat-runtime/transport-types.ts";
 import type { ChatSessionEvent } from "../../src/web/chat-session-machine.ts";
 
 const request: ChatTransportRequest = {

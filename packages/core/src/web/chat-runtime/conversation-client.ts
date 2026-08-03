@@ -114,6 +114,38 @@ const decodeMessages = async (
   return decoded.filter((message): message is ChatMessage => message !== undefined);
 };
 
+export interface ConversationClient {
+  listConversations(input: { search: string }): Promise<Conversation[]>;
+  loadConversation(input: {
+    conversationId: string;
+  }): Promise<{ conversation: Conversation; messages: ChatMessage[] }>;
+  updateConversation(input: {
+    conversationId: string;
+    patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
+  }): Promise<Conversation>;
+  deleteConversation(input: { conversationId: string }): Promise<void>;
+  cloneConversation(input: { conversationId: string }): Promise<Conversation>;
+  compactConversation(input: {
+    conversationId: string;
+    config: { provider: string; apiKey: string; baseUrl?: string; model: string };
+  }): Promise<Conversation>;
+  listMemories(input: { search: string }): Promise<Memory[]>;
+  loadMemorySummary(): Promise<MemorySummary | undefined>;
+  updateMemorySummary(input: { content: string }): Promise<MemorySummary>;
+  createMemory(input: { content: string }): Promise<string>;
+  deleteMemory(input: { memoryId: string }): Promise<void>;
+  generateSuggestions(input: SuggestionsRequest): Promise<string[]>;
+  listThreads(input: { conversationId: string }): Promise<ConversationThread[]>;
+  createThread(input: {
+    conversationId: string;
+    anchorMessageId: string;
+  }): Promise<ConversationThread>;
+  loadThread(input: {
+    conversationId: string;
+    threadId: string;
+  }): Promise<{ thread: ConversationThread; messages: ChatMessage[] }>;
+}
+
 export const createConversationClient = ({
   apiOrigin,
   fetch,
@@ -338,7 +370,5 @@ export const createConversationClient = ({
     listThreads,
     createThread,
     loadThread,
-  };
+  } satisfies ConversationClient;
 };
-
-export type ConversationClient = ReturnType<typeof createConversationClient>;

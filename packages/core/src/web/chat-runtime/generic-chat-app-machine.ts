@@ -1,11 +1,8 @@
 import { sendTo, setup } from "xstate";
 
 import { chatSessionMachine, type ChatSessionEvent } from "../chat-session-machine.ts";
-import {
-  chatTransportActor,
-  type ChatTransportActorEvent,
-  type ChatTransportActorInput,
-} from "./chat-transport-actor.ts";
+import { chatTransportActor } from "./chat-transport-actor.ts";
+import type { ChatTransportActorEvent, ChatTransportActorInput } from "./transport-types.ts";
 import {
   conversationStoreActor,
   type ConversationStoreActorEvent,
@@ -34,7 +31,17 @@ const invalidForwardingEvent = (): never => {
 
 export interface GenericChatAppInput
   extends
-    Pick<ChatTransportActorInput, "api" | "createId" | "fetch" | "now">,
+    Pick<
+      ChatTransportActorInput,
+      | "api"
+      | "createConversation"
+      | "createId"
+      | "fetch"
+      | "now"
+      | "streamDecoder"
+      | "errorDecoder"
+      | "messageEncoder"
+    >,
     Pick<ConversationStoreActorInput, "client">,
     Pick<SettingsActorInput, "storage" | "storageKey" | "defaults">,
     Pick<BrowserStateActorInput, "browser" | "draftStorageKey"> {
@@ -112,6 +119,7 @@ export const genericChatAppMachine = setup({
     forwardChildSessionEvent: sendTo("session", ({ event }) => {
       if (event.type === "transport-session-event") return event.event;
       if (event.type === "conversation-store-session-event") return event.event;
+      if (event.type === "browser-state-session-event") return event.event;
       return invalidForwardingEvent();
     }),
     forwardSessionToConversationStore: sendTo("conversationStore", ({ event }) => {

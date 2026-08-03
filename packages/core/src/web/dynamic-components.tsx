@@ -86,7 +86,11 @@ const DynamicComponentElement = ({
       className={className}
     />
   ));
-  return <Renderer className={className} props={element.props} children={children} />;
+  return (
+    <Renderer className={className} props={element.props}>
+      {children}
+    </Renderer>
+  );
 };
 
 export const DynamicComponentRenderer = ({

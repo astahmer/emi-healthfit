@@ -16,6 +16,7 @@ export interface ChatSession {
   files: Attachment[];
   temporary: boolean;
   error: string | undefined;
+  errorMessageId: string | undefined;
   queuedFollowUps: QueuedFollowUp[];
 }
 
@@ -32,10 +33,13 @@ export type ChatSessionEvent =
   | { type: "stream-resumed" }
   | { type: "stream-message"; message: ChatMessage }
   | { type: "stream-finished" }
-  | { type: "error-reported"; error: string }
+  | { type: "error-reported"; error: string; messageId?: string }
+  | { type: "error-cleared" }
   | { type: "follow-up-queued"; followUp: QueuedFollowUp }
   | { type: "queued-follow-up-forced"; id: string }
-  | { type: "queued-follow-up-removed"; id: string };
+  | { type: "queued-follow-up-updated"; id: string; text: string; files: Attachment[] }
+  | { type: "queued-follow-up-removed"; id: string }
+  | { type: "queued-follow-ups-replaced"; items: QueuedFollowUp[] };
 
 export const initialChatSession: ChatSession = {
   conversationId: undefined,
@@ -45,6 +49,7 @@ export const initialChatSession: ChatSession = {
   files: [],
   temporary: false,
   error: undefined,
+  errorMessageId: undefined,
   queuedFollowUps: [],
 };
 
@@ -103,7 +108,13 @@ export const chatSessionMachine = setup({
     ),
     startStream: assign(({ event }) =>
       event.type === "stream-started"
-        ? { messages: event.messages, draft: "", files: [], error: undefined }
+        ? {
+            messages: event.messages,
+            draft: "",
+            files: [],
+            error: undefined,
+            errorMessageId: undefined,
+          }
         : {},
     ),
     resumeStream: assign({ error: () => undefined }),
@@ -113,7 +124,13 @@ export const chatSessionMachine = setup({
         : {},
     ),
     reportError: assign(({ event }) =>
-      event.type === "error-reported" ? { error: event.error } : {},
+      event.type === "error-reported"
+        ? { error: event.error, errorMessageId: event.messageId }
+        : {},
+    ),
+    clearError: assign({ error: () => undefined, errorMessageId: () => undefined }),
+    replaceQueuedFollowUps: assign(({ event }) =>
+      event.type === "queued-follow-ups-replaced" ? { queuedFollowUps: event.items } : {},
     ),
     queueFollowUp: assign(({ context, event }) =>
       event.type === "follow-up-queued"
@@ -132,6 +149,14 @@ export const chatSessionMachine = setup({
         draft: followUp.text,
         files: followUp.files,
         queuedFollowUps: context.queuedFollowUps.filter((item) => item.id !== event.id),
+      };
+    }),
+    updateQueuedFollowUp: assign(({ context, event }) => {
+      if (event.type !== "queued-follow-up-updated") return {};
+      return {
+        queuedFollowUps: context.queuedFollowUps.map((item) =>
+          item.id === event.id ? { ...item, text: event.text, files: event.files } : item,
+        ),
       };
     }),
     removeQueuedFollowUp: assign(({ context, event }) =>
@@ -158,7 +183,11 @@ export const chatSessionMachine = setup({
         "stream-started": { target: "streaming", actions: "startStream" },
         "stream-resumed": { target: "streaming", actions: "resumeStream" },
         "error-reported": { actions: "reportError" },
+        "error-cleared": { actions: "clearError" },
+        "queued-follow-up-forced": { actions: "forceQueuedFollowUp" },
+        "queued-follow-up-updated": { actions: "updateQueuedFollowUp" },
         "queued-follow-up-removed": { actions: "removeQueuedFollowUp" },
+        "queued-follow-ups-replaced": { actions: "replaceQueuedFollowUps" },
       },
     },
     streaming: {
@@ -174,9 +203,12 @@ export const chatSessionMachine = setup({
         "stream-message": { actions: "updateStream" },
         "stream-finished": { target: "idle" },
         "error-reported": { actions: "reportError" },
+        "error-cleared": { actions: "clearError" },
         "follow-up-queued": { actions: "queueFollowUp" },
         "queued-follow-up-forced": { target: "idle", actions: "forceQueuedFollowUp" },
+        "queued-follow-up-updated": { actions: "updateQueuedFollowUp" },
         "queued-follow-up-removed": { actions: "removeQueuedFollowUp" },
+        "queued-follow-ups-replaced": { actions: "replaceQueuedFollowUps" },
       },
     },
   },

@@ -5,48 +5,16 @@ import * as Stream from "effect/Stream";
 import { fromCallback } from "xstate";
 
 import type { ChatMessage } from "../../protocol/messages.ts";
-import type { Attachment, MessagePart } from "../../protocol/parts.ts";
+import type { MessagePart } from "../../protocol/parts.ts";
 import { ChatModelConfigurationSchema } from "../../chat/request.ts";
-import type { ChatModelConfiguration } from "../../chat/request.ts";
-import type { ChatSessionEvent, QueuedFollowUp } from "../chat-session-machine.ts";
-
-export interface ChatTransportRequest {
-  conversationId: string | undefined;
-  threadId: string | undefined;
-  temporary: boolean;
-  messages: ChatMessage[];
-  text: string;
-  files: Attachment[];
-  messageId?: string;
-  replaceMessageId?: string;
-  body: Record<string, unknown>;
-}
-
-export interface ChatTransportActorInput {
-  api: string;
-  fetch: typeof globalThis.fetch;
-  createId: () => string;
-  now: () => string;
-  sendSession: (event: ChatSessionEvent) => void;
-  sendSuggestions?: (input: {
-    readonly lastAssistantText: string;
-    readonly lastUserText: string;
-    readonly threadId: string | undefined;
-    readonly messageId: string | undefined;
-    readonly config: ChatModelConfiguration;
-  }) => void;
-}
-
-export type ChatTransportActorEvent =
-  | { type: "stream-send-requested"; request: ChatTransportRequest }
-  | { type: "stream-resume-requested"; conversationId: string }
-  | { type: "stream-retry-requested"; conversationId: string }
-  | { type: "stream-cancelled" }
-  | {
-      type: "queued-follow-up-force-requested";
-      followUp: QueuedFollowUp;
-      request: Omit<ChatTransportRequest, "files" | "text">;
-    };
+import type { ChatSessionEvent } from "../chat-session-machine.ts";
+import type {
+  ChatStreamDecoder,
+  ChatTransportActorEvent,
+  ChatTransportActorInput,
+  ChatTransportError,
+  ChatTransportRequest,
+} from "./transport-types.ts";
 
 const WireChunk = Schema.Union([
   Schema.Struct({ type: Schema.Literal("start"), messageId: Schema.optional(Schema.String) }),
@@ -62,6 +30,16 @@ class ChatTransportStreamError extends Schema.TaggedErrorClass<ChatTransportStre
   "ChatTransportStreamError",
   { message: Schema.String },
 ) {}
+
+class ChatTransportRequestError extends Error {
+  readonly messageId: string | undefined;
+
+  constructor({ message, messageId }: ChatTransportError) {
+    super(message);
+    this.name = "ChatTransportRequestError";
+    this.messageId = messageId;
+  }
+}
 
 const errorMessage = ({ cause, fallback }: { cause: unknown; fallback: string }): string =>
   cause instanceof Error ? cause.message : fallback;
@@ -161,6 +139,42 @@ const consumeStreamEffect = Effect.fn("chat.transport.consumeStream")(function* 
   return message;
 });
 
+const consumeResponseEffect = Effect.fn("chat.transport.consumeResponse")(function* ({
+  decoder,
+  response,
+  activeOperation,
+  now,
+  createId,
+  sendSession,
+  isCurrent,
+}: {
+  decoder: ChatStreamDecoder | undefined;
+  response: Response;
+  activeOperation: number;
+  now: () => string;
+  createId: () => string;
+  sendSession: (event: ChatSessionEvent) => void;
+  isCurrent: (activeOperation: number) => boolean;
+}) {
+  if (decoder !== undefined) {
+    return yield* decoder({
+      response,
+      now,
+      createId,
+      sendMessage: (message) => sendSession({ type: "stream-message", message }),
+      isCurrent: () => isCurrent(activeOperation),
+    });
+  }
+  return yield* consumeStreamEffect({
+    activeOperation,
+    response,
+    now,
+    createId,
+    sendSession,
+    isCurrent,
+  });
+});
+
 export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTransportActorInput>(
   ({ input, receive }) => {
     let abortController: AbortController | undefined;
@@ -182,47 +196,87 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       controller: AbortController;
       request: ChatTransportRequest;
     }) => {
+      const createdConversationId =
+        request.conversationId === undefined &&
+        !request.temporary &&
+        input.createConversation !== undefined
+          ? await input.createConversation()
+          : undefined;
+      const resolvedRequest =
+        createdConversationId === undefined
+          ? request
+          : { ...request, conversationId: createdConversationId };
+      if (createdConversationId !== undefined)
+        input.sendSession({
+          type: "conversation-identified",
+          conversationId: createdConversationId,
+        });
       const message: ChatMessage = {
-        id: request.messageId ?? input.createId(),
+        id: resolvedRequest.messageId ?? input.createId(),
         role: "user",
         parts: [
-          ...(request.text === "" ? [] : [{ type: "text" as const, text: request.text }]),
-          ...request.files.map((file) => ({ type: "file" as const, file })),
+          ...(resolvedRequest.text === ""
+            ? []
+            : [{ type: "text" as const, text: resolvedRequest.text }]),
+          ...resolvedRequest.files.map((file) => ({ type: "file" as const, file })),
         ],
         createdAt: input.now(),
       };
-      const messages = [...request.messages, message];
+      const messages = [...resolvedRequest.messages, message];
       input.sendSession({ type: "stream-started", messages });
+      const encodedMessages =
+        input.messageEncoder?.({ messages, request: resolvedRequest }) ?? messages;
       const response = await input.fetch(input.api, {
         body: JSON.stringify({
-          ...request.body,
-          messages,
-          sessionId: request.conversationId,
-          threadId: request.threadId,
-          temporary: request.temporary,
-          ...(request.replaceMessageId === undefined
+          ...resolvedRequest.body,
+          messages: encodedMessages,
+          sessionId: resolvedRequest.conversationId,
+          threadId: resolvedRequest.threadId,
+          temporary: resolvedRequest.temporary,
+          ...(resolvedRequest.replaceMessageId === undefined
             ? {}
-            : { replaceMessageId: request.replaceMessageId }),
+            : { replaceMessageId: resolvedRequest.replaceMessageId }),
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
         signal: controller.signal,
       });
-      const conversationId = response.headers.get("x-conversation-id");
-      if (conversationId !== null) {
+      const conversationId =
+        response.headers.get("x-conversation-id") ?? response.headers.get("x-thread-id");
+      if (
+        !resolvedRequest.temporary &&
+        conversationId !== null &&
+        conversationId !== resolvedRequest.conversationId
+      ) {
         input.sendSession({ type: "conversation-identified", conversationId });
       }
-      if (!response.ok) throw new Error(`Chat request failed (${response.status}).`);
-      return await Effect.runPromise(
-        consumeStreamEffect({
-          activeOperation,
-          response,
-          now: input.now,
-          createId: input.createId,
-          sendSession: input.sendSession,
-          isCurrent: (currentOperation) => currentOperation === operation,
-        }),
-      );
+      if (!response.ok) {
+        const decoded = await input.errorDecoder?.({ response });
+        throw new ChatTransportRequestError(
+          decoded ?? {
+            message: `Chat request failed (${response.status}).`,
+            messageId: message.id,
+          },
+        );
+      }
+      try {
+        return await Effect.runPromise(
+          consumeResponseEffect({
+            decoder: input.streamDecoder,
+            activeOperation,
+            response,
+            now: input.now,
+            createId: input.createId,
+            sendSession: input.sendSession,
+            isCurrent: (currentOperation) => currentOperation === operation,
+          }),
+        );
+      } catch (cause) {
+        throw new ChatTransportRequestError({
+          message: errorMessage({ cause, fallback: "Unable to complete this chat request." }),
+          messageId: message.id,
+        });
+      }
     };
 
     const run = async ({
@@ -252,6 +306,8 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         input.sendSession({
           type: "error-reported",
           error: errorMessage({ cause, fallback: "Unable to complete this chat request." }),
+          messageId:
+            cause instanceof ChatTransportRequestError ? cause.messageId : request.messageId,
         });
       } finally {
         if (abortController === controller) abortController = undefined;
@@ -279,9 +335,15 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               signal: controller.signal,
             },
           );
-          if (!response.ok) throw new Error(`Chat resume failed (${response.status}).`);
+          if (!response.ok) {
+            const decoded = await input.errorDecoder?.({ response });
+            throw new ChatTransportRequestError(
+              decoded ?? { message: `Chat resume failed (${response.status}).` },
+            );
+          }
           await Effect.runPromise(
-            consumeStreamEffect({
+            consumeResponseEffect({
+              decoder: input.streamDecoder,
               activeOperation,
               response,
               now: input.now,
@@ -295,6 +357,11 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
           input.sendSession({
             type: "error-reported",
             error: errorMessage({ cause, fallback: "Unable to resume this conversation." }),
+            ...(cause instanceof ChatTransportRequestError && cause.messageId === undefined
+              ? {}
+              : cause instanceof ChatTransportRequestError
+                ? { messageId: cause.messageId }
+                : {}),
           });
         } finally {
           if (abortController === controller) abortController = undefined;

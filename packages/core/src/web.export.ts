@@ -43,7 +43,19 @@ import type {
   ConversationMessagePart,
   ConversationThreadView,
 } from "./web/conversation/types.ts";
-import { createConversationClient } from "./web/chat-runtime/conversation-client.ts";
+import {
+  createConversationClient,
+  type Conversation,
+  type ConversationClient,
+  type ConversationThread,
+  type Memory,
+} from "./web/chat-runtime/conversation-client.ts";
+import type {
+  ChatMessageEncoder,
+  ChatStreamDecoder,
+  ChatTransportErrorDecoder,
+} from "./web/chat-runtime/transport-types.ts";
+import type { MemorySummary } from "./protocol/resources.ts";
 import { MarkdownText } from "./web/thread/markdown-text.tsx";
 import { MessagePart } from "./web/thread/message-part.tsx";
 import { SuggestionChips } from "./web/thread/suggestion-chips.tsx";
@@ -139,4 +151,12 @@ export type {
   ToolRendererContribution,
   DynamicComponentRendererProps,
   WebMcpModelContext,
+  ChatStreamDecoder,
+  ChatTransportErrorDecoder,
+  ChatMessageEncoder,
+  Conversation,
+  ConversationClient,
+  ConversationThread,
+  Memory,
+  MemorySummary,
 };

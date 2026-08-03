@@ -109,6 +109,30 @@ const assistantResponse = () =>
   );
 
 describe("genericChatAppMachine", () => {
+  it("routes restored browser drafts to the session child", async () => {
+    const actor = createActor(genericChatAppMachine, {
+      input: {
+        api: "https://chat.example/api/chat",
+        fetch: async () => assistantResponse(),
+        createId: () => "user-message",
+        now: () => "2026-01-01T00:00:00.000Z",
+        client,
+        ...rootAdapters,
+        browser: {
+          ...rootAdapters.browser,
+          storage: {
+            ...rootAdapters.browser.storage,
+            getItem: () => "restored draft",
+          },
+        },
+      },
+    }).start();
+
+    const session = actor.getSnapshot().children.session;
+    await vi.waitFor(() => expect(session?.getSnapshot().context.draft).toBe("restored draft"));
+    actor.stop();
+  });
+
   it("routes a transport stream through its session child without mirroring child context", async () => {
     const actor = createActor(genericChatAppMachine, {
       input: {
