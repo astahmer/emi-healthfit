@@ -138,11 +138,7 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
     const handleForceSendRequest = ({ id }: { readonly id: string }) => {
       const sessionId = activeSessionId();
       const adapter = input.adapter;
-      if (
-        sessionId === undefined ||
-        adapter === undefined ||
-        !queue.some((item) => item.id === id)
-      )
+      if (sessionId === undefined || adapter === undefined || !queue.some((item) => item.id === id))
         return;
       if (isStreaming) {
         input.onForceSend?.({ id });
