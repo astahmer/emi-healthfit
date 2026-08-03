@@ -180,7 +180,9 @@ export const chatSessionMachine = setup({
             errorMessageId: event.messageId,
             streamOutcome: "failed" as const,
             failedStreamMessageId:
-              context.streamOrigin === "send" ? context.streamMessageId : undefined,
+              context.streamOutcome === undefined && context.streamOrigin === "send"
+                ? context.streamMessageId
+                : context.failedStreamMessageId,
           }
         : {},
     ),

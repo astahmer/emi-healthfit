@@ -298,4 +298,51 @@ describe("createChatRuntime", () => {
     );
     runtime.dispose();
   });
+
+  it("does not notify the lifecycle adapter for an empty send stream", async () => {
+    const target = {
+      id: "user-original",
+      role: "user" as const,
+      parts: JSON.stringify([{ type: "text", text: "Original" }]),
+      model: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    } satisfies StoredMessage;
+    const previousAssistant = {
+      id: "assistant-previous",
+      role: "assistant" as const,
+      parts: JSON.stringify([{ type: "text", text: "Previous answer" }]),
+      model: "test-model",
+      createdAt: "2026-01-01T00:00:01.000Z",
+    } satisfies StoredMessage;
+    const onStreamCompleted = vi.fn();
+    const fixture = createOptions({
+      conversationMessages: [target, previousAssistant],
+      onStreamCompleted,
+    });
+    const baseFetch = fixture.options.transport.fetch;
+    fixture.options.transport.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/chat")) {
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start: (controller) => controller.close(),
+          }),
+        );
+      }
+      return baseFetch(input, init);
+    };
+    const runtime = createChatRuntime(fixture.options);
+
+    runtime.start();
+    runtime.actions.selectConversation({ conversationId: conversation.id });
+    await vi.waitFor(() => {
+      expect(runtime.getState().activeThread.messages).toHaveLength(2);
+    });
+
+    runtime.actions.sendMessage({ text: "New question" });
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
+
+    expect(onStreamCompleted).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
 });

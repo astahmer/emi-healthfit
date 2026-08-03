@@ -254,9 +254,13 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     const sessionContext = sessionSnapshot?.context;
     const isStreaming = sessionSnapshot?.matches("streaming") ?? false;
     const onStreamCompleted = options.lifecycle?.onStreamCompleted;
-    const completedMessage = sessionContext?.messages.findLast(
-      (message) => message.role === "assistant",
-    );
+    const completedMessage =
+      sessionContext?.streamMessageId === undefined
+        ? undefined
+        : sessionContext.messages.find(
+            (message) =>
+              message.id === sessionContext.streamMessageId && message.role === "assistant",
+          );
     const completedConversationId = sessionContext?.conversationId;
     if (
       wasStreaming &&

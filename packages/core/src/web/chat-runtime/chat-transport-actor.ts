@@ -211,12 +211,14 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       controller: AbortController;
       request: ChatTransportRequest;
     }) => {
+      const isActive = () => !controller.signal.aborted && activeOperation === operation;
       const createdConversationId =
         request.conversationId === undefined &&
         !request.temporary &&
         input.createConversation !== undefined
           ? await input.createConversation()
           : undefined;
+      if (!isActive()) return;
       const resolvedRequest =
         createdConversationId === undefined
           ? request
@@ -256,6 +258,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         method: "POST",
         signal: controller.signal,
       });
+      if (!isActive()) return;
       const conversationId =
         response.headers.get("x-conversation-id") ?? response.headers.get("x-thread-id");
       if (
@@ -285,8 +288,10 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
             inactivityTimeoutMilliseconds:
               input.streamInactivityTimeoutMilliseconds ??
               defaultStreamInactivityTimeoutMilliseconds,
-            sendSession: input.sendSession,
-            isCurrent: (currentOperation) => currentOperation === operation,
+            sendSession: (event) => {
+              if (isActive()) input.sendSession(event);
+            },
+            isCurrent: () => isActive(),
           }),
         );
       } catch (cause) {
@@ -308,6 +313,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
     }) => {
       try {
         const message = await sendRequest({ activeOperation, controller, request });
+        if (controller.signal.aborted || activeOperation !== operation) return;
         if (message !== undefined && input.sendSuggestions !== undefined) {
           const text = assistantText(message);
           if (text !== "")
@@ -344,6 +350,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
     const resume = (conversationId: string) => {
       const controller = new AbortController();
       const activeOperation = supersede();
+      const isActive = () => !controller.signal.aborted && activeOperation === operation;
       abortController = controller;
       input.sendSession({ type: "stream-resumed" });
       void (async () => {
@@ -354,6 +361,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               signal: controller.signal,
             },
           );
+          if (!isActive()) return;
           if (!response.ok) {
             const decoded = await input.errorDecoder?.({ response });
             throw new ChatTransportRequestError(
@@ -371,10 +379,13 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               inactivityTimeoutMilliseconds:
                 input.streamInactivityTimeoutMilliseconds ??
                 defaultStreamInactivityTimeoutMilliseconds,
-              sendSession: input.sendSession,
-              isCurrent: (currentOperation) => currentOperation === operation,
+              sendSession: (event) => {
+                if (isActive()) input.sendSession(event);
+              },
+              isCurrent: () => isActive(),
             }),
           );
+          if (controller.signal.aborted || activeOperation !== operation) return;
           input.sendSession({ type: "stream-completed" });
         } catch (cause) {
           if (controller.signal.aborted || activeOperation !== operation) return;

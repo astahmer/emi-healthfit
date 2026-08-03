@@ -64,7 +64,13 @@ const pendingResponse = () => {
   return { controller: () => controller, response };
 };
 
-const createInput = ({ fetch }: { fetch: typeof globalThis.fetch }) => {
+const createInput = ({
+  fetch,
+  createConversation,
+}: {
+  fetch: typeof globalThis.fetch;
+  createConversation?: () => Promise<string>;
+}) => {
   const sessionEvents: ChatSessionEvent[] = [];
   const input: ChatTransportActorInput = {
     api: "https://chat.example/api/chat",
@@ -72,6 +78,7 @@ const createInput = ({ fetch }: { fetch: typeof globalThis.fetch }) => {
     createId: () => "user-message",
     now: () => "2026-01-01T00:00:00.000Z",
     sendSession: (event) => sessionEvents.push(event),
+    ...(createConversation === undefined ? {} : { createConversation }),
   };
   return { input, sessionEvents };
 };
@@ -220,6 +227,38 @@ describe("chatTransportActor", () => {
     expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
       expect.objectContaining({ type: "text", text: "Current answer" }),
     );
+    expect(sessionEvents.filter((event) => event.type === "stream-completed")).toHaveLength(1);
+    actor.stop();
+  });
+
+  it("does not start a stale request after conversation creation is superseded", async () => {
+    let resolveConversation: ((conversationId: string) => void) | undefined;
+    let requestCount = 0;
+    const { input, sessionEvents } = createInput({
+      createConversation: () =>
+        new Promise((resolve) => {
+          resolveConversation = resolve;
+        }),
+      fetch: async () => {
+        requestCount += 1;
+        return streamResponse({ chunks: assistantChunks({ text: "Current answer" }) });
+      },
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({ type: "stream-send-requested", request });
+    await vi.waitFor(() => expect(resolveConversation).toBeTypeOf("function"));
+    actor.send({
+      type: "stream-send-requested",
+      request: { ...request, conversationId: "conversation-2" },
+    });
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+
+    resolveConversation?.("conversation-1");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(requestCount).toBe(1);
+    expect(sessionEvents.filter((event) => event.type === "stream-started")).toHaveLength(1);
     actor.stop();
   });
 

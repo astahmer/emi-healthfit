@@ -17,7 +17,8 @@ class HealthFitChatStreamError extends Schema.TaggedErrorClass<HealthFitChatStre
 ) {}
 
 const toUiMessageStream = (response: Response): ReadableStream<UIMessageChunk> => {
-  if (response.body === null) throw new Error("Chat response did not contain a stream.");
+  if (response.body === null)
+    throw new HealthFitChatStreamError({ message: "Chat response did not contain a stream." });
   return parseJsonEventStream({
     stream: response.body,
     schema: uiMessageChunkSchema,
