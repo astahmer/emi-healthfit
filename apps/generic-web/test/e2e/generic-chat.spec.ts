@@ -146,8 +146,8 @@ test("supports message revision and assistant retry through the core runtime", a
 
   const assistantMessage = page.getByTestId("messages").locator("[data-message-id]").last();
   await assistantMessage.getByRole("button", { name: "Retry message", exact: true }).click();
+  await expect.poll(() => api.chatCalls()).toBe(3);
   await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
-  expect(api.chatCalls()).toBe(3);
 });
 
 test("supports queue, force-send, and branch/minimap controls", async ({ page }) => {

@@ -188,6 +188,28 @@ export const createGenericE2eApi = ({
       return;
     }
 
+    const messageRevisionMatch = pathname.match(
+      /^\/api\/conversations\/([^/]+)\/messages\/([^/]+)$/,
+    );
+    if (messageRevisionMatch !== null && request.method() === "PATCH") {
+      const conversationId = messageRevisionMatch[1] ?? "";
+      const messageId = messageRevisionMatch[2] ?? "";
+      const storedMessages = messages.get(conversationId) ?? [];
+      const message = storedMessages.find((candidate) => candidate.id === messageId);
+      if (message === undefined) {
+        await json({ route, body: { error: "Message not found" }, status: 404 });
+        return;
+      }
+      const body = requestBody(route);
+      if (!Array.isArray(body.parts)) {
+        await json({ route, body: { error: "Invalid message parts" }, status: 400 });
+        return;
+      }
+      message.parts = JSON.stringify(body.parts);
+      await json({ route, body: { ok: true } });
+      return;
+    }
+
     if (pathname === "/api/conversations" && request.method() === "GET") {
       const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
       const result =
@@ -383,6 +405,13 @@ export const createGenericE2eApi = ({
       lastChatRequestBody = body;
       const requestMessages = Array.isArray(body.messages) ? body.messages : [];
       const userMessage = requestMessages.at(-1);
+      const userMessageId =
+        typeof userMessage === "object" &&
+        userMessage !== null &&
+        "id" in userMessage &&
+        typeof userMessage.id === "string"
+          ? userMessage.id
+          : `user-${chatCalls}`;
       const userText =
         typeof userMessage === "object" && userMessage !== null && "parts" in userMessage
           ? JSON.stringify(userMessage.parts)
@@ -392,7 +421,7 @@ export const createGenericE2eApi = ({
         const stored = messages.get(id) ?? [];
         stored.push(
           {
-            id: `user-${chatCalls}`,
+            id: userMessageId,
             role: "user",
             parts: userText,
             model: null,
