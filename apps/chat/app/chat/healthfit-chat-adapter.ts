@@ -7,7 +7,46 @@ import type {
   MemorySummary,
 } from "@emi/core/web";
 import { MemoryDomain } from "../memories";
+import { notifyMemoriesChanged } from "../memory-events";
 import { runApi } from "../api-client";
+
+const assistantText = (message: ChatMessage): string =>
+  message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n")
+    .trim();
+
+export const extractHealthFitAssistantMemories = async ({
+  conversationId,
+  message,
+  temporary,
+  apiKey,
+  baseUrl,
+  model,
+}: {
+  conversationId: string;
+  message: ChatMessage;
+  temporary: boolean;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}): Promise<void> => {
+  if (temporary) return;
+  const text = assistantText(message);
+  if (text === "") return;
+  const ids = await MemoryDomain.extract({
+    text,
+    threadId: conversationId,
+    messageId: message.id,
+    source: "auto",
+    config: {
+      apiKey,
+      baseUrl: baseUrl || undefined,
+      model,
+    },
+  });
+  if (ids.length > 0) notifyMemoriesChanged();
+};
 
 const toConversation = (value: {
   id: string;

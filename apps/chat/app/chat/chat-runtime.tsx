@@ -19,7 +19,10 @@ import { useNotes } from "../notes-context";
 import { useSettings } from "../settings-store";
 import { fetchConversationMessages, type ConversationSnapshot } from "../conversations";
 import { createConversation } from "../sessions";
-import { createHealthFitConversationClient } from "./healthfit-chat-adapter";
+import {
+  createHealthFitConversationClient,
+  extractHealthFitAssistantMemories,
+} from "./healthfit-chat-adapter";
 import { healthFitChatStreamDecoder } from "./healthfit-chat-stream-adapter";
 import {
   GenerationAlreadyRunningError,
@@ -147,6 +150,17 @@ export const ChatRuntimeProvider = ({
           },
         },
         persistence,
+        lifecycle: {
+          onStreamCompleted: ({ conversationId, message, temporary }) =>
+            extractHealthFitAssistantMemories({
+              conversationId,
+              message,
+              temporary,
+              apiKey: settingsRef.current.apiKey,
+              baseUrl: settingsRef.current.baseUrl,
+              model: configRef.current.model,
+            }),
+        },
         storage: {
           settings: {
             get: () => null,
