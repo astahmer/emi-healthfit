@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 type Theme = "light" | "dark";
 
@@ -31,11 +39,13 @@ const applyTheme = (theme: Theme) => {
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>("dark");
   const [mounted, setMounted] = useState(false);
+  const userSelectedTheme = useRef(false);
 
   useEffect(() => {
     const storedValue = localStorage.getItem(STORAGE_KEY);
     const stored: Theme | null =
       storedValue === "light" || storedValue === "dark" ? storedValue : null;
+    userSelectedTheme.current = stored !== null;
     const initial = stored ?? getSystemTheme();
     setTheme(initial);
     applyTheme(initial);
@@ -44,7 +54,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const listener = (event: MediaQueryListEvent) => {
-      if (localStorage.getItem(STORAGE_KEY) === null) {
+      if (!userSelectedTheme.current && localStorage.getItem(STORAGE_KEY) === null) {
         const next = event.matches ? "dark" : "light";
         setTheme(next);
         applyTheme(next);
@@ -61,10 +71,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!mounted) return;
     applyTheme(theme);
-    localStorage.setItem(STORAGE_KEY, theme);
+    if (userSelectedTheme.current) localStorage.setItem(STORAGE_KEY, theme);
   }, [theme, mounted]);
 
   const toggleTheme = () => {
+    userSelectedTheme.current = true;
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
 

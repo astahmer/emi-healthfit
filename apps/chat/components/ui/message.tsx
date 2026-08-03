@@ -27,14 +27,3 @@ export const MessageContent = ({ className, ...props }: React.ComponentProps<"di
     {...props}
   />
 );
-
-export const MessageFooter = ({ className, ...props }: React.ComponentProps<"div">) => (
-  <div
-    data-slot="message-footer"
-    className={cn(
-      "flex max-w-full min-w-0 items-center px-3 text-xs text-muted-foreground group-data-[align=end]/message:justify-end",
-      className,
-    )}
-    {...props}
-  />
-);

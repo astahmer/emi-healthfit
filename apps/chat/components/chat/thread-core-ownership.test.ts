@@ -4,7 +4,13 @@ import { join } from "node:path";
 
 describe("chat thread ownership", () => {
   it("imports generic thread views, navigation, and controls from @emi/core/web", async () => {
-    const source = await readFile(join(process.cwd(), "components/chat/thread.tsx"), "utf8");
+    const source = (
+      await Promise.all(
+        ["thread-message-list.tsx", "thread-types.ts", "thread-composer-sections.tsx"].map(
+          (fileName) => readFile(join(process.cwd(), "components/chat", fileName), "utf8"),
+        ),
+      )
+    ).join("\n");
     expect(source).toContain('from "@emi/core/web"');
     expect(source).toContain("ThreadMessage");
     expect(source).toContain("MessageRail");

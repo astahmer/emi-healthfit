@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Note } from "@emi/core/contract";
@@ -9,6 +9,7 @@ import { createNote, deleteNote, fetchNotes, updateNote } from "./notes";
 import { notifyQueryResourceChanged, queryKeys } from "./query-cache";
 
 export function NotesPanel() {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -25,24 +26,35 @@ export function NotesPanel() {
 
   const createMutation = useMutation({
     mutationFn: createNote,
-    onSuccess: () => notifyQueryResourceChanged("notes"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
+      notifyQueryResourceChanged("notes");
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) => updateNote(id, content),
-    onSuccess: () => notifyQueryResourceChanged("notes"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
+      notifyQueryResourceChanged("notes");
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteNote,
-    onSuccess: () => notifyQueryResourceChanged("notes"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
+      notifyQueryResourceChanged("notes");
+    },
   });
 
   const handleAdd = async () => {
     const content = draft.trim();
     if (content === "") return;
-    await createMutation.mutateAsync(content);
-    setDraft("");
+    try {
+      await createMutation.mutateAsync(content);
+      setDraft("");
+    } catch {}
   };
 
   const startEdit = (note: Note) => {
@@ -52,13 +64,17 @@ export function NotesPanel() {
 
   const submitEdit = async () => {
     if (editingId === null || editDraft.trim() === "") return;
-    await updateMutation.mutateAsync({ id: editingId, content: editDraft.trim() });
-    setEditingId(null);
-    setEditDraft("");
+    try {
+      await updateMutation.mutateAsync({ id: editingId, content: editDraft.trim() });
+      setEditingId(null);
+      setEditDraft("");
+    } catch {}
   };
 
   const handleDelete = async (id: string) => {
-    await deleteMutation.mutateAsync(id);
+    try {
+      await deleteMutation.mutateAsync(id);
+    } catch {}
   };
 
   return (

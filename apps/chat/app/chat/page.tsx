@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import type { UIMessage } from "ai";
@@ -11,7 +11,6 @@ import type { MessageWithUsage, Thread as SessionThread } from "../sessions";
 import { UsageProvider } from "../usage-context";
 import { useActionFeedback } from "../action-feedback";
 import { queryKeys } from "../query-cache";
-import { compactConversation } from "../conversations";
 import { chatModels } from "../models";
 import type { ChatSearch } from "../router";
 import { createConversationWithMessages } from "../sessions";
@@ -54,14 +53,20 @@ const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
   }, []);
 
 const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
-  messages.filter(isRuntimeMessage).map((message) => ({
-    id: message.id,
-    role: message.role,
-    parts: message.parts,
-    createdAt: message.createdAt,
-    model: message.model,
-    usage: message.usage,
-  }));
+  messages.flatMap((message) =>
+    isRuntimeMessage(message)
+      ? [
+          {
+            id: message.id,
+            role: message.role,
+            parts: message.parts,
+            createdAt: message.createdAt,
+            model: message.model,
+            usage: message.usage,
+          },
+        ]
+      : [],
+  );
 
 const compactedSummary = (messages: MessageNode[]): string | undefined => {
   const summary = messages.findLast((message) => message.role === "summary");
@@ -93,13 +98,22 @@ export const ChatPage = ({
   const updateSettings = useSettings((state) => state.update);
   const queryClient = useQueryClient();
   const feedback = useActionFeedback();
-  const pendingNewChatRef = useRef(false);
-  const previousBranchCountRef = useRef<number | undefined>(undefined);
-  const [isCompacting, setIsCompacting] = useState(false);
   const urlModel = search.model ?? settings.model;
   const urlCoachMode = search.coach === undefined ? settings.coachMode : true;
   const urlWebSearch = search.web === "1";
-  const { state: conversationState, send: sendConversation } = useConversationMachine(sessionId);
+  const { state: conversationState, send: sendConversation } = useConversationMachine(
+    sessionId,
+    false,
+    {
+      onBranchCreated: () => feedback.show({ kind: "success", message: "Branch created." }),
+      onCompactionCompleted: (compactedConversation) => {
+        onNavigate(compactedConversation.id);
+        feedback.show({ kind: "success", message: "Fresh chat ready with compacted context." });
+      },
+      onCompactionFailed: () =>
+        feedback.show({ kind: "error", message: "Could not compact conversation." }),
+    },
+  );
   const [configState, sendConfig] = useMachine(composerConfigMachine, {
     input: {
       models: chatModels,
@@ -133,10 +147,6 @@ export const ChatPage = ({
   const contextSummary = compactedSummary(initialMessages);
 
   useEffect(() => {
-    if (activeConversationId === undefined) pendingNewChatRef.current = false;
-  }, [activeConversationId]);
-
-  useEffect(() => {
     if (conversation === null) return;
     queryClient.setQueriesData<SessionThread[]>(
       { queryKey: queryKeys.conversations.all },
@@ -147,20 +157,7 @@ export const ChatPage = ({
     );
   }, [conversation, queryClient]);
 
-  useEffect(() => {
-    if (!historyMatchesSelection || isLoading) {
-      previousBranchCountRef.current = undefined;
-      return;
-    }
-    const branchCount = conversationState.context.threads.length;
-    if (
-      previousBranchCountRef.current !== undefined &&
-      branchCount > previousBranchCountRef.current
-    ) {
-      feedback.show({ kind: "success", message: "Branch created." });
-    }
-    previousBranchCountRef.current = branchCount;
-  }, [conversationState.context.threads.length, feedback, historyMatchesSelection, isLoading]);
+  const isCompacting = conversationState.matches({ ready: "compacting" });
 
   const copyConversation = async () => {
     try {
@@ -171,26 +168,17 @@ export const ChatPage = ({
     }
   };
 
-  const startCompactedConversation = async () => {
+  const startCompactedConversation = () => {
     if (activeConversationId === undefined || isCompacting) return;
-    setIsCompacting(true);
     feedback.show({ kind: "info", message: "Compacting conversation…" });
-    try {
-      const compactedConversation = await compactConversation({
-        conversationId: activeConversationId,
-        config: {
-          apiKey: settings.apiKey,
-          baseUrl: settings.baseUrl || undefined,
-          model: configState.context.model,
-        },
-      });
-      onNavigate(compactedConversation.id);
-      feedback.show({ kind: "success", message: "Fresh chat ready with compacted context." });
-    } catch {
-      feedback.show({ kind: "error", message: "Could not compact conversation." });
-    } finally {
-      setIsCompacting(false);
-    }
+    sendConversation({
+      type: "conversation.compact",
+      config: {
+        apiKey: settings.apiKey,
+        baseUrl: settings.baseUrl || undefined,
+        model: configState.context.model,
+      },
+    });
   };
 
   const composerControls: ComposerControls = {
@@ -259,9 +247,9 @@ export const ChatPage = ({
               initialMessages: runtimeMessages,
             }}
             onSessionCreated={(id) => {
-              if (pendingNewChatRef.current) return;
+              const suppressNavigation = conversationState.context.suppressNextSessionNavigation;
               sendConversation({ type: "session.created", conversationId: id });
-              onNavigate(id);
+              if (!suppressNavigation) onNavigate(id);
             }}
             onHistoryChanged={(snapshot) =>
               sendConversation({
@@ -292,7 +280,7 @@ export const ChatPage = ({
                 onRenameSubmit={() => sendConversation({ type: "conversation.rename.submit" })}
                 onRenameCancel={() => sendConversation({ type: "conversation.rename.cancel" })}
                 onNewChat={() => {
-                  pendingNewChatRef.current = true;
+                  sendConversation({ type: "new-chat.requested" });
                   onNavigate(undefined);
                 }}
                 onCopyConversation={() => void copyConversation()}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionFeedback } from "./action-feedback";
@@ -17,6 +17,7 @@ const memorySource = (source: string | null | undefined): string => {
 
 export function MemoryPanel() {
   const feedback = useActionFeedback();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
 
@@ -40,7 +41,8 @@ export function MemoryPanel() {
 
   const createMutation = useMutation({
     mutationFn: (content: string) => MemoryDomain.create({ content, source: "manual" }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
       notifyMemoriesChanged();
       feedback.show({ kind: "success", message: "Memory saved." });
     },
@@ -48,7 +50,8 @@ export function MemoryPanel() {
 
   const deleteMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => MemoryDomain.remove({ id }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
       notifyMemoriesChanged();
       feedback.show({ kind: "success", message: "Memory removed." });
     },
@@ -58,7 +61,8 @@ export function MemoryPanel() {
   const summaryContent = summaryDraft ?? summary?.content ?? "";
   const summaryMutation = useMutation({
     mutationFn: (content: string) => MemoryDomain.updateSummary({ content }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.memories.summary });
       setSummaryDraft(undefined);
       notifyMemoriesChanged();
       feedback.show({ kind: "success", message: "Memory summary saved." });
@@ -69,18 +73,24 @@ export function MemoryPanel() {
   const handleAdd = async () => {
     const content = draft.trim();
     if (content === "") return;
-    await createMutation.mutateAsync(content);
-    setDraft("");
+    try {
+      await createMutation.mutateAsync(content);
+      setDraft("");
+    } catch {}
   };
 
   const handleDelete = async (id: string) => {
-    await deleteMutation.mutateAsync({ id });
+    try {
+      await deleteMutation.mutateAsync({ id });
+    } catch {}
   };
 
   const handleSaveSummary = async () => {
     const content = summaryContent.trim();
     if (content === "") return;
-    await summaryMutation.mutateAsync(content);
+    try {
+      await summaryMutation.mutateAsync(content);
+    } catch {}
   };
 
   return (

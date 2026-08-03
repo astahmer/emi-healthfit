@@ -199,7 +199,7 @@ export const ThreadNavigation = ({
           })}
           <div className="ms-auto flex shrink-0 items-center gap-1 ps-2">
             {searchOpen ? (
-              <label className="relative w-56 sm:w-64">
+              <div className="relative w-56 sm:w-64">
                 <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <input
                   value={searchQuery}
@@ -220,7 +220,7 @@ export const ThreadNavigation = ({
                 >
                   <XIcon className="size-3.5" />
                 </button>
-              </label>
+              </div>
             ) : (
               <TooltipIconButton
                 tooltip="Search conversation"

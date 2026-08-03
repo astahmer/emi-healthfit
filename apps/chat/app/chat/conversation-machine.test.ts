@@ -201,6 +201,52 @@ describe("conversationMachine", () => {
     expect(snapshot.context.focusedThreadId).toBe("thread-2");
   });
 
+  it("owns compaction and reports the completed conversation through its boundary", async () => {
+    const compactedConversation = makeConversation({ id: "conv-2", title: "Compacted" });
+    const onCompactionCompleted = vi.fn();
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(
+          async (): Promise<{
+            conversation: Conversation;
+            messages: MessageNode[];
+            threads: ThreadView[];
+          }> => ({
+            conversation: makeConversation(),
+            messages: [],
+            threads: [],
+          }),
+        ),
+        compactConversation: fromPromise(async () => compactedConversation),
+      },
+    });
+    const actor = createActor(machine, {
+      input: { conversationId: "conv-1", onCompactionCompleted },
+    });
+    actor.start();
+
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+    actor.send({
+      type: "conversation.compact",
+      config: { apiKey: "test-key", model: "test-model" },
+    });
+
+    expect(actor.getSnapshot().matches({ ready: "compacting" })).toBe(true);
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+    expect(onCompactionCompleted).toHaveBeenCalledWith(compactedConversation);
+  });
+
+  it("keeps new-chat navigation intent in the actor until the runtime creates a session", () => {
+    const actor = createActor(conversationMachine, { input: {} });
+    actor.start();
+
+    actor.send({ type: "new-chat.requested" });
+    expect(actor.getSnapshot().context.suppressNextSessionNavigation).toBe(true);
+
+    actor.send({ type: "session.created", conversationId: "conv-new" });
+    expect(actor.getSnapshot().context.suppressNextSessionNavigation).toBe(false);
+  });
+
   it("renames a thread", async () => {
     const machine = conversationMachine.provide({
       actors: {

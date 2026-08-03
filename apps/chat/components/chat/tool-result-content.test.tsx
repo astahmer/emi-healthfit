@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CoreWebProvider } from "@emi/core/web";
 import { healthFitContributions } from "@/app/core-web-contributions";
@@ -145,7 +145,7 @@ describe("ToolResultContent", () => {
     expect(screen.getByText("Full body")).toBeInTheDocument();
   });
 
-  it("renders persisted component variants with the current MetricCard contract", () => {
+  it("renders persisted component variants with the current MetricCard contract", async () => {
     const view = renderToolResult(
       <div className="h-96 w-96">
         <ToolResultContent
@@ -239,10 +239,12 @@ describe("ToolResultContent", () => {
     expect(screen.getByText("Steps")).toBeInTheDocument();
     expect(screen.getByText("flat")).toBeInTheDocument();
     expect(screen.getByText("Deadlift")).toBeInTheDocument();
-    expect(view.container.querySelector(".recharts-responsive-container")).not.toBeNull();
+    await waitFor(() => {
+      expect(view.container.querySelector(".recharts-responsive-container")).not.toBeNull();
+    });
   });
 
-  it("renders sleep trends and workout streaks from tool results", () => {
+  it("renders sleep trends and workout streaks from tool results", async () => {
     const view = renderToolResult(
       <div className="h-96 w-96">
         <ToolResultContent
@@ -342,9 +344,13 @@ describe("ToolResultContent", () => {
     expect(screen.getByText("Recovery timeline")).toBeInTheDocument();
     expect(screen.getByText("Strength workouts")).toBeInTheDocument();
     expect(screen.getByText("Suggested next workout")).toBeInTheDocument();
-    expect(view.container.querySelector("[data-testid='sleep-trend-chart']")).not.toBeNull();
-    expect(view.container.querySelector("[data-testid='training-load-chart']")).not.toBeNull();
-    expect(view.container.querySelector("[data-testid='recovery-timeline-chart']")).not.toBeNull();
+    await waitFor(() => {
+      expect(view.container.querySelector("[data-testid='sleep-trend-chart']")).not.toBeNull();
+      expect(view.container.querySelector("[data-testid='training-load-chart']")).not.toBeNull();
+      expect(
+        view.container.querySelector("[data-testid='recovery-timeline-chart']"),
+      ).not.toBeNull();
+    });
   });
 
   it("renders parsed string results as preformatted text", () => {

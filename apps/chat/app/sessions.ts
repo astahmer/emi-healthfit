@@ -108,15 +108,17 @@ export const fetchConversationMessages = async (
     );
     const sourceMessages = new Map(data.messages.map((message) => [message.id, message]));
     const validated = await safeValidateUIMessages({
-      messages: data.messages
-        .filter((message) => message.role !== "summary")
-        .map((message) =>
-          Chat.messages.fromProtocolMessage({
-            id: message.id,
-            role: message.role === "summary" ? "assistant" : message.role,
-            parts: message.parts,
-          }),
-        ),
+      messages: data.messages.flatMap((message) =>
+        message.role === "summary"
+          ? []
+          : [
+              Chat.messages.fromProtocolMessage({
+                id: message.id,
+                role: message.role,
+                parts: message.parts,
+              }),
+            ],
+      ),
     });
     if (!validated.success) throw validated.error;
     const messages = validated.data.map((message) => {

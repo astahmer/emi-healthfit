@@ -12,5 +12,3 @@ export const subscribeToConversationChanges = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
-
-export const getConversationRevision = () => revision;

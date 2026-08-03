@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { parseReleaseHistory, type ReleaseHistory } from "./release-history";
 
+const releaseDateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 const releasedAt = (value: string): string => {
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return releaseDateFormatter.format(date);
 };
 
 export const Releases = () => {

@@ -4,11 +4,17 @@ import {
   SERVICE_WORKER_UPDATE_INTERVAL_MS,
 } from "./service-worker-updates";
 
-const updater = createServiceWorkerUpdater();
+const defaultUpdater = createServiceWorkerUpdater();
 
-export const ServiceWorkerReload = () => {
+export const ServiceWorkerReload = ({
+  enabled = import.meta.env.PROD,
+  updater = defaultUpdater,
+}: {
+  readonly enabled?: boolean;
+  readonly updater?: ReturnType<typeof createServiceWorkerUpdater>;
+} = {}) => {
   useEffect(() => {
-    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+    if (!enabled || !("serviceWorker" in navigator)) return;
 
     const hadController = Boolean(navigator.serviceWorker.controller);
 
@@ -40,7 +46,7 @@ export const ServiceWorkerReload = () => {
       window.removeEventListener("focus", onFocus);
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [enabled, updater]);
 
   return null;
 };

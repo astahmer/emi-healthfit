@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { FileUpIcon } from "lucide-react";
@@ -43,8 +43,13 @@ const requestPreview = async ({ file, apply }: { file: File; apply: boolean }) =
     headers: { "content-type": "application/json" },
     body: await file.text(),
   });
+  if (!response.ok) {
+    const decoded = decodeImportResponse(await response.json().catch(() => undefined));
+    const error = Option.isSome(decoded) ? decoded.value.error : undefined;
+    throw new Error(error ?? `Import failed (${response.status})`);
+  }
   const decoded = decodeImportResponse(await response.json().catch(() => undefined));
-  if (!response.ok || Option.isNone(decoded) || decoded.value.preview === undefined) {
+  if (Option.isNone(decoded) || decoded.value.preview === undefined) {
     const error = Option.isSome(decoded) ? decoded.value.error : undefined;
     throw new Error(error ?? `Import failed (${response.status})`);
   }
@@ -52,13 +57,13 @@ const requestPreview = async ({ file, apply }: { file: File; apply: boolean }) =
 };
 
 export const DataImport = () => {
-  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const inspect = async (selected: File) => {
-    setFile(selected);
+    fileRef.current = selected;
     setPreview(null);
     setStatus(null);
     setBusy(true);
@@ -72,6 +77,7 @@ export const DataImport = () => {
   };
 
   const apply = async () => {
+    const file = fileRef.current;
     if (file === null) return;
     setBusy(true);
     setStatus(null);

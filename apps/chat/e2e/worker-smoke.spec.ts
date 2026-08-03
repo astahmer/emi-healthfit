@@ -1,9 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.skip(
-  process.env.HEALTHFIT_REAL_WORKER !== "1",
-  "requires the real HealthFit Worker runner",
-);
+test.skip(process.env.HEALTHFIT_REAL_WORKER !== "1", "requires the real HealthFit Worker runner");
 
 test("authenticates through the real HealthFit Worker and renders chat", async ({ page }) => {
   const sessionResponse = await page.request.get("/api/auth/get-session");

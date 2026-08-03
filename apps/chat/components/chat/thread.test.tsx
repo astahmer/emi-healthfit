@@ -183,16 +183,14 @@ describe("Thread", () => {
   });
 
   it("renders persisted error-text outcomes as Failed after refresh", () => {
-    const failedToolPart = JSON.parse(
-      JSON.stringify({
-        type: "dynamic-tool",
-        toolName: "get_workout_history",
-        toolCallId: "tool-failed",
-        state: "output-error",
-        input: {},
-        output: { type: "error-text", value: "Only one SELECT query is allowed." },
-      }),
-    );
+    const failedToolPart = {
+      type: "dynamic-tool",
+      toolName: "get_workout_history",
+      toolCallId: "tool-failed",
+      state: "output-available",
+      input: {},
+      output: { type: "error-text", value: "Only one SELECT query is allowed." },
+    } satisfies MessageWithUsage["parts"][number];
     const message: MessageWithUsage = {
       id: "assistant-failed",
       role: "assistant",

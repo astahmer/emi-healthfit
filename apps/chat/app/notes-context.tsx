@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Note } from "@emi/core/contract";
 import { fetchNotes } from "./notes";
@@ -37,12 +37,4 @@ export const NotesProvider = ({ children }: { children: ReactNode }) => {
   );
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
-};
-
-export const useNotes = (): NotesContextValue => {
-  const context = useContext(NotesContext);
-  if (context === null) {
-    throw new Error("useNotes must be used within a NotesProvider");
-  }
-  return context;
 };

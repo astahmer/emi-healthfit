@@ -182,6 +182,7 @@ export const HevyIntegration = () => {
       ) : (
         <div className="mt-3 space-y-2">
           <input
+            aria-label="Hevy API key"
             type="password"
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}

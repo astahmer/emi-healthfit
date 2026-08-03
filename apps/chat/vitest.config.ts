@@ -16,6 +16,22 @@ export default defineConfig({
     ],
     // Parallel suite load makes userEvent interactions occasionally exceed 5s.
     testTimeout: 15_000,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "lcov"],
+      include: [
+        "app/chat/chat-runtime.tsx",
+        "app/action-feedback.tsx",
+        "app/data-export.tsx",
+        "app/data-import.tsx",
+        "app/privacy-controls.tsx",
+        "app/releases.tsx",
+        "app/service-worker-reload.tsx",
+        "app/theme-provider.tsx",
+        "app/usage-context.tsx",
+      ],
+      thresholds: { lines: 60, functions: 55, branches: 45, statements: 60 },
+    },
   },
   resolve: {
     alias: {

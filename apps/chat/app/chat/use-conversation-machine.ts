@@ -1,10 +1,17 @@
 import { useActor } from "@xstate/react";
 import { useEffect } from "react";
-import { conversationMachine } from "./conversation-machine";
+import { conversationMachine, type ConversationMachineInput } from "./conversation-machine";
 
-export const useConversationMachine = (conversationId: string | undefined, isTemporary = false) => {
+export const useConversationMachine = (
+  conversationId: string | undefined,
+  isTemporary = false,
+  callbacks: Pick<
+    ConversationMachineInput,
+    "onBranchCreated" | "onCompactionCompleted" | "onCompactionFailed"
+  > = {},
+) => {
   const [state, send] = useActor(conversationMachine, {
-    input: { conversationId, isTemporary },
+    input: { conversationId, isTemporary, ...callbacks },
   });
 
   useEffect(() => {

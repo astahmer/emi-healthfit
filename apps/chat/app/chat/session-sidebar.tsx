@@ -189,6 +189,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
             className="flex w-full items-center gap-1 px-2"
           >
             <input
+              aria-label="Rename session"
               value={state.context.draft}
               onChange={(e) => send({ type: "rename.change", value: e.target.value })}
               autoFocus

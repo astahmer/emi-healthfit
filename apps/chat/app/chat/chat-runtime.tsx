@@ -1,23 +1,23 @@
 "use client";
 
 import type { FileUIPart, UIMessage } from "ai";
+import { useActor } from "@xstate/react";
 import {
   useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createChatRuntime } from "@emi/core";
 import { aiSdkChatStreamDecoder } from "@emi/core/adapters/ai-sdk";
 import { Chat } from "@emi/core/chat";
 import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
-import { createBrowserFollowUpQueueSyncAdapter, prepareAttachmentParts } from "@emi/core/web";
+import { attachmentPreparationMachine, createBrowserFollowUpQueueSyncAdapter } from "@emi/core/web";
 import { buildNotesContext } from "../notes";
 import { useSettings } from "../settings-store";
 import { queryKeys } from "../query-cache";
@@ -90,6 +90,125 @@ const decodeTransportError = async ({
   return undefined;
 };
 
+type MutableRef<Value> = { current: Value };
+
+const createHealthFitChatRuntime = ({
+  configRef,
+  onSessionCreatedRef,
+  onHistoryChangedRef,
+  persistence,
+  queryClient,
+  queueSyncAdapter,
+}: {
+  configRef: MutableRef<ChatRuntimeConfig>;
+  onSessionCreatedRef: MutableRef<((id: string) => void) | undefined>;
+  onHistoryChangedRef: MutableRef<((snapshot: ConversationSnapshot) => void) | undefined>;
+  persistence: ReturnType<typeof createHealthFitConversationClient>;
+  queryClient: QueryClient;
+  queueSyncAdapter: ReturnType<typeof createBrowserFollowUpQueueSyncAdapter>;
+}) =>
+  createChatRuntime({
+    transport: {
+      baseUrl: "/api",
+      fetch: window.fetch.bind(window),
+      createConversation,
+      streamDecoder: aiSdkChatStreamDecoder,
+      errorDecoder: decodeTransportError,
+      messageEncoder: ({ messages }) => toUiMessages({ messages: messages.slice(-1) }),
+      requestBody: ({ settings: coreSettings }) => {
+        const currentSettings = useSettings.getState().settings;
+        const currentConfig = configRef.current;
+        const notesContext = buildNotesContext(
+          queryClient.getQueryData<Note[]>(queryKeys.notes.list({ search: "" })) ?? [],
+        );
+        return {
+          system:
+            notesContext === ""
+              ? currentSettings.systemPrompt
+              : `${currentSettings.systemPrompt}\n\n${notesContext}`,
+          config: {
+            provider: currentSettings.provider,
+            apiKey: currentSettings.apiKey,
+            baseUrl: currentSettings.baseUrl || undefined,
+            model: currentConfig.model || coreSettings.model,
+          },
+          coachMode: currentConfig.coachMode,
+          webSearch: currentConfig.webSearch,
+        };
+      },
+    },
+    persistence,
+    queueSync: {
+      adapter: queueSyncAdapter,
+    },
+    lifecycle: {
+      onSessionCreated: ({ conversationId }) => onSessionCreatedRef.current?.(conversationId),
+      onHistoryChanged: ({ conversationId, signal }) =>
+        fetchConversationMessages(conversationId, signal).then((snapshot) =>
+          signal.aborted ? undefined : onHistoryChangedRef.current?.(snapshot),
+        ),
+      onStreamCompleted: ({ conversationId, message, temporary }) =>
+        extractHealthFitAssistantMemories({
+          conversationId,
+          message,
+          temporary,
+          apiKey: useSettings.getState().settings.apiKey,
+          baseUrl: useSettings.getState().settings.baseUrl,
+          model: configRef.current.model,
+        }),
+    },
+    storage: {
+      settings: {
+        get: () => null,
+        set: () => undefined,
+        remove: () => undefined,
+      },
+      drafts: {
+        get: (key) => window.localStorage.getItem(key),
+        set: (key, value) => window.localStorage.setItem(key, value),
+        remove: (key) => window.localStorage.removeItem(key),
+      },
+    },
+    browser: {
+      online: navigator.onLine,
+      subscribeOnline: (listener) => {
+        const update = () => listener(navigator.onLine);
+        window.addEventListener("online", update);
+        window.addEventListener("offline", update);
+        return () => {
+          window.removeEventListener("online", update);
+          window.removeEventListener("offline", update);
+        };
+      },
+    },
+    identity: {
+      createId: () => crypto.randomUUID(),
+      now: () => new Date().toISOString(),
+    },
+    settings: {
+      defaults: {
+        provider: useSettings.getState().settings.provider,
+        apiKey: useSettings.getState().settings.apiKey,
+        baseUrl: useSettings.getState().settings.baseUrl,
+        model: configRef.current.model,
+        systemPrompt: useSettings.getState().settings.systemPrompt,
+        titleModel: configRef.current.model,
+        titlePrompt: "",
+        memoryEnabled: true,
+        memoryModel: configRef.current.model,
+        webSearch: configRef.current.webSearch,
+        theme: "light",
+      },
+    },
+    features: {
+      attachments: true,
+      memories: true,
+      branches: true,
+      suggestions: true,
+      webSearch: true,
+    },
+  });
+
 export const ChatRuntimeProvider = ({
   config,
   onSessionCreated,
@@ -106,8 +225,6 @@ export const ChatRuntimeProvider = ({
   const configRef = useRef(config);
   const onSessionCreatedRef = useRef(onSessionCreated);
   const onHistoryChangedRef = useRef(onHistoryChanged);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
 
   const persistence = useMemo(() => createHealthFitConversationClient(), []);
   const queueSyncAdapter = useMemo(
@@ -129,110 +246,27 @@ export const ChatRuntimeProvider = ({
   );
   const runtime = useMemo(
     () =>
-      createChatRuntime({
-        transport: {
-          baseUrl: "/api",
-          fetch: window.fetch.bind(window),
-          createConversation,
-          streamDecoder: aiSdkChatStreamDecoder,
-          errorDecoder: decodeTransportError,
-          messageEncoder: ({ messages }) => toUiMessages({ messages: messages.slice(-1) }),
-          requestBody: ({ settings: coreSettings }) => {
-            const currentSettings = useSettings.getState().settings;
-            const currentConfig = configRef.current;
-            const notesContext = buildNotesContext(
-              queryClient.getQueryData<Note[]>(queryKeys.notes.list({ search: "" })) ?? [],
-            );
-            return {
-              system:
-                notesContext === ""
-                  ? currentSettings.systemPrompt
-                  : `${currentSettings.systemPrompt}\n\n${notesContext}`,
-              config: {
-                provider: currentSettings.provider,
-                apiKey: currentSettings.apiKey,
-                baseUrl: currentSettings.baseUrl || undefined,
-                model: currentConfig.model || coreSettings.model,
-              },
-              coachMode: currentConfig.coachMode,
-              webSearch: currentConfig.webSearch,
-            };
-          },
-        },
+      createHealthFitChatRuntime({
+        configRef,
+        onSessionCreatedRef,
+        onHistoryChangedRef,
         persistence,
-        queueSync: {
-          adapter: queueSyncAdapter,
-        },
-        lifecycle: {
-          onSessionCreated: ({ conversationId }) => onSessionCreatedRef.current?.(conversationId),
-          onHistoryChanged: ({ conversationId, signal }) =>
-            fetchConversationMessages(conversationId, signal).then((snapshot) =>
-              signal.aborted ? undefined : onHistoryChangedRef.current?.(snapshot),
-            ),
-          onStreamCompleted: ({ conversationId, message, temporary }) =>
-            extractHealthFitAssistantMemories({
-              conversationId,
-              message,
-              temporary,
-              apiKey: useSettings.getState().settings.apiKey,
-              baseUrl: useSettings.getState().settings.baseUrl,
-              model: configRef.current.model,
-            }),
-        },
-        storage: {
-          settings: {
-            get: () => null,
-            set: () => undefined,
-            remove: () => undefined,
-          },
-          drafts: {
-            get: (key) => window.localStorage.getItem(key),
-            set: (key, value) => window.localStorage.setItem(key, value),
-            remove: (key) => window.localStorage.removeItem(key),
-          },
-        },
-        browser: {
-          online: navigator.onLine,
-          subscribeOnline: (listener) => {
-            const update = () => listener(navigator.onLine);
-            window.addEventListener("online", update);
-            window.addEventListener("offline", update);
-            return () => {
-              window.removeEventListener("online", update);
-              window.removeEventListener("offline", update);
-            };
-          },
-        },
-        identity: {
-          createId: () => crypto.randomUUID(),
-          now: () => new Date().toISOString(),
-        },
-        settings: {
-          defaults: {
-            provider: useSettings.getState().settings.provider,
-            apiKey: useSettings.getState().settings.apiKey,
-            baseUrl: useSettings.getState().settings.baseUrl,
-            model: configRef.current.model,
-            systemPrompt: useSettings.getState().settings.systemPrompt,
-            titleModel: configRef.current.model,
-            titlePrompt: "",
-            memoryEnabled: true,
-            memoryModel: configRef.current.model,
-            webSearch: configRef.current.webSearch,
-            theme: "light",
-          },
-        },
-        features: {
-          attachments: true,
-          memories: true,
-          branches: true,
-          suggestions: true,
-          webSearch: true,
-        },
+        queryClient,
+        queueSyncAdapter,
       }),
-    [persistence, queueSyncAdapter],
+    [persistence, queryClient, queueSyncAdapter],
   );
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
+  const [attachmentState, sendAttachment] = useActor(attachmentPreparationMachine, {
+    input: {
+      onPrepared: (parts) =>
+        runtime.actions.addAttachments({
+          attachments: parts
+            .filter((part): part is FileUIPart => part.type === "file")
+            .map(toAttachment),
+        }),
+    },
+  });
 
   useLayoutEffect(() => {
     configRef.current = config;
@@ -263,6 +297,9 @@ export const ChatRuntimeProvider = ({
     config.model,
     runtime,
     settings,
+    config,
+    onSessionCreated,
+    onHistoryChanged,
   ]);
 
   const selectionMatches = config.temporary
@@ -315,25 +352,13 @@ export const ChatRuntimeProvider = ({
 
   const addFiles = useCallback(
     async (files: FileList) => {
-      setAttachmentError(null);
-      setIsPreparingAttachments(true);
-      try {
-        const parts = await prepareAttachmentParts({
-          files,
-          existingCount: state.composer.attachments.length,
-        });
-        runtime.actions.addAttachments({
-          attachments: parts
-            .filter((part): part is FileUIPart => part.type === "file")
-            .map(toAttachment),
-        });
-      } catch (cause) {
-        setAttachmentError(cause instanceof Error ? cause.message : "Could not add attachment.");
-      } finally {
-        setIsPreparingAttachments(false);
-      }
+      sendAttachment({
+        type: "files.selected",
+        files,
+        existingCount: state.composer.attachments.length,
+      });
     },
-    [runtime, state.composer.attachments.length],
+    [sendAttachment, state.composer.attachments.length],
   );
 
   const beginEditingQueuedFollowUp = useCallback(
@@ -380,8 +405,8 @@ export const ChatRuntimeProvider = ({
       isStreaming: selectionMatches && state.activeThread.isStreaming,
       error,
       errorMessageId: state.errorMessageId,
-      attachmentError,
-      isPreparingAttachments,
+      attachmentError: attachmentState.context.error,
+      isPreparingAttachments: attachmentState.matches("preparing"),
       setDraft: (text) => runtime.actions.setDraft({ text }),
       addFiles,
       removeFile: (url) => runtime.actions.removeAttachment({ attachmentId: `attachment:${url}` }),
@@ -407,12 +432,11 @@ export const ChatRuntimeProvider = ({
     }),
     [
       addFiles,
-      attachmentError,
       beginEditingQueuedFollowUp,
       clearQueuedFollowUpEdit,
       editingQueuedId,
       error,
-      isPreparingAttachments,
+      attachmentState,
       messages,
       forceSendQueued,
       queuedFollowUps,

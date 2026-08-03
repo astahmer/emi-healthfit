@@ -10,6 +10,7 @@ import {
   renameConversation as renameConversationApi,
   renameThread as renameThreadApi,
   restoreThread as restoreThreadApi,
+  compactConversation as compactConversationApi,
 } from "../conversations";
 import { searchMessages } from "@emi/core/web";
 import { conversationMarkdown } from "@emi/core/web";
@@ -47,6 +48,21 @@ export interface ThreadView {
   updatedAt: string;
 }
 
+export interface CompactConversationConfig {
+  apiKey: string;
+  baseUrl?: string;
+  model: string;
+}
+
+export interface ConversationMachineInput {
+  conversationId?: string;
+  createdConversationId?: string;
+  isTemporary?: boolean;
+  onBranchCreated?: (thread: ThreadView) => void;
+  onCompactionCompleted?: (conversation: Conversation) => void;
+  onCompactionFailed?: () => void;
+}
+
 export interface ConversationContext {
   conversationId: string | undefined;
   createdConversationId: string | undefined;
@@ -62,6 +78,10 @@ export interface ConversationContext {
   sidebarWidth: number;
   error: Error | null;
   refreshFromNetwork: boolean;
+  suppressNextSessionNavigation: boolean;
+  onBranchCreated?: (thread: ThreadView) => void;
+  onCompactionCompleted?: (conversation: Conversation) => void;
+  onCompactionFailed?: () => void;
 }
 
 export type ConversationEvent =
@@ -88,6 +108,7 @@ export type ConversationEvent =
   | { type: "discard.succeeded"; threadId: string }
   | { type: "discard.failed"; error: Error }
   | { type: "thread.restore"; threadId: string }
+  | { type: "conversation.compact"; config: CompactConversationConfig }
   | { type: "search.query"; query: string }
   | { type: "view.select"; viewMode: ViewMode }
   | { type: "temporary.changed"; isTemporary: boolean }
@@ -97,6 +118,7 @@ export type ConversationEvent =
   | { type: "conversation.rename.cancel" }
   | { type: "export" }
   | { type: "sidebar.widthChanged"; width: number }
+  | { type: "new-chat.requested" }
   | { type: "session.created"; conversationId: string }
   | { type: "reset" };
 
@@ -134,7 +156,7 @@ export const conversationMachine = setup({
   types: {
     context: {} as ConversationContext,
     events: {} as ConversationEvent,
-    input: {} as { conversationId?: string; createdConversationId?: string; isTemporary?: boolean },
+    input: {} as ConversationMachineInput,
   },
   actors: {
     loadConversation: fromPromise(
@@ -206,6 +228,13 @@ export const conversationMachine = setup({
       async ({ input }: { input: { threadId: string } }): Promise<{ threadId: string }> =>
         restoreThreadApi(input.threadId),
     ),
+    compactConversation: fromPromise(
+      async ({
+        input,
+      }: {
+        input: { conversationId: string; config: CompactConversationConfig };
+      }): Promise<Conversation> => compactConversationApi(input),
+    ),
   },
   actions: {
     clearConversation: assign({
@@ -226,6 +255,9 @@ export const conversationMachine = setup({
         exportMarkdown(context.conversationId, context.messages);
       }
     },
+    notifyBranchCreated: ({ context }, params: { thread: ThreadView }) =>
+      context.onBranchCreated?.(params.thread),
+    notifyCompactionFailed: ({ context }) => context.onCompactionFailed?.(),
   },
   guards: {
     hasConversationId: ({ context }) => context.conversationId !== undefined,
@@ -240,6 +272,8 @@ export const conversationMachine = setup({
     isTemporary: ({ context }) => context.isTemporary,
     canRenameConversation: ({ context }) =>
       context.conversationId !== undefined && context.renameDraft.trim() !== "",
+    canCompactConversation: ({ context, event }) =>
+      context.conversationId !== undefined && event.type === "conversation.compact",
   },
 }).createMachine({
   id: "conversation",
@@ -259,6 +293,10 @@ export const conversationMachine = setup({
     sidebarWidth: 16,
     error: null,
     refreshFromNetwork: false,
+    suppressNextSessionNavigation: false,
+    onBranchCreated: input.onBranchCreated,
+    onCompactionCompleted: input.onCompactionCompleted,
+    onCompactionFailed: input.onCompactionFailed,
   }),
   states: {
     initializing: {
@@ -334,6 +372,10 @@ export const conversationMachine = setup({
               actions: assign({ focusedThreadId: ({ event }) => event.threadId }),
             },
             "thread.fork": { target: "forking" },
+            "conversation.compact": {
+              target: "compacting",
+              guard: "canCompactConversation",
+            },
             "thread.rename": { target: "renamingThread" },
             "thread.pin": { target: "pinning" },
             "thread.discard": { target: "discarding" },
@@ -393,10 +435,16 @@ export const conversationMachine = setup({
             },
             onDone: {
               target: "idle",
-              actions: assign({
-                threads: ({ context, event }) => [...context.threads, event.output],
-                focusedThreadId: ({ event }) => event.output.id,
-              }),
+              actions: [
+                assign({
+                  threads: ({ context, event }) => [...context.threads, event.output],
+                  focusedThreadId: ({ event }) => event.output.id,
+                }),
+                {
+                  type: "notifyBranchCreated",
+                  params: ({ event }) => ({ thread: event.output }),
+                },
+              ],
             },
             onError: {
               target: "idle",
@@ -543,6 +591,31 @@ export const conversationMachine = setup({
             },
           },
         },
+        compacting: {
+          invoke: {
+            src: "compactConversation",
+            input: ({ context, event }) => {
+              if (event.type !== "conversation.compact") throw new Error("Unexpected event");
+              if (context.conversationId === undefined)
+                throw new Error("conversationId is required");
+              return { conversationId: context.conversationId, config: event.config };
+            },
+            onDone: {
+              target: "idle",
+              actions: ({ context, event }) => context.onCompactionCompleted?.(event.output),
+            },
+            onError: {
+              target: "idle",
+              actions: [
+                assign({
+                  error: ({ event }) =>
+                    event.error instanceof Error ? event.error : new Error(String(event.error)),
+                }),
+                "notifyCompactionFailed",
+              ],
+            },
+          },
+        },
         exporting: {
           entry: "exportMarkdown",
           always: { target: "idle" },
@@ -586,7 +659,11 @@ export const conversationMachine = setup({
         "session.created": {
           actions: assign({
             createdConversationId: ({ event }) => event.conversationId,
+            suppressNextSessionNavigation: () => false,
           }),
+        },
+        "new-chat.requested": {
+          actions: assign({ suppressNextSessionNavigation: () => true }),
         },
         "temporary.changed": {
           actions: assign({
