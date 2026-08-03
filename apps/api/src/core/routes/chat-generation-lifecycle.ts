@@ -7,11 +7,15 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { safeValidateUIMessages, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { createChatStreamEffect, type ChatStreamRequest } from "../chat/ai-sdk.ts";
+import {
+  createChatStreamEffect,
+  type ChatStreamRequest,
+  validateUIMessagesEffect,
+} from "../chat/ai-sdk.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
@@ -65,11 +69,9 @@ export const handleMessageRevision = ({
     if (Option.isNone(decoded)) {
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
     }
-    const validated = yield* Effect.promise(() =>
-      safeValidateUIMessages({
-        messages: [{ id: messageId, role: "user", parts: decoded.value.parts }],
-      }),
-    );
+    const validated = yield* validateUIMessagesEffect([
+      { id: messageId, role: "user", parts: decoded.value.parts },
+    ]);
     if (!validated.success) {
       return yield* HttpServerResponse.json({ error: validated.error.message }, { status: 400 });
     }
@@ -265,9 +267,7 @@ export const handleAiSdkChat = (
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const validatedMessages = yield* Effect.promise(() =>
-      safeValidateUIMessages<UIMessage>({ messages: parsed.value.messages }),
-    );
+    const validatedMessages = yield* validateUIMessagesEffect<UIMessage>(parsed.value.messages);
     if (!validatedMessages.success) {
       return yield* HttpServerResponse.json(
         { error: validatedMessages.error.message },

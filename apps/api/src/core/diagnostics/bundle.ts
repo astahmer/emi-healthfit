@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { ServerDatabase } from "@emi/core/server/database";
 import type { QueryDatabaseClient } from "../../platform/db/client.ts";
 import { decodeJson } from "../lib/json-codec.ts";
 
@@ -121,7 +122,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
   includeSensitive?: boolean;
 }) {
   const kysely = yield* db.kysely;
-  const conversation = yield* Effect.promise(() =>
+  const conversation = yield* ServerDatabase.query.tryPromise(() =>
     kysely
       .selectFrom("conversations")
       .select(["id", "title", "status", "created_at", "updated_at"])
@@ -132,7 +133,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
   if (conversation === undefined) return null;
 
   const [messages, generations, events] = yield* Effect.all([
-    Effect.promise(() =>
+    ServerDatabase.query.tryPromise(() =>
       kysely
         .selectFrom("messages")
         .select([
@@ -152,7 +153,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
         .orderBy("id")
         .execute(),
     ),
-    Effect.promise(() =>
+    ServerDatabase.query.tryPromise(() =>
       kysely
         .selectFrom("chat_generations")
         .select([
@@ -177,7 +178,7 @@ export const getDiagnosticBundle = Effect.fn("diagnostics.bundle.read")(function
         .orderBy("id")
         .execute(),
     ),
-    Effect.promise(() =>
+    ServerDatabase.query.tryPromise(() =>
       kysely
         .selectFrom("chat_events")
         .select([

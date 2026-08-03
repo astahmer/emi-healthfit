@@ -9,11 +9,11 @@ import {
 } from "@emi/core/contract";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { safeValidateUIMessages } from "ai";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import { validateUIMessagesEffect } from "../chat/ai-sdk.ts";
 import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
 import { withInternalError } from "./errors.ts";
@@ -119,18 +119,16 @@ export const conversationsHandlers = () => {
                 message: "Conversation requires at least one message",
               });
             }
-            const validated = yield* Effect.promise(() =>
-              safeValidateUIMessages({
-                messages: payload.messages.map((message, index) => ({
+            const validated = yield* validateUIMessagesEffect(
+              payload.messages.map((message, index) => ({
+                id: `import-${index}`,
+                role: message.role,
+                parts: Chat.messages.fromProtocolMessage({
                   id: `import-${index}`,
                   role: message.role,
-                  parts: Chat.messages.fromProtocolMessage({
-                    id: `import-${index}`,
-                    role: message.role,
-                    parts: message.parts,
-                  }).parts,
-                })),
-              }),
+                  parts: message.parts,
+                }).parts,
+              })),
             );
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
@@ -403,21 +401,17 @@ export const conversationsHandlers = () => {
           "reviseMessage",
           Effect.fn("httpApi.conversations.reviseMessage")(function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const validated = yield* Effect.promise(() =>
-              safeValidateUIMessages({
-                messages: [
-                  {
-                    id: params.messageId,
-                    role: "user",
-                    parts: Chat.messages.fromProtocolMessage({
-                      id: params.messageId,
-                      role: "user",
-                      parts: payload.parts,
-                    }).parts,
-                  },
-                ],
-              }),
-            );
+            const validated = yield* validateUIMessagesEffect([
+              {
+                id: params.messageId,
+                role: "user",
+                parts: Chat.messages.fromProtocolMessage({
+                  id: params.messageId,
+                  role: "user",
+                  parts: payload.parts,
+                }).parts,
+              },
+            ]);
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
