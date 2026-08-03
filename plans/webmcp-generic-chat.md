@@ -159,14 +159,14 @@ mobile-safe dialog surface and never depend on hover-only controls; phase one ex
 
 ### Common interactions
 
-| Action                             | Result                                                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Agent searches conversations       | Existing search actor/client updates the sidebar; structured results identify matching ids and titles. |
-| Agent opens a conversation         | Existing route/store flow loads it and the header announces the selected conversation.                 |
-| Agent starts a new chat            | Existing new-chat event creates/selects the conversation; no provider request is made.                 |
-| Agent fills the composer           | Text appears in the visible draft and remains unsent until the user presses Send.                      |
+| Action                             | Result                                                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Agent searches conversations       | Existing search actor/client updates the sidebar; structured results identify matching ids and titles.                             |
+| Agent opens a conversation         | Existing route/store flow loads it and the header announces the selected conversation.                                             |
+| Agent starts a new chat            | Existing new-chat event creates/selects the conversation; no provider request is made.                                             |
+| Agent fills the composer           | Text appears in the visible draft and remains unsent until the user presses Send.                                                  |
 | Agent requests a restricted action | No restricted tool is registered in phase one; a future tool must return a typed confirmation-required result before any mutation. |
-| Browser lacks WebMCP               | No registration error is shown; ordinary human UI and tests continue unchanged.                        |
+| Browser lacks WebMCP               | No registration error is shown; ordinary human UI and tests continue unchanged.                                                    |
 
 ## Data model
 
@@ -205,9 +205,10 @@ not database tables.
 4. **[x]** Wire `apps/generic-web` through `ChatRuntimeOptions.webmcp` with
    `WebMcp.detect(document)`. `apps/chat` is not enabled yet; it can opt in through the same
    option after its separate runtime composition is migrated.
-5. **[x]** Add core actor tests for feature gating, malformed input, redaction, stateful actions,
-   missing capability, and registration cleanup. Stale-id and cross-session behavior still need a
-   more explicit fixture before this item is fully closed.
+5. **[x]** Add core actor tests for feature gating, malformed input, redaction, stale identifiers,
+   stateful actions, missing capability, and registration cleanup. Session scope is structural:
+   tools accept no user id or credential and only dispatch through the injected authenticated
+   runtime/client.
 6. **[x]** Add a deterministic Playwright `document.modelContext` harness and generic browser
    coverage for discovery, context redaction, theme, memory search, and visible draft filling.
    Existing generic tests continue to run without WebMCP; a manual browser checklist remains.
@@ -237,9 +238,9 @@ not database tables.
       check remains the final handoff gate.
 - [x] With a test `document.modelContext` harness, only the allowlisted tools register and every
       registration has a valid name, description, JSON input schema, and policy metadata.
-- [~] Tool inputs are runtime-decoded and malformed/missing-capability requests return typed
-  failures without uncaught exceptions or raw HTML. Explicit stale-id and cross-session
-  fixtures remain to be added.
+- [x] Tool inputs are runtime-decoded and malformed/missing-capability/stale-id requests return
+      typed failures without uncaught exceptions or raw HTML. Cross-session scope is enforced by
+      the injected runtime/client boundary; no tool accepts a user id or credential input.
 - [x] Search, open, new-chat, theme, memory-search, and draft-fill actions route through existing
       runtime actions and actor-owned state; React adds no domain or network state.
 - [x] Draft filling is visible and never sends a provider request. No restricted action is exposed
