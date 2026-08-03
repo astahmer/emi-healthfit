@@ -1,20 +1,17 @@
 "use client";
 
-import { useMemo, type FC, type ReactNode } from "react";
+import { Suspense, lazy, useMemo, type FC, type ReactNode } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { cn } from "../lib/cn.ts";
+
+const rechartsPromise = import("recharts");
+
+const ChartFallback = () => (
+  <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
+    Loading chart…
+  </div>
+);
 
 interface WorkoutHistoryItem {
   readonly session_id: string;
@@ -279,6 +276,56 @@ const FallbackResult: FC<{ value: unknown; className?: string }> = ({ value, cla
   </pre>
 );
 
+type ExerciseProgressChartData = ReadonlyArray<{
+  readonly date: string;
+  readonly weight: number | null;
+  readonly estimatedOneRepMax: number | null | undefined;
+}>;
+
+const ExerciseProgressChart = lazy(async () => {
+  const {
+    CartesianGrid,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip: RechartsTooltip,
+    XAxis,
+    YAxis,
+  } = await rechartsPromise;
+
+  const Chart: FC<{ data: ExerciseProgressChartData }> = ({ data }) => (
+    <div data-testid="exercise-progress-chart" className="w-full min-w-0 rounded-md border p-2">
+      <ResponsiveContainer width="100%" height={176}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 10 }} unit=" kg" />
+          <RechartsTooltip />
+          <Line
+            type="monotone"
+            dataKey="weight"
+            stroke="var(--primary)"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+            connectNulls
+          />
+          <Line
+            type="monotone"
+            dataKey="estimatedOneRepMax"
+            name="Estimated 1RM"
+            stroke="var(--chart-2)"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+
+  return { default: Chart };
+});
+
 export const WorkoutHistoryTable: FC<{ items?: ReadonlyArray<WorkoutHistoryItem> }> = ({
   items = emptyWorkoutItems,
 }) => {
@@ -303,7 +350,7 @@ export const WorkoutHistoryTable: FC<{ items?: ReadonlyArray<WorkoutHistoryItem>
   );
 };
 
-export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => {
+const ExerciseProgressViewContent: FC<{ data: ExerciseProgress }> = ({ data }) => {
   const chartData = useMemo(
     () =>
       data.workouts.map((workout) => ({
@@ -341,36 +388,9 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
         </p>
       ) : (
         <>
-          <div
-            data-testid="exercise-progress-chart"
-            className="w-full min-w-0 rounded-md border p-2"
-          >
-            <ResponsiveContainer width="100%" height={176}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} unit=" kg" />
-                <RechartsTooltip />
-                <Line
-                  type="monotone"
-                  dataKey="weight"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="estimatedOneRepMax"
-                  name="Estimated 1RM"
-                  stroke="var(--chart-2)"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <Suspense fallback={<ChartFallback />}>
+            <ExerciseProgressChart data={chartData} />
+          </Suspense>
           <Table headers={exerciseProgressHeaders}>
             {data.workouts.map((workout) => (
               <tr key={workout.session_id} className="border-b border-border/50 last:border-0">
@@ -393,6 +413,12 @@ export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) =
     </div>
   );
 };
+
+export const ExerciseProgressView: FC<{ data: ExerciseProgress }> = ({ data }) => (
+  <Suspense fallback={<ChartFallback />}>
+    <ExerciseProgressViewContent data={data} />
+  </Suspense>
+);
 
 export const RecoveryCard: FC<{ data: RecoveryResult }> = ({ data }) => {
   return (
@@ -431,7 +457,7 @@ export const RecoveryCard: FC<{ data: RecoveryResult }> = ({ data }) => {
   );
 };
 
-export const SleepTrendView: FC<{ data: SleepTrend }> = ({ data }) => {
+const SleepTrendViewContent: FC<{ data: SleepTrend }> = ({ data }) => {
   const chartData = useMemo(
     () =>
       data.nights.map((night) => ({
@@ -457,24 +483,9 @@ export const SleepTrendView: FC<{ data: SleepTrend }> = ({ data }) => {
       </div>
       {hasSleepData ? (
         <>
-          <div data-testid="sleep-trend-chart" className="w-full min-w-0 rounded-md border p-2">
-            <ResponsiveContainer width="100%" height={176}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} unit=" h" />
-                <RechartsTooltip />
-                <Line
-                  type="monotone"
-                  dataKey="asleepHours"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <Suspense fallback={<ChartFallback />}>
+            <SleepTrendChart data={chartData} />
+          </Suspense>
           <Table headers={sleepTrendHeaders}>
             {data.nights.map((night) => (
               <tr key={night.date} className="border-b border-border/50 last:border-0">
@@ -498,6 +509,52 @@ export const SleepTrendView: FC<{ data: SleepTrend }> = ({ data }) => {
   );
 };
 
+export const SleepTrendView: FC<{ data: SleepTrend }> = ({ data }) => (
+  <Suspense fallback={<ChartFallback />}>
+    <SleepTrendViewContent data={data} />
+  </Suspense>
+);
+
+type SleepTrendChartData = ReadonlyArray<{
+  readonly date: string;
+  readonly asleepHours: number | null;
+}>;
+
+const SleepTrendChart = lazy(async () => {
+  const {
+    CartesianGrid,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip: RechartsTooltip,
+    XAxis,
+    YAxis,
+  } = await rechartsPromise;
+
+  const Chart: FC<{ data: SleepTrendChartData }> = ({ data }) => (
+    <div data-testid="sleep-trend-chart" className="w-full min-w-0 rounded-md border p-2">
+      <ResponsiveContainer width="100%" height={176}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 10 }} unit=" h" />
+          <RechartsTooltip />
+          <Line
+            type="monotone"
+            dataKey="asleepHours"
+            stroke="var(--primary)"
+            strokeWidth={2}
+            dot={{ r: 3 }}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+
+  return { default: Chart };
+});
+
 export const WorkoutStreakCard: FC<{ data: WorkoutStreak }> = ({ data }) => (
   <div className="grid gap-2 sm:grid-cols-3">
     <div className="rounded-lg border p-3">
@@ -519,7 +576,7 @@ export const WorkoutStreakCard: FC<{ data: WorkoutStreak }> = ({ data }) => (
   </div>
 );
 
-export const TrainingLoadView: FC<{ data: TrainingLoad }> = ({ data }) => {
+const TrainingLoadViewContent: FC<{ data: TrainingLoad }> = ({ data }) => {
   const chartData = useMemo(
     () =>
       data.weeks.map((week) => ({
@@ -548,22 +605,54 @@ export const TrainingLoadView: FC<{ data: TrainingLoad }> = ({ data }) => {
           </span>
         )}
       </div>
-      <div data-testid="training-load-chart" className="w-full min-w-0 rounded-md border p-2">
-        <ResponsiveContainer width="100%" height={176}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} unit=" kg" />
-            <RechartsTooltip />
-            <Bar dataKey="volume" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      <Suspense fallback={<ChartFallback />}>
+        <TrainingLoadChart data={chartData} />
+      </Suspense>
     </div>
   );
 };
 
-export const RecoveryTimelineView: FC<{ data: RecoveryTimeline }> = ({ data }) => {
+export const TrainingLoadView: FC<{ data: TrainingLoad }> = ({ data }) => (
+  <Suspense fallback={<ChartFallback />}>
+    <TrainingLoadViewContent data={data} />
+  </Suspense>
+);
+
+type TrainingLoadChartData = ReadonlyArray<{
+  readonly week: string;
+  readonly volume: number;
+  readonly workouts: number;
+}>;
+
+const TrainingLoadChart = lazy(async () => {
+  const {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Tooltip: RechartsTooltip,
+    ResponsiveContainer,
+    XAxis,
+    YAxis,
+  } = await rechartsPromise;
+
+  const Chart: FC<{ data: TrainingLoadChartData }> = ({ data }) => (
+    <div data-testid="training-load-chart" className="w-full min-w-0 rounded-md border p-2">
+      <ResponsiveContainer width="100%" height={176}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="week" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 10 }} unit=" kg" />
+          <RechartsTooltip />
+          <Bar dataKey="volume" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+
+  return { default: Chart };
+});
+
+const RecoveryTimelineViewContent: FC<{ data: RecoveryTimeline }> = ({ data }) => {
   const chartData = useMemo(
     () =>
       data.days.map((day) => ({
@@ -591,39 +680,71 @@ export const RecoveryTimelineView: FC<{ data: RecoveryTimeline }> = ({ data }) =
           </span>
         )}
       </div>
-      <div data-testid="recovery-timeline-chart" className="w-full min-w-0 rounded-md border p-2">
-        <ResponsiveContainer width="100%" height={176}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-            <YAxis yAxisId="sleep" tick={{ fontSize: 10 }} unit=" h" />
-            <YAxis yAxisId="workouts" orientation="right" tick={{ fontSize: 10 }} />
-            <RechartsTooltip />
-            <Line
-              yAxisId="sleep"
-              type="monotone"
-              dataKey="asleepHours"
-              name="Sleep"
-              stroke="var(--primary)"
-              strokeWidth={2}
-              dot={{ r: 2 }}
-              connectNulls
-            />
-            <Line
-              yAxisId="workouts"
-              type="step"
-              dataKey="workouts"
-              name="Workouts"
-              stroke="var(--chart-2)"
-              strokeWidth={2}
-              dot={{ r: 2 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <Suspense fallback={<ChartFallback />}>
+        <RecoveryTimelineChart data={chartData} />
+      </Suspense>
     </div>
   );
 };
+
+export const RecoveryTimelineView: FC<{ data: RecoveryTimeline }> = ({ data }) => (
+  <Suspense fallback={<ChartFallback />}>
+    <RecoveryTimelineViewContent data={data} />
+  </Suspense>
+);
+
+type RecoveryTimelineChartData = ReadonlyArray<{
+  readonly date: string;
+  readonly asleepHours: number | null;
+  readonly workouts: number;
+}>;
+
+const RecoveryTimelineChart = lazy(async () => {
+  const {
+    CartesianGrid,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip: RechartsTooltip,
+    XAxis,
+    YAxis,
+  } = await rechartsPromise;
+
+  const Chart: FC<{ data: RecoveryTimelineChartData }> = ({ data }) => (
+    <div data-testid="recovery-timeline-chart" className="w-full min-w-0 rounded-md border p-2">
+      <ResponsiveContainer width="100%" height={176}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+          <YAxis yAxisId="sleep" tick={{ fontSize: 10 }} unit=" h" />
+          <YAxis yAxisId="workouts" orientation="right" tick={{ fontSize: 10 }} />
+          <RechartsTooltip />
+          <Line
+            yAxisId="sleep"
+            type="monotone"
+            dataKey="asleepHours"
+            name="Sleep"
+            stroke="var(--primary)"
+            strokeWidth={2}
+            dot={{ r: 2 }}
+            connectNulls
+          />
+          <Line
+            yAxisId="workouts"
+            type="step"
+            dataKey="workouts"
+            name="Workouts"
+            stroke="var(--chart-2)"
+            strokeWidth={2}
+            dot={{ r: 2 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+
+  return { default: Chart };
+});
 
 export const GoalProgressCard: FC<{ data: GoalProgress }> = ({ data }) => {
   const stepProgress =

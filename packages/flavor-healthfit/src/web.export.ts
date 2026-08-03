@@ -33,14 +33,13 @@ import { uploadMachine } from "./web/upload-machine.ts";
 import type { UploadContext, UploadEvent, UploadResult } from "./web/upload-machine.ts";
 import { SummaryPanel } from "./web/summary-panel.tsx";
 import { UploadPanel } from "./web/upload-panel.tsx";
+import { WorkoutsPanel } from "./web/workouts-panel.tsx";
+import { buildWorkoutSearchOptions, workoutMatchesSearch } from "./web/workout-search.ts";
 import {
-  buildWorkoutSearchOptions,
   formatWorkoutDate,
   formatWorkoutDuration,
   formatWorkoutSet,
-  workoutMatchesSearch,
-  WorkoutsPanel,
-} from "./web/workouts-panel.tsx";
+} from "./web/workout-formatters.ts";
 import type { WorkoutExercise } from "./web/workouts-panel.tsx";
 import { catalog } from "./web/gen-ui/catalog.ts";
 import { GenUIRenderer } from "./web/gen-ui/registry.tsx";

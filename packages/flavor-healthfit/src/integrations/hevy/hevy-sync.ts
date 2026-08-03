@@ -188,20 +188,21 @@ const runInitialSync = Effect.fn("hevy.sync.initial")(function* ({
         startTime: mapped.session.start_time,
       });
       const providerWorkoutId = mapped.session.provider_workout_id;
-      if (unlinked.kind === "match" && providerWorkoutId !== null) {
+      const linkedSessionId = unlinked.kind === "match" ? unlinked.session.session_id : undefined;
+      if (linkedSessionId !== undefined && providerWorkoutId !== null) {
         yield* attachProviderIdToSession({
           db,
           userId,
-          sessionId: unlinked.session.session_id,
+          sessionId: linkedSessionId,
           providerWorkoutId,
           sourceUpdatedAt: mapped.session.source_updated_at,
         });
         sessions.push({
           ...mapped.session,
-          session_id: unlinked.session.session_id,
+          session_id: linkedSessionId,
         });
         for (const set of mapped.sets) {
-          sets.push({ ...set, session_id: unlinked.session.session_id });
+          sets.push({ ...set, session_id: linkedSessionId });
         }
       } else {
         if (unlinked.kind === "ambiguous_or_none" && unlinked.count > 1) {

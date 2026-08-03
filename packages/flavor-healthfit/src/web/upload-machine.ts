@@ -42,12 +42,18 @@ const uploadFiles = async (
     method: "POST",
     body: form,
   });
+  if (!res.ok) {
+    const decodedError = Schema.decodeUnknownOption(UploadResultSchema)(
+      await res.json().catch(() => undefined),
+    );
+    if (Option.isSome(decodedError) && decodedError.value.error !== undefined)
+      throw new Error(decodedError.value.error);
+    throw new Error("Upload failed.");
+  }
   const decoded = Schema.decodeUnknownOption(UploadResultSchema)(
     await res.json().catch(() => undefined),
   );
   if (Option.isNone(decoded)) throw new Error("Upload returned an invalid response.");
-
-  if (!res.ok) throw new Error(decoded.value.error || "Upload failed.");
   return decoded.value;
 };
 

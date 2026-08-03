@@ -5,17 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { runApi } from "./api-client.ts";
 import { healthFitQueryKeys } from "./query-keys.ts";
-
-export interface WorkoutSet {
-  set_index: number;
-  set_type: string | null;
-  weight_kg: number | null;
-  reps: number | null;
-  rpe: number | null;
-  distance_km: number | null;
-  duration_seconds: number | null;
-  exercise_notes: string | null;
-}
+import {
+  formatWorkoutDate,
+  formatWorkoutDuration,
+  formatWorkoutSet,
+} from "./workout-formatters.ts";
+import type { WorkoutSet } from "./workout-formatters.ts";
+import { buildWorkoutSearchOptions, workoutMatchesSearch } from "./workout-search.ts";
 
 export interface WorkoutExercise {
   exercise_title: string;
@@ -34,63 +30,25 @@ export interface WorkoutSession {
   exerciseDetails: WorkoutExercise[];
 }
 
-export const formatWorkoutDate = (value: string) =>
-  new Date(value).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-
-export const formatWorkoutDuration = (seconds: number | null) => {
-  if (seconds === null) return "—";
-  const minutes = Math.round(seconds / 60);
-  return `${minutes} min`;
-};
-
-export const formatWorkoutSet = (set: WorkoutSet): string => {
-  const parts: string[] = [];
-  if (set.weight_kg !== null) parts.push(`${set.weight_kg} kg`);
-  if (set.reps !== null) parts.push(`${set.reps} reps`);
-  if (set.distance_km !== null) parts.push(`${set.distance_km} km`);
-  if (set.duration_seconds !== null) parts.push(`${Math.round(set.duration_seconds)} s`);
-  if (set.rpe !== null) parts.push(`RPE ${set.rpe}`);
-  if (parts.length === 0) return `Set ${set.set_index + 1}`;
-  return parts.join(" · ");
-};
-
-export const workoutMatchesSearch = (session: WorkoutSession, query: string): boolean => {
-  if (query.trim() === "") return true;
-  const term = query.toLowerCase();
-  if (session.title?.toLowerCase().includes(term)) return true;
-  for (const exercise of session.exerciseDetails) {
-    if (exercise.exercise_title.toLowerCase().includes(term)) return true;
-    for (const set of exercise.sets) {
-      if (set.set_type?.toLowerCase().includes(term)) return true;
-      if (set.exercise_notes?.toLowerCase().includes(term)) return true;
-      if (String(set.reps ?? "").includes(term)) return true;
-      if (String(set.weight_kg ?? "").includes(term)) return true;
-      if (String(set.rpe ?? "").includes(term)) return true;
-    }
-  }
-  return false;
-};
-
-export const buildWorkoutSearchOptions = (sessions: WorkoutSession[]): string[] => {
-  const options = new Set<string>();
-  for (const session of sessions) {
-    if (session.title !== null) options.add(session.title);
-    for (const exercise of session.exerciseDetails) {
-      options.add(exercise.exercise_title);
-      for (const set of exercise.sets) {
-        if (set.set_type !== null) options.add(set.set_type);
-      }
-    }
-  }
-  return Array.from(options).toSorted((a, b) => a.localeCompare(b));
+type WorkoutResponse = {
+  readonly workouts: ReadonlyArray<{
+    readonly session_id: string;
+    readonly title: string | null;
+    readonly start_time: string;
+    readonly end_time: string | null;
+    readonly duration_sec: number | null;
+    readonly total_volume_kg: number | null;
+    readonly sets: number;
+    readonly exercises: number;
+    readonly exerciseDetails: ReadonlyArray<{
+      readonly exercise_title: string;
+      readonly sets: ReadonlyArray<WorkoutSet>;
+    }>;
+  }>;
 };
 
 const fetchWorkouts = async (): Promise<WorkoutSession[]> => {
-  const data = await runApi((client) => client.workouts.list());
+  const data = await runApi<WorkoutResponse, unknown>((client) => client.workouts.list());
   return data.workouts.map((workout) => ({
     ...workout,
     exerciseDetails: workout.exerciseDetails.map((exercise) => ({
@@ -154,6 +112,7 @@ export const WorkoutsPanel = () => {
         <input
           type="text"
           list="workout-options"
+          aria-label="Search workouts"
           placeholder="Search by exercise, set type, title…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -184,16 +143,21 @@ export const WorkoutsPanel = () => {
           <tbody>
             {filteredWorkouts.map((session) => (
               <Fragment key={session.session_id}>
-                <tr
-                  className="hover:bg-muted/50 cursor-pointer border-b"
-                  onClick={() => toggleExpanded(session.session_id)}
-                >
+                <tr className="hover:bg-muted/50 border-b">
                   <td className="py-2 pr-2">
-                    {expandedId === session.session_id ? (
-                      <ChevronUpIcon className="text-muted-foreground h-4 w-4" />
-                    ) : (
-                      <ChevronDownIcon className="text-muted-foreground h-4 w-4" />
-                    )}
+                    <button
+                      type="button"
+                      className="rounded p-1 hover:bg-muted"
+                      aria-label={`${expandedId === session.session_id ? "Collapse" : "Expand"} ${session.title ?? "workout"}`}
+                      aria-expanded={expandedId === session.session_id}
+                      onClick={() => toggleExpanded(session.session_id)}
+                    >
+                      {expandedId === session.session_id ? (
+                        <ChevronUpIcon className="text-muted-foreground h-4 w-4" />
+                      ) : (
+                        <ChevronDownIcon className="text-muted-foreground h-4 w-4" />
+                      )}
+                    </button>
                   </td>
                   <td className="py-2 pr-4">{formatWorkoutDate(session.start_time)}</td>
                   <td className="py-2 pr-4">{session.title ?? "—"}</td>

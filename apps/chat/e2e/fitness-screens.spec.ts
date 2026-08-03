@@ -71,6 +71,6 @@ test("lists flavor workouts panel sessions from mock hevy data", async ({ page }
   await mock.open(page, "/workouts");
   await expect(page.getByRole("heading", { name: "Workouts" })).toBeVisible();
   await expect(page.getByText("E2E Push Day")).toBeVisible();
-  await page.getByText("E2E Push Day").click();
+  await page.getByRole("button", { name: "Expand E2E Push Day" }).click();
   await expect(page.getByText("Bench press")).toBeVisible();
 });

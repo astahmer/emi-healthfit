@@ -6,4 +6,3 @@ const Json = Schema.String.pipe(
 );
 
 export const decodeJson = Schema.decodeUnknownSync(Json);
-export const decodeJsonOption = Schema.decodeUnknownOption(Json);

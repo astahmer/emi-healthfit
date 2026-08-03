@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildWorkoutSearchOptions,
-  formatWorkoutDuration,
-  formatWorkoutSet,
-  workoutMatchesSearch,
-  type WorkoutSession,
-} from "../../src/web/workouts-panel.tsx";
+import type { WorkoutSession } from "../../src/web/workouts-panel.tsx";
+import { formatWorkoutDuration, formatWorkoutSet } from "../../src/web/workout-formatters.ts";
+import { buildWorkoutSearchOptions, workoutMatchesSearch } from "../../src/web/workout-search.ts";
 
 const sampleSession = (): WorkoutSession => ({
   session_id: "s1",

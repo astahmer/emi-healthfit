@@ -30,7 +30,7 @@ test("connects Hevy from Settings and shows synced workouts", async ({ page }) =
 
   await page.getByRole("link", { name: "Workouts" }).click();
   await expect(page.getByText("E2E Push Day")).toBeVisible();
-  await page.getByText("E2E Push Day").click();
+  await page.getByRole("button", { name: "Expand E2E Push Day" }).click();
   await expect(page.getByText("Bench press")).toBeVisible();
 });
 

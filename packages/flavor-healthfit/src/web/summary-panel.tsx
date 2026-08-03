@@ -1,23 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, use, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { runApi } from "./api-client.ts";
 import { healthFitQueryKeys } from "./query-keys.ts";
+
+const rechartsPromise = import("recharts");
 
 const compactDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -53,7 +42,20 @@ const EmptyChart = () => (
 const trainingBarRadius: [number, number, number, number] = [4, 4, 0, 0];
 const bodyWeightDomain = ["dataMin - 2", "dataMax + 2"];
 
-export const SummaryPanel = () => {
+const SummaryPanelContent = () => {
+  const {
+    Area,
+    AreaChart,
+    Bar,
+    BarChart,
+    CartesianGrid,
+    ComposedChart,
+    Line,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+  } = use(rechartsPromise);
   const [days, setDays] = useState(90);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: healthFitQueryKeys.analytics.overview({ days }),
@@ -260,3 +262,9 @@ export const SummaryPanel = () => {
     </div>
   );
 };
+
+export const SummaryPanel = () => (
+  <Suspense fallback={<EmptyChart />}>
+    <SummaryPanelContent />
+  </Suspense>
+);
