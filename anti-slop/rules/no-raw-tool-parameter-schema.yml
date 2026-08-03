@@ -1,0 +1,13 @@
+id: no-raw-tool-parameter-schema
+language: TypeScript
+files:
+  - packages/core/src/server/**/*.ts
+  - packages/core/src/server/**/*.tsx
+  - packages/flavor-healthfit/src/tools/**/*.ts
+  - packages/flavor-healthfit/src/tools/**/*.tsx
+message: Tool parameters must use an Effect Schema; let Tool.make or Tool.dynamic derive the JSON Schema.
+severity: error
+rule:
+  any:
+    - pattern: 'Tool.make($NAME, { $$$BEFORE parameters: { type: "object", properties: {}, additionalProperties: false }, $$$AFTER })'
+    - pattern: 'Tool.dynamic($NAME, { $$$BEFORE parameters: { type: "object", properties: {}, additionalProperties: false }, $$$AFTER })'

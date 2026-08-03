@@ -1,0 +1,23 @@
+id: no-raw-tool-parameter-schema
+valid:
+  - |
+    const tool = Tool.make("get_threads", {
+      parameters: Schema.Struct({}),
+      success: Schema.Unknown,
+    });
+  - |
+    const tool = Tool.dynamic("get_threads", {
+      parameters: Schema.Struct({}),
+      success: Schema.Unknown,
+    });
+invalid:
+  - |
+    const tool = Tool.make("get_threads", {
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+      success: Schema.Unknown,
+    });
+  - |
+    const tool = Tool.dynamic("get_threads", {
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+      success: Schema.Unknown,
+    });
