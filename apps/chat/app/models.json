@@ -1,0 +1,47 @@
+{
+  "pricingSource": "https://developers.openai.com/api/docs/pricing",
+  "lastReviewed": "2026-08-03",
+  "defaultModelId": "gpt-5.6-terra",
+  "models": [
+    {
+      "id": "gpt-4o-mini",
+      "label": "GPT-4o mini",
+      "description": "Fast, low-cost fallback for simple tasks",
+      "supportsWebSearch": false,
+      "pricing": {
+        "inputUsdPerMillion": 0.15,
+        "outputUsdPerMillion": 0.6
+      }
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "label": "GPT-5.6 Luna",
+      "description": "Fast, cost-sensitive model for high-volume work",
+      "supportsWebSearch": true,
+      "pricing": {
+        "inputUsdPerMillion": 0.2,
+        "outputUsdPerMillion": 1.2
+      }
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "label": "GPT-5.6 Terra",
+      "description": "Balanced intelligence and cost for everyday coaching",
+      "supportsWebSearch": true,
+      "pricing": {
+        "inputUsdPerMillion": 2,
+        "outputUsdPerMillion": 12
+      }
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "label": "GPT-5.6 Sol",
+      "description": "Frontier model for complex professional work",
+      "supportsWebSearch": true,
+      "pricing": {
+        "inputUsdPerMillion": 5,
+        "outputUsdPerMillion": 30
+      }
+    }
+  ]
+}

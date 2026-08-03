@@ -6,30 +6,30 @@ import { composerConfigMachine } from "./composer-config-machine";
 describe("composerConfigMachine", () => {
   it("starts with provided config", () => {
     const actor = createActor(composerConfigMachine, {
-      input: { models: chatModels, model: "gpt-4o", coachMode: true, webSearch: false },
+      input: { models: chatModels, model: "gpt-4o-mini", coachMode: true, webSearch: false },
     });
     actor.start();
 
     const snapshot = actor.getSnapshot();
-    expect(snapshot.context.model).toBe("gpt-4o");
+    expect(snapshot.context.model).toBe("gpt-4o-mini");
     expect(snapshot.context.coachMode).toBe(true);
     expect(snapshot.context.webSearch).toBe(false);
   });
 
   it("selects a new model", () => {
     const actor = createActor(composerConfigMachine, {
-      input: { models: chatModels, model: "gpt-4o", coachMode: false, webSearch: false },
+      input: { models: chatModels, model: "gpt-4o-mini", coachMode: false, webSearch: false },
     });
     actor.start();
 
-    actor.send({ type: "model.select", model: "gpt-5" });
+    actor.send({ type: "model.select", model: "gpt-5.6-sol" });
 
-    expect(actor.getSnapshot().context.model).toBe("gpt-5");
+    expect(actor.getSnapshot().context.model).toBe("gpt-5.6-sol");
   });
 
   it("toggles coach mode", () => {
     const actor = createActor(composerConfigMachine, {
-      input: { models: chatModels, model: "gpt-4o", coachMode: false, webSearch: false },
+      input: { models: chatModels, model: "gpt-4o-mini", coachMode: false, webSearch: false },
     });
     actor.start();
 
@@ -42,7 +42,7 @@ describe("composerConfigMachine", () => {
 
   it("toggles temporary mode", () => {
     const actor = createActor(composerConfigMachine, {
-      input: { models: chatModels, model: "gpt-4o", coachMode: false, webSearch: false },
+      input: { models: chatModels, model: "gpt-4o-mini", coachMode: false, webSearch: false },
     });
     actor.start();
 
@@ -63,13 +63,13 @@ describe("composerConfigMachine", () => {
 
     const snapshot = actor.getSnapshot();
     expect(snapshot.context.webSearch).toBe(true);
-    expect(snapshot.context.model).toBe("gpt-5");
+    expect(snapshot.context.model).toBe("gpt-5.6-luna");
     expect(snapshot.context.savedModelRef).toBe("gpt-4o-mini");
   });
 
   it("keeps the current model when it already supports web search", () => {
     const actor = createActor(composerConfigMachine, {
-      input: { models: chatModels, model: "gpt-5", coachMode: false, webSearch: false },
+      input: { models: chatModels, model: "gpt-5.6-sol", coachMode: false, webSearch: false },
     });
     actor.start();
 
@@ -77,7 +77,7 @@ describe("composerConfigMachine", () => {
 
     const snapshot = actor.getSnapshot();
     expect(snapshot.context.webSearch).toBe(true);
-    expect(snapshot.context.model).toBe("gpt-5");
+    expect(snapshot.context.model).toBe("gpt-5.6-sol");
     expect(snapshot.context.savedModelRef).toBeNull();
   });
 
@@ -103,7 +103,7 @@ describe("composerConfigMachine", () => {
     actor.start();
 
     actor.send({ type: "web.toggle", value: true });
-    actor.send({ type: "model.select", model: "gpt-5.2" });
+    actor.send({ type: "model.select", model: "gpt-5.6-terra" });
 
     expect(actor.getSnapshot().context.savedModelRef).toBeNull();
   });

@@ -11,5 +11,5 @@ Feature: Composer controls
 
   Scenario: Select a different model
     Given a user is on a new chat page
-    When they select the model "GPT-5"
-    Then the model combobox should show "GPT-5"
+    When they select the model "GPT-5.6 Sol"
+    Then the model combobox should show "GPT-5.6 Sol"

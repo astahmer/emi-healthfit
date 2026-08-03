@@ -44,7 +44,7 @@ export const conversationPayload = ({ id, text }: { id: string; text: string }) 
           output: { label: "Ready", explanation: "Recovered well" },
         },
       ],
-      model: "gpt-5",
+      model: "gpt-5.6-terra",
       usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
       createdAt: "2026-07-14T10:01:00.000Z",
     },

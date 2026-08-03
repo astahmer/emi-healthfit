@@ -111,7 +111,7 @@ test("enables web search for a web-capable model and sends it on chat", async ({
 
   await expect(page.getByRole("button", { name: /Web/ })).toBeDisabled();
   await page.getByRole("combobox").click();
-  await page.getByRole("option", { name: /GPT-5\.2$/ }).click();
+  await page.getByRole("option", { name: /GPT-5\.6 Terra$/ }).click();
   await page.getByRole("button", { name: /Web/ }).click();
   await expect(page).toHaveURL(/web=/);
 
@@ -119,7 +119,7 @@ test("enables web search for a web-capable model and sends it on chat", async ({
   await page.getByLabel("Send message").click();
   await expect(page.getByText("Web answer")).toBeVisible();
   expect(mock.state.chat.lastBody?.webSearch).toBe(true);
-  expect(mock.state.chat.lastBody?.config?.model).toBe("gpt-5.2");
+  expect(mock.state.chat.lastBody?.config?.model).toBe("gpt-5.6-terra");
 });
 
 test("compacts a conversation into a fresh session with summary context", async ({ page }) => {

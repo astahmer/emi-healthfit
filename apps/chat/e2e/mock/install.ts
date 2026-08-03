@@ -72,7 +72,7 @@ export const setTestSettings = async (page: Page, options: TestSettingsOptions =
             provider: "openai",
             baseUrl: "",
             apiKey: "sk-test",
-            model: "gpt-5.2-chat-latest",
+            model: "gpt-4o-mini",
             systemPrompt: "You are a test assistant.",
             coachMode: false,
           },

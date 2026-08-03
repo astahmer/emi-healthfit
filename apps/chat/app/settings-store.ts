@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { defaultModel } from "./models";
 
 interface ChatSettings {
   provider: "openai";
@@ -14,7 +15,7 @@ const defaultSettings: ChatSettings = {
   provider: "openai",
   baseUrl: "",
   apiKey: "",
-  model: "gpt-5.2-chat-latest",
+  model: defaultModel.id,
   systemPrompt:
     "You are EmiFit, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
   coachMode: true,

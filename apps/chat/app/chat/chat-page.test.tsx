@@ -38,7 +38,7 @@ const settingsStore = vi.hoisted(() => ({
     provider: "openai" as const,
     baseUrl: "",
     apiKey: "test-key",
-    model: "gpt-5.2-chat-latest",
+    model: "gpt-5.6-terra",
     systemPrompt: "test",
     coachMode: false,
   },

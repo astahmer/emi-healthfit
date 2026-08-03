@@ -20,7 +20,7 @@ vi.mock("@/app/memories", async (importOriginal) => ({
 }));
 
 const controls: ComposerControls = {
-  model: "gpt-5",
+  model: "gpt-5.6-terra",
   onModelChange: vi.fn(),
   coachMode: false,
   onCoachModeChange: vi.fn(),
@@ -215,7 +215,7 @@ describe("Thread", () => {
       id: "assistant-1",
       role: "assistant",
       parts: [{ type: "text", text: "Progress" }],
-      model: "gpt-5",
+      model: "gpt-5.6-terra",
       createdAt: "2026-07-14T10:00:00.000Z",
       usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
     };
@@ -226,7 +226,7 @@ describe("Thread", () => {
 
     const view = renderThread([message]);
 
-    expect(screen.getAllByText("GPT-5").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("GPT-5.6 Terra").length).toBeGreaterThan(0);
     expect(screen.getByText("30 tokens")).toBeInTheDocument();
     expect(view.container.querySelector("time")).toHaveAttribute("datetime", message.createdAt);
   });
