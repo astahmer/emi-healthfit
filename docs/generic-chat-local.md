@@ -31,6 +31,22 @@ WebMCP is an opt-in build capability. Set `VITE_WEBMCP_ENABLED=true` for local d
 the staging build; leave it unset for a normal build. The app still feature-detects
 `document.modelContext`, so browsers without WebMCP behave normally.
 
+For real Chrome local discovery, start the secure named local origin:
+
+```sh
+VITE_WEBMCP_ENABLED=true pnpm generic:dev:portless
+```
+
+Register WebMCP for the exact origin `https://generic-chat.localhost`, then put the returned token
+in the ignored `apps/generic-web/.env.local` file:
+
+```sh
+WEBMCP_ORIGIN_TRIAL_TOKEN=your-origin-trial-token
+```
+
+Vite sends `Origin-Trial` only when this local/deployment variable is present; never commit the
+token or add it to a versioned example file.
+
 ## Portless URLs
 
 Portless is available for named local HTTPS URLs:
