@@ -45,9 +45,11 @@ const insertMemories = <Environment>(
     );
     const existingKeys = new Set(existing.map((memory) => normalizeMemoryKey(memory.content)));
     const createdAt = db.runtime.now();
-    const inserted = candidates
-      .filter((candidate) => !existingKeys.has(normalizeMemoryKey(candidate.content)))
-      .map((candidate) => ({ id: db.runtime.createId(), ...candidate }));
+    const inserted = candidates.flatMap((candidate) =>
+      existingKeys.has(normalizeMemoryKey(candidate.content))
+        ? []
+        : [{ id: db.runtime.createId(), ...candidate }],
+    );
     if (inserted.length === 0) return [];
     yield* QueryDatabase.transaction(db, [
       ...inserted.map((memory) =>

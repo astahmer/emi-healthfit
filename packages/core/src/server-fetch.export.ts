@@ -30,7 +30,10 @@ export class ChatFetchHandlers extends Context.Service<ChatFetchHandlers, ChatFe
     readonly request: Request;
   }): Promise<Response> {
     return Effect.runPromise(
-      ChatFetchHandlers.use((handlers) => handlers.handle(request)).pipe(
+      Effect.gen(function* () {
+        const handlers = yield* ChatFetchHandlers;
+        return yield* handlers.handle(request);
+      }).pipe(
         Effect.provide(layer),
         Effect.catch((error) => Effect.succeed(ChatFetchHandlers.toErrorResponse(error))),
       ),

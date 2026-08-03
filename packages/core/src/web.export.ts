@@ -4,6 +4,12 @@ import {
   prepareAttachments,
   validateAttachments,
 } from "./web/attachments/attachments.ts";
+import { attachmentPreparationMachine } from "./web/attachments/attachment-preparation-actor.ts";
+import type {
+  AttachmentPreparationContext,
+  AttachmentPreparationEvent,
+  AttachmentPreparationInput,
+} from "./web/attachments/attachment-preparation-actor.ts";
 import { AnonymousSession } from "./web/auth/anonymous-session.ts";
 import { AuthSession } from "./web/auth/auth-session.ts";
 import { WebMcp } from "./web/webmcp.ts";
@@ -110,6 +116,10 @@ export {
   ChatThreadScroll,
   createBrowserFollowUpQueueSyncAdapter,
   AttachmentValidationError,
+  attachmentPreparationMachine,
+  type AttachmentPreparationContext,
+  type AttachmentPreparationEvent,
+  type AttachmentPreparationInput,
   ChatShell,
   conversationMarkdown,
   CoreWebProvider,

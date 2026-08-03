@@ -91,7 +91,10 @@ const decodeGeneratedStrings = (value: string): string[] | undefined => {
   if (Option.isNone(parsed)) return undefined;
   const strings = Schema.decodeUnknownOption(GeneratedStrings)(parsed.value);
   if (Option.isNone(strings)) return undefined;
-  return strings.value.map((item) => item.trim()).filter((item) => item.length > 0);
+  return strings.value.flatMap((item) => {
+    const trimmed = item.trim();
+    return trimmed.length > 0 ? [trimmed] : [];
+  });
 };
 
 const normalizeGeneratedStrings = (value: string): string[] => {
@@ -118,8 +121,10 @@ const normalizeGeneratedStrings = (value: string): string[] => {
 
   return cleaned
     .split("\n")
-    .map((line) => line.replace(/^\s*[-\d.*]+\s*["']?|["']?\s*$/g, "").trim())
-    .filter((line) => line.length > 0 && !line.startsWith("["))
+    .flatMap((line) => {
+      const normalized = line.replace(/^\s*[-\d.*]+\s*["']?|["']?\s*$/g, "").trim();
+      return normalized.length > 0 && !normalized.startsWith("[") ? [normalized] : [];
+    })
     .slice(0, 5);
 };
 

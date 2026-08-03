@@ -33,12 +33,19 @@ const byOrderThenIndex = (
   return a.index - b.index;
 };
 
-const mergePromptContributors = (definitions: ReadonlyArray<AppDefinition>): PromptContributor[] =>
-  definitions
-    .flatMap((definition) => definition.promptContributors ?? [])
-    .map((contributor, index) => ({ contributor, index }))
-    .toSorted(byOrderThenIndex)
-    .map(({ contributor }) => contributor);
+const mergePromptContributors = (
+  definitions: ReadonlyArray<AppDefinition>,
+): PromptContributor[] => {
+  const contributors: Array<{ contributor: PromptContributor; index: number }> = [];
+  let index = 0;
+  for (const definition of definitions) {
+    for (const contributor of definition.promptContributors ?? []) {
+      contributors.push({ contributor, index });
+      index += 1;
+    }
+  }
+  return contributors.toSorted(byOrderThenIndex).map(({ contributor }) => contributor);
+};
 
 const mergeTools = (definitions: ReadonlyArray<AppDefinition>): AppToolDefinition[] => {
   const toolsByName = new Map<string, AppToolDefinition>();
@@ -63,10 +70,8 @@ const mergeTools = (definitions: ReadonlyArray<AppDefinition>): AppToolDefinitio
  * argument order, then stably sorted by `order` (undefined sorts last).
  */
 const mergeAppDefinitions = (...definitions: ReadonlyArray<AppDefinition>): AppDefinition => {
-  const identity = definitions.reduce<AppIdentity>(
-    (merged, definition) => ({ ...merged, ...definition.identity }),
-    { name: "" },
-  );
+  const identity: AppIdentity = { name: "" };
+  for (const definition of definitions) Object.assign(identity, definition.identity);
   return {
     identity,
     promptContributors: mergePromptContributors(definitions),

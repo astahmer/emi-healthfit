@@ -66,11 +66,11 @@ const DynamicComponentElement = ({
   readonly ancestors: ReadonlySet<string>;
   readonly className?: string;
 }): ReactNode => {
+  const Renderer = useComponentRenderer(element.type);
   if (element.visible === false) return null;
   if (ancestors.has(elementId))
     return fallbackValue({ reason: "cyclic-element", element: elementId });
 
-  const Renderer = useComponentRenderer(element.type);
   if (Renderer === undefined)
     return fallbackValue({ reason: "unregistered-component", element: element.type });
 

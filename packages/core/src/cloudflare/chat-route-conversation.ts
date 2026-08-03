@@ -135,13 +135,13 @@ export class ChatRouteConversation {
           { status: 400 },
         );
       }
-      const messages = (yield* store.messageStore.getMessages(conversationId))
-        .filter((message) => message.role !== "summary")
-        .map((message) => ({
-          role: message.role,
-          text: ChatRouteSupport.storedMessageText({ parts: message.parts }),
-        }))
-        .filter((message) => message.text !== "");
+      const messages = (yield* store.messageStore.getMessages(conversationId)).flatMap(
+        (message) => {
+          if (message.role === "summary") return [];
+          const text = ChatRouteSupport.storedMessageText({ parts: message.parts });
+          return text === "" ? [] : [{ role: message.role, text }];
+        },
+      );
       if (messages.length === 0) {
         return yield* HttpServerResponse.json(
           { error: "Conversation has no text to compact" },

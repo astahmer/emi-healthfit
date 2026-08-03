@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 
 import { useChatActions, useChatSelector } from "../../react-hooks.ts";
 import type { Attachment } from "../../protocol/parts.ts";
@@ -115,7 +115,7 @@ export const ChatApp = ({
   const { memoryDraft, memoryPanelOpen, memorySearch, memorySummaryDraft, sidebarOpen } =
     useChatSelector((state) => state.ui);
   const messageContainer = useRef<HTMLDivElement | null>(null);
-  const messageElements = useRef(new Map<string, HTMLElement>());
+  const messageElementsMap = useMemo(() => new Map<string, HTMLElement>(), []);
   const conversationId = activeThread.conversationId;
   const threadId = activeThread.id;
   const online = connection === "online";
@@ -133,11 +133,11 @@ export const ChatApp = ({
       return;
     }
     const previous = activeThread.messages.toReversed().find((message) => {
-      const element = messageElements.current.get(message.id);
+      const element = messageElementsMap.get(message.id);
       return element !== undefined && element.offsetTop < container.scrollTop - 8;
     });
     if (previous !== undefined)
-      scrollMessage({ messageId: previous.id, messageElements: messageElements.current });
+      scrollMessage({ messageId: previous.id, messageElements: messageElementsMap });
   };
 
   const addFiles = (fileList: FileList | undefined) => {
@@ -156,7 +156,7 @@ export const ChatApp = ({
       <MessageViewport
         conversationId={conversationId}
         messageContainer={messageContainer}
-        messageElements={messageElements.current}
+        messageElements={messageElementsMap}
         messages={activeThread.messages}
         onBranchMessage={(messageId) => {
           if (conversationId !== undefined && !temporary) actions.createBranch({ messageId });
@@ -164,7 +164,7 @@ export const ChatApp = ({
         onEditMessage={({ messageId, text }) => actions.editMessage({ messageId, text })}
         onRetryMessage={(messageId) => actions.retry({ messageId })}
         onSelectMinimapMessage={(messageId) =>
-          scrollMessage({ messageId, messageElements: messageElements.current })
+          scrollMessage({ messageId, messageElements: messageElementsMap })
         }
         streaming={streaming}
         temporary={temporary}

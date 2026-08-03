@@ -281,7 +281,10 @@ const generateWithConfiguration = ({
   const createId = configuration.createId ?? (() => crypto.randomUUID());
   const generationId = createId();
   const messageId = createId();
-  const messages = input.messages.map(toUiMessage).map(({ id: _id, ...message }) => message);
+  const messages = input.messages.map((message) => {
+    const { id: _id, ...withoutId } = toUiMessage(message);
+    return withoutId;
+  });
   const model = input.configuration.model || configuration.model;
   const resultEffect: Effect.Effect<
     Stream.Stream<GenerationEvent, AiSdkAdapterError>,

@@ -34,6 +34,7 @@ export const threadViewportActor = setup({
     syncRoute: assign(({ context, event }) => {
       if (event.type !== "route-synced") return context;
       const changedSession = event.sessionKey !== context.sessionKey;
+      if (!changedSession && event.messageCount === context.messageCount) return context;
       return {
         ...context,
         sessionKey: event.sessionKey,
@@ -50,24 +51,43 @@ export const threadViewportActor = setup({
     measureViewport: assign(({ context, event }) => {
       if (event.type !== "viewport-measured") return context;
       const distanceFromBottom = event.scrollHeight - event.scrollTop - event.clientHeight;
+      const isAwayFromTop = event.scrollTop > 24;
+      const isAwayFromBottom = distanceFromBottom > 160;
+      if (
+        context.isAwayFromTop === isAwayFromTop &&
+        context.isAwayFromBottom === isAwayFromBottom &&
+        context.canScrollToPreviousUserMessage === event.canScrollToPreviousUserMessage
+      )
+        return context;
       return {
         ...context,
-        isAwayFromTop: event.scrollTop > 24,
-        isAwayFromBottom: distanceFromBottom > 160,
+        isAwayFromTop,
+        isAwayFromBottom,
         canScrollToPreviousUserMessage: event.canScrollToPreviousUserMessage,
       };
     }),
-    markPositioned: assign(({ context }) => ({
-      ...context,
-      positionedForSessionKey: context.messageCount > 0 ? context.sessionKey : null,
-    })),
-    markEmpty: assign(({ context }) => ({
-      ...context,
-      positionedForSessionKey: null,
-      isAwayFromTop: false,
-      isAwayFromBottom: false,
-      canScrollToPreviousUserMessage: false,
-    })),
+    markPositioned: assign(({ context }) => {
+      const positionedForSessionKey = context.messageCount > 0 ? context.sessionKey : null;
+      return positionedForSessionKey === context.positionedForSessionKey
+        ? context
+        : { ...context, positionedForSessionKey };
+    }),
+    markEmpty: assign(({ context }) => {
+      if (
+        context.positionedForSessionKey === null &&
+        !context.isAwayFromTop &&
+        !context.isAwayFromBottom &&
+        !context.canScrollToPreviousUserMessage
+      )
+        return context;
+      return {
+        ...context,
+        positionedForSessionKey: null,
+        isAwayFromTop: false,
+        isAwayFromBottom: false,
+        canScrollToPreviousUserMessage: false,
+      };
+    }),
   },
 }).createMachine({
   id: "threadViewport",

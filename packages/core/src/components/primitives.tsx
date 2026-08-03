@@ -125,9 +125,9 @@ export const Dialog = ({
 }) => {
   if (!open) return null;
   return (
-    <div aria-modal="true" onClick={() => onOpenChange(false)} role="dialog">
-      <div onClick={(event) => event.stopPropagation()}>{children}</div>
-    </div>
+    <dialog aria-label="Dialog" onCancel={() => onOpenChange(false)} open>
+      <div>{children}</div>
+    </dialog>
   );
 };
 

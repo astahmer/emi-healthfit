@@ -62,7 +62,14 @@ describe("@emi/core target export surface", () => {
     assert.deepEqual(sortedKeys(serverDatabase), ["ServerDatabase"]);
     assert.deepEqual(sortedKeys(serverEffect), ["ChatServerEffect"]);
     assert.deepEqual(sortedKeys(serverFetch), ["ChatFetchHandlers"]);
-    assert.deepEqual(sortedKeys(aiSdk), ["AiSdkAdapterError", "AiSdkModelProvider"]);
+    assert.deepEqual(sortedKeys(aiSdk), [
+      "AiSdkAdapterError",
+      "AiSdkChatStreamError",
+      "AiSdkModelProvider",
+      "aiSdkChatStreamDecoder",
+      "createAiSdkChatStream",
+      "createAiSdkChatStreamEffect",
+    ]);
     assert.deepEqual(sortedKeys(cloudflare), ["CloudflareRepositories"]);
     assert.deepEqual(sortedKeys(extensions), ["ChatExtensionError", "ChatExtensions"]);
     assert.deepEqual(sortedKeys(testing), ["ChatTesting"]);

@@ -134,24 +134,23 @@ export const MessageMinimap = ({
     aria-label="User message minimap"
     className="hidden w-36 shrink-0 flex-col gap-1 p-4 lg:flex"
   >
-    {messages
-      .filter((message) => message.role === "user")
-      .map((message) => {
-        const preview = messageText(message) || "Attachment";
-        return (
-          <button
-            aria-label={`Scroll to ${preview}`}
-            className="grid min-w-0 grid-cols-[0.25rem_minmax(0,1fr)] gap-2 rounded-md p-1 text-left text-xs text-muted-foreground hover:bg-muted"
-            key={message.id}
-            onClick={() => onSelect(message.id)}
-            title={preview}
-            type="button"
-          >
-            <span className="rounded-full bg-primary" />
-            <span className="truncate">{preview}</span>
-          </button>
-        );
-      })}
+    {messages.flatMap((message) => {
+      if (message.role !== "user") return [];
+      const preview = messageText(message) || "Attachment";
+      return (
+        <button
+          aria-label={`Scroll to ${preview}`}
+          className="grid min-w-0 grid-cols-[0.25rem_minmax(0,1fr)] gap-2 rounded-md p-1 text-left text-xs text-muted-foreground hover:bg-muted"
+          key={message.id}
+          onClick={() => onSelect(message.id)}
+          title={preview}
+          type="button"
+        >
+          <span className="rounded-full bg-primary" />
+          <span className="truncate">{preview}</span>
+        </button>
+      );
+    })}
   </aside>
 );
 

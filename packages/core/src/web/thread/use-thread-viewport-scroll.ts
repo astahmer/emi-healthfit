@@ -63,9 +63,10 @@ export const useThreadViewportScroll = ({
   const userMessageIdsKey = userMessageIds.join("\0");
   const sessionKey = sessionId ?? "new";
   const actor = useMemo(
-    () => createActor(threadViewportActor, { input: { sessionKey, messageCount } }),
+    () => createActor(threadViewportActor, { input: { sessionKey: "new", messageCount: 0 } }),
     [],
   );
+  const actorLifecycle = useRef({ generation: 0, started: false, stopped: false });
   const subscribeToActor = useCallback(
     (listener: () => void) => {
       const subscription = actor.subscribe(listener);
@@ -73,12 +74,27 @@ export const useThreadViewportScroll = ({
     },
     [actor],
   );
-  const snapshot = useSyncExternalStore(subscribeToActor, actor.getSnapshot, actor.getSnapshot);
+  const snapshot = useSyncExternalStore(
+    subscribeToActor,
+    () => actor.getSnapshot(),
+    () => actor.getSnapshot(),
+  );
 
-  useEffect(() => {
-    actor.start();
+  useLayoutEffect(() => {
+    const lifecycle = actorLifecycle.current;
+    lifecycle.generation += 1;
+    const generation = lifecycle.generation;
+    if (!lifecycle.started) {
+      actor.start();
+      lifecycle.started = true;
+    }
     return () => {
-      actor.stop();
+      queueMicrotask(() => {
+        if (lifecycle.generation === generation && !lifecycle.stopped) {
+          actor.stop();
+          lifecycle.stopped = true;
+        }
+      });
     };
   }, [actor]);
 
@@ -89,16 +105,27 @@ export const useThreadViewportScroll = ({
   const measureViewport = useCallback(() => {
     const viewport = viewportRef.current;
     if (viewport === null) return;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const isAwayFromTop = viewport.scrollTop > 24;
+    const isAwayFromBottom = distanceFromBottom > NEAR_BOTTOM_PX;
+    const canScrollToPreviousUserMessage =
+      ThreadViewportScroll.findPreviousUserMessageId({
+        viewport,
+        messageIds: userMessageIds,
+      }) !== undefined;
+    const current = actor.getSnapshot().context;
+    if (
+      current.isAwayFromTop === isAwayFromTop &&
+      current.isAwayFromBottom === isAwayFromBottom &&
+      current.canScrollToPreviousUserMessage === canScrollToPreviousUserMessage
+    )
+      return;
     actor.send({
       type: "viewport-measured",
       scrollTop: viewport.scrollTop,
       scrollHeight: viewport.scrollHeight,
       clientHeight: viewport.clientHeight,
-      canScrollToPreviousUserMessage:
-        ThreadViewportScroll.findPreviousUserMessageId({
-          viewport,
-          messageIds: userMessageIds,
-        }) !== undefined,
+      canScrollToPreviousUserMessage,
     });
   }, [actor, userMessageIds]);
 
