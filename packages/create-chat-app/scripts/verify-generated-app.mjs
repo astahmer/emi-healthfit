@@ -118,7 +118,10 @@ try {
       command: "pnpm",
       args: ["--dir", "web", "dev", "--host", "127.0.0.1"],
       cwd: targetDirectory,
-      env: { VITE_WORKER_ORIGIN: "http://127.0.0.1:8787" },
+      env: {
+        VITE_WEBMCP_ENABLED: "true",
+        VITE_WORKER_ORIGIN: "http://127.0.0.1:8787",
+      },
     });
     await waitForUrl({ url: "http://127.0.0.1:8787/api/health", server: worker });
     await waitForUrl({ url: "http://127.0.0.1:3233/api/health", server: web });
@@ -132,6 +135,7 @@ try {
         GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
       },
     });
+    await run({ command: "pnpm", args: ["--dir", "web", "test:e2e"], cwd: targetDirectory });
   } finally {
     if (web) await stopServer(web);
     if (worker) {

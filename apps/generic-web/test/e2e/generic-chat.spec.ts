@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { createGenericE2eApi } from "./mock-api.ts";
 import { openGenericChat } from "./helpers.ts";
-import { executeWebMcpTool, installWebMcpHarness, readWebMcpToolNames } from "./webmcp-harness.ts";
+import { executeWebMcpTool, readWebMcpToolNames } from "./webmcp-harness.ts";
 
 test("boots the documented runtime/provider/recipe path", async ({ page }) => {
   const api = await openGenericChat(page);
