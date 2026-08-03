@@ -1,6 +1,6 @@
 # Architecture
 
-High-level shape of Emi HealthFit. For setup and commands, see the root [README](../README.md). For end-user flows, see [USER_GUIDE.md](./USER_GUIDE.md). For product surface, see [features.md](./features.md).
+High-level shape of Emi HealthFit. For setup and commands, see the root [README](../README.md). For end-user flows, see [USER_GUIDE.md](./USER_GUIDE.md). For product surface, see [features.md](./features.md). The detailed reusable-core contract is in [core-api.md](./core-api.md), with audit evidence in [core-audit.md](./core-audit.md).
 
 ## What it is
 

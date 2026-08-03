@@ -1,14 +1,14 @@
 # Core chat platform plan
 
 The public API portion of this plan is superseded by
-[`core-api-rewrite-plan.md`](./core-api-rewrite-plan.md). The target `@emi/core` catalog and
+[`docs/core-api.md`](../docs/core-api.md). The target `@emi/core` catalog and
 application and adapter boundaries below are current; the remaining product-feature work in this document
 is intentionally separate from the clean-slate package contract.
 
 ## Context
 
 - `@emi/core` already owns useful generic contracts, D1 conversation storage, auth helpers, markdown rendering, attachments, conversation-tree utilities, and contribution points. Product-specific API contracts stay in named flavor packages.
-- The normative clean-slate API and implementation packets are in [`plans/core-api-rewrite-plan.md`](./core-api-rewrite-plan.md); this plan covers the broader generic product/platform migration and should follow that package boundary.
+- The current `@emi/core` contract is in [`docs/core-api.md`](../docs/core-api.md); this plan covers the broader generic product/platform migration and should follow that package boundary.
 - The actual generic chat product is still split across `apps/api/src/core/chat`, `apps/api/src/core/routes`, and `apps/chat/app/chat` / `apps/chat/components/chat`. It is therefore not reusable by a new application.
 - `apps/generic-web` is only a smoke page and `apps/generic-worker` only lists or creates conversations. `@emi/create-chat-app` generates the same incomplete shell while claiming a much larger feature set.
 - HealthFit-specific prompts, tools, data surfaces, and generative widgets must remain in the HealthFit flavor. The reusable core must not import them.

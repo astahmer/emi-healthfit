@@ -1,6 +1,6 @@
 # Features
 
-What Emi HealthFit offers today, plus status of reusable chat-platform work. How-to steps live in [USER_GUIDE.md](./USER_GUIDE.md); system shape in [architecture.md](./architecture.md); extraction sequence lives in [core-chat-platform.md](../plans/core-chat-platform.md).
+What Emi HealthFit offers today, plus status of reusable chat-platform work. How-to steps live in [USER_GUIDE.md](./USER_GUIDE.md); system shape in [architecture.md](./architecture.md); current core contract in [core-api.md](./core-api.md); remaining product migration work lives in [core-chat-platform.md](../plans/core-chat-platform.md).
 
 ## Core chat platform status
 
@@ -95,4 +95,3 @@ Documented in `plans/` — not available as shipped features:
 
 - **Google Calendar** — separate calendar connect, availability for coaching, optional workout event write-back.
 - **Discord bot** — same ownership-scoped assistant over Discord, without exposing another user's data.
-- **Core / flavor extraction** — reusable chat core packages with HealthFit as one flavor.

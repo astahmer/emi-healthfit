@@ -2,16 +2,18 @@
 
 ## Core architecture
 
-| Plan                                                                  | Status             | Role                                                                                                  |
-| --------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
-| [Core API rewrite](./core-api-rewrite-plan.md)                        | COMPLETE / NORMATIVE | Clean-slate target is implemented; retain this as the canonical contract and maintenance packet map. |
-| [Core audit report](./core-audit-report.md)                           | COMPLETE / REFERENCE | Evidence of completed fixes, remaining findings, and release-gate history.                           |
+The current `@emi/core` contract and audit are shipped documentation:
+[core-api.md](../docs/core-api.md) and [core-audit.md](../docs/core-audit.md).
+
+| Plan                                                                  | Status             | Role                                                                                         |
+| --------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
 | [Core maintainability audit](./core-maintainability-audit.md)         | REFERENCE / FOLLOW-UP | Whole-codebase findings, Effect follow-ups, and unresolved architecture questions.                 |
 | [Core chat solutions comparison](./core-chat-solutions-comparison.md) | REFERENCE / FUTURE | Comparable chat products, capability gaps, and recommended future boundaries.                         |
 | [Core chat platform](./core-chat-platform.md)                         | ACTIVE             | Broader generic chat product, generated-app, and deployment migration.                                |
 
-Start core work with the rewrite plan. Use the audit report to understand why a boundary exists;
-use the platform plan for product-level fixture and deployment work.
+Start core product work with the platform plan. Use the [core API contract](../docs/core-api.md)
+for public boundaries and [core audit](../docs/core-audit.md) for implementation evidence; use
+the platform plan for product-level fixture and deployment work.
 
 ## Integrations and experiments
 

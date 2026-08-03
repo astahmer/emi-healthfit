@@ -24,9 +24,10 @@ composition models. Those are solvable, but several require an explicit architec
 
 ## Safe improvement made during this audit
 
-The rewrite plan referred to the removed `packages/core/src/chat/openai.ts`. The implementation is
-now under `packages/core/src/adapters/ai-sdk/openai-chat.ts`; the plan was corrected so future
-agents do not follow a dead path. This report was also added to the plans index.
+The earlier core API documentation referred to the removed `packages/core/src/chat/openai.ts`. The
+implementation is now under `packages/core/src/adapters/ai-sdk/openai-chat.ts`; the current API
+contract lives in `docs/core-api.md` so future agents do not follow a dead path. This report remains
+in the plans index because its maintainability follow-ups are not complete.
 
 No runtime behavior was changed during this audit. The existing working-copy revision
 `refactor(api): consume Effect-first chat programs` was preserved as-is.

@@ -1,7 +1,11 @@
 # @emi/core audit report
 
-Date: 2026-08-02  
-Scope: packages/core, its public entrypoints, core tests, and the canonical generic-web integration  
+Status: historical implementation evidence and current follow-up reference, verified 2026-08-03.
+
+This document records the focused audit, the fixes that closed its release-blocking findings, and the quality work that remains deliberately outside the public core contract. The living contract is [core-api.md](./core-api.md); active product work belongs in [`plans/`](../plans/).
+
+Date: 2026-08-02
+Scope: packages/core, its public entrypoints, core tests, and the canonical generic-web integration
 Mode: initial review followed by the target-contract implementation; remaining application and
 adapter cleanup is tracked as implementation work below.
 
@@ -41,18 +45,19 @@ Review decisions below therefore distinguish intentional breadth from accidental
 ## Clean-slate direction
 
 The initial review produced a detailed clean-slate API blueprint. It now lives in
-plans/core-api-rewrite-plan.md, which is the normative target and agent handoff document.
+docs/core-api.md, which is the normative public contract document.
 
 This separation is intentional:
 
 - this audit records current evidence, completed fixes, remaining findings, and release-gate
   status;
-- the rewrite plan describes the best API independent of backward compatibility and maps that
-  target into test-first implementation packets; and
-- the rewrite plan explicitly keeps XState and Effect as first-class implementation engines while
+- the core API document describes the current public contract, verification status, and
+  non-negotiable boundaries; historical implementation details are intentionally not part of
+  shipped documentation; and
+- the core API contract explicitly keeps XState and Effect as first-class implementation engines while
   hiding their wiring from the common consumer path and exposing advanced opt-in subpaths.
 
-The audit and rewrite plan should be read together. Do not reintroduce the historical extraction
+The audit and core API contract should be read together. Do not reintroduce the historical extraction
 shape merely because the current implementation uses it, and do not treat the intentionally
 mixed-layer package as a defect. The constraints that remain non-negotiable are generic core
 ownership, actor state ownership, explicit schema/mappers, injected platform dependencies, curated
