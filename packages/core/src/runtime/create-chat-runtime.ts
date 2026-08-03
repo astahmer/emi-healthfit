@@ -295,6 +295,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         conversationId: undefined,
         threadId: undefined,
         messages: [],
+        resumeMessageId: undefined,
         draft: "",
         files: [],
         temporary: false,

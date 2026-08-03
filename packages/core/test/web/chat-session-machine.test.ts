@@ -11,6 +11,20 @@ const message: ChatMessage = {
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
+const persistedAssistant: ChatMessage = {
+  id: "assistant-1",
+  role: "assistant",
+  parts: [{ type: "text", text: "Partial answer" }],
+  createdAt: "2026-01-01T00:00:01.000Z",
+};
+
+const resumedAssistant: ChatMessage = {
+  id: "assistant-2",
+  role: "assistant",
+  parts: [{ type: "text", text: "Resumed answer" }],
+  createdAt: "2026-01-01T00:00:02.000Z",
+};
+
 describe("chatSessionMachine", () => {
   it("resets a fresh chat atomically while retaining temporary mode", () => {
     const actor = createActor(chatSessionMachine);
@@ -52,6 +66,37 @@ describe("chatSessionMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("Send now");
     expect(actor.getSnapshot().context.queuedFollowUps).toEqual([]);
     expect(actor.getSnapshot().matches("idle")).toBe(true);
+  });
+
+  it("reconciles a resumed assistant when the stream uses a new message id", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message, persistedAssistant],
+    });
+    actor.send({ type: "stream-resumed" });
+
+    expect(actor.getSnapshot().context.messages).toEqual([message, persistedAssistant]);
+
+    actor.send({ type: "stream-message", message: resumedAssistant });
+
+    expect(actor.getSnapshot().context.messages).toEqual([message, resumedAssistant]);
+  });
+
+  it("keeps the persisted assistant when a resumed stream has no message", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message, persistedAssistant],
+    });
+    actor.send({ type: "stream-resumed" });
+    actor.send({ type: "stream-finished" });
+
+    expect(actor.getSnapshot().context.messages).toEqual([message, persistedAssistant]);
   });
 
   it("removes a queued follow-up after a stream has already finished", () => {

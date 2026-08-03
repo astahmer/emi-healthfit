@@ -1,6 +1,7 @@
 import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ChatMessage } from "../../src/protocol/messages.ts";
 import { genericChatAppMachine } from "../../src/web/chat-runtime/generic-chat-app-machine.ts";
 import type { ConversationClient } from "../../src/web/chat-runtime/conversation-client.ts";
 
@@ -194,6 +195,58 @@ describe("genericChatAppMachine", () => {
     });
 
     expect(Object.hasOwn(actor.getSnapshot().context, "conversations")).toBe(false);
+    actor.stop();
+  });
+
+  it("reconciles a persisted assistant when a conversation resumes with a new message id", async () => {
+    const persistedMessages: ChatMessage[] = [
+      {
+        id: "user-1",
+        role: "user",
+        parts: [{ type: "text", text: "Hello" }],
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "persisted-assistant",
+        role: "assistant",
+        parts: [{ type: "text", text: "Partial answer" }],
+        createdAt: "2026-01-01T00:00:01.000Z",
+      },
+    ];
+    const actor = createActor(genericChatAppMachine, {
+      input: {
+        api: "https://chat.example/api/chat",
+        fetch: async (input) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          if (new URL(url).pathname === "/api/chat/conversation-1/stream")
+            return assistantResponse();
+          throw new Error(`Unexpected runtime fixture request: ${url}`);
+        },
+        createId: () => "user-message",
+        now: () => "2026-01-01T00:00:00.000Z",
+        client: {
+          ...client,
+          loadConversation: async () => {
+            const loaded = await client.loadConversation({ conversationId: "conversation-1" });
+            return { conversation: loaded.conversation, messages: persistedMessages };
+          },
+        },
+        ...rootAdapters,
+      },
+    }).start();
+
+    actor.send({
+      type: "conversation-store-event",
+      event: { type: "conversation-load-requested", conversationId: "conversation-1" },
+    });
+
+    const session = actor.getSnapshot().children.session;
+    await vi.waitFor(() => {
+      expect(session?.getSnapshot().context.messages.at(-1)?.id).toBe("assistant");
+      expect(session?.getSnapshot().matches("idle")).toBe(true);
+    });
+    expect(session?.getSnapshot().context.messages).toHaveLength(2);
     actor.stop();
   });
 });

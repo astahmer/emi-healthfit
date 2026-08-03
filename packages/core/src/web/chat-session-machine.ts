@@ -12,6 +12,7 @@ export interface ChatSession {
   conversationId: string | undefined;
   threadId: string | undefined;
   messages: ChatMessage[];
+  resumeMessageId: string | undefined;
   draft: string;
   files: Attachment[];
   temporary: boolean;
@@ -45,6 +46,7 @@ export const initialChatSession: ChatSession = {
   conversationId: undefined,
   threadId: undefined,
   messages: [],
+  resumeMessageId: undefined,
   draft: "",
   files: [],
   temporary: false,
@@ -56,13 +58,19 @@ export const initialChatSession: ChatSession = {
 const replaceMessage = ({
   messages,
   message,
+  replacementId,
 }: {
   messages: ChatMessage[];
   message: ChatMessage;
+  replacementId?: string;
 }): ChatMessage[] => {
-  const index = messages.findIndex((candidate) => candidate.id === message.id);
-  if (index === -1) return [...messages, message];
-  return [...messages.slice(0, index), message, ...messages.slice(index + 1)];
+  const messageIndex = messages.findIndex((candidate) => candidate.id === message.id);
+  const replacementIndex =
+    messageIndex === -1 && replacementId !== undefined
+      ? messages.findIndex((candidate) => candidate.id === replacementId)
+      : messageIndex;
+  if (replacementIndex === -1) return [...messages, message];
+  return [...messages.slice(0, replacementIndex), message, ...messages.slice(replacementIndex + 1)];
 };
 
 export const chatSessionMachine = setup({
@@ -110,6 +118,7 @@ export const chatSessionMachine = setup({
       event.type === "stream-started"
         ? {
             messages: event.messages,
+            resumeMessageId: undefined,
             draft: "",
             files: [],
             error: undefined,
@@ -117,12 +126,25 @@ export const chatSessionMachine = setup({
           }
         : {},
     ),
-    resumeStream: assign({ error: () => undefined }),
-    updateStream: assign(({ context, event }) =>
-      event.type === "stream-message"
-        ? { messages: replaceMessage({ messages: context.messages, message: event.message }) }
-        : {},
-    ),
+    resumeStream: assign(({ context }) => {
+      const lastMessage = context.messages.at(-1);
+      return {
+        error: undefined,
+        resumeMessageId: lastMessage?.role === "assistant" ? lastMessage.id : undefined,
+      };
+    }),
+    updateStream: assign(({ context, event }) => {
+      if (event.type !== "stream-message") return {};
+      return {
+        messages: replaceMessage({
+          messages: context.messages,
+          message: event.message,
+          replacementId: context.resumeMessageId,
+        }),
+        resumeMessageId: undefined,
+      };
+    }),
+    finishStream: assign({ resumeMessageId: () => undefined }),
     reportError: assign(({ event }) =>
       event.type === "error-reported"
         ? { error: event.error, errorMessageId: event.messageId }
@@ -201,7 +223,7 @@ export const chatSessionMachine = setup({
         "thread-opened": { target: "idle", actions: "openThread" },
         "conversation-identified": { actions: "identifyConversation" },
         "stream-message": { actions: "updateStream" },
-        "stream-finished": { target: "idle" },
+        "stream-finished": { target: "idle", actions: "finishStream" },
         "error-reported": { actions: "reportError" },
         "error-cleared": { actions: "clearError" },
         "follow-up-queued": { actions: "queueFollowUp" },
