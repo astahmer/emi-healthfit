@@ -11,6 +11,7 @@ import type {
   Memory,
 } from "../../src/web/chat-runtime/conversation-client.ts";
 import type { ChatUiActorEvent } from "../../src/web/chat-runtime/chat-ui-actor.ts";
+import type { ChatTransportActorEvent } from "../../src/web/chat-runtime/transport-types.ts";
 import { conversationStoreActor } from "../../src/web/chat-runtime/conversation-store-actor.ts";
 
 const conversation: Conversation = {
@@ -58,6 +59,7 @@ const message: ChatMessage = {
 const createClient = (overrides: Partial<ConversationClient> = {}): ConversationClient => ({
   listConversations: async () => [conversation],
   loadConversation: async () => ({ conversation, messages: [message] }),
+  reviseConversationMessage: async () => undefined,
   updateConversation: async () => conversation,
   deleteConversation: async () => undefined,
   cloneConversation: async () => conversation,
@@ -76,16 +78,17 @@ const createClient = (overrides: Partial<ConversationClient> = {}): Conversation
 
 const createStore = ({ client = createClient() }: { client?: ConversationClient } = {}) => {
   const sessionEvents: ChatSessionEvent[] = [];
+  const transportEvents: ChatTransportActorEvent[] = [];
   const uiEvents: ChatUiActorEvent[] = [];
   const actor = createActor(conversationStoreActor, {
     input: {
       client,
       sendSession: (event) => sessionEvents.push(event),
-      sendTransport: () => undefined,
+      sendTransport: (event) => transportEvents.push(event),
       sendUi: (event) => uiEvents.push(event),
     },
   }).start();
-  return { actor, sessionEvents, uiEvents };
+  return { actor, sessionEvents, transportEvents, uiEvents };
 };
 
 const deferred = <Value>() => {
@@ -154,6 +157,40 @@ describe("conversationStoreActor", () => {
 
     expect(sessionEvents).toContainEqual({ type: "error-reported", error: "Denied." });
     expect(actor.getSnapshot().context.loading.mutation).toBe(false);
+    actor.stop();
+  });
+
+  it("persists a message revision before starting its replacement stream", async () => {
+    const calls: string[] = [];
+    const { actor, transportEvents } = createStore({
+      client: createClient({
+        reviseConversationMessage: async () => {
+          calls.push("persist");
+        },
+      }),
+    });
+
+    actor.send({
+      type: "conversation-message-revision-requested",
+      conversationId: conversation.id,
+      messageId: message.id,
+      parts: [{ type: "text", text: "Revised" }],
+      request: {
+        conversationId: conversation.id,
+        threadId: undefined,
+        temporary: false,
+        messages: [],
+        text: "Revised",
+        files: [],
+        messageId: message.id,
+        replaceMessageId: message.id,
+        body: {},
+      },
+    });
+
+    await vi.waitFor(() => expect(transportEvents).toHaveLength(1));
+    expect(calls).toEqual(["persist"]);
+    expect(transportEvents[0]).toEqual(expect.objectContaining({ type: "stream-send-requested" }));
     actor.stop();
   });
 

@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import type { ChatModelConfiguration } from "../../chat/request.ts";
 import { ChatProtocol } from "../../protocol/mappers.ts";
 import type { ChatMessage } from "../../protocol/messages.ts";
+import type { MessagePart } from "../../protocol/parts.ts";
 import type { MemorySummary } from "../../protocol/resources.ts";
 
 const ConversationSchema = Schema.Struct({
@@ -60,6 +61,7 @@ const MemorySummaryResponseSchema = Schema.Struct({
 const SuggestionsResponseSchema = Schema.Struct({ suggestions: Schema.Array(Schema.String) });
 const ConversationResponseSchema = Schema.Struct({ conversation: ConversationSchema });
 const DeletedResponseSchema = Schema.Struct({ deleted: Schema.Literal(true) });
+const RevisedResponseSchema = Schema.Struct({ ok: Schema.Literal(true) });
 
 export type Conversation = typeof ConversationSchema.Type;
 export type ConversationThread = typeof ThreadSchema.Type;
@@ -119,6 +121,12 @@ export interface ConversationClient {
   loadConversation(input: {
     conversationId: string;
   }): Promise<{ conversation: Conversation; messages: ChatMessage[] }>;
+  reviseConversationMessage(input: {
+    conversationId: string;
+    messageId: string;
+    parts: ReadonlyArray<MessagePart>;
+    threadId?: string;
+  }): Promise<void>;
   updateConversation(input: {
     conversationId: string;
     patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
@@ -220,6 +228,32 @@ export const createConversationClient = ({
     const payload = await readResponse({ response });
     const decoded = Schema.decodeUnknownSync(ConversationResponseSchema)(payload);
     return decoded.conversation;
+  };
+
+  const reviseConversationMessage = async ({
+    conversationId,
+    messageId,
+    parts,
+    threadId,
+  }: {
+    conversationId: string;
+    messageId: string;
+    parts: ReadonlyArray<MessagePart>;
+    threadId?: string;
+  }): Promise<void> => {
+    const response = await fetch(
+      apiUrl(`/api/conversations/${conversationId}/messages/${messageId}`),
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          parts: [...parts],
+          ...(threadId === undefined ? {} : { threadId }),
+        }),
+      },
+    );
+    const payload = await readResponse({ response });
+    Schema.decodeUnknownSync(RevisedResponseSchema)(payload);
   };
 
   const deleteConversation = async ({
@@ -357,6 +391,7 @@ export const createConversationClient = ({
   return {
     listConversations,
     loadConversation,
+    reviseConversationMessage,
     updateConversation,
     deleteConversation,
     cloneConversation,

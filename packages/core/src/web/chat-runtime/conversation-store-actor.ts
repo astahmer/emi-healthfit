@@ -1,9 +1,10 @@
 import { assign, fromCallback, sendTo, setup } from "xstate";
 
 import type { ChatMessage } from "../../protocol/messages.ts";
+import type { MessagePart } from "../../protocol/parts.ts";
 import type { MemorySummary } from "../../protocol/resources.ts";
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
-import type { ChatTransportActorEvent } from "./transport-types.ts";
+import type { ChatTransportActorEvent, ChatTransportRequest } from "./transport-types.ts";
 import type {
   Conversation,
   ConversationClient,
@@ -47,6 +48,14 @@ type ConversationStoreQuery = Exclude<ConversationStoreOperation, "mutation">;
 export type ConversationStoreActorEvent =
   | { type: "conversations-load-requested"; search: string }
   | { type: "conversation-load-requested"; conversationId: string }
+  | {
+      type: "conversation-message-revision-requested";
+      conversationId: string;
+      messageId: string;
+      parts: ReadonlyArray<MessagePart>;
+      threadId?: string;
+      request: ChatTransportRequest;
+    }
   | { type: "threads-load-requested"; conversationId: string }
   | { type: "thread-load-requested"; conversationId: string; threadId: string }
   | {
@@ -168,6 +177,30 @@ const conversationStoreOperations = fromCallback<
     }
   };
 
+  const reviseConversationMessage = async (
+    event: Extract<
+      ConversationStoreActorEvent,
+      { type: "conversation-message-revision-requested" }
+    >,
+  ) => {
+    try {
+      await input.client.reviseConversationMessage({
+        conversationId: event.conversationId,
+        messageId: event.messageId,
+        parts: event.parts,
+        ...(event.threadId === undefined ? {} : { threadId: event.threadId }),
+      });
+      sendBack({ type: "mutation-finished" });
+      input.sendTransport({ type: "stream-send-requested", request: event.request });
+    } catch (cause) {
+      reportFailure({
+        cause,
+        operation: "mutation",
+        fallback: "Unable to save this message revision.",
+      });
+    }
+  };
+
   const loadThreads = async ({ conversationId }: { conversationId: string }) => {
     const queryId = beginQuery({ operation: "threads" });
     try {
@@ -229,6 +262,8 @@ const conversationStoreOperations = fromCallback<
       void loadConversations({ search: event.search });
     if (event.type === "conversation-load-requested")
       void loadConversation({ conversationId: event.conversationId });
+    if (event.type === "conversation-message-revision-requested")
+      void reviseConversationMessage(event);
     if (event.type === "threads-load-requested")
       void loadThreads({ conversationId: event.conversationId });
     if (event.type === "thread-load-requested") void loadThread(event);
@@ -550,6 +585,7 @@ export const conversationStoreActor = setup({
   on: {
     "conversations-load-requested": { actions: ["requestConversations", "forwardOperation"] },
     "conversation-load-requested": { actions: ["requestConversation", "forwardOperation"] },
+    "conversation-message-revision-requested": { actions: ["requestMutation", "forwardOperation"] },
     "threads-load-requested": { actions: ["requestThreads", "forwardOperation"] },
     "thread-load-requested": { actions: ["requestThread", "forwardOperation"] },
     "memory-load-requested": { actions: ["requestMemories", "forwardOperation"] },

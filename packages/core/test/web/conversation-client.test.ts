@@ -9,6 +9,34 @@ const createClient = ({ response }: { response: Response }) =>
   });
 
 describe("conversation client response boundaries", () => {
+  it("persists a revised message through the conversation contract", async () => {
+    let requestBody: unknown;
+    const client = createConversationClient({
+      apiOrigin: "https://chat.example/",
+      fetch: async (input, init) => {
+        expect(String(input)).toBe(
+          "https://chat.example/api/conversations/conversation-1/messages/message-1",
+        );
+        requestBody = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await client.reviseConversationMessage({
+      conversationId: "conversation-1",
+      messageId: "message-1",
+      parts: [{ type: "text", text: "Revised" }],
+      threadId: "thread-1",
+    });
+
+    expect(requestBody).toEqual({
+      parts: [{ type: "text", text: "Revised" }],
+      threadId: "thread-1",
+    });
+  });
+
   it("decodes provider-neutral suggestions from the suggestions endpoint", async () => {
     const client = createConversationClient({
       apiOrigin: "https://chat.example/",

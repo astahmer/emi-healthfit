@@ -59,6 +59,8 @@ const createFetch =
     const pathname = new URL(url, "http://localhost").pathname;
     if (pathname === "/api/chat") return streamResponse();
     if (pathname === "/api/conversations") return response({ conversations: [conversation] });
+    if (pathname === "/api/conversations/conversation-1/messages/user-original")
+      return response({ ok: true });
     if (pathname === "/api/conversations/conversation-1")
       return response({ conversation, messages: conversationMessages });
     if (pathname === "/api/conversations/conversation-1/threads") return response({ threads: [] });
@@ -207,9 +209,15 @@ describe("createChatRuntime", () => {
     } satisfies StoredMessage;
     const fixture = createOptions({ conversationMessages: [target] });
     let requestBody: unknown;
+    let revisionBody: unknown;
     const baseFetch = fixture.options.transport.fetch;
     fixture.options.transport.fetch = async (input, init) => {
-      if (init?.body !== undefined) requestBody = JSON.parse(String(init.body));
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (init?.body !== undefined) {
+        const body = JSON.parse(String(init.body));
+        if (url.includes("/messages/")) revisionBody = body;
+        else requestBody = body;
+      }
       return baseFetch(input, init);
     };
     const runtime = createChatRuntime(fixture.options);
@@ -221,16 +229,21 @@ describe("createChatRuntime", () => {
     });
 
     runtime.actions.editMessage({ messageId: target.id, text: "Revised" });
+    await vi.waitFor(() =>
+      expect(requestBody).toMatchObject({
+        replaceMessageId: target.id,
+        messages: [
+          {
+            id: target.id,
+            parts: [{ type: "text", text: "Revised" }],
+          },
+        ],
+      }),
+    );
     await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
 
-    expect(requestBody).toMatchObject({
-      replaceMessageId: target.id,
-      messages: [
-        {
-          id: target.id,
-          parts: [{ type: "text", text: "Revised" }],
-        },
-      ],
+    expect(revisionBody).toEqual({
+      parts: [{ type: "text", text: "Revised" }],
     });
     runtime.dispose();
   });

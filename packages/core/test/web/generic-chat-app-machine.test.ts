@@ -18,6 +18,7 @@ const client: ConversationClient = {
     },
     messages: [],
   }),
+  reviseConversationMessage: async () => undefined,
   updateConversation: async () => ({
     id: "conversation-1",
     title: null,

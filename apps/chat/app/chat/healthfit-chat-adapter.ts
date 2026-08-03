@@ -125,6 +125,18 @@ export const createHealthFitConversationClient = (): ConversationClient => ({
     };
   },
 
+  reviseConversationMessage: async ({ conversationId, messageId, parts, threadId }) => {
+    await runApi((client) =>
+      client.conversations.reviseMessage({
+        params: { id: conversationId, messageId },
+        payload: {
+          parts: [...parts],
+          ...(threadId === undefined ? {} : { threadId }),
+        },
+      }),
+    );
+  },
+
   updateConversation: async ({ conversationId, patch }) => {
     if (patch.status !== undefined || patch.pinned !== undefined) {
       await runApi((client) =>

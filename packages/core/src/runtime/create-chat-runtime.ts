@@ -532,15 +532,24 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       return;
     }
     if (text.trim() === "" && messageFiles(target).length === 0) return;
-    sendTransport({
-      type: "stream-send-requested",
+    const files = messageFiles(target);
+    const revisedParts = [
+      ...(text === "" ? [] : [{ type: "text" as const, text }]),
+      ...files.map((file) => ({ type: "file" as const, file })),
+    ];
+    sendConversationStore({
+      type: "conversation-message-revision-requested",
+      conversationId: session.conversationId,
+      messageId: target.id,
+      parts: revisedParts,
+      ...(session.threadId === undefined ? {} : { threadId: session.threadId }),
       request: {
         conversationId: session.conversationId,
         threadId: session.threadId,
         temporary: false,
         messages: session.messages.slice(0, targetIndex),
         text,
-        files: messageFiles(target),
+        files,
         messageId: target.id,
         replaceMessageId: target.id,
         body: requestBody({
