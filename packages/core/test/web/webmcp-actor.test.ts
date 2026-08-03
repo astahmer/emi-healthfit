@@ -308,6 +308,14 @@ describe("webMcpRegistrationActor", () => {
         summary: { content: "The user prefers concise communication.", memoryCount: 1 },
       },
     });
+    expect(
+      await getTool(testRuntime.context, "open_conversation").execute({
+        conversationId: "conversation-from-another-session",
+      }),
+    ).toEqual({
+      ok: false,
+      error: { code: "not-found", message: "Conversation was not found." },
+    });
     expect(testRuntime.state()).toMatchObject({
       activeThread: { conversationId: "conversation-1" },
       composer: { text: "draft from agent" },
