@@ -273,6 +273,7 @@
       "dependencyMatrix": {
         ".": {
           "runtime": [
+            "effect",
             "xstate"
           ],
           "peer": [],
@@ -316,6 +317,7 @@
         },
         "./runtime": {
           "runtime": [
+            "effect",
             "xstate"
           ],
           "peer": [],

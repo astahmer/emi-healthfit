@@ -6,6 +6,8 @@ import {
 } from "./web/attachments/attachments.ts";
 import { AnonymousSession } from "./web/auth/anonymous-session.ts";
 import { AuthSession } from "./web/auth/auth-session.ts";
+import { WebMcp } from "./web/webmcp.ts";
+import type { WebMcpModelContext } from "./web/webmcp.ts";
 import { ChatShell } from "./web/chat-shell.tsx";
 import { CoreWebProvider, useCoreWebContributions, useToolRenderer } from "./web/contributions.tsx";
 import type {
@@ -101,6 +103,7 @@ export {
   useToolRenderer,
   formatMessageRailTime,
   validateAttachments,
+  WebMcp,
 };
 
 export type {
@@ -120,4 +123,5 @@ export type {
   ResolvedCoreWebContributions,
   ThreadViewportProps,
   ToolRendererContribution,
+  WebMcpModelContext,
 };

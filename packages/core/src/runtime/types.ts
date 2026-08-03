@@ -3,6 +3,7 @@ import type { Attachment } from "../protocol/parts.ts";
 import type { Conversation, Memory, MemorySummary, Thread } from "../protocol/resources.ts";
 import type { ModelConfiguration } from "../protocol/model.ts";
 import type { ChatExtension } from "../extensions.ts";
+import type { WebMcpModelContext } from "../web/webmcp.ts";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;
@@ -26,6 +27,9 @@ export interface ChatRuntimeOptions {
   readonly browser: {
     readonly online: boolean;
     readonly subscribeOnline: (listener: (online: boolean) => void) => () => void;
+  };
+  readonly webmcp?: {
+    readonly modelContext?: WebMcpModelContext;
   };
   readonly identity: {
     readonly createId: () => string;

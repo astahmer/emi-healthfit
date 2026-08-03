@@ -5,6 +5,7 @@ import type { ModelConfiguration } from "../protocol/model.ts";
 import type { MemorySummary } from "../protocol/resources.ts";
 import { defaultGenericChatSettings } from "../chat/settings.ts";
 import { genericChatAppMachine } from "../web/chat-runtime/generic-chat-app-machine.ts";
+import { webMcpRegistrationActor } from "../web/chat-runtime/webmcp-actor.ts";
 import {
   createConversationClient,
   type Conversation,
@@ -575,6 +576,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     if (disposed || started || stopped) return;
     started = true;
     actor.start();
+    webMcp.start();
     subscribeToChildren();
   };
 
@@ -582,6 +584,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     if (disposed || !started || stopped) return;
     stopped = true;
     unsubscribeFromChildren();
+    webMcp.stop();
     actor.stop();
   };
 
@@ -591,6 +594,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     if (started && !stopped) {
       stopped = true;
       unsubscribeFromChildren();
+      webMcp.stop();
       actor.stop();
     }
     actorSubscription.unsubscribe();
@@ -602,6 +606,14 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
+
+  const webMcp = createActor(webMcpRegistrationActor, {
+    input: {
+      modelContext: options.webmcp?.modelContext,
+      runtime: { getState, subscribe, actions },
+      features: options.features,
+    },
+  });
 
   return { selectors, actions, getState, start, stop, dispose, subscribe };
 };

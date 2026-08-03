@@ -3,7 +3,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { createChatRuntime } from "@emi/core";
 import { ChatApp } from "@emi/core/components/styled";
 import { ChatProvider } from "@emi/core/react";
-import { AnonymousSession, AuthSession } from "@emi/core/web";
+import { AnonymousSession, AuthSession, WebMcp } from "@emi/core/web";
 
 import "./app.css";
 import { genericChatAppConfig } from "./app-config.ts";
@@ -131,6 +131,7 @@ export const App = () => {
             };
           },
         },
+        webmcp: { modelContext: WebMcp.detect(document) },
         identity: { createId: () => crypto.randomUUID(), now: () => new Date().toISOString() },
         features: {
           attachments: true,
