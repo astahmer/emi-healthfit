@@ -105,6 +105,7 @@ export const createChatToolExecutor = ({
             userId,
             name,
             args,
+            requestId,
             ...(isTemporary ? {} : { conversationId: sessionId }),
             summarize: (messages) =>
               Chat.generation.generateConversationSummaryEffect({

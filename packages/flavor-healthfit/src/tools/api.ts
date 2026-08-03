@@ -460,20 +460,28 @@ const StoredParts = Schema.fromJsonString(Schema.Array(Schema.Unknown));
 const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   db,
   userId,
+  requestId,
   threadTools,
 }: {
   db: ToolsDb;
   userId: string;
+  requestId: string;
   threadTools: ThreadToolOptions;
 }) {
   const conversationDatabase = yield* ServerDatabase.conversations;
-  const memoryDatabase = yield* ServerDatabase.memories;
-  const memoryReader: Pick<ServerDatabase.MemoryReaderShape, "search"> = {
-    search: (query, options) => memoryDatabase.searchMemories({ userId, query, options }),
-  };
-  const memorySummary: Pick<ServerDatabase.MemorySummaryStoreShape, "get"> = {
-    get: () => memoryDatabase.getMemorySummary({ userId }),
-  };
+  yield* ServerDatabase.memories;
+  const requestContext = { userId, requestId };
+  const conversationStore = yield* ServerDatabase.storeLive.effect({ requestContext });
+  const memoryStore = yield* ServerDatabase.memoryStoreLive.effect({ requestContext });
+  const conversationReaderLayer = Layer.succeed(
+    ServerDatabase.conversationReader,
+    conversationStore.conversationReader,
+  );
+  const memoryReaderLayer = Layer.succeed(ServerDatabase.memoryReader, memoryStore.reader);
+  const memorySummaryStoreLayer = Layer.succeed(
+    ServerDatabase.memorySummaryStore,
+    memoryStore.summary,
+  );
   const requireConversationId = Effect.fn("FitnessToolkit.requireConversationId")(function* ({
     tool,
   }: {
@@ -606,24 +614,19 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
       getNextWorkout(narrow<HealthfitDatabaseSchema>(db), userId),
     ),
     search_memory_summary: Effect.fn("FitnessToolkit.searchMemorySummary")(function* (args) {
-      return yield* MemoryTools.searchSummary({ args, summary: memorySummary });
+      return yield* MemoryTools.searchSummary({ args }).pipe(
+        Effect.provide(memorySummaryStoreLayer),
+      );
     }),
     search_memories: Effect.fn("FitnessToolkit.searchMemories")(function* (args) {
-      return yield* MemoryTools.search({ args, reader: memoryReader });
+      return yield* MemoryTools.search({ args }).pipe(Effect.provide(memoryReaderLayer));
     }),
-    search_conversations: Effect.fn("FitnessToolkit.searchConversations")((args) =>
-      ConversationSearchTool.execute({
-        searchMessages: ({ query, excludeConversationId, limit }) =>
-          conversationDatabase.searchConversationMessages({
-            userId,
-            query,
-            excludeConversationId,
-            limit,
-          }),
+    search_conversations: Effect.fn("FitnessToolkit.searchConversations")(function* (args) {
+      return yield* ConversationSearchTool.execute({
         args,
         excludeConversationId: threadTools.conversationId,
-      }),
-    ),
+      }).pipe(Effect.provide(conversationReaderLayer));
+    }),
     get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
       const conversationId = yield* requireConversationId({ tool: "get_threads" });
       return yield* conversationDatabase.getThreads({ userId, conversationId });
@@ -733,6 +736,7 @@ export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   name,
   args,
   conversationId,
+  requestId,
   summarize,
 }: {
   db: ToolsDb;
@@ -740,16 +744,23 @@ export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   name: string;
   args: Record<string, unknown>;
   conversationId?: string;
+  requestId?: string;
   summarize?: ThreadToolOptions["summarize"];
 }) {
   if (!(name in FitnessToolkit.tools)) {
     return yield* toolError({ tool: name, message: "Unknown tool." });
   }
 
+  const effectiveRequestId = requestId ?? crypto.randomUUID();
   const runtime = yield* FitnessToolkit.pipe(
     Effect.provide(
       FitnessToolkit.toLayer(
-        makeHandlers({ db, userId, threadTools: { conversationId, summarize } }).pipe(
+        makeHandlers({
+          db,
+          userId,
+          requestId: effectiveRequestId,
+          threadTools: { conversationId, summarize },
+        }).pipe(
           Effect.provide(
             Layer.mergeAll(
               ServerDatabase.conversations.layer({
