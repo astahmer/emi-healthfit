@@ -323,6 +323,11 @@ The runtime accepts optional `storage.keys.settings` and `storage.keys.drafts` o
 are `emi-core-chat-settings` and `emi-core-chat-settings:draft`. Fetch, browser notifications,
 storage, IDs, and the clock remain injected through `ChatRuntimeOptions`.
 
+Transport streams enforce a five-minute inactivity deadline by default; consumers with a different
+latency budget can set `transport.streamInactivityTimeoutMilliseconds`. A completed send can invoke
+`lifecycle.onStreamCompleted` with the conversation ID, final `ChatMessage`, and temporary flag.
+The hook is not invoked for resume streams (including 204 no-ops), cancellation, or failed streams.
+
 The runtime facade is protocol-native: its actor-owned session and transport state uses core
 `ChatMessage` and `Attachment` values, and its native fetch/SSE transport does not load AI SDK.
 Provider translation remains isolated in `adapters/ai-sdk`; no provider bridge is part of the
