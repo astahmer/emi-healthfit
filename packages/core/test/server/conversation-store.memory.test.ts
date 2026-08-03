@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { ConversationSearchTool } from "../../src/server/conversation-search-tool.ts";
 import { ConversationStoreLive } from "../../src/server/make-conversation-store.ts";
 import { ConversationDatabase } from "../../src/server/db/conversations.ts";
@@ -103,10 +104,9 @@ describe("makeConversationStore", () => {
     assert.deepStrictEqual(
       await Effect.runPromise(
         ConversationSearchTool.execute({
-          searchMessages: alice.conversationReader.searchMessages,
           args: { query: "old preference" },
           excludeConversationId: conversationId,
-        }),
+        }).pipe(Effect.provide(Layer.succeed(ConversationReader, alice.conversationReader))),
       ),
       {
         results: [

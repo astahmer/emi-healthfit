@@ -3,15 +3,27 @@ import { CurrentUser } from "../server/auth/principal.ts";
 import { MemoryDatabase } from "../server/db/memories.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
+import { MemoryReader, MemorySummaryStore } from "../server/ports/memory-store.ts";
+import type { MemoryReaderShape, MemorySummaryStoreShape } from "../server/ports/memory-store.ts";
 import type { MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ChatRouteSupport } from "./chat-route-support.ts";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
+
+const memoryStoreLayer = ({
+  reader,
+  summary,
+}: {
+  readonly reader: MemoryReaderShape;
+  readonly summary: MemorySummaryStoreShape;
+}) =>
+  Layer.mergeAll(Layer.succeed(MemoryReader, reader), Layer.succeed(MemorySummaryStore, summary));
 
 export class ChatRouteMemory {
   static make({ db }: { readonly db: CloudflareQueryDatabaseClient<MemoryDatabaseSchema> }) {
@@ -20,7 +32,6 @@ export class ChatRouteMemory {
       MemoryStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
       }).pipe(Effect.provide(databaseLayer));
-
     const memories = Effect.fn("core.chat.memories")(function* (request: HttpServerRequest) {
       const user = yield* CurrentUser;
       const memoryStore = yield* memoryStoreFor(user.id);
@@ -38,10 +49,9 @@ export class ChatRouteMemory {
         if (id === null) {
           return yield* HttpServerResponse.json({ error: "Invalid memory" }, { status: 400 });
         }
-        yield* ChatRouteSupport.syncMemorySummaryCount({
-          reader: memoryStore.reader,
-          summary: memoryStore.summary,
-        });
+        yield* ChatRouteSupport.syncMemorySummaryCount.pipe(
+          Effect.provide(memoryStoreLayer(memoryStore)),
+        );
         return yield* HttpServerResponse.json({ id }, { status: 201 });
       }
       const search = new URL(request.url, "http://localhost").searchParams.get("search") ?? "";
@@ -112,10 +122,9 @@ export class ChatRouteMemory {
         return yield* HttpServerResponse.json({ error: "Memory not found" }, { status: 404 });
       }
       yield* memoryStore.writer.delete(memoryId);
-      yield* ChatRouteSupport.syncMemorySummaryCount({
-        reader: memoryStore.reader,
-        summary: memoryStore.summary,
-      });
+      yield* ChatRouteSupport.syncMemorySummaryCount.pipe(
+        Effect.provide(memoryStoreLayer(memoryStore)),
+      );
       return yield* HttpServerResponse.json({ deleted: true });
     });
 

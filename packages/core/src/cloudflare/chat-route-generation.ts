@@ -5,12 +5,8 @@ import type { UIMessageChunk } from "ai";
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import type { UiMessageChunkDecodeError } from "../server/decode-ui-message-chunk.ts";
 import { GenerationReplay } from "../server/generation-replay.ts";
-import type {
-  GenerationChunkRecord,
-  GenerationChunkWriterShape,
-  GenerationRecord,
-  GenerationWriterShape,
-} from "../server/ports/generation-store.ts";
+import type { GenerationChunkRecord, GenerationRecord } from "../server/ports/generation-store.ts";
+import { GenerationChunkWriter, GenerationWriter } from "../server/ports/generation-store.ts";
 
 type UiMessageChunk =
   Awaited<ReturnType<typeof OpenAiChat.toUiMessageStream>> extends ReadableStream<infer Chunk>
@@ -36,16 +32,14 @@ export class ChatRouteGeneration {
   }
 
   static readonly persist = Effect.fn("core.chat.generation.persist")(function* ({
-    writer,
-    chunkWriter,
     generationId,
     stream,
   }: {
-    writer: GenerationWriterShape;
-    chunkWriter: GenerationChunkWriterShape;
     generationId: string;
     stream: ReadableStream<UiMessageChunk>;
   }) {
+    const writer = yield* GenerationWriter;
+    const chunkWriter = yield* GenerationChunkWriter;
     let error: string | undefined;
     let finishReason: string | undefined;
     let sawFinish = false;

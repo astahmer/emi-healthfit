@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { MemoryTools } from "../../src/server/memory-tools.ts";
 import { MemoryStoreLive } from "../../src/server/make-memory-store.ts";
 import {
@@ -45,8 +46,7 @@ describe("MemoryTools", () => {
     const summaryResult = await Effect.runPromise(
       MemoryTools.searchSummary({
         args: { query: "concise answers" },
-        summary: services.summary,
-      }),
+      }).pipe(Effect.provide(Layer.succeed(MemorySummaryStore, services.summary))),
     );
     assert.equal(summaryResult.summary?.content, "The user prefers concise answers.");
     assert.equal(summaryResult.summary?.memory_count, 1);
@@ -54,8 +54,7 @@ describe("MemoryTools", () => {
       await Effect.runPromise(
         MemoryTools.search({
           args: { query: "concise" },
-          reader: services.reader,
-        }),
+        }).pipe(Effect.provide(Layer.succeed(MemoryReader, services.reader))),
       ),
       {
         results: [

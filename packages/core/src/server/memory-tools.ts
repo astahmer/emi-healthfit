@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Tool from "effect/unstable/ai/Tool";
-import type { MemoryReaderShape, MemorySummaryStoreShape } from "./ports/memory-store.ts";
+import { MemoryReader, MemorySummaryStore } from "./ports/memory-store.ts";
 
 const memorySearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
@@ -76,11 +76,10 @@ export class MemoryTools {
 
   static readonly search = Effect.fn("MemoryTools.search")(function* ({
     args,
-    reader,
   }: {
     readonly args: unknown;
-    readonly reader: Pick<MemoryReaderShape, "search">;
   }) {
+    const reader = yield* MemoryReader;
     const input = yield* decodeInput(memorySearchInput, args);
     const results = yield* reader.search(input.query, { limit: input.limit ?? 10 });
     return { results };
@@ -88,11 +87,10 @@ export class MemoryTools {
 
   static readonly searchSummary = Effect.fn("MemoryTools.searchSummary")(function* ({
     args,
-    summary,
   }: {
     readonly args: unknown;
-    readonly summary: Pick<MemorySummaryStoreShape, "get">;
   }) {
+    const summary = yield* MemorySummaryStore;
     const input = yield* decodeInput(memorySummarySearchInput, args);
     const value = yield* summary.get();
     return {

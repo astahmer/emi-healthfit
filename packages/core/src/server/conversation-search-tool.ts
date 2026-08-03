@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Tool from "effect/unstable/ai/Tool";
 import type { ConversationMessageSearchResult } from "./db/conversations.ts";
-import type { ConversationReaderShape } from "./ports/conversation-store.ts";
+import { ConversationReader } from "./ports/conversation-store.ts";
 
 const ConversationSearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1)).annotate({
@@ -62,14 +62,13 @@ export class ConversationSearchTool {
   };
 
   static execute = Effect.fn("core.conversation.searchTool")(function* ({
-    searchMessages,
     args,
     excludeConversationId,
   }: {
-    readonly searchMessages: ConversationReaderShape["searchMessages"];
     readonly args: unknown;
     readonly excludeConversationId?: string;
   }) {
+    const conversationReader = yield* ConversationReader;
     const input = yield* Schema.decodeUnknownEffect(ConversationSearchInput)(args).pipe(
       Effect.mapError(
         (error) =>
@@ -79,7 +78,7 @@ export class ConversationSearchTool {
           }),
       ),
     );
-    const results = yield* searchMessages({
+    const results = yield* conversationReader.searchMessages({
       query: input.query,
       limit: input.limit ?? 10,
       excludeConversationId,

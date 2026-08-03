@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { ChatModelConfigurationSchema } from "../chat/request.ts";
-import type { MemoryReaderShape, MemorySummaryStoreShape } from "../server/ports/memory-store.ts";
+import { MemoryReader, MemorySummaryStore } from "../server/ports/memory-store.ts";
 
 export class ChatRouteSupport {
   static readonly conversationActionSchema = Schema.Struct({
@@ -73,22 +73,16 @@ export class ChatRouteSupport {
     };
   }
 
-  static syncMemorySummaryCount<TEnvironment>({
-    reader,
-    summary,
-  }: {
-    readonly reader: MemoryReaderShape<TEnvironment>;
-    readonly summary: MemorySummaryStoreShape<TEnvironment>;
-  }) {
-    return Effect.gen(function* () {
-      const existing = yield* summary.get();
-      if (existing === undefined) return;
-      yield* summary.upsert({
-        content: existing.content,
-        memoryCount: yield* reader.count(),
-      });
+  static syncMemorySummaryCount = Effect.gen(function* () {
+    const reader = yield* MemoryReader;
+    const summary = yield* MemorySummaryStore;
+    const existing = yield* summary.get();
+    if (existing === undefined) return;
+    yield* summary.upsert({
+      content: existing.content,
+      memoryCount: yield* reader.count(),
     });
-  }
+  });
 
   static conversationResponse(conversation: {
     id: string;

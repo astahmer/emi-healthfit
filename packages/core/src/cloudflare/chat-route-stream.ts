@@ -20,8 +20,18 @@ import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { GenerationStoreLive } from "../server/make-generation-store.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
+import { ConversationReader } from "../server/ports/conversation-store.ts";
+import { GenerationChunkWriter, GenerationWriter } from "../server/ports/generation-store.ts";
+import { MemoryReader, MemorySummaryStore } from "../server/ports/memory-store.ts";
+import type { ConversationReaderShape } from "../server/ports/conversation-store.ts";
+import type {
+  GenerationChunkWriterShape,
+  GenerationWriterShape,
+} from "../server/ports/generation-store.ts";
+import type { MemoryReaderShape, MemorySummaryStoreShape } from "../server/ports/memory-store.ts";
 import { ChatRouteGeneration } from "./chat-route-generation.ts";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -33,6 +43,33 @@ class ChatRouteStreamError extends Schema.TaggedErrorClass<ChatRouteStreamError>
   "ChatRouteStreamError",
   { message: Schema.String },
 ) {}
+
+const conversationStoreLayer = ({
+  conversationReader,
+}: {
+  readonly conversationReader: ConversationReaderShape;
+}) => Layer.succeed(ConversationReader, conversationReader);
+
+const memoryStoreLayer = ({
+  reader,
+  summary,
+}: {
+  readonly reader: MemoryReaderShape;
+  readonly summary: MemorySummaryStoreShape;
+}) =>
+  Layer.mergeAll(Layer.succeed(MemoryReader, reader), Layer.succeed(MemorySummaryStore, summary));
+
+const generationStoreLayer = ({
+  writer,
+  chunkWriter,
+}: {
+  readonly writer: GenerationWriterShape;
+  readonly chunkWriter: GenerationChunkWriterShape;
+}) =>
+  Layer.mergeAll(
+    Layer.succeed(GenerationWriter, writer),
+    Layer.succeed(GenerationChunkWriter, chunkWriter),
+  );
 
 export class ChatRouteStream {
   static make({
@@ -57,7 +94,6 @@ export class ChatRouteStream {
       GenerationStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
       }).pipe(Effect.provide(generationDatabaseLayer));
-
     const chatEffect = Effect.fn("core.chat.stream")(function* (request: HttpServerRequest) {
       const user = yield* CurrentUser;
       const conversationStore = yield* conversationStoreFor(user.id);
@@ -228,11 +264,10 @@ export class ChatRouteStream {
       const memorySummary =
         temporary || !memoryEnabled
           ? undefined
-          : yield* MemoryContext.loadStoreEffect({
-              reader: memoryStore.reader,
-              summary: memoryStore.summary,
-              configuration: memoryConfiguration,
-            }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+          : yield* MemoryContext.loadStoreEffect({ configuration: memoryConfiguration }).pipe(
+              Effect.provide(memoryStoreLayer(memoryStore)),
+              Effect.catch(() => Effect.succeed(undefined)),
+            );
       const result = yield* OpenAiChat.createChatStreamEffect({
         request: {
           messages,
@@ -258,22 +293,24 @@ export class ChatRouteStream {
           const tool: Effect.Effect<unknown, ChatRouteStreamError> =
             name === ConversationSearchTool.name
               ? ConversationSearchTool.execute({
-                  searchMessages: conversationStore.conversationReader.searchMessages,
                   args,
                   excludeConversationId: temporary ? undefined : conversationId,
                 }).pipe(
+                  Effect.provide(conversationStoreLayer(conversationStore)),
                   Effect.map((value): unknown => value),
                   Effect.mapError((error) => new ChatRouteStreamError({ message: error.message })),
                 )
               : name === MemoryTools.summaryName
-                ? MemoryTools.searchSummary({ args, summary: memoryStore.summary }).pipe(
+                ? MemoryTools.searchSummary({ args }).pipe(
+                    Effect.provide(memoryStoreLayer(memoryStore)),
                     Effect.map((value): unknown => value),
                     Effect.mapError(
                       (error) => new ChatRouteStreamError({ message: error.message }),
                     ),
                   )
                 : name === MemoryTools.searchName
-                  ? MemoryTools.search({ args, reader: memoryStore.reader }).pipe(
+                  ? MemoryTools.search({ args }).pipe(
+                      Effect.provide(memoryStoreLayer(memoryStore)),
                       Effect.map((value): unknown => value),
                       Effect.mapError(
                         (error) => new ChatRouteStreamError({ message: error.message }),
@@ -335,12 +372,11 @@ export class ChatRouteStream {
                     })),
                   );
                   if (ids.length === 0) return;
-                  yield* MemoryContext.refreshStoreEffect({
-                    reader: memoryStore.reader,
-                    summary: memoryStore.summary,
-                    configuration: memoryConfiguration,
-                  });
-                }).pipe(Effect.catch(() => Effect.void));
+                  yield* MemoryContext.refreshStoreEffect({ configuration: memoryConfiguration });
+                }).pipe(
+                  Effect.provide(memoryStoreLayer(memoryStore)),
+                  Effect.catch(() => Effect.void),
+                );
               }
               if (titleSource === undefined) return;
               const storedConversation =
@@ -367,12 +403,9 @@ export class ChatRouteStream {
         const executionContext = yield* Cloudflare.Workers.WorkerExecutionContext;
         executionContext.waitUntil(
           Effect.runPromise(
-            ChatRouteGeneration.persist({
-              writer: generationStore.writer,
-              chunkWriter: generationStore.chunkWriter,
-              generationId,
-              stream: streams[1],
-            }),
+            ChatRouteGeneration.persist({ generationId, stream: streams[1] }).pipe(
+              Effect.provide(generationStoreLayer(generationStore)),
+            ),
           ).catch(() => undefined),
         );
         return HttpServerResponse.fromWeb(

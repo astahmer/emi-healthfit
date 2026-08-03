@@ -1,10 +1,8 @@
 import * as Effect from "effect/Effect";
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
-import type { MemoryDatabaseShape } from "./db/memories.ts";
-import type { MemoryReaderShape, MemorySummaryStoreShape } from "./ports/memory-store.ts";
+import { MemoryDatabase } from "./db/memories.ts";
+import { MemoryReader, MemorySummaryStore } from "./ports/memory-store.ts";
 
-type MemoryContextReader = Pick<MemoryReaderShape, "list">;
-type MemoryContextSummaryStore = Pick<MemorySummaryStoreShape, "get" | "upsert">;
 type MemoryContextConfiguration = {
   readonly apiKey: string;
   readonly baseUrl?: string;
@@ -28,18 +26,13 @@ export class MemoryContext {
   }
 
   static refreshEffect = Effect.fn("serverDatabase.memoryContext.refresh")(function* ({
-    database,
     userId,
     configuration,
   }: {
-    readonly database: MemoryDatabaseShape;
     readonly userId: string;
-    readonly configuration: {
-      readonly apiKey: string;
-      readonly baseUrl?: string;
-      readonly model: string;
-    };
+    readonly configuration: MemoryContextConfiguration;
   }) {
+    const database = yield* MemoryDatabase;
     const memories = yield* database.getMemories({ userId, options: { limit: 200 } });
     if (memories.length === 0) return undefined;
     const content = yield* OpenAiChat.generateMemorySummaryEffect({
@@ -52,14 +45,12 @@ export class MemoryContext {
   });
 
   static refreshStoreEffect = Effect.fn("serverDatabase.memoryContext.refreshStore")(function* ({
-    reader,
-    summary,
     configuration,
   }: {
-    readonly reader: MemoryContextReader;
-    readonly summary: MemoryContextSummaryStore;
     readonly configuration: MemoryContextConfiguration;
   }) {
+    const reader = yield* MemoryReader;
+    const summary = yield* MemorySummaryStore;
     const memories = yield* reader.list({ limit: 200 });
     if (memories.length === 0) return undefined;
     const content = yield* OpenAiChat.generateMemorySummaryEffect({
@@ -72,34 +63,26 @@ export class MemoryContext {
   });
 
   static loadEffect = Effect.fn("serverDatabase.memoryContext.load")(function* ({
-    database,
     userId,
     configuration,
   }: {
-    readonly database: MemoryDatabaseShape;
     readonly userId: string;
-    readonly configuration: {
-      readonly apiKey: string;
-      readonly baseUrl?: string;
-      readonly model: string;
-    };
+    readonly configuration: MemoryContextConfiguration;
   }) {
+    const database = yield* MemoryDatabase;
     const summary = yield* database.getMemorySummary({ userId });
     if (summary !== undefined) return summary.content;
-    return yield* MemoryContext.refreshEffect({ database, userId, configuration });
+    return yield* MemoryContext.refreshEffect({ userId, configuration });
   });
 
   static loadStoreEffect = Effect.fn("serverDatabase.memoryContext.loadStore")(function* ({
-    reader,
-    summary,
     configuration,
   }: {
-    readonly reader: MemoryContextReader;
-    readonly summary: MemoryContextSummaryStore;
     readonly configuration: MemoryContextConfiguration;
   }) {
+    const summary = yield* MemorySummaryStore;
     const existing = yield* summary.get();
     if (existing !== undefined) return existing.content;
-    return yield* MemoryContext.refreshStoreEffect({ reader, summary, configuration });
+    return yield* MemoryContext.refreshStoreEffect({ configuration });
   });
 }

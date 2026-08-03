@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import {
   ChatRouteGeneration,
   ChatRouteGenerationError,
@@ -11,6 +12,10 @@ import {
 import type {
   GenerationChunkWriterShape,
   GenerationWriterShape,
+} from "../../src/server/ports/generation-store.ts";
+import {
+  GenerationChunkWriter,
+  GenerationWriter,
 } from "../../src/server/ports/generation-store.ts";
 
 describe("ChatRouteGeneration", () => {
@@ -48,11 +53,16 @@ describe("ChatRouteGeneration", () => {
 
     await Effect.runPromise(
       ChatRouteGeneration.persist({
-        writer,
-        chunkWriter,
         generationId: "generation-1",
         stream: completedStream,
-      }),
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.succeed(GenerationWriter, writer),
+            Layer.succeed(GenerationChunkWriter, chunkWriter),
+          ),
+        ),
+      ),
     );
     assert.deepEqual(
       appended.map((item) => item.sequence),
@@ -70,11 +80,16 @@ describe("ChatRouteGeneration", () => {
       () =>
         Effect.runPromise(
           ChatRouteGeneration.persist({
-            writer,
-            chunkWriter,
             generationId: "generation-1",
             stream: failedStream,
-          }),
+          }).pipe(
+            Effect.provide(
+              Layer.mergeAll(
+                Layer.succeed(GenerationWriter, writer),
+                Layer.succeed(GenerationChunkWriter, chunkWriter),
+              ),
+            ),
+          ),
         ),
       (error: unknown) =>
         error instanceof ChatRouteGenerationError && error.message === "provider stream failed",

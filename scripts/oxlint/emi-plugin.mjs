@@ -35,6 +35,9 @@ const isCoreEffectImplementation = (filename) => {
 const isDatabaseDomain = (filename) =>
   normalizePath(filename).includes("/packages/core/src/server/db/");
 
+const isCoreServiceEffectImplementation = (filename) =>
+  isCoreEffectImplementation(filename) && !isDatabaseDomain(filename);
+
 const isRepositorySource = (filename) => {
   const normalizedFilename = normalizePath(filename);
   return isCoreSource(filename) || normalizedFilename.includes("/apps/");
@@ -182,6 +185,95 @@ const plugin = {
               node,
               message:
                 "Yield Effect services once and call their implementation methods; do not build static operation facades with Effect.flatMap(ServiceKey, ...).",
+            });
+          },
+        };
+      },
+    },
+    "no-effect-service-argument": {
+      create(context) {
+        const importedServiceNames = new Set();
+        const contextServiceNames = new Set([
+          "AuthPort",
+          "ChatModel",
+          "ChatRepositories",
+          "ChatServer",
+          "ChatServerConfiguration",
+          "ConversationDatabase",
+          "ConversationReader",
+          "ConversationWriter",
+          "DiscordLinkDatabase",
+          "GenerationChunkReader",
+          "GenerationChunkWriter",
+          "GenerationDatabase",
+          "GenerationReader",
+          "GenerationWriter",
+          "MemoryDatabase",
+          "MemoryReader",
+          "MemorySummaryStore",
+          "MemoryWriter",
+          "MessageStore",
+          "ThreadStore",
+        ]);
+        return {
+          ImportDeclaration(node) {
+            const source = node.source?.value;
+            if (typeof source !== "string" || !/(?:^|\/)(?:db|ports)\//.test(source)) return;
+            for (const specifier of node.specifiers) {
+              if (specifier.type === "ImportSpecifier") {
+                const imported = specifier.imported;
+                const importedName =
+                  imported.type === "Identifier" ? imported.name : imported.value;
+                if (contextServiceNames.has(importedName)) importedServiceNames.add(importedName);
+              }
+              if (
+                specifier.type === "ImportDefaultSpecifier" &&
+                contextServiceNames.has(specifier.local.name)
+              )
+                importedServiceNames.add(specifier.local.name);
+            }
+          },
+          CallExpression(node) {
+            if (!isCoreServiceEffectImplementation(context.getFilename())) return;
+            const factory = node.callee;
+            if (factory?.type !== "CallExpression") return;
+            if (factory.callee?.type !== "MemberExpression") return;
+            if (factory.callee.object?.type !== "Identifier") return;
+            if (factory.callee.object.name !== "Effect") return;
+            if (memberName(factory.callee) !== "fn") return;
+            const callback = node.arguments[0];
+            const parameter =
+              callback?.type === "FunctionExpression" ||
+              callback?.type === "ArrowFunctionExpression"
+                ? callback.params[0]
+                : undefined;
+            if (parameter?.type !== "ObjectPattern") return;
+            const dependencyNames = new Set([
+              "conversationReader",
+              "conversationStore",
+              "generationStore",
+              "memoryStore",
+              "reader",
+              "searchMessages",
+              "summary",
+              "writer",
+              "chunkWriter",
+              "messageStore",
+              "threadStore",
+            ]);
+            const hasDependency = parameter.properties.some(
+              (property) =>
+                property.type === "Property" &&
+                !property.computed &&
+                property.key.type === "Identifier" &&
+                (dependencyNames.has(property.key.name) ||
+                  (property.key.name === "database" && importedServiceNames.size > 0)),
+            );
+            if (!hasDependency) return;
+            context.report({
+              node: parameter,
+              message:
+                "Do not pass Context.Service-backed dependencies through Effect.fn inputs; yield the service inside Effect.gen and provide its Layer only at the adapter boundary.",
             });
           },
         };
