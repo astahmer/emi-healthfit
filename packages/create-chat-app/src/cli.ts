@@ -7,8 +7,12 @@ import {
   generateApp,
   type DistributionMode,
 } from "./generate.ts";
+import { upgradeGeneratedApp } from "./upgrade.ts";
+
+export type CliCommand = "generate" | "upgrade";
 
 export interface ParsedArgs {
+  command: CliCommand;
   name?: string;
   dir?: string;
   coreVersion?: string;
@@ -21,9 +25,13 @@ export interface ParsedArgs {
 const flagsWithValue = new Set(["--name", "-n", "--dir", "-d", "--core-version", "--mode"]);
 
 export const parseArgs = (argv: string[]): ParsedArgs => {
-  const args: ParsedArgs = { dryRun: false, force: false, help: false };
+  const args: ParsedArgs = { command: "generate", dryRun: false, force: false, help: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
+    if (index === 0 && arg === "upgrade") {
+      args.command = "upgrade";
+      continue;
+    }
     if (arg === "--name" || arg === "-n") {
       args.name = argv[++index];
       continue;
@@ -56,21 +64,21 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
       args.help = true;
       continue;
     }
-    if (
-      args.name === undefined &&
-      !arg.startsWith("-") &&
-      !flagsWithValue.has(argv[index - 1] ?? "")
-    ) {
-      args.name = arg;
+    if (!arg.startsWith("-") && !flagsWithValue.has(argv[index - 1] ?? "")) {
+      if (args.command === "upgrade" && args.dir === undefined) args.dir = arg;
+      if (args.command === "generate" && args.name === undefined) args.name = arg;
     }
   }
   return args;
 };
 
 export const helpText = `Usage: create-chat-app [name] [options]
+       create-chat-app upgrade [dir] [options]
 
 Generates an owned full-stack workspace (core/ + web/ + worker/). Use dependency
 mode when an existing workspace or published @emi/core package supplies the core.
+The upgrade command reads emi.generated.json and updates only files that still match
+their recorded generated hashes.
 
 Options:
   -n, --name <name>          App name (prompted if omitted and stdin is a TTY)
@@ -82,6 +90,12 @@ Options:
       --dry-run              Print the file list without writing anything
       --force                Overwrite a non-empty target directory
   -h, --help                 Show this help text
+
+Upgrade options:
+  upgrade [dir]              Generated app directory (default: current directory)
+      --core-version <ver>   Target @emi/core version or workspace selector
+      --dry-run              Report changes without writing anything
+      --force                Explicitly overwrite modified or untracked files
 `;
 
 const promptForName = async (): Promise<string> => {
@@ -98,6 +112,30 @@ export const run = async (argv: string[]): Promise<void> => {
   const args = parseArgs(argv);
   if (args.help) {
     console.log(helpText);
+    return;
+  }
+
+  if (args.command === "upgrade") {
+    const targetDir = resolve(args.dir ?? ".");
+    const result = await upgradeGeneratedApp({
+      targetDir,
+      coreVersion: args.coreVersion,
+      dryRun: args.dryRun,
+      force: args.force,
+    });
+    console.log(
+      `Upgrade ${targetDir}: ${result.plan.currentCoreVersion} -> ${result.plan.nextCoreVersion}`,
+    );
+    const changes = result.plan.files.filter((file) => file.status !== "unchanged");
+    if (changes.length === 0) console.log("  no generated changes");
+    for (const file of changes) console.log(`  ${file.status}: ${file.path}`);
+    if (result.plan.conflicts.length > 0 && args.force === false) {
+      console.log("  blocked: modified files were not overwritten; use --force explicitly");
+      if (args.dryRun === false)
+        throw new Error("Generated app upgrade blocked by file conflicts.");
+    }
+    if (args.dryRun === true) console.log("  dry run: no files written");
+    else if (result.applied) console.log("  upgrade applied");
     return;
   }
 

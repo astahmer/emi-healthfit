@@ -1,9 +1,13 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import * as Schema from "effect/Schema";
 
+import {
+  GENERATED_MANIFEST_PATH,
+  hashGeneratedFileContents,
+  serializeGeneratedManifest,
+} from "./manifest.ts";
 import { toSlug } from "./slug.ts";
 import * as templates from "./templates.ts";
 import type { TemplateContext } from "./templates.ts";
@@ -106,9 +110,6 @@ const corePackageFiles = ({
     },
   );
 
-const hashContents = (contents: string): string =>
-  createHash("sha256").update(contents).digest("hex");
-
 const generatedManifest = ({
   context,
   files,
@@ -116,21 +117,18 @@ const generatedManifest = ({
   context: TemplateContext;
   files: GeneratedFile[];
 }): string =>
-  `${JSON.stringify(
-    {
-      manifestVersion: 1,
-      generator: "@emi/create-chat-app",
-      application: { name: context.appName, slug: context.slug },
-      distributionMode: context.distributionMode,
-      coreVersion: context.coreVersion,
-      manifestPath: "emi.generated.json",
-      managedFiles: files
-        .map((file) => ({ path: file.path, sha256: hashContents(file.contents) }))
-        .toSorted((left, right) => left.path.localeCompare(right.path)),
-    },
-    null,
-    2,
-  )}\n`;
+  serializeGeneratedManifest({
+    manifestVersion: 1,
+    generator: "@emi/create-chat-app",
+    application: { name: context.appName, slug: context.slug },
+    distributionMode: context.distributionMode,
+    coreVersion: context.coreVersion,
+    manifestPath: GENERATED_MANIFEST_PATH,
+    managedFiles: files.map((file) => ({
+      path: file.path,
+      sha256: hashGeneratedFileContents(file.contents),
+    })),
+  });
 
 const genericWebDirectoryFiles = ({
   sourcePath,
@@ -247,7 +245,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
   ];
   return [
     ...files,
-    { path: "emi.generated.json", contents: generatedManifest({ context, files }) },
+    { path: GENERATED_MANIFEST_PATH, contents: generatedManifest({ context, files }) },
   ];
 };
 

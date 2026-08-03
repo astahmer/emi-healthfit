@@ -39,6 +39,14 @@ describe("parseArgs", () => {
     assert.ok(helpText.includes("create-chat-app"));
   });
 
+  it("recognizes the safe upgrade command", () => {
+    const args = parseArgs(["upgrade", "./generated", "--core-version", "0.2.0", "--dry-run"]);
+    assert.equal(args.command, "upgrade");
+    assert.equal(args.dir, "./generated");
+    assert.equal(args.coreVersion, "0.2.0");
+    assert.equal(args.dryRun, true);
+  });
+
   it("rejects an unknown distribution mode", () => {
     assert.throws(() => parseArgs(["--mode", "registry"]), /Unknown distribution mode/);
   });

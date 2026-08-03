@@ -20,6 +20,12 @@ node --experimental-strip-types bin/create-chat-app.ts my-chat-app --dry-run
 # Use an existing or published @emi/core package instead of copying source
 node --experimental-strip-types bin/create-chat-app.ts my-chat-app --mode dependency --core-version "^1.2.0"
 
+# Preview a safe upgrade of an existing generated app
+node --experimental-strip-types bin/create-chat-app.ts upgrade ./my-chat-app --dry-run
+
+# Apply an upgrade; modified files are reported and require explicit --force
+node --experimental-strip-types bin/create-chat-app.ts upgrade ./my-chat-app --core-version "^1.2.0"
+
 # Verify the owned generated application end to end
 pnpm test:generated
 ```
@@ -37,6 +43,10 @@ Once published, the same CLI is reachable as `create-chat-app` via the `bin` fie
 | `--dry-run`            | Print the file list without writing anything                            |
 | `--force`              | Overwrite a non-empty target directory                                  |
 | `-h, --help`           | Show help text                                                          |
+
+The `upgrade` command reads `emi.generated.json`, updates files whose recorded hashes still
+match, restores missing generated files, leaves stale user files alone, and stops on modified or
+untracked generated paths. Pass `--force` only when those conflicts have been reviewed.
 
 ## Generated tree
 
@@ -67,8 +77,8 @@ into the monorepo. Intentional owned `core/` files are exempt, because they are 
 generated project. The fixture script (`pnpm fixture:chat-app`) regenerates an ignored local fixture.
 
 `emi.generated.json` records the app identity, distribution mode, core version, and SHA-256 hash of
-each generated file. A future upgrade command can use it to report locally modified files before
-changing an owned workspace.
+each generated file. The `upgrade` command uses it to report locally modified files before changing
+an owned workspace.
 
 ## Deferred
 
