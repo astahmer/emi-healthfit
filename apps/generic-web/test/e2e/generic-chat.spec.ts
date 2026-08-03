@@ -1,17 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { createGenericE2eApi } from "./mock-api.ts";
+import { openGenericChat } from "./helpers.ts";
 import { executeWebMcpTool, installWebMcpHarness, readWebMcpToolNames } from "./webmcp-harness.ts";
-
-const openGenericChat = async (page: Page, { webmcp = false }: { webmcp?: boolean } = {}) => {
-  if (webmcp) await installWebMcpHarness(page);
-  const api = createGenericE2eApi();
-  await api.install(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Continue as guest" }).click();
-  await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();
-  return api;
-};
 
 test("boots the documented runtime/provider/recipe path", async ({ page }) => {
   const api = await openGenericChat(page);

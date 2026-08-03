@@ -525,6 +525,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.73.0
+      playwright-bdd:
+        specifier: 'catalog:'
+        version: 9.2.0(@playwright/test@1.61.1)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.2

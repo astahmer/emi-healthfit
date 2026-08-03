@@ -33,8 +33,13 @@ describe("buildGeneratedFiles", () => {
       "web/postcss.config.mjs",
       "web/test/api.integration.test.ts",
       "web/test/e2e/generic-chat.spec.ts",
+      "web/test/e2e/helpers.ts",
       "web/test/e2e/mock-api.ts",
       "web/test/e2e/layout.spec.ts",
+      "web/test/e2e/features/guest.feature",
+      "web/test/e2e/features/memory.feature",
+      "web/test/e2e/features/webmcp.feature",
+      "web/test/e2e/features/steps/generic.steps.ts",
       "worker/src/generic.worker.ts",
     ]) {
       assert.ok(paths.includes(path), `expected generated file "${path}"`);
@@ -86,6 +91,7 @@ describe("buildGeneratedFiles", () => {
     for (const dependency of [
       "@ai-sdk/openai",
       "@playwright/test",
+      "playwright-bdd",
       "alchemy",
       "better-auth",
       "react",
@@ -165,6 +171,7 @@ describe("buildGeneratedFiles", () => {
     assert.equal(packageJson.dependencies["lucide-react"], "catalog:");
     assert.equal(packageJson.dependencies["radix-ui"], "catalog:");
     assert.equal(packageJson.devDependencies["@playwright/test"], "catalog:");
+    assert.equal(packageJson.devDependencies["playwright-bdd"], "catalog:");
     assert.equal(packageJson.devDependencies.tailwindcss, "catalog:");
     assert.equal(packageJson.devDependencies.vitest, "catalog:");
     assert.equal(packageJson.scripts.test, "vitest run --exclude test/api.integration.test.ts");
@@ -172,7 +179,7 @@ describe("buildGeneratedFiles", () => {
       packageJson.scripts["test:api"],
       "vitest run --config vitest.integration.config.ts",
     );
-    assert.equal(packageJson.scripts["test:e2e"], "playwright test");
+    assert.equal(packageJson.scripts["test:e2e"], "bddgen && playwright test");
   });
 
   it("generates the core streaming and replay worker routes", () => {

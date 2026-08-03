@@ -1,4 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { defineBddConfig } from "playwright-bdd";
+
+const bddTestDir = defineBddConfig({
+  features: "test/e2e/features/*.feature",
+  steps: "test/e2e/features/steps/*.ts",
+  outputDir: "test/e2e/.features-gen",
+});
 
 export default defineConfig({
   forbidOnly: true,
@@ -19,6 +26,11 @@ export default defineConfig({
       name: "chromium",
       testDir: "./test/e2e",
       testMatch: /.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "bdd",
+      testDir: bddTestDir,
       use: { ...devices["Desktop Chrome"] },
     },
   ],
