@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import { createActor } from "xstate";
 
 import type {
@@ -88,18 +87,15 @@ describe("follow-up queue actor", () => {
     });
     await tick();
 
-    assert.deepEqual(sessionEvents, [
+    expect(sessionEvents).toEqual([
       {
         type: "queued-follow-ups-replaced",
         items: [{ id: "stored", text: "stored", files: item("stored").attachments }],
       },
     ]);
-    assert.equal(adapter.writes.length, 1);
-    assert.deepEqual(
-      adapter.writes[0]?.items.map(({ id }) => id),
-      ["stored", "local"],
-    );
-    assert.equal(adapter.broadcasts.length, 1);
+    expect(adapter.writes).toHaveLength(1);
+    expect(adapter.writes[0]?.items.map(({ id }) => id)).toEqual(["stored", "local"]);
+    expect(adapter.broadcasts).toHaveLength(1);
     actor.stop();
   });
 
@@ -131,7 +127,7 @@ describe("follow-up queue actor", () => {
     });
     await tick();
 
-    assert.deepEqual(forceSendIds, ["queued-2"]);
+    expect(forceSendIds).toEqual(["queued-2"]);
     actor.stop();
   });
 });

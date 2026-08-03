@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import { createActor } from "xstate";
 
 import {
@@ -71,12 +70,12 @@ describe("chat lifecycle actor", () => {
     });
     await tick();
 
-    assert.deepEqual(state.transportCommands, [{ type: "stream-cancelled" }]);
-    assert.deepEqual(state.conversationCommands, [
+    expect(state.transportCommands).toEqual([{ type: "stream-cancelled" }]);
+    expect(state.conversationCommands).toEqual([
       { type: "threads-cleared" },
       { type: "conversation-load-requested", conversationId: "conversation-1" },
     ]);
-    assert.deepEqual(state.sessionCommands, [
+    expect(state.sessionCommands).toEqual([
       { type: "temporary-changed", temporary: false },
       { type: "fresh-started" },
     ]);
@@ -110,9 +109,9 @@ describe("chat lifecycle actor", () => {
     actor.send({ type: "session-event", event: { type: "stream-finished" } });
     await tick();
 
-    assert.deepEqual(state.created, ["conversation-new"]);
-    assert.deepEqual(state.completed, ["conversation-new"]);
-    assert.deepEqual(state.history, ["conversation-new"]);
+    expect(state.created).toEqual(["conversation-new"]);
+    expect(state.completed).toEqual(["conversation-new"]);
+    expect(state.history).toEqual(["conversation-new"]);
     actor.stop();
   });
 });
