@@ -210,11 +210,7 @@ const SearchConversations = Tool.make("search_conversations", {
 
 const GetThreads = Tool.dynamic("get_threads", {
   description: "List the side threads in the current conversation.",
-  parameters: {
-    type: "object",
-    properties: {},
-    additionalProperties: false,
-  },
+  parameters: Schema.Struct({}),
   success: Schema.Unknown,
   failure: Schema.Unknown,
 });
