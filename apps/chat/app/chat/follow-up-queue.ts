@@ -1,4 +1,4 @@
-import type { QueuedFollowUp } from "./chat-runtime-machine";
+import type { QueuedFollowUp } from "./chat-runtime-context";
 
 export const resolveQueueEditTarget = ({
   queuedFollowUps,

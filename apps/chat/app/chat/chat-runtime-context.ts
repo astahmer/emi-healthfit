@@ -1,6 +1,11 @@
 import { createContext, useContext } from "react";
 import type { FileUIPart, UIMessage } from "ai";
-import type { QueuedFollowUp } from "./chat-runtime-machine";
+
+export interface QueuedFollowUp {
+  id: string;
+  text: string;
+  files: FileUIPart[];
+}
 
 export interface ChatRuntimeConfig {
   model: string;

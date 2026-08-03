@@ -1,6 +1,6 @@
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import type { QueuedFollowUp } from "./chat-runtime-machine";
+import type { QueuedFollowUp } from "./chat-runtime-context";
 
 export const FOLLOW_UP_QUEUE_STORAGE_PREFIX = "emi-chat:follow-up-queue:";
 export const FOLLOW_UP_QUEUE_CHANNEL = "emi-chat-follow-up-queue";

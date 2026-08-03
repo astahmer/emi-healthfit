@@ -533,6 +533,11 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, thread, 201);
   });
 
+  app.get("/api/conversations/:id/threads", (context) => {
+    const snapshot = ensureSnapshot(state, context.req.param("id"));
+    return json(context, { threads: snapshot.threads });
+  });
+
   app.patch("/api/threads/:id", async (context) => {
     const threadId = context.req.param("id");
     const body = await context.req.json<{

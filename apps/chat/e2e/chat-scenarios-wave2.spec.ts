@@ -327,7 +327,10 @@ test("renders multi-tool success and tool-error from a stream", async ({ page })
   await page.getByLabel("Message input").fill("Run tools");
   await page.getByLabel("Send message").click();
 
-  const toolsMessage = page.locator("[id^='message-one-assistant-']").last();
+  const toolsMessage = page
+    .locator('[id^="message-"]')
+    .filter({ hasText: "Mixed tools done" })
+    .last();
   await expect(toolsMessage.getByText("get recovery")).toBeVisible();
   await expect(toolsMessage.getByText("get workout history")).toBeVisible();
   await expect(toolsMessage.getByText("Completed")).toBeVisible();

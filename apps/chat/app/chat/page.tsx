@@ -93,6 +93,7 @@ export const ChatPage = ({
   const updateSettings = useSettings((state) => state.update);
   const queryClient = useQueryClient();
   const feedback = useActionFeedback();
+  const pendingNewChatRef = useRef(false);
   const previousBranchCountRef = useRef<number | undefined>(undefined);
   const [isCompacting, setIsCompacting] = useState(false);
   const urlModel = search.model ?? settings.model;
@@ -130,6 +131,10 @@ export const ChatPage = ({
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);
   const contextSummary = compactedSummary(initialMessages);
+
+  useEffect(() => {
+    if (activeConversationId === undefined) pendingNewChatRef.current = false;
+  }, [activeConversationId]);
 
   useEffect(() => {
     if (conversation === null) return;
@@ -254,6 +259,7 @@ export const ChatPage = ({
               initialMessages: runtimeMessages,
             }}
             onSessionCreated={(id) => {
+              if (pendingNewChatRef.current) return;
               sendConversation({ type: "session.created", conversationId: id });
               onNavigate(id);
             }}
@@ -285,7 +291,10 @@ export const ChatPage = ({
                 }
                 onRenameSubmit={() => sendConversation({ type: "conversation.rename.submit" })}
                 onRenameCancel={() => sendConversation({ type: "conversation.rename.cancel" })}
-                onNewChat={() => onNavigate(undefined)}
+                onNewChat={() => {
+                  pendingNewChatRef.current = true;
+                  onNavigate(undefined);
+                }}
                 onCopyConversation={() => void copyConversation()}
                 onExportConversation={() => {
                   sendConversation({ type: "export" });

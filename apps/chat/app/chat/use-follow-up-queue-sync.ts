@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
-import { type EventFrom, type SnapshotFrom } from "xstate";
-import { chatRuntimeMachine, type QueuedFollowUp } from "./chat-runtime-machine";
+import { useCallback, useEffect, useRef } from "react";
+import type { ChatRuntime } from "@emi/core/runtime";
+import type { Attachment } from "@emi/core/protocol";
+import type { QueuedFollowUp } from "./chat-runtime-context";
 import {
   FOLLOW_UP_QUEUE_CHANNEL,
   followUpQueueStorageKey,
@@ -14,59 +15,68 @@ import {
   type QueueSyncPayload,
 } from "./follow-up-queue-sync";
 
-type ChatRuntimeSnapshot = SnapshotFrom<typeof chatRuntimeMachine>;
-type ChatRuntimeEvent = EventFrom<typeof chatRuntimeMachine>;
-
-const toQueuedFollowUps = (items: QueueSyncPayload["items"]): QueuedFollowUp[] =>
+const toCoreFollowUps = (items: QueuedFollowUp[]) =>
   items.map((item) => ({
     id: item.id,
     text: item.text,
-    files: item.files.map((file) => ({
-      type: "file" as const,
-      mediaType: file.mediaType,
-      filename: file.filename,
-      url: file.url,
-    })),
+    attachments: item.files.map(
+      (file): Attachment => ({
+        id: `attachment:${file.url}`,
+        name: file.filename ?? "Attachment",
+        mediaType: file.mediaType,
+        url: file.url,
+      }),
+    ),
+  }));
+
+const toUiFollowUps = (items: QueueSyncPayload["items"]): QueuedFollowUp[] =>
+  items.map((item) => ({
+    id: item.id,
+    text: item.text,
+    files: [...item.files],
+  }));
+
+const comparableItems = (items: QueuedFollowUp[]) =>
+  items.map((item) => ({
+    id: item.id,
+    text: item.text,
+    files: item.files,
   }));
 
 export const useFollowUpQueueSync = ({
+  runtime,
   sessionId,
   temporary,
+  active,
   queuedFollowUps,
   isStreaming,
-  stateRef,
-  send,
-  onRemoteQueueApplied,
-  onRemoteForceSend,
 }: {
+  runtime: ChatRuntime;
   sessionId: string | undefined;
   temporary: boolean;
+  active: boolean;
   queuedFollowUps: QueuedFollowUp[];
   isStreaming: boolean;
-  stateRef: MutableRefObject<ChatRuntimeSnapshot>;
-  send: (event: ChatRuntimeEvent) => void;
-  onRemoteQueueApplied?: (items: QueuedFollowUp[]) => void;
-  onRemoteForceSend?: (itemId: string) => void;
 }) => {
   const tabIdRef = useRef(crypto.randomUUID());
   const revisionRef = useRef(0);
   const applyingRemoteRef = useRef(false);
   const hydratedRef = useRef(false);
+  const skipNextPersistRef = useRef(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const isStreamingRef = useRef(isStreaming);
-  const onRemoteForceSendRef = useRef(onRemoteForceSend);
+  const queuedFollowUpsRef = useRef(queuedFollowUps);
+
+  queuedFollowUpsRef.current = queuedFollowUps;
 
   useEffect(() => {
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
 
   useEffect(() => {
-    onRemoteForceSendRef.current = onRemoteForceSend;
-  }, [onRemoteForceSend]);
-
-  useLayoutEffect(() => {
     hydratedRef.current = false;
-    if (temporary || sessionId === undefined) {
+    skipNextPersistRef.current = false;
+    if (!active || temporary || sessionId === undefined) {
       hydratedRef.current = true;
       return;
     }
@@ -74,18 +84,21 @@ export const useFollowUpQueueSync = ({
     if (stored !== null) {
       applyingRemoteRef.current = true;
       revisionRef.current = stored.revision;
-      const items = toQueuedFollowUps(stored.items);
-      send({ type: "followUp.replaced", items });
-      onRemoteQueueApplied?.(items);
-      queueMicrotask(() => {
-        applyingRemoteRef.current = false;
+      skipNextPersistRef.current = true;
+      runtime.actions.replaceQueuedFollowUps({
+        items: toCoreFollowUps(toUiFollowUps(stored.items)),
       });
     }
     hydratedRef.current = true;
-  }, [onRemoteQueueApplied, send, sessionId, temporary]);
+  }, [active, runtime, sessionId, temporary]);
 
   useEffect(() => {
-    if (temporary || sessionId === undefined || typeof BroadcastChannel === "undefined") {
+    if (
+      !active ||
+      temporary ||
+      sessionId === undefined ||
+      typeof BroadcastChannel === "undefined"
+    ) {
       channelRef.current?.close();
       channelRef.current = null;
       return;
@@ -93,7 +106,6 @@ export const useFollowUpQueueSync = ({
 
     const channel = new BroadcastChannel(FOLLOW_UP_QUEUE_CHANNEL);
     channelRef.current = channel;
-
     const applyPayload = (payload: QueueSyncPayload) => {
       if (
         !shouldApplyRemoteFollowUpQueue({
@@ -102,12 +114,11 @@ export const useFollowUpQueueSync = ({
           tabId: tabIdRef.current,
           revision: revisionRef.current,
         })
-      ) {
+      )
         return;
-      }
       if (
         queuesEqual({
-          left: stateRef.current.context.queuedFollowUps,
+          left: comparableItems(queuedFollowUpsRef.current),
           right: payload.items,
         })
       ) {
@@ -115,32 +126,29 @@ export const useFollowUpQueueSync = ({
         return;
       }
       applyingRemoteRef.current = true;
+      skipNextPersistRef.current = true;
       revisionRef.current = payload.revision;
-      const items = toQueuedFollowUps(payload.items);
-      send({ type: "followUp.replaced", items });
-      onRemoteQueueApplied?.(items);
-      queueMicrotask(() => {
-        applyingRemoteRef.current = false;
+      runtime.actions.replaceQueuedFollowUps({
+        items: toCoreFollowUps(toUiFollowUps(payload.items)),
       });
     };
 
     channel.onmessage = (event: MessageEvent<unknown>) => {
       const message = parseFollowUpQueueChannelMessage(event.data);
-      if (message === null) return;
-      if (message.type === "queue.sync") {
+      if (message?.type === "queue.sync") {
         applyPayload(message);
         return;
       }
       if (
+        message?.type === "queue.force-send" &&
         shouldHandleRemoteForceSend({
           payload: message,
           sessionId,
           tabId: tabIdRef.current,
           isStreaming: isStreamingRef.current,
         })
-      ) {
-        onRemoteForceSendRef.current?.(message.itemId);
-      }
+      )
+        runtime.actions.forceSendQueuedFollowUp({ id: message.itemId });
     };
 
     const onStorage = (event: StorageEvent) => {
@@ -159,38 +167,41 @@ export const useFollowUpQueueSync = ({
       if (payload !== null) applyPayload(payload);
     };
     window.addEventListener("storage", onStorage);
-
     return () => {
       window.removeEventListener("storage", onStorage);
       channel.close();
       if (channelRef.current === channel) channelRef.current = null;
     };
-  }, [onRemoteQueueApplied, send, sessionId, stateRef, temporary]);
+  }, [active, runtime, sessionId, temporary]);
 
   useEffect(() => {
-    if (!hydratedRef.current || temporary || sessionId === undefined) return;
+    if (!active || !hydratedRef.current || temporary || sessionId === undefined) return;
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      applyingRemoteRef.current = false;
+      return;
+    }
     if (applyingRemoteRef.current) return;
     revisionRef.current += 1;
-    const revision = revisionRef.current;
     const payload: QueueSyncPayload = {
       type: "queue.sync",
       sessionId,
       tabId: tabIdRef.current,
-      revision,
+      revision: revisionRef.current,
       items: queuedFollowUps,
     };
     writeStoredFollowUpQueue({
       sessionId,
       tabId: tabIdRef.current,
-      revision,
+      revision: revisionRef.current,
       items: queuedFollowUps,
     });
     try {
       channelRef.current?.postMessage(payload);
     } catch {
-      // ignore closed channel
+      return;
     }
-  }, [queuedFollowUps, sessionId, temporary]);
+  }, [active, queuedFollowUps, sessionId, temporary]);
 
   const requestForceSendAcrossTabs = useCallback(
     (itemId: string) => {
@@ -203,7 +214,7 @@ export const useFollowUpQueueSync = ({
           itemId,
         });
       } catch {
-        // ignore closed channel
+        return;
       }
     },
     [sessionId, temporary],
