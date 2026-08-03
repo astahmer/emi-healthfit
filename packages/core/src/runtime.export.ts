@@ -15,6 +15,7 @@ import type {
   SuggestionsState,
   ThreadViewState,
 } from "./runtime/types.ts";
+import type { MemorySummary } from "./protocol/resources.ts";
 
 export { createChatRuntime };
 
@@ -29,6 +30,7 @@ export type {
   ConversationListState,
   KeyValueStorage,
   MemoryListState,
+  MemorySummary,
   QueuedFollowUpState,
   Selector,
   SuggestionsState,

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { Conversation, Memory, Thread } from "../../../protocol/resources.ts";
+import type { Conversation, Memory, MemorySummary, Thread } from "../../../protocol/resources.ts";
 import type { ChatSettingsState } from "../../../runtime/types.ts";
 import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
@@ -247,20 +247,28 @@ export const MemoryPanel = ({
   open,
   search,
   draft,
+  summary,
+  summaryDraft,
   memories,
   onOpenChange,
   onSearchChange,
   onDraftChange,
+  onSummaryDraftChange,
+  onSaveSummary,
   onCreate,
   onDelete,
 }: {
   open: boolean;
   search: string;
   draft: string;
+  summary: MemorySummary | undefined;
+  summaryDraft: string | undefined;
   memories: ReadonlyArray<Memory>;
   onOpenChange: (open: boolean) => void;
   onSearchChange: (search: string) => void;
   onDraftChange: (draft: string) => void;
+  onSummaryDraftChange: (draft: string) => void;
+  onSaveSummary: () => void;
   onCreate: () => void;
   onDelete: (memoryId: string) => void;
 }) => (
@@ -284,6 +292,29 @@ export const MemoryPanel = ({
         value={search}
         className="bg-background"
       />
+      <label className="text-sm font-medium" htmlFor="memory-summary">
+        Memory summary
+      </label>
+      <Textarea
+        id="memory-summary"
+        onChange={(event) => onSummaryDraftChange(event.target.value)}
+        placeholder="No merged summary yet"
+        rows={4}
+        value={summaryDraft ?? summary?.content ?? ""}
+      />
+      <p className="text-xs text-muted-foreground">
+        {summary === undefined
+          ? "The assistant will build this from your saved memories."
+          : `${summary.memoryCount} source ${summary.memoryCount === 1 ? "memory" : "memories"} · updated ${new Date(summary.updatedAt).toLocaleString()}`}
+      </p>
+      <Button
+        disabled={(summaryDraft ?? summary?.content ?? "").trim() === ""}
+        onClick={onSaveSummary}
+        size="sm"
+        variant="outline"
+      >
+        Save summary
+      </Button>
       <Textarea
         onChange={(event) => onDraftChange(event.target.value)}
         placeholder="Save a detail for future chats"

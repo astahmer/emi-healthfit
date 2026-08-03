@@ -152,6 +152,11 @@ describe("@emi/core/protocol", () => {
       createdAt: "2026-08-02T00:00:00.000Z",
       rank: 1,
     };
+    const memorySummaryDto = {
+      content: "The user likes concise plans.",
+      memoryCount: 1,
+      updatedAt: "2026-08-02T00:00:00.000Z",
+    };
 
     const conversation = await ChatProtocol.runPromise(
       ChatProtocol.fromConversationDto(conversationDto),
@@ -167,6 +172,14 @@ describe("@emi/core/protocol", () => {
     const memory = await ChatProtocol.runPromise(ChatProtocol.fromMemoryDto(memoryDto));
     assert.deepEqual(memory, memoryDto);
     assert.deepEqual(await ChatProtocol.runPromise(ChatProtocol.toMemoryDto(memory)), memoryDto);
+    const memorySummary = await ChatProtocol.runPromise(
+      ChatProtocol.fromMemorySummaryDto(memorySummaryDto),
+    );
+    assert.deepEqual(memorySummary, memorySummaryDto);
+    assert.deepEqual(
+      await ChatProtocol.runPromise(ChatProtocol.toMemorySummaryDto(memorySummary)),
+      memorySummaryDto,
+    );
     const decodedMessage = await ChatProtocol.runPromise(ChatProtocol.fromChatMessageDto(message));
     assert.equal(decodedMessage.id, "message-1");
     assert.equal(

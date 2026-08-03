@@ -42,7 +42,7 @@ export class MemoryStoreLive {
   > {
     const userId = requestContext.userId;
     return Effect.gen(function* () {
-    const database = yield* MemoryDatabase;
+      const database = yield* MemoryDatabase;
       return {
         reader: {
           count: () => database.countMemories({ userId }),

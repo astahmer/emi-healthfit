@@ -337,7 +337,7 @@ test("creates, filters, and deletes manually saved memories", async ({ page }) =
 
   await expect(page.getByText("Enjoys early training")).toBeVisible();
   await page.getByPlaceholder("Save a memory…").fill("Prefers Wednesday rest days");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Memory saved.")).toBeVisible();
   await page.getByPlaceholder("Search memories…").fill("Wednesday");
   await expect(page.getByText("Prefers Wednesday rest days")).toBeVisible();
@@ -348,6 +348,36 @@ test("creates, filters, and deletes manually saved memories", async ({ page }) =
   await createdMemory.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("Memory removed.")).toBeVisible();
   await expect(page.getByText("Prefers Wednesday rest days")).toHaveCount(0);
+});
+
+test("shows and edits the merged memory summary alongside source memories", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      memories: [
+        {
+          id: "memory-source",
+          content: "Prefers Wednesday rest days",
+          source: "manual",
+          thread_id: null,
+          created_at: "2026-07-18T10:00:00.000Z",
+        },
+      ],
+      memorySummary: {
+        content: "The user prefers concise training guidance.",
+        memory_count: 1,
+        updated_at: "2026-07-18T10:00:00.000Z",
+      },
+    },
+  });
+  await mock.open(page, "/memory");
+
+  const summary = page.getByLabel("Merged memory summary");
+  await expect(summary).toHaveValue("The user prefers concise training guidance.");
+  await summary.fill("The user prefers concise and recovery-aware guidance.");
+  await page.getByRole("button", { name: "Save summary" }).click();
+  await expect(page.getByText("Memory summary saved.")).toBeVisible();
+  await expect(summary).toHaveValue("The user prefers concise and recovery-aware guidance.");
+  await expect(page.getByText("Prefers Wednesday rest days")).toBeVisible();
 });
 
 const manyNotes = Array.from({ length: 40 }, (_, index) => ({

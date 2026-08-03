@@ -10,7 +10,7 @@ import type {
 } from "./runtime/types.ts";
 import type { ChatMessage } from "./protocol/messages.ts";
 import type { MessagePart } from "./protocol/parts.ts";
-import type { Conversation, Thread } from "./protocol/resources.ts";
+import type { Conversation, MemorySummary, Thread } from "./protocol/resources.ts";
 import type { ModelConfiguration } from "./protocol/model.ts";
 
 export { createChatRuntime };
@@ -25,6 +25,7 @@ export type {
   ChatState,
   Conversation,
   MessagePart,
+  MemorySummary,
   ModelConfiguration,
   Selector,
   Thread,

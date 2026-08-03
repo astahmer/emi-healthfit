@@ -45,12 +45,7 @@ import { useSettings } from "@/app/settings-store";
 import { useUsage } from "@/app/usage-context";
 import { chatModels } from "@/app/models";
 import { queryKeys } from "@/app/query-cache";
-import {
-  deleteMemoriesByMessage,
-  extractMemories,
-  fetchMemories,
-  memoryProvenance,
-} from "@/app/memories";
+import { MemoryDomain } from "@/app/memories";
 import { notifyMemoriesChanged } from "@/app/memory-events";
 import { useActionFeedback } from "@/app/action-feedback";
 import { ToolResultContent } from "@/components/chat/tool-result-content";
@@ -213,12 +208,12 @@ export const Thread = ({
   const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
   const { data: conversationMemories = [] } = useQuery({
     queryKey: queryKeys.memories.messageSources,
-    queryFn: () => fetchMemories(),
+    queryFn: () => MemoryDomain.list(),
     enabled: runtime.sessionId !== undefined,
   });
   const savedMemoryMessageIds = new Set(
     conversationMemories.flatMap((memory) => {
-      const messageId = memoryProvenance(memory).messageId;
+      const messageId = MemoryDomain.provenance(memory).messageId;
       return messageId === undefined ? [] : [messageId];
     }),
   );
@@ -233,11 +228,11 @@ export const Thread = ({
     setMemoryMessageId(message.id);
     try {
       if (savedMemoryMessageIds.has(message.id)) {
-        await deleteMemoriesByMessage(message.id);
+        await MemoryDomain.removeByMessage({ messageId: message.id });
         feedback.show({ kind: "success", message: "Removed message memories." });
         return;
       }
-      const ids = await extractMemories({
+      const ids = await MemoryDomain.extract({
         text,
         threadId: runtime.sessionId,
         messageId: message.id,

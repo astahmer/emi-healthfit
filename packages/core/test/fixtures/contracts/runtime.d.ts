@@ -66,9 +66,16 @@ export interface ConversationListState {
 
 export interface MemoryListState {
   readonly items: ReadonlyArray<Memory>;
+  readonly summary: MemorySummary | undefined;
   readonly search: string;
   readonly loading: boolean;
   readonly error: string | undefined;
+}
+
+export interface MemorySummary {
+  readonly content: string;
+  readonly memoryCount: number;
+  readonly updatedAt: string;
 }
 
 export interface ChatSettingsState {
@@ -105,6 +112,7 @@ export interface ChatState {
     readonly conversationSearch: string;
     readonly memorySearch: string;
     readonly memoryDraft: string;
+    readonly memorySummaryDraft: string | undefined;
     readonly memoryPanelOpen: boolean;
     readonly sidebarOpen: boolean;
   };
@@ -155,9 +163,11 @@ export interface ChatActions {
   setConversationSearch(input: { readonly search: string }): void;
   setMemorySearch(input: { readonly search: string }): void;
   setMemoryDraft(input: { readonly draft: string }): void;
+  setMemorySummaryDraft(input: { readonly draft: string }): void;
   setMemoryPanelOpen(input: { readonly open: boolean }): void;
   setSidebarOpen(input: { readonly open: boolean }): void;
   createMemory(): void;
+  saveMemorySummary(): void;
   deleteMemory(input: { readonly memoryId: string }): void;
   reportError(input: { readonly error: string }): void;
 }

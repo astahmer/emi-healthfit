@@ -2,6 +2,7 @@ import { createActor, type ActorRefFrom } from "xstate";
 
 import type { ChatMessage } from "../protocol/messages.ts";
 import type { ModelConfiguration } from "../protocol/model.ts";
+import type { MemorySummary } from "../protocol/resources.ts";
 import { defaultGenericChatSettings } from "../chat/settings.ts";
 import { genericChatAppMachine } from "../web/chat-runtime/generic-chat-app-machine.ts";
 import {
@@ -252,7 +253,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
 
   const currentStore = (): Pick<
     ConversationStoreContext,
-    "conversations" | "threads" | "memories" | "loading" | "error"
+    "conversations" | "threads" | "memories" | "memorySummary" | "loading" | "error"
   > => {
     const snapshot = childSnapshot("conversationStore");
     return (
@@ -260,6 +261,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         conversations: [] as Conversation[],
         threads: [] as ConversationThread[],
         memories: [] as Memory[],
+        memorySummary: undefined as MemorySummary | undefined,
         loading: {
           conversations: false,
           conversation: false,
@@ -285,6 +287,8 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         conversationSearch: "",
         memorySearch: "",
         memoryDraft: "",
+        memorySummaryDraft: undefined,
+        memorySummaryDirty: false,
         memoryPanelOpen: false,
         sidebarOpen: true,
       }
@@ -336,6 +340,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       },
       memories: {
         items: store.memories.map(memoryToProtocol),
+        summary: store.memorySummary,
         search: ui.memorySearch,
         loading: store.loading.memories,
         error: store.error,
@@ -349,7 +354,14 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         attachments: followUp.files,
       })),
       error: session.error ?? store.error ?? currentBrowser().error ?? undefined,
-      ui: { ...ui },
+      ui: {
+        conversationSearch: ui.conversationSearch,
+        memorySearch: ui.memorySearch,
+        memoryDraft: ui.memoryDraft,
+        memorySummaryDraft: ui.memorySummaryDraft,
+        memoryPanelOpen: ui.memoryPanelOpen,
+        sidebarOpen: ui.sidebarOpen,
+      },
       threads: store.threads.map(threadToProtocol),
       suggestions,
     };
@@ -524,6 +536,8 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       sendConversationStore({ type: "memory-load-requested", search });
     },
     setMemoryDraft: ({ draft }) => sendChatUi({ type: "memory-draft-changed", draft }),
+    setMemorySummaryDraft: ({ draft }) =>
+      sendChatUi({ type: "memory-summary-draft-changed", draft }),
     setMemoryPanelOpen: ({ open }) => sendChatUi({ type: "memory-panel-changed", open }),
     setSidebarOpen: ({ open }) => sendChatUi({ type: "sidebar-open-changed", open }),
     createMemory: () => {
@@ -532,6 +546,12 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       if (content === "") return;
       sendConversationStore({ type: "memory-create-requested", content, search: ui.memorySearch });
       sendChatUi({ type: "memory-draft-cleared" });
+    },
+    saveMemorySummary: () => {
+      const ui = currentUi();
+      const content = (ui.memorySummaryDraft ?? currentStore().memorySummary?.content ?? "").trim();
+      if (content === "") return;
+      sendConversationStore({ type: "memory-summary-update-requested", content });
     },
     deleteMemory: ({ memoryId }) =>
       sendConversationStore({ type: "memory-delete-requested", memoryId }),

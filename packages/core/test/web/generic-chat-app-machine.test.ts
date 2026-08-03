@@ -43,6 +43,12 @@ const client: ConversationClient = {
     updatedAt: "2026-01-01T00:00:00.000Z",
   }),
   listMemories: async () => [],
+  loadMemorySummary: async () => undefined,
+  updateMemorySummary: async () => ({
+    content: "",
+    memoryCount: 0,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }),
   createMemory: async () => "memory-1",
   deleteMemory: async () => undefined,
   generateSuggestions: async () => [],

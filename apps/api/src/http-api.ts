@@ -126,6 +126,19 @@ const memoriesHandlers = () => {
   return HttpApiBuilder.group(CoreApi, "memories", (handlers) =>
     Effect.gen(function* () {
       const MemoryDatabase = yield* ServerDatabase.memories;
+      const syncMemorySummaryCount = Effect.fn("httpApi.memories.syncSummaryCount")(function* ({
+        userId,
+      }: {
+        readonly userId: string;
+      }) {
+        const summary = yield* MemoryDatabase.getMemorySummary({ userId });
+        if (summary === undefined) return;
+        yield* MemoryDatabase.upsertMemorySummary({
+          userId,
+          content: summary.content,
+          memoryCount: yield* MemoryDatabase.countMemories({ userId }),
+        });
+      });
       return handlers
         .handle(
           "list",
@@ -154,6 +167,7 @@ const memoriesHandlers = () => {
               threadId: payload.threadId,
               messageId: payload.messageId,
             });
+            yield* syncMemorySummaryCount({ userId: user.id });
             return { id: requireIdentifier(id) };
           }, withInternalError),
         )
@@ -187,6 +201,7 @@ const memoriesHandlers = () => {
           Effect.fn("httpApi.memories.remove")(function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
             yield* MemoryDatabase.deleteMemory({ userId: user.id, id: params.id });
+            yield* syncMemorySummaryCount({ userId: user.id });
             return { success: true } satisfies { success: true };
           }, withInternalError),
         )
@@ -198,6 +213,7 @@ const memoriesHandlers = () => {
               userId: user.id,
               messageId: params.messageId,
             });
+            yield* syncMemorySummaryCount({ userId: user.id });
             return { success: true } satisfies { success: true };
           }, withInternalError),
         );

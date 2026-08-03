@@ -7,13 +7,16 @@ import { ActionFeedbackProvider } from "@/app/action-feedback";
 import type { MessageWithUsage } from "@/app/sessions";
 import { chatModels } from "@/app/models";
 import { useChatRuntime } from "@/app/chat/chat-runtime-context";
-import { extractMemories } from "@/app/memories";
+import { MemoryDomain } from "@/app/memories";
 import { Thread, type ComposerControls } from "./thread";
 
 vi.mock("@/app/chat/chat-runtime-context", () => ({ useChatRuntime: vi.fn() }));
 vi.mock("@/app/memories", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/app/memories")>()),
-  extractMemories: vi.fn(),
+  MemoryDomain: {
+    ...(await importOriginal<typeof import("@/app/memories")>()).MemoryDomain,
+    extract: vi.fn(),
+  },
 }));
 
 const controls: ComposerControls = {
@@ -412,7 +415,7 @@ describe("Thread", () => {
 
   it("confirms when an assistant message has no new memories", async () => {
     const user = userEvent.setup();
-    vi.mocked(extractMemories).mockResolvedValue([]);
+    vi.mocked(MemoryDomain.extract).mockResolvedValue([]);
     const message: MessageWithUsage = {
       id: "assistant-empty-memory",
       role: "assistant",

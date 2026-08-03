@@ -2,6 +2,7 @@ import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage } from "../../src/protocol.export.ts";
+import type { MemorySummary } from "../../src/protocol/resources.ts";
 import type { ChatSessionEvent } from "../../src/web/chat-session-machine.ts";
 import type {
   Conversation,
@@ -9,6 +10,7 @@ import type {
   ConversationThread,
   Memory,
 } from "../../src/web/chat-runtime/conversation-client.ts";
+import type { ChatUiActorEvent } from "../../src/web/chat-runtime/chat-ui-actor.ts";
 import { conversationStoreActor } from "../../src/web/chat-runtime/conversation-store-actor.ts";
 
 const conversation: Conversation = {
@@ -40,6 +42,12 @@ const memory: Memory = {
   rank: 1,
 };
 
+const memorySummary: MemorySummary = {
+  content: "Prefers concise answers.",
+  memoryCount: 1,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 const message: ChatMessage = {
   id: "message-1",
   role: "user",
@@ -55,6 +63,8 @@ const createClient = (overrides: Partial<ConversationClient> = {}): Conversation
   cloneConversation: async () => conversation,
   compactConversation: async () => conversation,
   listMemories: async () => [memory],
+  loadMemorySummary: async () => memorySummary,
+  updateMemorySummary: async () => memorySummary,
   createMemory: async () => memory.id,
   deleteMemory: async () => undefined,
   generateSuggestions: async () => [],
@@ -66,14 +76,16 @@ const createClient = (overrides: Partial<ConversationClient> = {}): Conversation
 
 const createStore = ({ client = createClient() }: { client?: ConversationClient } = {}) => {
   const sessionEvents: ChatSessionEvent[] = [];
+  const uiEvents: ChatUiActorEvent[] = [];
   const actor = createActor(conversationStoreActor, {
     input: {
       client,
       sendSession: (event) => sessionEvents.push(event),
       sendTransport: () => undefined,
+      sendUi: (event) => uiEvents.push(event),
     },
   }).start();
-  return { actor, sessionEvents };
+  return { actor, sessionEvents, uiEvents };
 };
 
 const deferred = <Value>() => {
@@ -91,11 +103,34 @@ describe("conversationStoreActor", () => {
     await vi.waitFor(() => {
       expect(actor.getSnapshot().context.conversations).toEqual([conversation]);
       expect(actor.getSnapshot().context.memories).toEqual([memory]);
+      expect(actor.getSnapshot().context.memorySummary).toEqual(memorySummary);
     });
 
     expect(actor.getSnapshot().context.loading).toMatchObject({
       conversations: false,
       memories: false,
+    });
+    actor.stop();
+  });
+
+  it("loads and saves the user memory summary through the store actor", async () => {
+    const updatedSummary = { ...memorySummary, content: "Updated summary." };
+    const { actor, uiEvents } = createStore({
+      client: createClient({ updateMemorySummary: async () => updatedSummary }),
+    });
+
+    await vi.waitFor(() =>
+      expect(actor.getSnapshot().context.memorySummary).toEqual(memorySummary),
+    );
+    actor.send({ type: "memory-summary-update-requested", content: updatedSummary.content });
+
+    await vi.waitFor(() => {
+      expect(actor.getSnapshot().context.memorySummary).toEqual(updatedSummary);
+      expect(actor.getSnapshot().context.loading.mutation).toBe(false);
+    });
+    expect(uiEvents).toContainEqual({
+      type: "memory-summary-saved",
+      content: updatedSummary.content,
     });
     actor.stop();
   });

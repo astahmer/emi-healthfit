@@ -145,6 +145,7 @@ export const genericChatAppMachine = setup({
         client: context.client,
         sendSession: (event) => self.send({ type: "conversation-store-session-event", event }),
         sendTransport: (event) => self.send({ type: "conversation-store-transport-event", event }),
+        sendUi: (event) => self.send({ type: "chat-ui-event", event }),
       }),
     },
     {

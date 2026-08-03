@@ -1,6 +1,6 @@
 import type { ChatMessage } from "../protocol/messages.ts";
 import type { Attachment } from "../protocol/parts.ts";
-import type { Conversation, Memory, Thread } from "../protocol/resources.ts";
+import type { Conversation, Memory, MemorySummary, Thread } from "../protocol/resources.ts";
 import type { ModelConfiguration } from "../protocol/model.ts";
 import type { ChatExtension } from "../extensions.ts";
 
@@ -64,6 +64,7 @@ export interface ConversationListState {
 
 export interface MemoryListState {
   readonly items: ReadonlyArray<Memory>;
+  readonly summary: MemorySummary | undefined;
   readonly search: string;
   readonly loading: boolean;
   readonly error: string | undefined;
@@ -110,6 +111,7 @@ export interface ChatState {
     readonly conversationSearch: string;
     readonly memorySearch: string;
     readonly memoryDraft: string;
+    readonly memorySummaryDraft: string | undefined;
     readonly memoryPanelOpen: boolean;
     readonly sidebarOpen: boolean;
   };
@@ -167,9 +169,11 @@ export interface ChatActions {
   setConversationSearch(input: { readonly search: string }): void;
   setMemorySearch(input: { readonly search: string }): void;
   setMemoryDraft(input: { readonly draft: string }): void;
+  setMemorySummaryDraft(input: { readonly draft: string }): void;
   setMemoryPanelOpen(input: { readonly open: boolean }): void;
   setSidebarOpen(input: { readonly open: boolean }): void;
   createMemory(): void;
+  saveMemorySummary(): void;
   deleteMemory(input: { readonly memoryId: string }): void;
   reportError(input: { readonly error: string }): void;
 }

@@ -100,6 +100,7 @@ export const ChatApp = ({
   const composer = useChatSelector((state) => state.composer);
   const conversationList = useChatSelector((state) => state.conversations);
   const memories = useChatSelector((state) => state.memories.items);
+  const memorySummary = useChatSelector((state) => state.memories.summary);
   const threads = useChatSelector((state) => state.threads);
   const settings = useChatSelector((state) => state.settings);
   const connection = useChatSelector((state) => state.connection);
@@ -107,9 +108,8 @@ export const ChatApp = ({
   const error = useChatSelector((state) => state.error);
   const queuedFollowUps = useChatSelector((state) => state.queuedFollowUps);
   const suggestions = useChatSelector((state) => state.suggestions);
-  const { memoryDraft, memoryPanelOpen, memorySearch, sidebarOpen } = useChatSelector(
-    (state) => state.ui,
-  );
+  const { memoryDraft, memoryPanelOpen, memorySearch, memorySummaryDraft, sidebarOpen } =
+    useChatSelector((state) => state.ui);
   const messageContainer = useRef<HTMLDivElement | null>(null);
   const messageElements = useRef(new Map<string, HTMLElement>());
   const conversationId = activeThread.conversationId;
@@ -230,6 +230,8 @@ export const ChatApp = ({
           <MemoryPanel
             draft={memoryDraft}
             memories={memories}
+            onSaveSummary={() => actions.saveMemorySummary()}
+            onSummaryDraftChange={(draft) => actions.setMemorySummaryDraft({ draft })}
             onCreate={() => actions.createMemory()}
             onDelete={(id) => actions.deleteMemory({ memoryId: id })}
             onDraftChange={(draft) => actions.setMemoryDraft({ draft })}
@@ -237,6 +239,8 @@ export const ChatApp = ({
             onSearchChange={(search) => actions.setMemorySearch({ search })}
             open={memoryPanelOpen}
             search={memorySearch}
+            summary={memorySummary}
+            summaryDraft={memorySummaryDraft}
           />
           <SettingsPanel
             metadata={

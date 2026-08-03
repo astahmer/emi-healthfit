@@ -5,7 +5,7 @@ import { type EventFrom, type SnapshotFrom } from "xstate";
 import { runApi } from "../api-client";
 import { notifyConversationsChanged } from "../conversation-events";
 import type { ConversationSnapshot } from "../conversations";
-import { extractMemories } from "../memories";
+import { MemoryDomain } from "../memories";
 import { notifyMemoriesChanged } from "../memory-events";
 import { buildNotesContext } from "../notes";
 import { type useNotes } from "../notes-context";
@@ -80,7 +80,7 @@ export const useChatSubmission = ({
         .join("\n")
         .trim();
       if (text === "") return;
-      const ids = await extractMemories({
+      const ids = await MemoryDomain.extract({
         text,
         threadId: sessionId,
         messageId: assistant.id,

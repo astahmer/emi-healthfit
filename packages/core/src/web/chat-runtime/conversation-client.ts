@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import type { ChatModelConfiguration } from "../../chat/request.ts";
 import { ChatProtocol } from "../../protocol/mappers.ts";
 import type { ChatMessage } from "../../protocol/messages.ts";
+import type { MemorySummary } from "../../protocol/resources.ts";
 
 const ConversationSchema = Schema.Struct({
   id: Schema.String,
@@ -51,12 +52,15 @@ const MemorySchema = Schema.Struct({
   rank: Schema.Number,
 });
 const MemoryListSchema = Schema.Struct({ memories: Schema.Array(MemorySchema) });
+const MemorySummarySchema = ChatProtocol.schemas.memorySummary;
+const MemorySummaryResponseSchema = Schema.Struct({
+  summary: Schema.NullOr(MemorySummarySchema),
+});
 const SuggestionsResponseSchema = Schema.Struct({ suggestions: Schema.Array(Schema.String) });
 
 export type Conversation = typeof ConversationSchema.Type;
 export type ConversationThread = typeof ThreadSchema.Type;
 export type Memory = typeof MemorySchema.Type;
-
 export interface SuggestionsRequest {
   readonly threadId?: string;
   readonly messageId?: string;
@@ -236,6 +240,23 @@ export const createConversationClient = ({
     return [...Schema.decodeUnknownSync(MemoryListSchema)(payload).memories];
   };
 
+  const loadMemorySummary = async (): Promise<MemorySummary | undefined> => {
+    const response = await fetch(apiUrl("/api/memories/summary"));
+    const payload = await readResponse({ response });
+    return Schema.decodeUnknownSync(MemorySummaryResponseSchema)(payload).summary ?? undefined;
+  };
+
+  const updateMemorySummary = async ({ content }: { content: string }): Promise<MemorySummary> => {
+    const response = await fetch(apiUrl("/api/memories/summary"), {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    const payload = await readResponse({ response });
+    return Schema.decodeUnknownSync(Schema.Struct({ summary: MemorySummarySchema }))(payload)
+      .summary;
+  };
+
   const createMemory = async ({ content }: { content: string }): Promise<string> => {
     const response = await fetch(apiUrl("/api/memories"), {
       method: "POST",
@@ -311,6 +332,8 @@ export const createConversationClient = ({
     cloneConversation,
     compactConversation,
     listMemories,
+    loadMemorySummary,
+    updateMemorySummary,
     createMemory,
     deleteMemory,
     generateSuggestions,

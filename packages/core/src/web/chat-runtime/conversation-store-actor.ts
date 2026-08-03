@@ -1,6 +1,7 @@
 import { assign, fromCallback, sendTo, setup } from "xstate";
 
 import type { ChatMessage } from "../../protocol/messages.ts";
+import type { MemorySummary } from "../../protocol/resources.ts";
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
 import type { ChatTransportActorEvent } from "./chat-transport-actor.ts";
 import type {
@@ -9,6 +10,7 @@ import type {
   ConversationThread,
   Memory,
 } from "./conversation-client.ts";
+import type { ChatUiActorEvent } from "./chat-ui-actor.ts";
 
 export interface ConversationStoreLoading {
   conversations: boolean;
@@ -23,9 +25,11 @@ export interface ConversationStoreContext {
   client: ConversationClient;
   sendSession: (event: ChatSessionEvent) => void;
   sendTransport: (event: ChatTransportActorEvent) => void;
+  sendUi: (event: ChatUiActorEvent) => void;
   conversations: Conversation[];
   threads: ConversationThread[];
   memories: Memory[];
+  memorySummary: MemorySummary | undefined;
   loading: ConversationStoreLoading;
   error: string | undefined;
 }
@@ -34,6 +38,7 @@ export interface ConversationStoreActorInput {
   client: ConversationClient;
   sendSession: (event: ChatSessionEvent) => void;
   sendTransport: (event: ChatTransportActorEvent) => void;
+  sendUi: (event: ChatUiActorEvent) => void;
 }
 
 type ConversationStoreOperation = keyof ConversationStoreLoading;
@@ -73,7 +78,9 @@ export type ConversationStoreActorEvent =
   | { type: "conversation-updated"; conversation: Conversation }
   | { type: "conversation-deleted"; conversationId: string; resetSession: boolean }
   | { type: "conversation-created"; conversation: Conversation }
-  | { type: "memories-loaded"; memories: Memory[] }
+  | { type: "memories-loaded"; memories: Memory[]; summary: MemorySummary | undefined }
+  | { type: "memory-summary-update-requested"; content: string }
+  | { type: "memory-summary-updated"; summary: MemorySummary }
   | { type: "memory-deleted"; memoryId: string }
   | { type: "mutation-finished" }
   | { type: "operation-failed"; operation: ConversationStoreOperation; error: string };
@@ -204,9 +211,13 @@ const conversationStoreOperations = fromCallback<
   const loadMemories = async ({ search }: { search: string }) => {
     const queryId = beginQuery({ operation: "memories" });
     try {
-      const memories = await input.client.listMemories({ search });
+      const [memories, summary] = await Promise.all([
+        input.client.listMemories({ search }),
+        input.client.loadMemorySummary(),
+      ]);
       if (!isCurrentQuery({ operation: "memories", queryId })) return;
-      sendBack({ type: "memories-loaded", memories });
+      input.sendUi({ type: "memory-summary-loaded", content: summary?.content });
+      sendBack({ type: "memories-loaded", memories, summary });
     } catch (cause) {
       if (!isCurrentQuery({ operation: "memories", queryId })) return;
       reportFailure({ cause, operation: "memories", fallback: "Unable to load memories." });
@@ -303,6 +314,20 @@ const conversationStoreOperations = fromCallback<
             cause,
             operation: "mutation",
             fallback: "Unable to delete this memory.",
+          }),
+      );
+    }
+    if (event.type === "memory-summary-update-requested") {
+      void input.client.updateMemorySummary({ content: event.content }).then(
+        (summary) => {
+          input.sendUi({ type: "memory-summary-saved", content: summary.content });
+          sendBack({ type: "memory-summary-updated", summary });
+        },
+        (cause: unknown) =>
+          reportFailure({
+            cause,
+            operation: "mutation",
+            fallback: "Unable to update the memory summary.",
           }),
       );
     }
@@ -433,7 +458,16 @@ export const conversationStoreActor = setup({
       event.type === "memories-loaded"
         ? {
             memories: event.memories,
+            memorySummary: event.summary,
             loading: loading({ context, operation: "memories", value: false }),
+          }
+        : {},
+    ),
+    receiveMemorySummary: assign(({ context, event }) =>
+      event.type === "memory-summary-updated"
+        ? {
+            memorySummary: event.summary,
+            loading: loading({ context, operation: "mutation", value: false }),
           }
         : {},
     ),
@@ -494,9 +528,11 @@ export const conversationStoreActor = setup({
     client: input.client,
     sendSession: input.sendSession,
     sendTransport: input.sendTransport,
+    sendUi: input.sendUi,
     conversations: [],
     threads: [],
     memories: [],
+    memorySummary: undefined,
     loading: initialLoading,
     error: undefined,
   }),
@@ -507,6 +543,7 @@ export const conversationStoreActor = setup({
       client: context.client,
       sendSession: context.sendSession,
       sendTransport: context.sendTransport,
+      sendUi: context.sendUi,
     }),
   },
   entry: ["loadInitialConversations", "loadInitialMemories"],
@@ -522,6 +559,7 @@ export const conversationStoreActor = setup({
     "conversation-compact-requested": { actions: ["requestMutation", "forwardOperation"] },
     "memory-create-requested": { actions: ["requestMutation", "forwardOperation"] },
     "memory-delete-requested": { actions: ["requestMutation", "forwardOperation"] },
+    "memory-summary-update-requested": { actions: ["requestMutation", "forwardOperation"] },
     "thread-create-requested": { actions: ["requestMutation", "forwardOperation"] },
     "threads-cleared": { actions: "clearThreads" },
     "session-event": { actions: "forwardOperation" },
@@ -533,6 +571,7 @@ export const conversationStoreActor = setup({
     "conversation-deleted": { actions: ["receiveConversationDelete", "resetSession"] },
     "conversation-created": { actions: "receiveConversationCreate" },
     "memories-loaded": { actions: "receiveMemories" },
+    "memory-summary-updated": { actions: "receiveMemorySummary" },
     "memory-deleted": { actions: "receiveMemoryDelete" },
     "mutation-finished": { actions: "finishMutation" },
     "operation-failed": { actions: ["reportFailure", "reportSessionFailure"] },

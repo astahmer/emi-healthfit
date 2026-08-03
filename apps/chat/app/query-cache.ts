@@ -12,6 +12,7 @@ export const queryKeys = {
   memories: {
     all: ["memories"] as const,
     list: ({ search }: { search: string }) => ["memories", "list", search] as const,
+    summary: ["memories", "summary"] as const,
     messageSources: ["memories", "message-sources"] as const,
   },
   notes: {

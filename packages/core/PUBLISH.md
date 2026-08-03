@@ -138,6 +138,12 @@ provider-neutral, ownership-scoped tool for searching message content in previou
 generic route adapters and flavor packages can wire it to their conversation reader. `MemoryTools`
 groups the summary-first `search_memory_summary` and source-entry `search_memories` tools; the
 second tool is the deliberate fallback when the compact summary is absent or insufficient.
+The memory boundary also exposes one user-scoped merged summary through the generic
+`GET /api/memories/summary` and `PATCH /api/memories/summary` contracts. The connected `ChatApp`
+and HealthFit memory page show and edit that summary alongside the individual source entries.
+Source mutations invalidate a derived summary; the next generation can rebuild it, while an
+explicit edit remains persisted until the source set changes. Consumers should search the summary
+first for broad context and then call `search_memories` for supporting detail.
 Generation input is decoded with the
 protocol schemas before authentication or persistence; admission runs before user-message
 persistence; every emitted generation event is persisted through the generation port; and response

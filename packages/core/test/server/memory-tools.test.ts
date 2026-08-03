@@ -3,7 +3,11 @@ import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { MemoryTools } from "../../src/server/memory-tools.ts";
 import { MemoryStoreLive } from "../../src/server/make-memory-store.ts";
-import { MemoryReader, MemorySummaryStore, MemoryWriter } from "../../src/server/ports/memory-store.ts";
+import {
+  MemoryReader,
+  MemorySummaryStore,
+  MemoryWriter,
+} from "../../src/server/ports/memory-store.ts";
 import type { MemoryDatabaseSchema } from "../../src/server/db/schema.ts";
 import { makeRequestContext } from "../../src/server/request-context.ts";
 import { makeSqliteDatabase } from "./sqlite.ts";
@@ -58,8 +62,12 @@ describe("MemoryTools", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    await run(services.writer.insert({ content: "The user prefers concise answers.", source: "manual" }));
-    await run(services.summary.upsert({ content: "The user prefers concise answers.", memoryCount: 1 }));
+    await run(
+      services.writer.insert({ content: "The user prefers concise answers.", source: "manual" }),
+    );
+    await run(
+      services.summary.upsert({ content: "The user prefers concise answers.", memoryCount: 1 }),
+    );
 
     const summaryResult = await run(
       MemoryTools.searchSummary({

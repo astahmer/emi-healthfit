@@ -106,9 +106,10 @@ export class MemoryTools {
     const input = yield* decodeInput(memorySummarySearchInput, args);
     const value = yield* summary.get();
     return {
-      summary: value !== undefined && matchesSummary({ content: value.content, query: input.query })
-        ? value
-        : null,
+      summary:
+        value !== undefined && matchesSummary({ content: value.content, query: input.query })
+          ? value
+          : null,
     };
   });
 }

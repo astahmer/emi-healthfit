@@ -64,7 +64,8 @@ describe("conversation thread tools", () => {
   it("searches the merged memory summary before individual memory entries", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const toolsDb = narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(rawDb);
-    const memoryDatabase = await makeMemoryDatabase(toolsDb);
+    const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
+    const memoryDatabase = await makeMemoryDatabase(memoryDb);
     const userId = "memory-tool-user";
     await run(
       memoryDatabase.insertMemory({

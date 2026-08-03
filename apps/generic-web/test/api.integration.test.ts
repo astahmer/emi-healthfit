@@ -255,6 +255,8 @@ describe("generic web and worker local API topology", () => {
       method: "DELETE",
     });
     expect(await deletedMemoryResponse.json()).toEqual({ deleted: true });
+    const summaryAfterDeleteResponse = await authenticated("/api/memories/summary");
+    expect(await summaryAfterDeleteResponse.json()).toEqual({ summary: null });
 
     const clonedResponse = await authenticated(`/api/conversations/${created.id}/clone`, {
       method: "POST",

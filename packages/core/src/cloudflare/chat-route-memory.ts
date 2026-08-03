@@ -38,6 +38,10 @@ export class ChatRouteMemory {
         if (id === null) {
           return yield* HttpServerResponse.json({ error: "Invalid memory" }, { status: 400 });
         }
+        yield* ChatRouteSupport.syncMemorySummaryCount({
+          reader: memoryStore.reader,
+          summary: memoryStore.summary,
+        });
         return yield* HttpServerResponse.json({ id }, { status: 201 });
       }
       const search = new URL(request.url, "http://localhost").searchParams.get("search") ?? "";
@@ -108,6 +112,10 @@ export class ChatRouteMemory {
         return yield* HttpServerResponse.json({ error: "Memory not found" }, { status: 404 });
       }
       yield* memoryStore.writer.delete(memoryId);
+      yield* ChatRouteSupport.syncMemorySummaryCount({
+        reader: memoryStore.reader,
+        summary: memoryStore.summary,
+      });
       return yield* HttpServerResponse.json({ deleted: true });
     });
 

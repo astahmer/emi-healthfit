@@ -55,6 +55,12 @@ export type MockMemory = {
   created_at: string;
 };
 
+export type MockMemorySummary = {
+  content: string;
+  memory_count: number;
+  updated_at: string;
+};
+
 export type MockChatBody = {
   temporary?: boolean;
   webSearch?: boolean;
@@ -115,6 +121,7 @@ export type MockApiState = {
     updated_at: string;
   }>;
   memories: MockMemory[];
+  memorySummary: MockMemorySummary | null;
   authSession: typeof authSessionBody | null;
   anonymousOk: boolean;
   socialOk: boolean;
@@ -767,6 +774,16 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
         : state.memories.filter((memory) => memory.content.toLowerCase().includes(search));
     return json(context, { memories });
   });
+  app.get("/api/memories/summary", (context) => json(context, { summary: state.memorySummary }));
+  app.patch("/api/memories/summary", async (context) => {
+    const body = await context.req.json<{ content: string }>();
+    state.memorySummary = {
+      content: body.content,
+      memory_count: state.memories.length,
+      updated_at: now,
+    };
+    return json(context, { summary: state.memorySummary });
+  });
   app.post("/api/memories/extract", async (context) => {
     const body = await context.req.json<{
       text: string;
@@ -786,6 +803,7 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
         created_at: now,
       },
     ];
+    state.memorySummary = null;
     return json(context, { ids: [id], count: 1 });
   });
   app.post("/api/memories", async (context) => {
@@ -807,16 +825,19 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
       created_at: now,
     };
     state.memories = [...state.memories, memory];
+    state.memorySummary = null;
     return json(context, { id }, 201);
   });
   app.delete("/api/memories/message/:messageId", (context) => {
     const messageId = context.req.param("messageId");
     state.memories = state.memories.filter((memory) => !memory.source?.endsWith(`:${messageId}`));
+    state.memorySummary = null;
     return json(context, { success: true });
   });
   app.delete("/api/memories/:id", (context) => {
     const id = context.req.param("id");
     state.memories = state.memories.filter((memory) => memory.id !== id);
+    state.memorySummary = null;
     return json(context, { success: true });
   });
 
@@ -854,6 +875,7 @@ export const createMockApi = ({
     snapshots: partial?.snapshots ?? {},
     notes: partial?.notes ?? [],
     memories: partial?.memories ?? [],
+    memorySummary: partial?.memorySummary ?? null,
     authSession: partial?.authSession === undefined ? authSessionBody : partial.authSession,
     anonymousOk: partial?.anonymousOk ?? true,
     socialOk: partial?.socialOk ?? false,

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useActionFeedback } from "./action-feedback";
 import { notifyMemoriesChanged } from "./memory-events";
-import { createMemory, deleteMemory, fetchMemories, memoryProvenance } from "./memories";
+import { MemoryDomain } from "./memories";
 import { queryKeys } from "./query-cache";
 
 const memorySource = (source: string | null | undefined): string => {
@@ -26,11 +26,20 @@ export function MemoryPanel() {
     error,
   } = useQuery({
     queryKey: queryKeys.memories.list({ search }),
-    queryFn: () => fetchMemories({ search: search || undefined }),
+    queryFn: () => MemoryDomain.list({ search: search || undefined }),
+  });
+
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    error: summaryError,
+  } = useQuery({
+    queryKey: queryKeys.memories.summary,
+    queryFn: () => MemoryDomain.summary(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (content: string) => createMemory(content, "manual"),
+    mutationFn: (content: string) => MemoryDomain.create({ content, source: "manual" }),
     onSuccess: () => {
       notifyMemoriesChanged();
       feedback.show({ kind: "success", message: "Memory saved." });
@@ -38,11 +47,23 @@ export function MemoryPanel() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteMemory,
+    mutationFn: ({ id }: { id: string }) => MemoryDomain.remove({ id }),
     onSuccess: () => {
       notifyMemoriesChanged();
       feedback.show({ kind: "success", message: "Memory removed." });
     },
+  });
+
+  const [summaryDraft, setSummaryDraft] = useState<string | undefined>();
+  const summaryContent = summaryDraft ?? summary?.content ?? "";
+  const summaryMutation = useMutation({
+    mutationFn: (content: string) => MemoryDomain.updateSummary({ content }),
+    onSuccess: () => {
+      setSummaryDraft(undefined);
+      notifyMemoriesChanged();
+      feedback.show({ kind: "success", message: "Memory summary saved." });
+    },
+    onError: () => feedback.show({ kind: "error", message: "Could not save the memory summary." }),
   });
 
   const handleAdd = async () => {
@@ -53,16 +74,54 @@ export function MemoryPanel() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync({ id });
+  };
+
+  const handleSaveSummary = async () => {
+    const content = summaryContent.trim();
+    if (content === "") return;
+    await summaryMutation.mutateAsync(content);
   };
 
   return (
     <div className="mx-auto max-w-xl p-6">
       <h2 className="mb-4 text-xl font-semibold">Memory</h2>
       <p className="text-muted-foreground mb-4 text-sm">
-        Saved snippets from past conversations. The assistant can search these to recall things you
-        discussed before.
+        The assistant searches this merged summary first, then the source memories when it needs
+        more detail.
       </p>
+
+      <section className="mb-6 rounded-lg border p-4">
+        <h3 className="mb-2 font-medium">Merged memory summary</h3>
+        <p className="text-muted-foreground mb-3 text-sm">
+          A concise view of what the assistant remembers about you. Edit it when the summary needs
+          correction; source memories remain below.
+        </p>
+        <textarea
+          aria-label="Merged memory summary"
+          className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring min-h-28 w-full rounded-md border px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-1"
+          disabled={summaryLoading || summaryMutation.isPending}
+          onChange={(event) => setSummaryDraft(event.target.value)}
+          placeholder="No merged summary yet"
+          value={summaryContent}
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-muted-foreground text-xs">
+            {summary === undefined
+              ? "No summary has been saved yet."
+              : `${summary.memory_count} source ${summary.memory_count === 1 ? "memory" : "memories"} · updated ${new Date(summary.updated_at).toLocaleString()}`}
+          </p>
+          <Button
+            disabled={summaryContent.trim() === "" || summaryMutation.isPending}
+            onClick={() => void handleSaveSummary()}
+          >
+            Save summary
+          </Button>
+        </div>
+        {summaryError !== null && (
+          <p className="text-destructive mt-2 text-sm">{summaryError.message}</p>
+        )}
+      </section>
 
       <div className="mb-4 flex gap-2">
         <Input
@@ -90,7 +149,7 @@ export function MemoryPanel() {
 
       <ul className="space-y-2">
         {memories.map((memory) => {
-          const provenance = memoryProvenance(memory);
+          const provenance = MemoryDomain.provenance(memory);
           return (
             <li key={memory.id} className="flex items-start gap-2 rounded-lg border p-3 text-sm">
               <div className="min-w-0 flex-1">

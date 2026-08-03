@@ -74,6 +74,23 @@ export class ChatRouteSupport {
     };
   }
 
+  static syncMemorySummaryCount<TEnvironment>({
+    reader,
+    summary,
+  }: {
+    readonly reader: MemoryReaderShape<TEnvironment>;
+    readonly summary: MemorySummaryStoreShape<TEnvironment>;
+  }) {
+    return Effect.gen(function* () {
+      const existing = yield* summary.get();
+      if (existing === undefined) return;
+      yield* summary.upsert({
+        content: existing.content,
+        memoryCount: yield* reader.count(),
+      });
+    });
+  }
+
   static conversationResponse(conversation: {
     id: string;
     title: string | null;

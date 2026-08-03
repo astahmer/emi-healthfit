@@ -238,7 +238,9 @@ export class ChatRouteStream {
               : name === MemoryTools.summaryName
                 ? MemoryTools.searchSummary({ args, summary: memoryStore.summary }).pipe(
                     Effect.map((value): unknown => value),
-                    Effect.mapError((error) => new ChatRouteStreamError({ message: error.message })),
+                    Effect.mapError(
+                      (error) => new ChatRouteStreamError({ message: error.message }),
+                    ),
                   )
                 : name === MemoryTools.searchName
                   ? MemoryTools.search({ args, reader: memoryStore.reader }).pipe(

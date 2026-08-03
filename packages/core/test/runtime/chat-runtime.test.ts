@@ -11,6 +11,12 @@ const conversation = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+const memorySummary = {
+  content: "The user prefers concise worker answers.",
+  memoryCount: 1,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
 const response = (body: unknown, init?: ResponseInit) =>
   new Response(JSON.stringify(body), {
     headers: { "content-type": "application/json" },
@@ -49,6 +55,11 @@ const createFetch =
       return response({ conversation, messages: [] });
     if (pathname === "/api/conversations/conversation-1/threads") return response({ threads: [] });
     if (pathname === "/api/memories") return response({ memories: [] });
+    if (pathname === "/api/memories/summary") {
+      if (init?.method === "PATCH")
+        return response({ summary: { ...memorySummary, content: "Updated summary." } });
+      return response({ summary: memorySummary });
+    }
     if (init?.method === "PATCH") return response({ conversation });
     throw new Error(`Unexpected runtime fixture request: ${pathname}`);
   };
@@ -118,6 +129,15 @@ describe("createChatRuntime", () => {
     expect(runtime.getState().activeThread.id).toBeUndefined();
     await vi.waitFor(() => {
       expect(runtime.getState().settings.apiKey).toBe("test-key");
+      expect(runtime.getState().memories.summary).toEqual(memorySummary);
+      expect(runtime.getState().ui.memorySummaryDraft).toBe(memorySummary.content);
+    });
+
+    runtime.actions.setMemorySummaryDraft({ draft: "Updated summary." });
+    runtime.actions.saveMemorySummary();
+    await vi.waitFor(() => {
+      expect(runtime.getState().memories.summary?.content).toBe("Updated summary.");
+      expect(runtime.getState().ui.memorySummaryDraft).toBe("Updated summary.");
     });
 
     runtime.actions.setDraft({ text: "Hello" });
