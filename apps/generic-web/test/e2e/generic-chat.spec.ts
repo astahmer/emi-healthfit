@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { createGenericE2eApi } from "./mock-api.ts";
+import { executeWebMcpTool, installWebMcpHarness, readWebMcpToolNames } from "./webmcp-harness.ts";
 
-const openGenericChat = async (page: Page) => {
+const openGenericChat = async (page: Page, { webmcp = false }: { webmcp?: boolean } = {}) => {
+  if (webmcp) await installWebMcpHarness(page);
   const api = createGenericE2eApi();
   await api.install(page);
   await page.goto("/");
@@ -94,6 +96,55 @@ test("sends the web-search capability through the generic chat contract", async 
 
   await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
   expect(api.lastChatBody()).toMatchObject({ webSearch: true });
+});
+
+test("registers safe WebMCP tools and routes them through visible actor-owned state", async ({
+  page,
+}) => {
+  const api = await openGenericChat(page, { webmcp: true });
+
+  await expect
+    .poll(() => readWebMcpToolNames(page))
+    .toEqual([
+      "fill_message_composer",
+      "get_chat_context",
+      "open_conversation",
+      "search_conversations",
+      "search_memories",
+      "set_theme",
+      "start_new_chat",
+    ]);
+
+  await page.getByLabel("API key").fill("sk-never-expose");
+  const context = await executeWebMcpTool(page, "get_chat_context", {});
+  expect(JSON.stringify(context)).not.toContain("sk-never-expose");
+  expect(context).toMatchObject({
+    ok: true,
+    result: { capabilities: { searchMemories: true } },
+  });
+
+  await expect(
+    executeWebMcpTool(page, "fill_message_composer", { text: "drafted by an agent" }),
+  ).resolves.toMatchObject({ ok: true, result: { text: "drafted by an agent", sent: false } });
+  await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(
+    "drafted by an agent",
+  );
+
+  await expect(executeWebMcpTool(page, "set_theme", { theme: "dark" })).resolves.toEqual({
+    ok: true,
+    result: { theme: "dark" },
+  });
+  await expect(page.locator('[data-theme="dark"]')).toBeVisible();
+
+  await expect(
+    executeWebMcpTool(page, "search_memories", { query: "worker" }),
+  ).resolves.toMatchObject({
+    ok: true,
+    result: { query: "worker", summary: { content: expect.any(String) } },
+  });
+  await expect(page.getByText("Memories", { exact: true })).toBeVisible();
+
+  expect(api.chatCalls()).toBe(0);
 });
 
 test("reports a failed social sign-in flow", async ({ page }) => {

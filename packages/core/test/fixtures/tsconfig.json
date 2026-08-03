@@ -30,8 +30,8 @@
       "@emi/core/server": ["./contracts/server.d.ts"],
       "@emi/core/server/effect": ["./contracts/server-effect.d.ts"],
       "@emi/core/server/fetch": ["./contracts/server-fetch.d.ts"],
-      "@emi/core/testing": ["./contracts/testing.d.ts"]
-      ,"@emi/core/web": ["./contracts/web.d.ts"]
+      "@emi/core/testing": ["./contracts/testing.d.ts"],
+      "@emi/core/web": ["./contracts/web.d.ts"]
     },
     "types": ["node"]
   },

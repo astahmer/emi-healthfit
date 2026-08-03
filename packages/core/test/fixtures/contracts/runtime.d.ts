@@ -7,6 +7,7 @@ import type {
   Thread,
 } from "./protocol";
 import type { ChatExtension } from "./extensions";
+import type { WebMcpModelContext } from "./web";
 
 export interface KeyValueStorage {
   get(key: string): string | null | Promise<string | null>;
@@ -30,6 +31,9 @@ export interface ChatRuntimeOptions {
   readonly browser: {
     readonly online: boolean;
     readonly subscribeOnline: (listener: (online: boolean) => void) => () => void;
+  };
+  readonly webmcp?: {
+    readonly modelContext?: WebMcpModelContext;
   };
   readonly identity: {
     readonly createId: () => string;

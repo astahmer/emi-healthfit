@@ -1,8 +1,12 @@
 import { createChatRuntime } from "@emi/core/runtime";
+import { WebMcp } from "@emi/core/web";
 import type { ChatRuntimeOptions, Selector } from "@emi/core/runtime";
 
 declare const options: ChatRuntimeOptions;
-const runtime = createChatRuntime(options);
+const runtime = createChatRuntime({
+  ...options,
+  webmcp: { modelContext: WebMcp.detect(document) },
+});
 const activeThread: Selector<unknown> = runtime.selectors.activeThread;
 const conversations: Selector<unknown> = runtime.selectors.conversations;
 

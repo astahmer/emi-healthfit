@@ -6,7 +6,7 @@ export interface WebMcpModelContext {
       readonly inputSchema: object;
       readonly execute: (input: unknown) => Promise<unknown>;
     },
-    options?: { readonly signal?: AbortSignal },
+    options?: { readonly signal?: AbortSignal; readonly exposedTo?: ReadonlyArray<string> },
   ): Promise<void>;
 }
 

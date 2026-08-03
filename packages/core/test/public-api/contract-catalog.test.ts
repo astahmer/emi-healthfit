@@ -59,7 +59,7 @@ const targetEntrypointPaths = {
 
 const dependencyMatrix = {
   ".": {
-    runtime: ["xstate"],
+    runtime: ["effect", "xstate"],
     peer: [],
     optional: [],
     forbidden: ["react", "ai", "@ai-sdk/openai", "@cloudflare/workers-types", "drizzle-orm"],
@@ -121,7 +121,7 @@ const dependencyMatrix = {
     forbidden: ["xstate", "@cloudflare/workers-types", "drizzle-orm"],
   },
   "./runtime": {
-    runtime: ["xstate"],
+    runtime: ["effect", "xstate"],
     peer: [],
     optional: [],
     forbidden: ["react", "ai", "@ai-sdk/openai", "drizzle-orm", "@cloudflare/workers-types"],

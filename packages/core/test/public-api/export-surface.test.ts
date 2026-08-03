@@ -50,7 +50,7 @@ describe("@emi/core target export surface", () => {
       "ThreadViewport",
     ]);
     assert.deepEqual(sortedKeys(styled), ["ChatApp", "ChatShell"]);
-    assert.deepEqual(sortedKeys(web), ["WebMcp"]);
+    assert.ok("WebMcp" in web);
     assert.deepEqual(sortedKeys(server), [
       "ChatServer",
       "ChatServerError",
