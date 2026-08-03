@@ -8,6 +8,7 @@ export interface ChatUiContext {
   memorySummaryDirty: boolean;
   memoryPanelOpen: boolean;
   sidebarOpen: boolean;
+  editingQueuedFollowUpId: string | undefined;
 }
 
 export type ChatUiActorEvent =
@@ -19,7 +20,9 @@ export type ChatUiActorEvent =
   | { type: "memory-summary-loaded"; content: string | undefined }
   | { type: "memory-summary-saved"; content: string }
   | { type: "memory-panel-changed"; open: boolean }
-  | { type: "sidebar-open-changed"; open: boolean };
+  | { type: "sidebar-open-changed"; open: boolean }
+  | { type: "queued-follow-up-edit-started"; id: string }
+  | { type: "queued-follow-up-edit-cleared" };
 
 export const chatUiActor = setup({
   types: {
@@ -60,6 +63,12 @@ export const chatUiActor = setup({
     changeSidebar: assign(({ event }) =>
       event.type === "sidebar-open-changed" ? { sidebarOpen: event.open } : {},
     ),
+    startQueuedFollowUpEdit: assign(({ event }) =>
+      event.type === "queued-follow-up-edit-started" ? { editingQueuedFollowUpId: event.id } : {},
+    ),
+    clearQueuedFollowUpEdit: assign(({ event }) =>
+      event.type === "queued-follow-up-edit-cleared" ? { editingQueuedFollowUpId: undefined } : {},
+    ),
   },
 }).createMachine({
   id: "chatUi",
@@ -72,6 +81,7 @@ export const chatUiActor = setup({
     memorySummaryDirty: false,
     memoryPanelOpen: false,
     sidebarOpen: true,
+    editingQueuedFollowUpId: undefined,
   },
   states: {
     ready: {
@@ -85,6 +95,8 @@ export const chatUiActor = setup({
         "memory-summary-saved": { actions: "saveMemorySummary" },
         "memory-panel-changed": { actions: "changeMemoryPanel" },
         "sidebar-open-changed": { actions: "changeSidebar" },
+        "queued-follow-up-edit-started": { actions: "startQueuedFollowUpEdit" },
+        "queued-follow-up-edit-cleared": { actions: "clearQueuedFollowUpEdit" },
       },
     },
   },

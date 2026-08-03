@@ -112,7 +112,6 @@ export const ChatRuntimeProvider = ({
   const previousSessionIdRef = useRef(config.sessionId);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
-  const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
 
   settingsRef.current = settings;
   notesRef.current = notes;
@@ -321,6 +320,7 @@ export const ChatRuntimeProvider = ({
     for (const attachment of state.composer.attachments)
       runtime.actions.removeAttachment({ attachmentId: `attachment:${attachment.url}` });
   }, [runtime, state.composer.attachments]);
+  const editingQueuedId = selectionMatches ? (state.ui.editingQueuedFollowUpId ?? null) : null;
 
   const submit = useCallback(
     async (text?: string, options?: { interrupt?: boolean }) => {
@@ -334,7 +334,7 @@ export const ChatRuntimeProvider = ({
             attachments: state.composer.attachments,
           });
         }
-        setEditingQueuedId(null);
+        runtime.actions.clearQueuedFollowUpEdit();
         runtime.actions.setDraft({ text: "" });
         clearAttachments();
         return;
@@ -384,7 +384,7 @@ export const ChatRuntimeProvider = ({
       const item = state.queuedFollowUps.find((candidate) => candidate.id === id);
       if (item === undefined) return;
       clearAttachments();
-      setEditingQueuedId(id);
+      runtime.actions.beginEditingQueuedFollowUp({ id });
       runtime.actions.setDraft({ text: item.text });
       runtime.actions.addAttachments({ attachments: item.attachments });
     },
@@ -392,7 +392,7 @@ export const ChatRuntimeProvider = ({
   );
 
   const clearQueuedFollowUpEdit = useCallback(() => {
-    setEditingQueuedId(null);
+    runtime.actions.clearQueuedFollowUpEdit();
     runtime.actions.setDraft({ text: "" });
     clearAttachments();
   }, [clearAttachments, runtime]);

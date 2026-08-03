@@ -71,6 +71,7 @@ const createState = (): ChatState => ({
     memorySummaryDraft: undefined,
     memoryPanelOpen: false,
     sidebarOpen: true,
+    editingQueuedFollowUpId: undefined,
   },
   threads: [],
   suggestions: { items: [], loading: false, error: undefined },

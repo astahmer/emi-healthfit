@@ -208,6 +208,19 @@ describe("createChatRuntime", () => {
     expect(runtime.getState().connection).toBe("offline");
   });
 
+  it("keeps queued follow-up edit identity in the UI actor state", () => {
+    const { options } = createOptions();
+    const runtime = createChatRuntime(options);
+    runtime.start();
+
+    runtime.actions.beginEditingQueuedFollowUp({ id: "follow-up-1" });
+    expect(runtime.getState().ui.editingQueuedFollowUpId).toBe("follow-up-1");
+
+    runtime.actions.clearQueuedFollowUpEdit();
+    expect(runtime.getState().ui.editingQueuedFollowUpId).toBeUndefined();
+    runtime.dispose();
+  });
+
   it("revises a user message through the core stream contract", async () => {
     const target = {
       id: "user-original",

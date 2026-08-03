@@ -12,6 +12,7 @@ describe("chatUiActor", () => {
     actor.send({ type: "memory-draft-changed", draft: "Likes short answers." });
     actor.send({ type: "memory-panel-changed", open: true });
     actor.send({ type: "sidebar-open-changed", open: false });
+    actor.send({ type: "queued-follow-up-edit-started", id: "follow-up-1" });
     actor.send({ type: "memory-draft-cleared" });
 
     expect(actor.getSnapshot().context).toEqual({
@@ -22,7 +23,10 @@ describe("chatUiActor", () => {
       memorySummaryDirty: false,
       memoryPanelOpen: true,
       sidebarOpen: false,
+      editingQueuedFollowUpId: "follow-up-1",
     });
+    actor.send({ type: "queued-follow-up-edit-cleared" });
+    expect(actor.getSnapshot().context.editingQueuedFollowUpId).toBeUndefined();
     actor.stop();
   });
 

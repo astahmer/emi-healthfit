@@ -398,6 +398,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         memorySummaryDirty: false,
         memoryPanelOpen: false,
         sidebarOpen: true,
+        editingQueuedFollowUpId: undefined,
       }
     );
   };
@@ -469,6 +470,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         memorySummaryDraft: ui.memorySummaryDraft,
         memoryPanelOpen: ui.memoryPanelOpen,
         sidebarOpen: ui.sidebarOpen,
+        editingQueuedFollowUpId: ui.editingQueuedFollowUpId,
       },
       threads: store.threads.map(threadToProtocol),
       suggestions,
@@ -657,12 +659,16 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     stop: () => sendTransport({ type: "stream-cancelled" }),
     retry: retryMessage,
     editMessage: ({ messageId, text }) => sendRevision({ messageId, text }),
-    selectConversation: ({ conversationId }) =>
-      sendConversationStore({ type: "conversation-load-requested", conversationId }),
+    selectConversation: ({ conversationId }) => {
+      sendChatUi({ type: "queued-follow-up-edit-cleared" });
+      sendConversationStore({ type: "conversation-load-requested", conversationId });
+    },
     selectThread: ({ threadId }) => {
       const conversationId = currentSession().conversationId;
-      if (conversationId !== undefined)
+      if (conversationId !== undefined) {
+        sendChatUi({ type: "queued-follow-up-edit-cleared" });
         sendConversationStore({ type: "thread-load-requested", conversationId, threadId });
+      }
     },
     updateConversation: ({ conversationId, title, status, pinned }) => {
       const id = activeConversationId(conversationId);
@@ -728,6 +734,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       autoDrainQueuedFollowUps = false;
       sendTransport({ type: "stream-cancelled" });
       sendSession({ type: "fresh-started" });
+      sendChatUi({ type: "queued-follow-up-edit-cleared" });
       sendConversationStore({ type: "threads-cleared" });
     },
     createBranch: ({ messageId }) => {
@@ -744,6 +751,8 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       const session = currentSession();
       const followUp = session.queuedFollowUps.find((item) => item.id === id);
       if (followUp === undefined) return;
+      if (currentUi().editingQueuedFollowUpId === id)
+        sendChatUi({ type: "queued-follow-up-edit-cleared" });
       sendQueuedFollowUp({ followUp });
     },
     updateQueuedFollowUp: ({ id, text, attachments }) =>
@@ -757,7 +766,14 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
           files: [...item.attachments],
         })),
       }),
-    removeQueuedFollowUp: ({ id }) => sendSession({ type: "queued-follow-up-removed", id }),
+    removeQueuedFollowUp: ({ id }) => {
+      sendSession({ type: "queued-follow-up-removed", id });
+      if (currentUi().editingQueuedFollowUpId === id)
+        sendChatUi({ type: "queued-follow-up-edit-cleared" });
+    },
+    beginEditingQueuedFollowUp: ({ id }) =>
+      sendChatUi({ type: "queued-follow-up-edit-started", id }),
+    clearQueuedFollowUpEdit: () => sendChatUi({ type: "queued-follow-up-edit-cleared" }),
     setConversationSearch: ({ search }) => {
       sendChatUi({ type: "conversation-search-changed", search });
       sendConversationStore({ type: "conversations-load-requested", search });

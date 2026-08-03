@@ -209,6 +209,7 @@ export interface ChatState {
     readonly memorySummaryDraft: string | undefined;
     readonly memoryPanelOpen: boolean;
     readonly sidebarOpen: boolean;
+    readonly editingQueuedFollowUpId: string | undefined;
   };
   readonly threads: ReadonlyArray<Thread>;
   readonly suggestions: SuggestionsState;
@@ -268,6 +269,8 @@ export interface ChatActions {
   }): void;
   replaceQueuedFollowUps(input: { readonly items: ReadonlyArray<QueuedFollowUpState> }): void;
   removeQueuedFollowUp(input: { readonly id: string }): void;
+  beginEditingQueuedFollowUp(input: { readonly id: string }): void;
+  clearQueuedFollowUpEdit(): void;
   setConversationSearch(input: { readonly search: string }): void;
   setMemorySearch(input: { readonly search: string }): void;
   setMemoryDraft(input: { readonly draft: string }): void;
