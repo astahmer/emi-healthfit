@@ -8,30 +8,30 @@ against that catalog.
 
 ## R0 public catalog
 
-| Import                          | Responsibility                                                                       | Boundary                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `@emi/core`                     | `createChatRuntime` and core protocol types                                          | no React, provider, product, database, or platform APIs       |
-| `@emi/core/protocol`            | domain messages, parts, IDs, errors, schemas, and extension contracts                | no React, XState, AI SDK, database rows, or platform types    |
-| `@emi/core/api`                 | generic HTTP DTOs and `CoreApiClient`                                                | no product routes or persistence details                      |
-| `@emi/core/chat`                | provider-bound chat operations grouped under `Chat`                                  | never part of the common provider-neutral path                |
-| `@emi/core/contract`            | generic HTTP schemas and `CoreApi` composition                                       | no HealthFit groups or platform details                       |
-| `@emi/core/cloudflare`          | explicit Cloudflare auth, database, and route adapters                               | optional platform/provider peers; not the generic server path |
-| `@emi/core/discord`             | provider-neutral Discord request, response, and signature boundary                   | no React, product, or database coupling                       |
-| `@emi/core/runtime`             | actor-backed runtime facade, selectors, commands, lifecycle, and subscriptions       | no React markup or framework hooks                            |
-| `@emi/core/react`               | `ChatProvider` and runtime hooks                                                     | no styled recipes or module-scope browser globals             |
-| `@emi/core/components`          | controlled primitives and connected components                                       | no network, persistence, routing, or mandatory CSS framework  |
-| `@emi/core/components/styled`   | opt-in connected recipes such as `ChatApp` and `ChatShell`                           | no HealthFit branding or product coupling                     |
-| `@emi/core/web`                 | generic browser views, contribution context, URL/attachment policy, and thread views | no raw XState actors or machines                              |
-| `@emi/core/styles.css`          | design tokens and structural styles                                                  | explicit opt-in; no application theme ownership               |
-| `@emi/core/server`              | generic ports and server composition                                                 | no raw D1, Drizzle, Kysely, or platform rows                  |
-| `@emi/core/server/effect`       | explicit Effect-native services and layers                                           | advanced server composition only                              |
-| `@emi/core/server/fetch`        | Fetch `Request`/`Response` handlers                                                  | no platform bindings                                          |
-| `@emi/core/server/database`     | advanced SQL schemas, persistence domains, and replay helpers                        | optional database/AI peers; never a generic server contract   |
-| `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge                                                               | provider types stop at this adapter                           |
-| `@emi/core/adapters/cloudflare` | Cloudflare, D1, R2, and Worker bindings                                              | platform assumptions stay in the adapter                      |
-| `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition                        | product domains remain external packages                      |
-| `@emi/core/testing`             | `ChatTesting` deterministic dependencies, repositories, and actor harnesses          | test-only helpers, not production state                       |
-| `@emi/core/advanced/xstate`     | intentional actor refs and machine integration                                       | raw XState is never the common path                           |
+| Import                          | Responsibility                                                                                                    | Boundary                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `@emi/core`                     | `createChatRuntime` and core protocol types                                                                       | no React, provider, product, database, or platform APIs       |
+| `@emi/core/protocol`            | domain messages, parts, IDs, errors, schemas, and extension contracts                                             | no React, XState, AI SDK, database rows, or platform types    |
+| `@emi/core/api`                 | generic HTTP DTOs and `CoreApiClient`                                                                             | no product routes or persistence details                      |
+| `@emi/core/chat`                | provider-bound chat operations grouped under `Chat`                                                               | never part of the common provider-neutral path                |
+| `@emi/core/contract`            | generic HTTP schemas and `CoreApi` composition                                                                    | no HealthFit groups or platform details                       |
+| `@emi/core/cloudflare`          | explicit Cloudflare auth, database, and route adapters                                                            | optional platform/provider peers; not the generic server path |
+| `@emi/core/discord`             | provider-neutral Discord request, response, and signature boundary                                                | no React, product, or database coupling                       |
+| `@emi/core/runtime`             | actor-backed runtime facade, selectors, commands, lifecycle, and subscriptions                                    | no React markup or framework hooks                            |
+| `@emi/core/react`               | `ChatProvider` and runtime hooks                                                                                  | no styled recipes or module-scope browser globals             |
+| `@emi/core/components`          | controlled primitives and connected components                                                                    | no network, persistence, routing, or mandatory CSS framework  |
+| `@emi/core/components/styled`   | opt-in connected recipes such as `ChatApp` and `ChatShell`                                                        | no HealthFit branding or product coupling                     |
+| `@emi/core/web`                 | generic browser views, contribution context, URL/attachment policy, thread views, and optional `WebMcp` detection | no raw XState actors or machines                              |
+| `@emi/core/styles.css`          | design tokens and structural styles                                                                               | explicit opt-in; no application theme ownership               |
+| `@emi/core/server`              | generic ports and server composition                                                                              | no raw D1, Drizzle, Kysely, or platform rows                  |
+| `@emi/core/server/effect`       | explicit Effect-native services and layers                                                                        | advanced server composition only                              |
+| `@emi/core/server/fetch`        | Fetch `Request`/`Response` handlers                                                                               | no platform bindings                                          |
+| `@emi/core/server/database`     | advanced SQL schemas, persistence domains, and replay helpers                                                     | optional database/AI peers; never a generic server contract   |
+| `@emi/core/adapters/ai-sdk`     | AI SDK/provider bridge                                                                                            | provider types stop at this adapter                           |
+| `@emi/core/adapters/cloudflare` | Cloudflare, D1, R2, and Worker bindings                                                                           | platform assumptions stay in the adapter                      |
+| `@emi/core/extensions`          | `ChatExtensions` definition and collision-checked composition                                                     | product domains remain external packages                      |
+| `@emi/core/testing`             | `ChatTesting` deterministic dependencies, repositories, and actor harnesses                                       | test-only helpers, not production state                       |
+| `@emi/core/advanced/xstate`     | intentional actor refs and machine integration                                                                    | raw XState is never the common path                           |
 
 The explicit advanced Effect entrypoint is `@emi/core/server/effect`; R0 does not add a
 second `@emi/core/advanced/effect` alias. The common path is therefore:
@@ -57,6 +57,25 @@ root.render(
 );
 ```
 
+WebMCP is an optional browser enhancement. A browser consumer may feature-detect the page
+capability and pass it into the runtime without importing a browser global at module scope:
+
+```tsx
+import { WebMcp } from "@emi/core/web";
+
+const runtime = createChatRuntime({
+  // ...the required transport, storage, browser, and identity dependencies
+  webmcp: { modelContext: WebMcp.detect(document) },
+});
+```
+
+The adapter registers only `get_chat_context`, `search_conversations`, `open_conversation`,
+`start_new_chat`, `set_theme`, `search_memories`, and `fill_message_composer`. Tool execution
+routes through the actor-owned runtime facade, keeps draft filling unsent, and redacts credentials
+and message content from context results. The `WebMcp` detection class and
+`ChatRuntimeOptions.webmcp` option are public; the registration actor and tool schemas are
+implementation details.
+
 The runtime owns application, transport, persistence, browser, and UI state through XState
 actors. React renders selectors and sends commands. The runtime accepts injected fetch, origin,
 clock, ID, storage, browser, and persistence dependencies. A common consumer does not import
@@ -69,7 +88,8 @@ Its rules are:
 
 - `protocol` and `api` may use Effect schemas and expose typed Effect error channels, but never
   expose Effect services or layers;
-- `runtime` and `advanced/xstate` own XState; React is not a runtime dependency;
+- `runtime` owns XState plus the Effect-based WebMCP execution boundary, while
+  `advanced/xstate` owns raw XState access; React is not a runtime dependency;
 - `react` and `components` require React only through their declared peer boundaries;
 - `components/styled` keeps visual helpers optional and does not make styling mandatory;
 - `server` and `server/fetch` keep generic server contracts free of database/platform packages;
@@ -298,6 +318,22 @@ The runtime facade is protocol-native: its actor-owned session and transport sta
 Provider translation remains isolated in `adapters/ai-sdk`; no provider bridge is part of the
 common runtime contract.
 
+### Optional WebMCP browser boundary
+
+The runtime accepts an optional `webmcp.modelContext` capability. `WebMcp.detect(source)` reads the
+current `document.modelContext` shape without importing or requiring WebMCP, so unsupported
+browsers remain ordinary chat pages. Runtime startup creates one XState-owned registration actor;
+the actor keeps the registration callback alive until runtime shutdown and aborts its shared
+registration signal during cleanup. It reports readiness in actor context but does not mirror chat
+state into a second store.
+
+Tool input is decoded with Effect Schema and mapped to the structured `{ ok, result }` or
+`{ ok: false, error }` boundary. Search and navigation dispatch existing runtime actions and wait
+for actor-owned state; the composer tool only fills the visible draft. Context results contain
+capability flags and minimal identifiers, never API keys, session credentials, provider URLs, or
+message content. The generic web fixture enables the adapter through the injected capability; the
+Worker has no WebMCP dependency.
+
 Generic web views follow the same ownership rule. Core owns provider-neutral message rendering,
 thread scrolling, attachment policy, suggestions, and runtime-connected recipes. Product apps may
 keep a thin wrapper for product renderers, memory actions, settings, model controls, and product
@@ -345,6 +381,8 @@ R0 freezes these choices for later packets:
 - advanced database/platform helpers remain isolated behind explicitly named adapter subpaths;
 - source regeneration refuses to silently overwrite locally changed files and reports a diff;
 - styles remain an explicit `@emi/core/styles.css` import; and
+- WebMCP remains an optional `@emi/core/web` capability supplied to the runtime rather than a
+  required browser or Worker dependency; and
 - production SQL/platform adapters stay explicit while deterministic in-memory adapters belong
   in `testing`.
 
