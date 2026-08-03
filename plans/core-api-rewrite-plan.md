@@ -555,7 +555,7 @@ results must decode through runtime schemas before entering domain state.
 | `genericChatAppMachine` plus child event envelopes       | `createChatRuntime` with typed commands/selectors; actors remain internal or advanced                          | R2          |
 | `createConversationClient` hand-written response schemas | `CoreApiClient` from named protocol DTOs and mappers                                                           | R1/R3/R7    |
 | `UIMessage` and `FileUIPart` in runtime/components       | `ChatMessage` and `MessagePart` plus provider adapters                                                         | R1/R4       |
-| `chat/openai.ts`                                         | Provider-neutral `ModelProvider` plus `adapters/ai-sdk`                                                        | R4          |
+| `packages/core/src/adapters/ai-sdk/openai-chat.ts`       | Provider-neutral `ModelProvider` plus an explicit AI SDK adapter boundary                                      | R4          |
 | `makeGenericChatRoutes` and the large route module       | `createChatServer` use cases plus small HTTP/platform adapters                                                 | R3          |
 | `server.export.ts` broad/forwarding surface              | Curated ports/use cases; platform-specific database/auth helpers stay in explicit advanced capability packages | R0/R3/R8    |
 | Unnamed database and Cloudflare helpers                  | `server/database` and `cloudflare` named advanced capability owners                                            | R0/R3/R8    |
@@ -701,7 +701,8 @@ adapter operations expose tagged failures instead of `never`; and incremental bo
 ### R4 — Isolate provider and AI SDK adapters
 
 **Primary paths:** new `packages/core/src/adapters/ai-sdk/**`, current
-`packages/core/src/chat/openai.ts`, `packages/core/test/adapters/**`, package dependency metadata.
+`packages/core/src/adapters/ai-sdk/openai-chat.ts`, `packages/core/test/adapters/**`, package
+dependency metadata.
 
 **Depends on:** R1.
 
