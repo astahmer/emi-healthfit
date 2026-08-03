@@ -115,7 +115,7 @@ describe("follow-up queue actor", () => {
       input: {
         adapter: adapter.adapter,
         sendSession: () => undefined,
-        onRemoteForceSend: ({ id }) => forceSendIds.push(id),
+        onForceSend: ({ id }) => forceSendIds.push(id),
       },
     }).start();
     await tick();
@@ -137,6 +137,34 @@ describe("follow-up queue actor", () => {
     await tick();
 
     expect(forceSendIds).toEqual(["queued-2"]);
+    actor.stop();
+  });
+
+  it("broadcasts a force-send request from a non-streaming tab", async () => {
+    const adapter = createAdapter();
+    const actor = createActor(followUpQueueActor, {
+      input: { adapter: adapter.adapter, sendSession: () => undefined },
+    }).start();
+    await tick();
+    actor.send({ type: "route-sync-requested", route });
+    await tick();
+    actor.send({
+      type: "session-event",
+      event: {
+        type: "follow-up-queued",
+        followUp: { id: "queued-1", text: "queued", files: [] },
+      },
+    });
+    await tick();
+    actor.send({ type: "force-send-requested", id: "queued-1" });
+    await tick();
+
+    expect(adapter.broadcasts.at(-1)).toEqual({
+      type: "queue.force-send",
+      sessionId: "conversation-1",
+      tabId: "tab-a",
+      itemId: "queued-1",
+    });
     actor.stop();
   });
 });

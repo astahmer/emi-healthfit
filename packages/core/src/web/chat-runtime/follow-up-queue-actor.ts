@@ -11,11 +11,12 @@ import type {
 export interface FollowUpQueueActorInput {
   readonly adapter: ChatQueueSyncAdapter | undefined;
   readonly sendSession: (event: ChatSessionEvent) => void;
-  readonly onRemoteForceSend?: (input: { readonly id: string }) => void;
+  readonly onForceSend?: (input: { readonly id: string }) => void;
 }
 
 export type FollowUpQueueActorEvent =
   | { type: "route-sync-requested"; route: ChatRouteInput }
+  | { type: "force-send-requested"; id: string }
   | { type: "session-event"; event: ChatSessionEvent };
 
 const toQueueState = (items: QueuedFollowUp[]): QueuedFollowUpState[] =>
@@ -117,7 +118,7 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
         return;
       if (message.sessionId !== sessionId) return;
       if (message.type === "queue.force-send") {
-        if (isStreaming) input.onRemoteForceSend?.({ id: message.itemId });
+        if (isStreaming) input.onForceSend?.({ id: message.itemId });
         return;
       }
       if (message.revision < revision) return;
@@ -131,6 +132,27 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
       input.sendSession({
         type: "queued-follow-ups-replaced",
         items: toSessionItems(queue),
+      });
+    };
+
+    const handleForceSendRequest = ({ id }: { readonly id: string }) => {
+      const sessionId = activeSessionId();
+      const adapter = input.adapter;
+      if (
+        sessionId === undefined ||
+        adapter === undefined ||
+        !queue.some((item) => item.id === id)
+      )
+        return;
+      if (isStreaming) {
+        input.onForceSend?.({ id });
+        return;
+      }
+      adapter.broadcast({
+        type: "queue.force-send",
+        sessionId,
+        tabId: adapter.tabId,
+        itemId: id,
       });
     };
 
@@ -215,6 +237,10 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
         hydrate();
         return;
       }
+      if (event.type === "force-send-requested") {
+        handleForceSendRequest(event);
+        return;
+      }
       if (event.type === "session-event") handleSessionEvent(event.event);
     });
 
@@ -238,6 +264,7 @@ export const followUpQueueActor = setup({
   invoke: { id: "operations", src: "operations", input: ({ context }) => context },
   on: {
     "route-sync-requested": { actions: "forwardEvent" },
+    "force-send-requested": { actions: "forwardEvent" },
     "session-event": { actions: "forwardEvent" },
   },
 });

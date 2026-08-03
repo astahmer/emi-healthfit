@@ -107,7 +107,6 @@ export const ChatRuntimeProvider = ({
   const configRef = useRef(config);
   const onSessionCreatedRef = useRef(onSessionCreated);
   const onHistoryChangedRef = useRef(onHistoryChanged);
-  const remoteForceSendRef = useRef<(id: string) => void>(() => undefined);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
 
@@ -152,7 +151,6 @@ export const ChatRuntimeProvider = ({
         persistence,
         queueSync: {
           adapter: queueSyncAdapter,
-          onRemoteForceSend: ({ id }) => remoteForceSendRef.current(id),
         },
         lifecycle: {
           onSessionCreated: ({ conversationId }) => onSessionCreatedRef.current?.(conversationId),
@@ -224,7 +222,6 @@ export const ChatRuntimeProvider = ({
     [persistence, queueSyncAdapter],
   );
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
-  remoteForceSendRef.current = (id) => runtime.actions.forceSendQueuedFollowUp({ id });
 
   useEffect(() => {
     runtime.actions.updateSettings({
@@ -351,31 +348,13 @@ export const ChatRuntimeProvider = ({
     return new Error(state.error);
   }, [state.error, state.errorMessageId]);
   const queuedFollowUps = state.queuedFollowUps.map(toQueuedFollowUp);
-  const queueSessionId = config.temporary ? undefined : (sessionId ?? config.sessionId);
   const forceSendQueued = useCallback(
     async (id?: string) => {
       const targetId = id ?? queuedFollowUps[0]?.id;
       if (targetId === undefined) return;
-      if (selectionMatches && state.activeThread.isStreaming) {
-        runtime.actions.forceSendQueuedFollowUp({ id: targetId });
-        return;
-      }
-      if (queueSessionId === undefined) return;
-      queueSyncAdapter.broadcast({
-        type: "queue.force-send",
-        sessionId: queueSessionId,
-        tabId: queueSyncAdapter.tabId,
-        itemId: targetId,
-      });
+      runtime.actions.forceSendQueuedFollowUp({ id: targetId });
     },
-    [
-      queuedFollowUps,
-      queueSessionId,
-      queueSyncAdapter,
-      runtime,
-      selectionMatches,
-      state.activeThread.isStreaming,
-    ],
+    [queuedFollowUps, runtime],
   );
   const value = useMemo<ChatRuntimeValue>(
     () => ({

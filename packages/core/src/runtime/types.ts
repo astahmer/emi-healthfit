@@ -119,7 +119,7 @@ export interface ChatRuntimeOptions {
   };
   readonly queueSync?: {
     readonly adapter: ChatQueueSyncAdapter;
-    readonly onRemoteForceSend?: (input: { readonly id: string }) => void;
+    readonly onForceSend?: (input: { readonly id: string }) => void;
   };
 }
 

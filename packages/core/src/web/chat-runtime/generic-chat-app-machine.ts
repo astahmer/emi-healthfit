@@ -57,7 +57,7 @@ export interface GenericChatAppInput
   readonly features?: {
     readonly suggestions?: boolean;
   };
-  readonly queueSync?: Pick<FollowUpQueueActorInput, "adapter" | "onRemoteForceSend">;
+  readonly queueSync?: Pick<FollowUpQueueActorInput, "adapter" | "onForceSend">;
 }
 
 export type GenericChatAppEvent =
@@ -78,6 +78,7 @@ export type GenericChatAppEvent =
   | { type: "lifecycle-conversation-store-command"; event: ConversationStoreActorEvent }
   | { type: "lifecycle-chat-ui-command"; event: ChatUiActorEvent }
   | { type: "route-sync-requested"; route: ChatRouteInput }
+  | { type: "queue-force-send-requested"; id: string }
   | { type: "queue-session-command"; event: ChatSessionEvent };
 
 export const genericChatAppMachine = setup({
@@ -189,6 +190,11 @@ export const genericChatAppMachine = setup({
       if (event.type === "queue-session-command") return event.event;
       return invalidForwardingEvent();
     }),
+    forwardQueueForceSend: sendTo("followUpQueue", ({ event }) => {
+      if (event.type === "queue-force-send-requested")
+        return { type: "force-send-requested", id: event.id };
+      return invalidForwardingEvent();
+    }),
     forwardChildSessionEvent: sendTo("session", ({ event }) => {
       if (event.type === "transport-session-event") return event.event;
       if (event.type === "conversation-store-session-event") return event.event;
@@ -277,7 +283,7 @@ export const genericChatAppMachine = setup({
       input: ({ context, self }) => ({
         adapter: context.queueSync?.adapter,
         sendSession: (event) => self.send({ type: "queue-session-command", event }),
-        onRemoteForceSend: context.queueSync?.onRemoteForceSend,
+        onForceSend: context.queueSync?.onForceSend,
       }),
     },
   ],
@@ -321,6 +327,7 @@ export const genericChatAppMachine = setup({
     "route-sync-requested": {
       actions: ["forwardRouteToLifecycle", "forwardRouteToQueue"],
     },
+    "queue-force-send-requested": { actions: "forwardQueueForceSend" },
     "queue-session-command": { actions: "forwardQueueSessionCommand" },
   },
 });

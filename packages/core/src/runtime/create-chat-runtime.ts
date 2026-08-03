@@ -238,7 +238,18 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
 };
 
 export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
-  const actor = createChatRuntimeActor(options);
+  let forceSendQueuedFollowUpFromQueue: (input: { readonly id: string }) => void = () => {};
+  const actor = createChatRuntimeActor(
+    options.queueSync === undefined
+      ? options
+      : {
+          ...options,
+          queueSync: {
+            ...options.queueSync,
+            onForceSend: (input) => forceSendQueuedFollowUpFromQueue(input),
+          },
+        },
+  );
 
   const listeners = new Set<() => void>();
   const childSubscriptions = new Map<string, { unsubscribe: () => void }>();
@@ -641,6 +652,17 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     });
   };
 
+  const forceSendQueuedFollowUpNow = ({ id }: { readonly id: string }) => {
+    const session = currentSession();
+    const followUp = session.queuedFollowUps.find((item) => item.id === id);
+    if (followUp === undefined) return;
+    if (currentUi().editingQueuedFollowUpId === id)
+      sendChatUi({ type: "queued-follow-up-edit-cleared" });
+    sendQueuedFollowUp({ followUp });
+  };
+
+  forceSendQueuedFollowUpFromQueue = forceSendQueuedFollowUpNow;
+
   drainQueuedFollowUp = () => {
     const session = currentSession();
     const followUp = session.queuedFollowUps[0];
@@ -749,12 +771,11 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       actor.send({ type: "route-sync-requested", route });
     },
     forceSendQueuedFollowUp: ({ id }) => {
-      const session = currentSession();
-      const followUp = session.queuedFollowUps.find((item) => item.id === id);
-      if (followUp === undefined) return;
-      if (currentUi().editingQueuedFollowUpId === id)
-        sendChatUi({ type: "queued-follow-up-edit-cleared" });
-      sendQueuedFollowUp({ followUp });
+      if (options.queueSync === undefined) {
+        forceSendQueuedFollowUpNow({ id });
+        return;
+      }
+      if (!disposed) actor.send({ type: "queue-force-send-requested", id });
     },
     updateQueuedFollowUp: ({ id, text, attachments }) =>
       sendSession({ type: "queued-follow-up-updated", id, text, files: [...attachments] }),
