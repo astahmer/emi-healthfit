@@ -42,6 +42,8 @@ const sendFile = ({ filePath, request, response, status = 200 }) => {
   response.writeHead(status, {
     "cache-control": "no-store",
     "content-type": mediaTypes.get(extname(filePath)) ?? "application/octet-stream",
+    "origin-agent-cluster": "?1",
+    "permissions-policy": "tools=(self)",
   });
   if (request.method === "HEAD") {
     response.end();

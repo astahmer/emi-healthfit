@@ -26,6 +26,15 @@ test("boots the documented runtime/provider/recipe path", async ({ page }) => {
   expect(api.anonymousSessionCalls()).toBe(1);
 });
 
+test("serves the WebMCP origin and permissions policy", async ({ page }) => {
+  const response = await page.goto("/");
+
+  expect(response?.headers()).toMatchObject({
+    "origin-agent-cluster": "?1",
+    "permissions-policy": "tools=(self)",
+  });
+});
+
 test("shows and edits the merged memory summary alongside source memories", async ({ page }) => {
   await openGenericChat(page);
 

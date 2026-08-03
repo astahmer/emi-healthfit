@@ -3,10 +3,10 @@ import * as Schema from "effect/Schema";
 import { assign, fromCallback, setup } from "xstate";
 
 import type {
-  ChatActions,
-  ChatRuntime,
   ChatRuntimeOptions,
-  ChatState,
+  WebMcpRuntime,
+  WebMcpState,
+  WebMcpToolName,
 } from "../../runtime/types.ts";
 import type {
   WebMcpInputSchema,
@@ -15,27 +15,11 @@ import type {
   WebMcpTool,
 } from "../webmcp.ts";
 
-type WebMcpActions = Pick<
-  ChatActions,
-  | "setConversationSearch"
-  | "selectConversation"
-  | "startNewConversation"
-  | "updateSettings"
-  | "setMemoryPanelOpen"
-  | "setMemorySearch"
-  | "setDraft"
->;
-
-interface WebMcpRuntime {
-  readonly getState: ChatRuntime["getState"];
-  readonly subscribe: ChatRuntime["subscribe"];
-  readonly actions: WebMcpActions;
-}
-
 interface WebMcpActorInput {
   readonly modelContext: WebMcpModelContext | undefined;
   readonly runtime: WebMcpRuntime;
   readonly features: ChatRuntimeOptions["features"];
+  readonly toolNames?: ReadonlyArray<WebMcpToolName>;
 }
 
 interface WebMcpActorContext extends WebMcpActorInput {
@@ -149,18 +133,18 @@ const waitForState = ({
   timeoutMessage,
 }: {
   readonly runtime: WebMcpRuntime;
-  readonly predicate: (state: ChatState) => boolean;
+  readonly predicate: (state: WebMcpState) => boolean;
   readonly timeoutMessage: string;
-}): Effect.Effect<ChatState, WebMcpToolError> =>
+}): Effect.Effect<WebMcpState, WebMcpToolError> =>
   Effect.tryPromise({
     try: () =>
-      new Promise<ChatState>((resolve, reject) => {
+      new Promise<WebMcpState>((resolve, reject) => {
         let settled = false;
         let timeout: ReturnType<typeof setTimeout> | undefined;
         let unsubscribe: () => void = () => undefined;
 
         const settle = (result: {
-          readonly state?: ChatState;
+          readonly state?: WebMcpState;
           readonly error?: WebMcpToolError;
         }) => {
           if (settled) return;
@@ -228,21 +212,21 @@ const executeTool = <Input, Result extends WebMcpJsonValue>({
     Effect.runPromise,
   );
 
-const mapConversation = (conversation: ChatState["conversations"]["items"][number]) => ({
+const mapConversation = (conversation: WebMcpState["conversations"]["items"][number]) => ({
   id: conversation.id,
   title: conversation.title,
   status: conversation.status,
   pinned: conversation.pinned,
 });
 
-const mapMemory = (memory: ChatState["memories"]["items"][number]) => ({
+const mapMemory = (memory: WebMcpState["memories"]["items"][number]) => ({
   id: memory.id,
   content: memory.content,
   source: memory.source,
   createdAt: memory.createdAt,
 });
 
-const mapSummary = (summary: ChatState["memories"]["summary"]) =>
+const mapSummary = (summary: WebMcpState["memories"]["summary"]) =>
   summary === undefined
     ? null
     : {
@@ -254,9 +238,11 @@ const mapSummary = (summary: ChatState["memories"]["summary"]) =>
 const contextResult = ({
   state,
   features,
+  toolNames,
 }: {
-  readonly state: ChatState;
+  readonly state: WebMcpState;
   readonly features: ChatRuntimeOptions["features"];
+  readonly toolNames: ReadonlyArray<WebMcpToolName> | undefined;
 }) => ({
   activeConversation:
     state.activeConversation === undefined
@@ -274,21 +260,25 @@ const contextResult = ({
   connection: state.connection,
   temporary: state.temporary,
   capabilities: {
-    searchConversations: true,
-    openConversation: true,
-    startNewChat: true,
-    setTheme: true,
-    searchMemories: features?.memories !== false,
-    fillMessageComposer: true,
+    searchConversations: toolNames === undefined || toolNames.includes("search_conversations"),
+    openConversation: toolNames === undefined || toolNames.includes("open_conversation"),
+    startNewChat: toolNames === undefined || toolNames.includes("start_new_chat"),
+    setTheme: toolNames === undefined || toolNames.includes("set_theme"),
+    searchMemories:
+      (toolNames === undefined || toolNames.includes("search_memories")) &&
+      features?.memories !== false,
+    fillMessageComposer: toolNames === undefined || toolNames.includes("fill_message_composer"),
   },
 });
 
 const createTools = ({
   runtime,
   features,
+  toolNames,
 }: {
   readonly runtime: WebMcpRuntime;
   readonly features: ChatRuntimeOptions["features"];
+  readonly toolNames: ReadonlyArray<WebMcpToolName> | undefined;
 }): ReadonlyArray<WebMcpTool> => {
   const tools: WebMcpTool[] = [
     {
@@ -303,7 +293,7 @@ const createTools = ({
           input,
           handler: () =>
             Effect.try({
-              try: () => contextResult({ state: runtime.getState(), features }),
+              try: () => contextResult({ state: runtime.getState(), features, toolNames }),
               catch: () =>
                 toolError({ code: "unavailable", message: "Chat context is unavailable." }),
             }),
@@ -399,7 +389,7 @@ const createTools = ({
                   !current.activeThread.isStreaming,
                 timeoutMessage: "A new chat could not be started.",
               });
-              return contextResult({ state, features });
+              return contextResult({ state, features, toolNames });
             }),
         }),
     },
@@ -447,60 +437,64 @@ const createTools = ({
     },
   ];
 
-  if (features?.memories === false) return tools;
-
-  tools.push({
-    name: "search_memories",
-    description:
-      "Search the current user's individual memory entries after checking the merged memory summary.",
-    inputSchema: searchInputSchema,
-    annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-    execute: (input) =>
-      executeTool({
-        schema: searchInput,
-        input,
-        handler: ({ query }) => {
-          const search = query.trim();
-          return Effect.gen(function* () {
-            yield* runAction(() => runtime.actions.setMemoryPanelOpen({ open: true }));
-            yield* runAction(() => runtime.actions.setMemorySearch({ search }));
-            const state = yield* waitForState({
-              runtime,
-              predicate: (current) =>
-                current.memories.search === search &&
-                (!current.memories.loading || current.error !== undefined),
-              timeoutMessage: "Memory search did not finish.",
+  if (features?.memories !== false) {
+    tools.push({
+      name: "search_memories",
+      description:
+        "Search the current user's individual memory entries after checking the merged memory summary.",
+      inputSchema: searchInputSchema,
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      execute: (input) =>
+        executeTool({
+          schema: searchInput,
+          input,
+          handler: ({ query }) => {
+            const search = query.trim();
+            return Effect.gen(function* () {
+              yield* runAction(() => runtime.actions.setMemoryPanelOpen({ open: true }));
+              yield* runAction(() => runtime.actions.setMemorySearch({ search }));
+              const state = yield* waitForState({
+                runtime,
+                predicate: (current) =>
+                  current.memories.search === search &&
+                  (!current.memories.loading || current.error !== undefined),
+                timeoutMessage: "Memory search did not finish.",
+              });
+              if (state.error !== undefined)
+                return yield* Effect.fail(
+                  toolError({ code: "unavailable", message: "Memory search is unavailable." }),
+                );
+              return {
+                query: search,
+                summary: mapSummary(state.memories.summary),
+                memories: state.memories.items.map(mapMemory),
+              };
             });
-            if (state.error !== undefined)
-              return yield* Effect.fail(
-                toolError({ code: "unavailable", message: "Memory search is unavailable." }),
-              );
-            return {
-              query: search,
-              summary: mapSummary(state.memories.summary),
-              memories: state.memories.items.map(mapMemory),
-            };
-          });
-        },
-      }),
-  });
+          },
+        }),
+    });
+  }
 
-  return tools;
+  if (toolNames === undefined) return tools;
+  const allowedToolNames = new Set<string>(toolNames);
+  return tools.filter((tool) => allowedToolNames.has(tool.name));
 };
 
 const registerTools = Effect.fn("WebMcp.registerTools")(function* ({
   modelContext,
   runtime,
   features,
+  toolNames,
   signal,
 }: {
   readonly modelContext: WebMcpModelContext;
   readonly runtime: WebMcpRuntime;
   readonly features: ChatRuntimeOptions["features"];
+  readonly toolNames: ReadonlyArray<WebMcpToolName> | undefined;
   readonly signal: AbortSignal;
 }) {
   yield* Effect.forEach(
-    createTools({ runtime, features }),
+    createTools({ runtime, features, toolNames }),
     (tool) =>
       Effect.tryPromise({
         try: () => modelContext.registerTool(tool, { signal }),
@@ -523,6 +517,7 @@ const registrationOperations = fromCallback<WebMcpActorEvent, WebMcpActorInput>(
         modelContext: input.modelContext,
         runtime: input.runtime,
         features: input.features,
+        toolNames: input.toolNames,
         signal: controller.signal,
       }).pipe(
         Effect.match({
@@ -567,6 +562,7 @@ export const webMcpRegistrationActor = setup({
           modelContext: context.modelContext,
           runtime: context.runtime,
           features: context.features,
+          toolNames: context.toolNames,
         }),
       },
       on: {

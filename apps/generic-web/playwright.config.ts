@@ -23,7 +23,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "vite --host 127.0.0.1 --port 3233",
+    command: "VITE_WEBMCP_ENABLED=true vite --host 127.0.0.1 --port 3233",
     reuseExistingServer: true,
     url: "http://127.0.0.1:3233",
   },

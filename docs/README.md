@@ -9,6 +9,7 @@
 | [hevy-integration.md](./hevy-integration.md)       | Hevy sync agent notes                                     |
 | [session-diagnostics.md](./session-diagnostics.md) | Conversation diagnostics workflow                         |
 | [local-environment.md](./local-environment.md)     | Environment ownership, setup, and named local URLs        |
+| [webmcp-r1.md](./webmcp-r1.md)                     | WebMCP R1 rollout and browser verification                |
 | [prompts/](./prompts/)                             | Prompt versions used by the coach                         |
 
 Related elsewhere in the repo:

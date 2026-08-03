@@ -34,6 +34,8 @@ import type {
   ChatSettingsState,
   ChatState,
   Selector,
+  WebMcpRegistration,
+  WebMcpRegistrationOptions,
 } from "./types.ts";
 
 type RuntimeActor = ActorRefFrom<typeof genericChatAppMachine>;
@@ -52,6 +54,32 @@ type ChildSnapshot<Context> = {
 };
 type ChildSubscriptionSource = {
   subscribe: (listener: () => void) => { unsubscribe: () => void };
+};
+
+export const createWebMcpRegistration = ({
+  modelContext,
+  runtime,
+  features,
+  toolNames,
+}: WebMcpRegistrationOptions): WebMcpRegistration => {
+  const actor = createActor(webMcpRegistrationActor, {
+    input: { modelContext, runtime, features, toolNames },
+  });
+  let started = false;
+  let stopped = false;
+
+  return {
+    start: () => {
+      if (started || stopped) return;
+      started = true;
+      actor.start();
+    },
+    stop: () => {
+      if (!started || stopped) return;
+      stopped = true;
+      actor.stop();
+    },
+  };
 };
 
 const normalizeBaseUrl = (baseUrl: string): string => baseUrl.replace(/\/$/, "");
@@ -607,12 +635,11 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     return () => listeners.delete(listener);
   };
 
-  const webMcp = createActor(webMcpRegistrationActor, {
-    input: {
-      modelContext: options.webmcp?.modelContext,
-      runtime: { getState, subscribe, actions },
-      features: options.features,
-    },
+  const webMcp = createWebMcpRegistration({
+    modelContext: options.webmcp?.modelContext,
+    runtime: { getState, subscribe, actions },
+    features: options.features,
+    toolNames: options.webmcp?.toolNames,
   });
 
   return { selectors, actions, getState, start, stop, dispose, subscribe };

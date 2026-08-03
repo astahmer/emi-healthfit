@@ -1,4 +1,4 @@
-import { createChatRuntime } from "./runtime/create-chat-runtime.ts";
+import { createChatRuntime, createWebMcpRegistration } from "./runtime/create-chat-runtime.ts";
 import type {
   ChatActions,
   ChatRuntime,
@@ -14,10 +14,15 @@ import type {
   Selector,
   SuggestionsState,
   ThreadViewState,
+  WebMcpRegistration,
+  WebMcpRegistrationOptions,
+  WebMcpRuntime,
+  WebMcpState,
+  WebMcpToolName,
 } from "./runtime/types.ts";
 import type { MemorySummary } from "./protocol/resources.ts";
 
-export { createChatRuntime };
+export { createChatRuntime, createWebMcpRegistration };
 
 export type {
   ChatActions,
@@ -35,4 +40,9 @@ export type {
   Selector,
   SuggestionsState,
   ThreadViewState,
+  WebMcpRegistration,
+  WebMcpRegistrationOptions,
+  WebMcpRuntime,
+  WebMcpState,
+  WebMcpToolName,
 };

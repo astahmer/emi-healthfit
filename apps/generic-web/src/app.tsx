@@ -131,7 +131,10 @@ export const App = () => {
             };
           },
         },
-        webmcp: { modelContext: WebMcp.detect(document) },
+        webmcp: {
+          modelContext:
+            import.meta.env.VITE_WEBMCP_ENABLED === "true" ? WebMcp.detect(document) : undefined,
+        },
         identity: { createId: () => crypto.randomUUID(), now: () => new Date().toISOString() },
         features: {
           attachments: true,

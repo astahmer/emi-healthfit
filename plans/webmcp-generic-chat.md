@@ -112,11 +112,12 @@ flowchart LR
     J --> B
 ```
 
-The registration actor receives an injected browser capability and the runtime facade. It does not
-copy parent snapshots into a second state tree. For reads that need current data, it reads the
-runtime's current actor-owned state; for UI actions, it sends existing typed commands to the owning
-child actor. The runtime retains the registration actor alongside the chat actor graph and aborts
-the registration signal during shutdown.
+The registration actor receives an injected browser capability and the runtime facade. Its public
+adapter exposes only the read-only `WebMcpState` projection; it does not copy parent snapshots into
+a second state tree. For reads that need current data, it reads the runtime's current actor-owned
+state; for UI actions, it sends existing typed commands to the owning child actor. The runtime
+retains the registration actor alongside the chat actor graph and aborts the registration signal
+during shutdown.
 
 ## What this allows
 
@@ -213,16 +214,19 @@ not database tables.
 6. **[x]** Add a deterministic Playwright `document.modelContext` harness and generic browser
    coverage for discovery, context redaction, theme, memory search, and visible draft filling.
    Existing generic tests continue to run without WebMCP; a manual browser checklist remains.
-7. **[ ]** Add `tools` Permissions Policy and origin-isolation checks to deployment documentation
-   after confirming the target hosting headers. Cross-origin iframe support is not a phase-one
-   dependency.
+7. **[x]** Add explicit `tools` Permissions Policy and origin-isolation headers/checks to the
+   Worker, local Vite servers, and deployment documentation. Cross-origin iframe support remains
+   out of phase one.
 8. **[ ]** Revisit declarative annotations for the composer after imperative behavior is stable and
    the Chrome proposal has not introduced an incompatible form contract.
+9. **[x]** Gate consumer opt-in with `VITE_WEBMCP_ENABLED`; keep `apps/chat` on a thin
+   `createWebMcpRegistration` adapter with an explicit `toolNames` allowlist until its existing
+   query actors expose typed WebMCP commands/subscriptions.
 
 ## Open questions
 
-1. Which exact Chrome/staging channel should enable WebMCP, and who owns any Origin Trial token
-   lifecycle?
+1. Staging owns the exact-origin Origin Trial token and response-header lifecycle; production stays
+   disabled until the staging checklist passes. Local testing uses Chrome's WebMCP testing flag.
 2. Should a future `send_message` tool stop at draft filling forever, or may it submit after a
    user-confirmed dialog? What provider-cost limit should gate it?
 3. Should memory creation ever be agent-callable, or remain human-only because memories persist
@@ -251,7 +255,8 @@ not database tables.
 - [x] Generic source and generated-source boundary tests contain no HealthFit, Hevy, `apps/api`,
       or `apps/chat` imports.
 - [ ] A manual Chrome/staging checklist verifies discovery, visible execution, origin isolation, and
-      the `tools` Permissions Policy before enabling the feature by default.
+      the `tools` Permissions Policy before enabling the feature by default. See
+      `docs/webmcp-r1.md`; the current desktop session could not connect to Chrome.
 
 ## Decisions log
 

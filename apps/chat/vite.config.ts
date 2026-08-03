@@ -83,6 +83,10 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "127.0.0.1",
       port: Number(process.env.PORT ?? "3232"),
+      headers: {
+        "Origin-Agent-Cluster": "?1",
+        "Permissions-Policy": "tools=(self)",
+      },
       proxy: {
         "/api": {
           target: apiBaseUrl,

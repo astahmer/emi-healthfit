@@ -2,6 +2,7 @@ import { createActor } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Conversation, Memory } from "../../src/protocol/resources.ts";
+import { createWebMcpRegistration } from "../../src/runtime/create-chat-runtime.ts";
 import type { ChatActions, ChatState } from "../../src/runtime/types.ts";
 import { webMcpRegistrationActor } from "../../src/web/chat-runtime/webmcp-actor.ts";
 import type { WebMcpModelContext, WebMcpTool } from "../../src/web/webmcp.ts";
@@ -204,6 +205,39 @@ const getTool = (context: CapturingModelContext, name: string): WebMcpTool => {
 };
 
 describe("webMcpRegistrationActor", () => {
+  it("exposes a single lifecycle boundary for app-owned runtimes", async () => {
+    const testRuntime = createTestRuntime();
+    const registration = createWebMcpRegistration({
+      modelContext: testRuntime.context,
+      runtime: testRuntime.runtime,
+      features: { memories: false },
+      toolNames: ["get_chat_context", "set_theme", "fill_message_composer"],
+    });
+
+    registration.start();
+    await vi.waitFor(() => expect(testRuntime.context.tools.size).toBe(3));
+    await expect(
+      getTool(testRuntime.context, "get_chat_context").execute({}),
+    ).resolves.toMatchObject({
+      ok: true,
+      result: {
+        capabilities: {
+          searchConversations: false,
+          openConversation: false,
+          startNewChat: false,
+          setTheme: true,
+          searchMemories: false,
+          fillMessageComposer: true,
+        },
+      },
+    });
+    registration.stop();
+    registration.stop();
+
+    expect(testRuntime.context.tools).toHaveLength(0);
+    expect([...testRuntime.context.signals][0]?.aborted).toBe(true);
+  });
+
   it("stays unsupported without a browser WebMCP capability", () => {
     const testRuntime = createTestRuntime();
     const actor = createActor(webMcpRegistrationActor, {

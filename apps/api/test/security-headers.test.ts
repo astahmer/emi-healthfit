@@ -6,6 +6,8 @@ describe("security headers", () => {
   it("includes referrer, framing, and CSP defaults", () => {
     assert.equal(securityHeaders["referrer-policy"], "no-referrer");
     assert.equal(securityHeaders["x-frame-options"], "DENY");
+    assert.equal(securityHeaders["origin-agent-cluster"], "?1");
+    assert.match(securityHeaders["permissions-policy"], /tools=\(self\)/);
     assert.match(securityHeaders["content-security-policy"], /default-src 'self'/);
     assert.match(securityHeaders["content-security-policy"], /frame-ancestors 'none'/);
   });

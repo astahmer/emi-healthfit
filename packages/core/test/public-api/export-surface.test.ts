@@ -30,7 +30,7 @@ describe("@emi/core target export surface", () => {
     assert.deepEqual(sortedKeys(api), ["CoreApiClient", "CoreApiClientError"]);
     assert.deepEqual(sortedKeys(chat), ["Chat"]);
     assert.deepEqual(sortedKeys(discord), ["Discord"]);
-    assert.deepEqual(sortedKeys(runtime), ["createChatRuntime"]);
+    assert.deepEqual(sortedKeys(runtime), ["createChatRuntime", "createWebMcpRegistration"]);
     assert.deepEqual(sortedKeys(react), [
       "ChatProvider",
       "useChatActions",

@@ -27,6 +27,10 @@ For a deployed or separately hosted Worker, set `VITE_API_ORIGIN` before buildin
 must be the API origin, without a trailing slash, and the Worker must trust the browser origin
 used by `BETTER_AUTH_URL`.
 
+WebMCP is an opt-in build capability. Set `VITE_WEBMCP_ENABLED=true` for local discovery checks or
+the staging build; leave it unset for a normal build. The app still feature-detects
+`document.modelContext`, so browsers without WebMCP behave normally.
+
 ## Portless URLs
 
 Portless is available for named local HTTPS URLs:

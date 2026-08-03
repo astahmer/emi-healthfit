@@ -8,6 +8,10 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: Number(process.env.PORT ?? "3233"),
+    headers: {
+      "Origin-Agent-Cluster": "?1",
+      "Permissions-Policy": "tools=(self)",
+    },
     proxy: {
       "/api": {
         target: workerOrigin,

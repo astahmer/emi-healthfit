@@ -30,6 +30,7 @@ export interface ChatRuntimeOptions {
   };
   readonly webmcp?: {
     readonly modelContext?: WebMcpModelContext;
+    readonly toolNames?: ReadonlyArray<WebMcpToolName>;
   };
   readonly identity: {
     readonly createId: () => string;
@@ -44,6 +45,63 @@ export interface ChatRuntimeOptions {
     readonly suggestions?: boolean;
     readonly webSearch?: boolean;
   };
+}
+
+export interface WebMcpState {
+  readonly activeConversation: Pick<Conversation, "id" | "title" | "status" | "pinned"> | undefined;
+  readonly activeThread: Pick<ThreadViewState, "id" | "conversationId" | "isStreaming">;
+  readonly composer: Pick<ComposerState, "text">;
+  readonly conversations: {
+    readonly items: ReadonlyArray<Pick<Conversation, "id" | "title" | "status" | "pinned">>;
+    readonly search: string;
+    readonly loading: boolean;
+  } & Pick<ConversationListState, "error">;
+  readonly memories: {
+    readonly items: ReadonlyArray<Pick<Memory, "id" | "content" | "source" | "createdAt">>;
+    readonly summary: Pick<MemorySummary, "content" | "memoryCount" | "updatedAt"> | undefined;
+    readonly search: string;
+    readonly loading: boolean;
+  } & Pick<MemoryListState, "error">;
+  readonly settings: Pick<ChatSettingsState, "theme">;
+  readonly connection: ChatState["connection"];
+  readonly temporary: boolean;
+  readonly error: string | undefined;
+}
+
+export type WebMcpToolName =
+  | "get_chat_context"
+  | "search_conversations"
+  | "open_conversation"
+  | "start_new_chat"
+  | "set_theme"
+  | "search_memories"
+  | "fill_message_composer";
+
+export type WebMcpRuntime = {
+  readonly getState: () => WebMcpState;
+  readonly subscribe: (listener: () => void) => () => void;
+  readonly actions: Pick<
+    ChatActions,
+    | "setConversationSearch"
+    | "selectConversation"
+    | "startNewConversation"
+    | "updateSettings"
+    | "setMemoryPanelOpen"
+    | "setMemorySearch"
+    | "setDraft"
+  >;
+};
+
+export interface WebMcpRegistrationOptions {
+  readonly modelContext?: WebMcpModelContext;
+  readonly runtime: WebMcpRuntime;
+  readonly features?: ChatRuntimeOptions["features"];
+  readonly toolNames?: ReadonlyArray<WebMcpToolName>;
+}
+
+export interface WebMcpRegistration {
+  start(): void;
+  stop(): void;
 }
 
 export interface ThreadViewState {
