@@ -264,6 +264,7 @@ const contextResult = ({
       : {
           id: state.activeConversation.id,
           title: state.activeConversation.title,
+          status: state.activeConversation.status,
         },
   activeThread: {
     id: state.activeThread.id ?? null,
