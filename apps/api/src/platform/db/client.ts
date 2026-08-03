@@ -77,4 +77,4 @@ export const makeQueryDatabaseClient = ({
 export const narrowQueryDatabaseClient = <TSchema>(
   db: QueryDatabaseClient,
 ): ServerDatabase.QueryDatabaseClient<TSchema> =>
-  db as unknown as ServerDatabase.QueryDatabaseClient<TSchema>;
+  CoreCloudflare.database.narrowQueryDatabaseClient<TSchema>(db);

@@ -77,11 +77,29 @@ import {
   ThreadViewportScroll,
   useThreadViewportScroll,
 } from "./web/thread/use-thread-viewport-scroll.ts";
+import {
+  createBrowserFollowUpQueueSyncAdapter,
+  FOLLOW_UP_QUEUE_CHANNEL,
+  FOLLOW_UP_QUEUE_STORAGE_MAX_CHARS,
+  FOLLOW_UP_QUEUE_STORAGE_PREFIX,
+  followUpQueueStorageKey,
+  parseFollowUpQueueChannelMessage,
+  parseFollowUpQueueSync,
+  parseFollowUpQueueSyncJson,
+  readStoredFollowUpQueue,
+  serializeFollowUpQueue,
+  stripHeavyQueueAttachments,
+  writeStoredFollowUpQueue,
+} from "./web/chat-runtime/browser-queue-sync.ts";
 import type {
   ComposerControls,
   ComposerModelOption,
   ThreadViewportProps,
 } from "./web/thread/types.ts";
+import {
+  threadViewportActor,
+  threadViewportNeedsInitialPosition,
+} from "./web/thread/thread-viewport-actor.ts";
 import {
   isSafeAttachmentUrl,
   isSafeMarkdownHref,
@@ -90,6 +108,7 @@ import {
 
 export {
   ChatThreadScroll,
+  createBrowserFollowUpQueueSyncAdapter,
   AttachmentValidationError,
   ChatShell,
   conversationMarkdown,
@@ -119,6 +138,8 @@ export {
   ThreadMessage,
   ThreadViewport,
   ThreadViewportScroll,
+  threadViewportActor,
+  threadViewportNeedsInitialPosition,
   ToolPart,
   ToolResultContent,
   useCoreWebContributions,
@@ -129,6 +150,17 @@ export {
   formatMessageRailTime,
   validateAttachments,
   WebMcp,
+  FOLLOW_UP_QUEUE_CHANNEL,
+  FOLLOW_UP_QUEUE_STORAGE_MAX_CHARS,
+  FOLLOW_UP_QUEUE_STORAGE_PREFIX,
+  followUpQueueStorageKey,
+  parseFollowUpQueueChannelMessage,
+  parseFollowUpQueueSync,
+  parseFollowUpQueueSyncJson,
+  readStoredFollowUpQueue,
+  serializeFollowUpQueue,
+  stripHeavyQueueAttachments,
+  writeStoredFollowUpQueue,
 };
 
 export type {

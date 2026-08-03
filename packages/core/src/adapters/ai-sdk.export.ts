@@ -2,21 +2,30 @@ import { createOpenAI } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
   isLoopFinished,
+  parseJsonEventStream,
+  readUIMessageStream,
   stepCountIs,
   streamText,
+  type StreamTextOnChunkCallback,
   type TextStreamPart,
   type ToolSet,
   type UIMessage,
+  type UIMessageChunk,
+  uiMessageChunkSchema,
 } from "ai";
+import type { JSONSchema7 } from "json-schema";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import { OpenAiChat } from "./ai-sdk/openai-chat.ts";
 
 import type { ChatMessage } from "../protocol/messages.ts";
 import type { GenerationEvent, ModelGenerationInput, ModelProvider } from "../protocol/model.ts";
 import type { MessagePart } from "../protocol/parts.ts";
+import { ChatUiMessages } from "../chat/ui-messages.ts";
+import type { ChatStreamDecoder } from "../web/chat-runtime/transport-types.ts";
 
 export interface AiSdkModelConfiguration {
   readonly model: string;
@@ -309,3 +318,135 @@ export class AiSdkModelProvider extends Context.Service<
     });
   }
 }
+
+export class AiSdkChatStreamError extends Schema.TaggedErrorClass<AiSdkChatStreamError>()(
+  "AiSdkChatStreamError",
+  { message: Schema.String },
+) {}
+
+const toUiMessageStream = (response: Response): ReadableStream<UIMessageChunk> => {
+  if (response.body === null)
+    throw new AiSdkChatStreamError({ message: "Chat response did not contain a stream." });
+  return parseJsonEventStream({
+    stream: response.body,
+    schema: uiMessageChunkSchema,
+  }).pipeThrough(
+    new TransformStream({
+      transform(result, controller) {
+        if (!result.success) {
+          controller.error(result.error);
+          return;
+        }
+        controller.enqueue(result.value);
+      },
+    }),
+  );
+};
+
+export const aiSdkChatStreamDecoder: ChatStreamDecoder = ({
+  response,
+  now,
+  createId,
+  inactivityTimeoutMilliseconds,
+  sendMessage,
+  isCurrent,
+}) =>
+  Effect.gen(function* () {
+    let latest: ChatMessage | undefined;
+    const stream = readUIMessageStream({
+      stream: toUiMessageStream(response),
+      terminateOnError: true,
+    });
+    yield* Stream.fromReadableStream({
+      evaluate: () => stream,
+      onError: (cause) =>
+        new AiSdkChatStreamError({
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+      releaseLockOnEnd: true,
+    }).pipe(
+      Stream.timeoutOrElse({
+        duration: inactivityTimeoutMilliseconds,
+        orElse: () =>
+          Stream.fail(
+            new AiSdkChatStreamError({ message: "Chat response stalled before completion." }),
+          ),
+      }),
+      Stream.takeWhile(() => isCurrent()),
+      Stream.runForEach((uiMessage) =>
+        Effect.tryPromise({
+          try: async () => {
+            const parts = await ChatUiMessages.toProtocolParts({
+              parts: uiMessage.parts,
+              createId,
+            });
+            return {
+              id: uiMessage.id.trim() === "" ? createId() : uiMessage.id,
+              role: uiMessage.role,
+              parts: [...parts],
+              createdAt: now(),
+            } satisfies ChatMessage;
+          },
+          catch: (cause) =>
+            new AiSdkChatStreamError({
+              message: cause instanceof Error ? cause.message : String(cause),
+            }),
+        }).pipe(
+          Effect.tap((message) =>
+            Effect.sync(() => {
+              latest = message;
+              sendMessage(message);
+            }),
+          ),
+        ),
+      ),
+    );
+    return latest;
+  });
+
+export interface AiSdkChatStreamRequest {
+  readonly messages: Array<Omit<UIMessage, "id">>;
+  readonly system?: string;
+  readonly tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
+  readonly config: {
+    readonly provider: "openai";
+    readonly apiKey: string;
+    readonly baseUrl?: string;
+    readonly model: string;
+    readonly system?: string;
+    readonly fetch?: typeof globalThis.fetch;
+  };
+  readonly webSearch?: boolean;
+  readonly coachMode?: boolean;
+  readonly temporary?: boolean;
+  readonly sessionId?: string;
+  readonly threadId?: string;
+  readonly replaceMessageId?: string;
+  readonly requestId?: string;
+}
+
+export interface AiSdkChatStreamOptions {
+  readonly request: AiSdkChatStreamRequest;
+  readonly executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  readonly onFinish?: Parameters<typeof OpenAiChat.createChatStreamEffect>[0]["onFinish"];
+  readonly onChunk?: StreamTextOnChunkCallback<ToolSet>;
+  readonly onError?: (error: unknown) => void | Promise<void>;
+}
+
+export const createAiSdkChatStreamEffect = (options: AiSdkChatStreamOptions) =>
+  OpenAiChat.createChatStreamEffect({
+    request: {
+      messages: options.request.messages,
+      system: options.request.system,
+      tools: options.request.tools,
+      configuration: options.request.config,
+      webSearch: options.request.webSearch,
+    },
+    executeTool: options.executeTool,
+    onFinish: options.onFinish,
+    onChunk: options.onChunk,
+    onError: options.onError,
+  });
+
+export const createAiSdkChatStream = (options: AiSdkChatStreamOptions) =>
+  Effect.runPromise(createAiSdkChatStreamEffect(options));

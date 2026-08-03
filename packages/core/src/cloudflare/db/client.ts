@@ -67,4 +67,8 @@ export class CloudflareDatabase {
           ),
     };
   }
+
+  static narrowQueryDatabaseClient<TSchema>(database: unknown): QueryDatabaseClient<TSchema> {
+    return database as QueryDatabaseClient<TSchema>;
+  }
 }

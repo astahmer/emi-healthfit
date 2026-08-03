@@ -3,28 +3,30 @@
 import type { FileUIPart, UIMessage } from "ai";
 import {
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createChatRuntime } from "@emi/core";
+import { aiSdkChatStreamDecoder } from "@emi/core/adapters/ai-sdk";
 import { Chat } from "@emi/core/chat";
 import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
-import { prepareAttachmentParts } from "@emi/core/web";
+import type { Note } from "@emi/core/contract";
+import { createBrowserFollowUpQueueSyncAdapter, prepareAttachmentParts } from "@emi/core/web";
 import { buildNotesContext } from "../notes";
-import { useNotes } from "../notes-context";
 import { useSettings } from "../settings-store";
+import { queryKeys } from "../query-cache";
 import { fetchConversationMessages, type ConversationSnapshot } from "../conversations";
 import { createConversation } from "../sessions";
 import {
   createHealthFitConversationClient,
   extractHealthFitAssistantMemories,
 } from "./healthfit-chat-adapter";
-import { healthFitChatStreamDecoder } from "./healthfit-chat-stream-adapter";
 import {
   GenerationAlreadyRunningError,
   OrphanTurnError,
@@ -36,7 +38,6 @@ import {
   type ChatRuntimeValue,
   type QueuedFollowUp,
 } from "./chat-runtime-context";
-import { createFollowUpQueueSyncAdapter } from "./follow-up-queue-sync";
 
 const toUiMessage = (message: ChatMessage): UIMessage =>
   Chat.messages.fromProtocolMessage({
@@ -101,23 +102,31 @@ export const ChatRuntimeProvider = ({
   children: ReactNode;
 }) => {
   const settings = useSettings((state) => state.settings);
-  const { notes } = useNotes();
-  const settingsRef = useRef(settings);
-  const notesRef = useRef(notes);
+  const queryClient = useQueryClient();
   const configRef = useRef(config);
   const onSessionCreatedRef = useRef(onSessionCreated);
   const onHistoryChangedRef = useRef(onHistoryChanged);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
 
-  settingsRef.current = settings;
-  notesRef.current = notes;
-  configRef.current = config;
-  onSessionCreatedRef.current = onSessionCreated;
-  onHistoryChangedRef.current = onHistoryChanged;
-
   const persistence = useMemo(() => createHealthFitConversationClient(), []);
-  const queueSyncAdapter = useMemo(() => createFollowUpQueueSyncAdapter(), []);
+  const queueSyncAdapter = useMemo(
+    () =>
+      createBrowserFollowUpQueueSyncAdapter({
+        storage: window.localStorage,
+        createId: () => crypto.randomUUID(),
+        createChannel:
+          typeof BroadcastChannel === "undefined"
+            ? undefined
+            : (name) => new BroadcastChannel(name),
+        subscribeStorage: (listener) => {
+          const onStorage = (event: StorageEvent) => listener(event);
+          window.addEventListener("storage", onStorage);
+          return () => window.removeEventListener("storage", onStorage);
+        },
+      }),
+    [],
+  );
   const runtime = useMemo(
     () =>
       createChatRuntime({
@@ -125,13 +134,15 @@ export const ChatRuntimeProvider = ({
           baseUrl: "/api",
           fetch: window.fetch.bind(window),
           createConversation,
-          streamDecoder: healthFitChatStreamDecoder,
+          streamDecoder: aiSdkChatStreamDecoder,
           errorDecoder: decodeTransportError,
           messageEncoder: ({ messages }) => toUiMessages({ messages: messages.slice(-1) }),
           requestBody: ({ settings: coreSettings }) => {
-            const currentSettings = settingsRef.current;
+            const currentSettings = useSettings.getState().settings;
             const currentConfig = configRef.current;
-            const notesContext = buildNotesContext(notesRef.current);
+            const notesContext = buildNotesContext(
+              queryClient.getQueryData<Note[]>(queryKeys.notes.list({ search: "" })) ?? [],
+            );
             return {
               system:
                 notesContext === ""
@@ -163,8 +174,8 @@ export const ChatRuntimeProvider = ({
               conversationId,
               message,
               temporary,
-              apiKey: settingsRef.current.apiKey,
-              baseUrl: settingsRef.current.baseUrl,
+              apiKey: useSettings.getState().settings.apiKey,
+              baseUrl: useSettings.getState().settings.baseUrl,
               model: configRef.current.model,
             }),
         },
@@ -198,11 +209,11 @@ export const ChatRuntimeProvider = ({
         },
         settings: {
           defaults: {
-            provider: settingsRef.current.provider,
-            apiKey: settingsRef.current.apiKey,
-            baseUrl: settingsRef.current.baseUrl,
+            provider: useSettings.getState().settings.provider,
+            apiKey: useSettings.getState().settings.apiKey,
+            baseUrl: useSettings.getState().settings.baseUrl,
             model: configRef.current.model,
-            systemPrompt: settingsRef.current.systemPrompt,
+            systemPrompt: useSettings.getState().settings.systemPrompt,
             titleModel: configRef.current.model,
             titlePrompt: "",
             memoryEnabled: true,
@@ -223,7 +234,10 @@ export const ChatRuntimeProvider = ({
   );
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    configRef.current = config;
+    onSessionCreatedRef.current = onSessionCreated;
+    onHistoryChangedRef.current = onHistoryChanged;
     runtime.actions.updateSettings({
       patch: {
         provider: settings.provider,

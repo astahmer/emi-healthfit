@@ -2,7 +2,7 @@ import { createUIMessageStreamResponse, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
-import { healthFitChatStreamDecoder } from "./healthfit-chat-stream-adapter";
+import { aiSdkChatStreamDecoder } from "../../src/adapters/ai-sdk.export.ts";
 
 const createResponse = (chunks: ReadonlyArray<UIMessageChunk>): Response =>
   createUIMessageStreamResponse({
@@ -18,11 +18,11 @@ const decode = ({
   response,
   isCurrent = () => true,
 }: {
-  response: Response;
-  isCurrent?: () => boolean;
+  readonly response: Response;
+  readonly isCurrent?: () => boolean;
 }) => {
   const messages: unknown[] = [];
-  const effect = healthFitChatStreamDecoder({
+  const effect = aiSdkChatStreamDecoder({
     response,
     now: () => "2026-01-01T00:00:00.000Z",
     createId: () => "generated-assistant",
@@ -33,8 +33,8 @@ const decode = ({
   return { effect, messages };
 };
 
-describe("healthFitChatStreamDecoder", () => {
-  it("decodes AI SDK UI chunks into protocol message snapshots", async () => {
+describe("AI SDK chat stream decoder", () => {
+  it("decodes UI message chunks into protocol messages", async () => {
     const { effect, messages } = decode({
       response: createResponse([
         { type: "start", messageId: "assistant-1" },
@@ -56,7 +56,7 @@ describe("healthFitChatStreamDecoder", () => {
     expect(messages.at(-1)).toEqual(latest);
   });
 
-  it("fails when the response does not contain a body", async () => {
+  it("fails when the response does not contain a stream body", async () => {
     const { effect } = decode({ response: new Response(null) });
 
     await expect(Effect.runPromise(effect)).rejects.toThrow(
@@ -64,7 +64,7 @@ describe("healthFitChatStreamDecoder", () => {
     );
   });
 
-  it("stops consuming once the transport supersedes the operation", async () => {
+  it("stops consuming a superseded stream", async () => {
     const { effect, messages } = decode({
       response: createResponse([
         { type: "start", messageId: "assistant-1" },

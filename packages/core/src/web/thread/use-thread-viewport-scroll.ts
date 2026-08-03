@@ -1,5 +1,17 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createActor } from "xstate";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { ChatThreadScroll } from "./chat-thread-scroll.ts";
+import {
+  threadViewportActor,
+  threadViewportNeedsInitialPosition,
+} from "./thread-viewport-actor.ts";
 
 const NEAR_BOTTOM_PX = 160;
 const PREV_USER_MARGIN_PX = 24;
@@ -48,71 +60,82 @@ export const useThreadViewportScroll = ({
   userMessageIds?: readonly string[];
 }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const positionedForSessionRef = useRef<string | null>(null);
-  const userMessageIdsRef = useRef(userMessageIds);
   const userMessageIdsKey = userMessageIds.join("\0");
-  const [isAwayFromTop, setIsAwayFromTop] = useState(false);
-  const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
-  const [canScrollToPreviousUserMessage, setCanScrollToPreviousUserMessage] = useState(false);
-
   const sessionKey = sessionId ?? "new";
+  const actor = useMemo(
+    () => createActor(threadViewportActor, { input: { sessionKey, messageCount } }),
+    [],
+  );
+  const subscribeToActor = useCallback(
+    (listener: () => void) => {
+      const subscription = actor.subscribe(listener);
+      return () => subscription.unsubscribe();
+    },
+    [actor],
+  );
+  const snapshot = useSyncExternalStore(subscribeToActor, actor.getSnapshot, actor.getSnapshot);
+
+  useEffect(() => {
+    actor.start();
+    return () => {
+      actor.stop();
+    };
+  }, [actor]);
 
   useLayoutEffect(() => {
-    userMessageIdsRef.current = userMessageIds;
-  }, [userMessageIds]);
+    actor.send({ type: "route-synced", sessionKey, messageCount });
+  }, [actor, messageCount, sessionKey]);
 
-  const updateScrollFlags = useCallback(() => {
+  const measureViewport = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    actor.send({
+      type: "viewport-measured",
+      scrollTop: viewport.scrollTop,
+      scrollHeight: viewport.scrollHeight,
+      clientHeight: viewport.clientHeight,
+      canScrollToPreviousUserMessage:
+        ThreadViewportScroll.findPreviousUserMessageId({
+          viewport,
+          messageIds: userMessageIds,
+        }) !== undefined,
+    });
+  }, [actor, userMessageIds]);
+
+  useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (viewport === null) return;
 
-    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    setIsAwayFromTop(viewport.scrollTop > 24);
-    setIsAwayFromBottom(distanceFromBottom > NEAR_BOTTOM_PX);
-    setCanScrollToPreviousUserMessage(
-      ThreadViewportScroll.findPreviousUserMessageId({
-        viewport,
-        messageIds: userMessageIdsRef.current,
-      }) !== undefined,
-    );
-  }, []);
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) return;
-
-    const needsInitialPosition = positionedForSessionRef.current !== sessionKey;
-    if (needsInitialPosition) {
+    if (threadViewportNeedsInitialPosition(actor.getSnapshot().context)) {
       if (messageCount === 0) {
         viewport.scrollTop = 0;
-        setIsAwayFromTop(false);
-        setIsAwayFromBottom(false);
-        setCanScrollToPreviousUserMessage(false);
+        actor.send({ type: "empty-viewport-positioned" });
         return;
       }
 
       const restoredScrollY = ChatThreadScroll.readScrollY({ sessionId });
       viewport.scrollTop = restoredScrollY === undefined ? viewport.scrollHeight : restoredScrollY;
-      positionedForSessionRef.current = sessionKey;
+      actor.send({ type: "position-applied" });
     } else if (messageCount > 0) {
       const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
       if (distanceFromBottom < NEAR_BOTTOM_PX) viewport.scrollTop = viewport.scrollHeight;
     }
 
-    updateScrollFlags();
-  }, [messageCount, sessionId, sessionKey, updateScrollFlags]);
+    measureViewport();
+  }, [actor, measureViewport, messageCount, sessionId]);
 
   useLayoutEffect(() => {
-    updateScrollFlags();
-  }, [userMessageIdsKey, updateScrollFlags]);
+    measureViewport();
+  }, [measureViewport, userMessageIdsKey]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (viewport === null) return;
 
-    const onScroll = () => updateScrollFlags();
+    const onScroll = () => measureViewport();
     viewport.addEventListener("scroll", onScroll, { passive: true });
     return () => viewport.removeEventListener("scroll", onScroll);
-  }, [sessionKey, updateScrollFlags]);
+  }, [measureViewport, sessionKey]);
 
   const scrollToTop = () => viewportRef.current?.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -127,7 +150,7 @@ export const useThreadViewportScroll = ({
     if (viewport === null) return;
     const messageId = ThreadViewportScroll.findPreviousUserMessageId({
       viewport,
-      messageIds: userMessageIdsRef.current,
+      messageIds: userMessageIds,
     });
     if (messageId === undefined) return;
     ThreadViewportScroll.scrollToMessage({ messageId });
@@ -135,9 +158,9 @@ export const useThreadViewportScroll = ({
 
   return {
     viewportRef,
-    isAwayFromTop,
-    isAwayFromBottom,
-    canScrollToPreviousUserMessage,
+    isAwayFromTop: snapshot.context.isAwayFromTop,
+    isAwayFromBottom: snapshot.context.isAwayFromBottom,
+    canScrollToPreviousUserMessage: snapshot.context.canScrollToPreviousUserMessage,
     scrollToTop,
     scrollToBottom,
     scrollToMessage: ThreadViewportScroll.scrollToMessage,
