@@ -37,6 +37,29 @@ describe("conversation client response boundaries", () => {
     });
   });
 
+  it("encodes dynamic resource identifiers in request paths", async () => {
+    let requestUrl = "";
+    const client = createConversationClient({
+      apiOrigin: "https://chat.example/",
+      fetch: async (input) => {
+        requestUrl = String(input);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await client.reviseConversationMessage({
+      conversationId: "conversation/1",
+      messageId: "message 1",
+      parts: [{ type: "text", text: "Revised" }],
+    });
+
+    expect(requestUrl).toBe(
+      "https://chat.example/api/conversations/conversation%2F1/messages/message%201",
+    );
+  });
+
   it("decodes provider-neutral suggestions from the suggestions endpoint", async () => {
     const client = createConversationClient({
       apiOrigin: "https://chat.example/",

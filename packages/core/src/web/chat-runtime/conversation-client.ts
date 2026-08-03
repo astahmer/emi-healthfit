@@ -87,6 +87,8 @@ const htmlResponseError =
 const invalidJsonResponseError =
   "API endpoint returned invalid JSON. Check the Vite proxy and VITE_API_ORIGIN.";
 
+const pathSegment = (value: string): string => encodeURIComponent(value);
+
 const decodeMessages = async (
   values: ReadonlyArray<typeof ConversationMessageSchema.Type>,
 ): Promise<ChatMessage[]> => {
@@ -206,7 +208,7 @@ export const createConversationClient = ({
   }: {
     conversationId: string;
   }): Promise<{ conversation: Conversation; messages: ChatMessage[] }> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}`));
+    const response = await fetch(apiUrl(`/api/conversations/${pathSegment(conversationId)}`));
     const payload = await readResponse({ response });
     const decoded = Schema.decodeUnknownSync(ConversationDetailSchema)(payload);
     const messages = await decodeMessages(decoded.messages);
@@ -220,7 +222,7 @@ export const createConversationClient = ({
     conversationId: string;
     patch: { title?: string; status?: "regular" | "archived"; pinned?: boolean };
   }): Promise<Conversation> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}`), {
+    const response = await fetch(apiUrl(`/api/conversations/${pathSegment(conversationId)}`), {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
@@ -242,7 +244,9 @@ export const createConversationClient = ({
     threadId?: string;
   }): Promise<void> => {
     const response = await fetch(
-      apiUrl(`/api/conversations/${conversationId}/messages/${messageId}`),
+      apiUrl(
+        `/api/conversations/${pathSegment(conversationId)}/messages/${pathSegment(messageId)}`,
+      ),
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -261,7 +265,7 @@ export const createConversationClient = ({
   }: {
     conversationId: string;
   }): Promise<void> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}`), {
+    const response = await fetch(apiUrl(`/api/conversations/${pathSegment(conversationId)}`), {
       method: "DELETE",
     });
     const payload = await readResponse({ response });
@@ -273,9 +277,12 @@ export const createConversationClient = ({
   }: {
     conversationId: string;
   }): Promise<Conversation> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}/clone`), {
-      method: "POST",
-    });
+    const response = await fetch(
+      apiUrl(`/api/conversations/${pathSegment(conversationId)}/clone`),
+      {
+        method: "POST",
+      },
+    );
     const payload = await readResponse({ response });
     const decoded = Schema.decodeUnknownSync(ConversationResponseSchema)(payload);
     return decoded.conversation;
@@ -288,11 +295,14 @@ export const createConversationClient = ({
     conversationId: string;
     config: { provider: string; apiKey: string; baseUrl?: string; model: string };
   }): Promise<Conversation> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}/compact`), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ config }),
-    });
+    const response = await fetch(
+      apiUrl(`/api/conversations/${pathSegment(conversationId)}/compact`),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ config }),
+      },
+    );
     const payload = await readResponse({ response });
     return Schema.decodeUnknownSync(ConversationResponseSchema)(payload).conversation;
   };
@@ -332,7 +342,9 @@ export const createConversationClient = ({
   };
 
   const deleteMemory = async ({ memoryId }: { memoryId: string }): Promise<void> => {
-    const response = await fetch(apiUrl(`/api/memories/${memoryId}`), { method: "DELETE" });
+    const response = await fetch(apiUrl(`/api/memories/${pathSegment(memoryId)}`), {
+      method: "DELETE",
+    });
     const payload = await readResponse({ response });
     Schema.decodeUnknownSync(DeletedResponseSchema)(payload);
   };
@@ -352,7 +364,9 @@ export const createConversationClient = ({
   }: {
     conversationId: string;
   }): Promise<ConversationThread[]> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}/threads`));
+    const response = await fetch(
+      apiUrl(`/api/conversations/${pathSegment(conversationId)}/threads`),
+    );
     const payload = await readResponse({ response });
     return [...Schema.decodeUnknownSync(ThreadListSchema)(payload).threads];
   };
@@ -364,11 +378,14 @@ export const createConversationClient = ({
     conversationId: string;
     anchorMessageId: string;
   }): Promise<ConversationThread> => {
-    const response = await fetch(apiUrl(`/api/conversations/${conversationId}/threads`), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ anchorMessageId }),
-    });
+    const response = await fetch(
+      apiUrl(`/api/conversations/${pathSegment(conversationId)}/threads`),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ anchorMessageId }),
+      },
+    );
     const payload = await readResponse({ response });
     return Schema.decodeUnknownSync(Schema.Struct({ thread: ThreadSchema }))(payload).thread;
   };
@@ -381,7 +398,7 @@ export const createConversationClient = ({
     threadId: string;
   }): Promise<{ thread: ConversationThread; messages: ChatMessage[] }> => {
     const response = await fetch(
-      apiUrl(`/api/conversations/${conversationId}/threads/${threadId}`),
+      apiUrl(`/api/conversations/${pathSegment(conversationId)}/threads/${pathSegment(threadId)}`),
     );
     const payload = await readResponse({ response });
     const decoded = Schema.decodeUnknownSync(ThreadDetailSchema)(payload);
