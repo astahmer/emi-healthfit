@@ -38,6 +38,35 @@ test("shows and edits the merged memory summary alongside source memories", asyn
   await expect(page.getByLabel("Memory summary")).toHaveValue(
     "The user prefers edited worker answers.",
   );
+
+  const savedMemory = "The user likes acceptance-tested chat flows.";
+  await page.getByPlaceholder("Save a detail for future chats").fill(savedMemory);
+  await page.getByRole("button", { name: "Save memory", exact: true }).click();
+  await expect(page.getByText(savedMemory, { exact: true })).toBeVisible();
+  await page
+    .getByText(savedMemory, { exact: true })
+    .locator("..")
+    .getByRole("button", { name: "Delete", exact: true })
+    .click();
+  await expect(page.getByText(savedMemory, { exact: true })).toHaveCount(0);
+});
+
+test("validates settings and attachments before a request", async ({ page }) => {
+  const api = await openGenericChat(page);
+
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Missing key");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.getByText("Add an API key in settings before sending a message.", { exact: true }),
+  ).toBeVisible();
+  expect(api.chatCalls()).toBe(0);
+
+  await page.getByLabel("Add attachments").setInputFiles({
+    name: "too-large.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
+  });
+  await expect(page.getByText("too-large.txt is larger than 5 MB.", { exact: true })).toBeVisible();
 });
 
 test("sends a protocol message through the actor runtime and renders the stream", async ({
@@ -133,10 +162,9 @@ test("supports queue, force-send, and branch/minimap controls", async ({ page })
   await page.getByRole("textbox", { name: "Message", exact: true }).fill("Queued question");
   await page.getByRole("button", { name: "Queue", exact: true }).click();
   await expect(page.getByText("Queued question", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Force send", exact: true }).click();
   api.releaseStream();
   await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
-
-  await page.getByRole("button", { name: "Force send", exact: true }).click();
   await expect(
     page.getByTestId("messages").getByText("Queued question", { exact: true }),
   ).toBeVisible();
@@ -159,6 +187,70 @@ test("keeps temporary conversations out of durable history", async ({ page }) =>
   await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Conversation history").locator("article")).toHaveCount(0);
   expect(api.conversations).toHaveLength(0);
+});
+
+test("supports durable conversation actions and search", async ({ page }) => {
+  const api = await openGenericChat(page);
+
+  await page.getByLabel("API key").fill("sk-test");
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Action question");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
+
+  const history = page.getByRole("region", { name: "Conversation history" });
+  const conversation = history.locator("article").first();
+  await conversation.getByRole("button", { name: "Pin conversation", exact: true }).click();
+  await expect(
+    conversation.getByRole("button", { name: "Unpin conversation", exact: true }),
+  ).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept("Action renamed"));
+  await conversation.getByRole("button", { name: "Rename conversation", exact: true }).click();
+  await expect(history.getByRole("button", { name: "Action renamed", exact: true })).toBeVisible();
+
+  await conversation.getByRole("button", { name: "Clone conversation", exact: true }).click();
+  await expect(history.locator("article")).toHaveCount(2);
+  await conversation.getByRole("button", { name: "Compact conversation", exact: true }).click();
+  await expect(history.locator("article")).toHaveCount(3);
+  expect(api.compactCalls()).toBe(1);
+
+  await conversation.getByRole("button", { name: "Archive conversation", exact: true }).click();
+  await expect(
+    conversation.getByRole("button", { name: "Restore conversation", exact: true }),
+  ).toBeVisible();
+  await conversation.getByRole("button", { name: "Restore conversation", exact: true }).click();
+  await expect(
+    conversation.getByRole("button", { name: "Archive conversation", exact: true }),
+  ).toBeVisible();
+
+  await page.getByPlaceholder("Search chats").fill("Action renamed (compacted)");
+  await expect(history.locator("article")).toHaveCount(1);
+  await page.getByPlaceholder("Search chats").fill("");
+  await expect(history.locator("article")).toHaveCount(3);
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await conversation.getByRole("button", { name: "Delete conversation", exact: true }).click();
+  await expect(history.locator("article")).toHaveCount(2);
+});
+
+test("keeps drafts available across an offline transition", async ({ page }) => {
+  await openGenericChat(page);
+
+  await page.evaluate(() => {
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+    window.dispatchEvent(new Event("offline"));
+  });
+  await expect(page.getByText("Offline · draft saved locally", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Offline draft");
+  await expect(page.getByRole("textbox", { name: "Message", exact: true })).toHaveValue(
+    "Offline draft",
+  );
+
+  await page.evaluate(() => {
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+  });
+  await expect(page.getByText("Online", { exact: true })).toBeVisible();
 });
 
 test("exposes conversation copy, download, and share controls", async ({ page }) => {

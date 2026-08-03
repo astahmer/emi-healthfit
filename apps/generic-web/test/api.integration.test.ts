@@ -109,6 +109,20 @@ const hasPersistedProviderReply = async ({
   return hasPersistedProviderReply({ origin, attempts: attempts - 1, conversationId, cookie });
 };
 
+const retryAfterGenerationConflict = async ({
+  attempts,
+  request,
+}: {
+  attempts: number;
+  request: () => Promise<Response>;
+}): Promise<Response> => {
+  const response = await request();
+  if (response.status !== 409 || attempts <= 1) return response;
+  await response.arrayBuffer();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  return retryAfterGenerationConflict({ attempts: attempts - 1, request });
+};
+
 describe("generic web and worker local API topology", () => {
   it("fetches health and structured conversation auth errors through the Vite path", async () => {
     const healthResponse = await fetch(`${apiOrigin}/api/health`);
@@ -380,38 +394,39 @@ describe("generic web and worker local API topology", () => {
         }),
       ).toBe(true);
 
-      const conversationResponse = await authenticated(`/api/conversations/${conversationId}`);
-      const conversation = Schema.decodeUnknownSync(
-        Schema.Struct({ messages: Schema.Array(Schema.Struct({ id: Schema.String })) }),
-      )(await conversationResponse.json());
-      const anchorMessageId = conversation.messages.at(-1)?.id;
-      expect(anchorMessageId).toBeTruthy();
-
-      const revisionResponse = await authenticated("/api/chat", {
-        body: JSON.stringify({
-          config: {
-            apiKey: "generic-provider-key",
-            baseUrl: provider.baseUrl,
-            model: "test-model",
-            provider: "openai",
-          },
-          memory: { enabled: false },
-          messages: [
-            {
-              id: `${runId}-generic-user-message`,
-              createdAt: "2026-08-02T00:00:00.000Z",
-              parts: [{ text: "Revised generic Worker question", type: "text" }],
-              role: "user",
+      const revisionRequestId = crypto.randomUUID();
+      const revisionRequest = () =>
+        authenticated("/api/chat", {
+          body: JSON.stringify({
+            config: {
+              apiKey: "generic-provider-key",
+              baseUrl: provider.baseUrl,
+              model: "test-model",
+              provider: "openai",
             },
-          ],
-          replaceMessageId: `${runId}-generic-user-message`,
-          sessionId: conversationId,
-        }),
-        headers: { "content-type": "application/json", cookie: cookie ?? "" },
-        method: "POST",
+            memory: { enabled: false },
+            messages: [
+              {
+                id: `${runId}-generic-user-message`,
+                createdAt: "2026-08-02T00:00:00.000Z",
+                parts: [{ text: "Revised generic Worker question", type: "text" }],
+                role: "user",
+              },
+            ],
+            replaceMessageId: `${runId}-generic-user-message`,
+            requestId: revisionRequestId,
+            sessionId: conversationId,
+          }),
+          headers: { "content-type": "application/json", cookie: cookie ?? "" },
+          method: "POST",
+        });
+      const revisionResponse = await retryAfterGenerationConflict({
+        attempts: 20,
+        request: revisionRequest,
       });
-      expect(revisionResponse.status).toBe(200);
-      expect(await revisionResponse.text()).toContain("generic provider reply");
+      const revisionResponseBody = await revisionResponse.text();
+      expect(revisionResponse.status, revisionResponseBody).toBe(200);
+      expect(revisionResponseBody).toContain("generic provider reply");
       const revisedConversationResponse = await authenticated(
         `/api/conversations/${conversationId}`,
       );
@@ -420,6 +435,8 @@ describe("generic web and worker local API topology", () => {
           messages: Schema.Array(Schema.Struct({ id: Schema.String, parts: Schema.String })),
         }),
       )(await revisedConversationResponse.json());
+      const anchorMessageId = revisedConversation.messages.at(-1)?.id;
+      expect(anchorMessageId).toBeTruthy();
       expect(
         revisedConversation.messages.some((message) =>
           message.parts.includes("Revised generic Worker question"),
