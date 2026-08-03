@@ -112,7 +112,7 @@ to pass.
 | `@emi/core/web` | Generic browser views, contributions, attachment policy, thread presentation | Raw actors, HealthFit UI, platform state |
 | `@emi/core/styles.css` | Design tokens, structure, states, and theme variables | App-specific pages and data visualizations |
 | `@emi/core/server` | Generic ports, use cases, auth interfaces, persistence-independent composition | D1/Drizzle row types in the primary entry |
-| `@emi/core/server/database` | Advanced SQL schemas, persistence domains, generation replay | Generic server contracts and common consumers |
+| `@emi/core/server/database` | Advanced SQL schemas, persistence domains, and AI SDK generation replay | Generic server contracts, common consumers, and provider-neutral replay |
 | `@emi/core/server/effect` | Effect-native services, layers, and use-case access | React-only concerns and provider message types |
 | `@emi/core/server/fetch` | `Request`/`Response` handlers over server composition | Platform-specific bindings |
 | `@emi/core/adapters/ai-sdk` | AI SDK/provider bridge to the core protocol | AI SDK types in protocol or runtime core |
@@ -147,6 +147,11 @@ type MessagePart =
 Provider adapters translate AI SDK, OpenAI-compatible, Anthropic, or custom provider values at
 the edge. The protocol must not contain `UIMessage`, `FileUIPart`, `OpenAiClientConfig`, HealthFit
 types, or database rows.
+
+The advanced `@emi/core/server/database` generation replay currently stores AI SDK message chunks
+as an explicit transport contract. That surface is not part of the provider-neutral protocol or
+the common consumer path. A future portable replay requirement would introduce a new versioned
+generation-event format and migration; it must not silently reinterpret existing rows.
 
 Every boundary has a named runtime schema and mapper:
 
@@ -197,6 +202,12 @@ Server composition separates typed use cases, repository ports, provider/model p
 translation, authentication/request context, and platform bindings. Generation admission occurs
 before durable user-turn persistence; a losing concurrent request returns a structured conflict
 without an orphan message. External values pass through schemas and explicit mappers.
+
+`ChatServerEffect.Live` is the generic reference/starter composition for generated and fixture
+consumers. The HealthFit production lifecycle remains composed in
+[`apps/api/src/core/routes`](../apps/api/src/core/routes) until the active platform plan moves
+that lifecycle into a real generic composition. These are intentionally different scopes, not two
+claims of production parity.
 
 Effect `Context.Service` and `Layer` own dependency-bearing contracts. Effect `Stream` is the
 default incremental boundary for readable streams and async iterables, preserving cancellation,

@@ -4,10 +4,11 @@
 
 The current `@emi/core` contract and audit are shipped documentation:
 [core-api.md](../docs/core-api.md) and [core-audit.md](../docs/core-audit.md).
+The maintainability audit disposition is recorded in [core-audit.md](../docs/core-audit.md); no
+separate maintainability follow-up plan remains.
 
 | Plan                                                                  | Status             | Role                                                                                         |
 | --------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
-| [Core maintainability audit](./core-maintainability-audit.md)         | REFERENCE / FOLLOW-UP | Whole-codebase findings, Effect follow-ups, and unresolved architecture questions.                 |
 | [Core chat solutions comparison](./core-chat-solutions-comparison.md) | REFERENCE / FUTURE | Comparable chat products, capability gaps, and recommended future boundaries.                         |
 | [Core chat platform](./core-chat-platform.md)                         | ACTIVE             | Broader generic chat product, generated-app, and deployment migration.                                |
 
