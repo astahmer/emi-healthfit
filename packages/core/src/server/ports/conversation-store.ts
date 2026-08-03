@@ -3,6 +3,7 @@ import type * as Effect from "effect/Effect";
 import type {
   Conversation,
   ConversationCloneError,
+  ConversationMessageSearchResult,
   Message,
   MessageUsage,
   Thread,
@@ -59,6 +60,11 @@ export interface ConversationReaderShape<TEnvironment = never> {
     conversationId: string,
   ) => DatabaseEffect<Conversation | null, never, TEnvironment>;
   readonly list: (search?: string) => DatabaseEffect<Conversation[], never, TEnvironment>;
+  readonly searchMessages: (input: {
+    readonly query: string;
+    readonly excludeConversationId?: string;
+    readonly limit?: number;
+  }) => DatabaseEffect<ReadonlyArray<ConversationMessageSearchResult>, never, TEnvironment>;
 }
 
 export interface ConversationWriterShape<TEnvironment = never> {

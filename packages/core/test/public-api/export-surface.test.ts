@@ -50,7 +50,12 @@ describe("@emi/core target export surface", () => {
       "ThreadViewport",
     ]);
     assert.deepEqual(sortedKeys(styled), ["ChatApp", "ChatShell"]);
-    assert.deepEqual(sortedKeys(server), ["ChatServer", "ChatServerError"]);
+    assert.deepEqual(sortedKeys(server), [
+      "ChatServer",
+      "ChatServerError",
+      "ConversationSearchTool",
+      "ConversationSearchToolError",
+    ]);
     assert.deepEqual(sortedKeys(serverDatabase), ["ServerDatabase"]);
     assert.deepEqual(sortedKeys(serverEffect), ["ChatServerEffect"]);
     assert.deepEqual(sortedKeys(serverFetch), ["ChatFetchHandlers"]);

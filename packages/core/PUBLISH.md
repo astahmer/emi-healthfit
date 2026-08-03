@@ -133,7 +133,9 @@ locks when the consumer owns the stream.
 
 `@emi/core/server` is the curated generic server entry. `ChatServer` is an instance-owned domain
 use case: it receives authentication, repository, model, configuration, and extension ports, then
-returns typed `Effect` programs for listing and generating. Generation input is decoded with the
+returns typed `Effect` programs for listing and generating. `ConversationSearchTool` is the
+provider-neutral, ownership-scoped tool for searching message content in previous conversations;
+generic route adapters and flavor packages can wire it to their conversation reader. Generation input is decoded with the
 protocol schemas before authentication or persistence; admission runs before user-message
 persistence; every emitted generation event is persisted through the generation port; and response
 conversations are encoded through the protocol DTO mapper.

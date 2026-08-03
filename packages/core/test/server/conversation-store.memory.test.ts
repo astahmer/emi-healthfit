@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
+import { ConversationSearchTool } from "../../src/server/conversation-search-tool.ts";
 import { ConversationStoreLive } from "../../src/server/make-conversation-store.ts";
 import { ConversationDatabase } from "../../src/server/db/conversations.ts";
 import {
@@ -115,6 +116,14 @@ describe("makeConversationStore", () => {
     const alice = await makeStore("user-alice");
     const bob = await makeStore("user-bob");
 
+    const previousConversationId = await run(alice.conversationWriter.create("Earlier chat"));
+    const [previousMessageId] = await run(
+      alice.messageStore.saveMessages({
+        conversationId: previousConversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "My old preference" }] }],
+      }),
+    );
     const conversationId = await run(alice.conversationWriter.create("Alice chat"));
     assert.ok(conversationId);
 
@@ -135,6 +144,27 @@ describe("makeConversationStore", () => {
     assert.ok(messageId);
     assert.strictEqual((await run(alice.messageStore.getMessages(conversationId))).length, 1);
     assert.strictEqual((await run(bob.messageStore.getMessages(conversationId))).length, 0);
+
+    assert.deepStrictEqual(
+      await run(
+        ConversationSearchTool.execute({
+          searchMessages: alice.conversationReader.searchMessages,
+          args: { query: "old preference" },
+          excludeConversationId: conversationId,
+        }),
+      ),
+      {
+        results: [
+          {
+            conversation_id: previousConversationId,
+            conversation_title: "Earlier chat",
+            message_id: previousMessageId,
+            message_role: "user",
+            parts: [{ type: "text", text: "My old preference" }],
+          },
+        ],
+      },
+    );
 
     const threadId = await run(
       alice.threadStore.createThread({

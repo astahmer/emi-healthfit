@@ -12,6 +12,7 @@ import { CurrentUser } from "../server/auth/principal.ts";
 import { ConversationDatabase } from "../server/db/conversations.ts";
 import { GenerationDatabase } from "../server/db/generations.ts";
 import { MemoryDatabase } from "../server/db/memories.ts";
+import { ConversationSearchTool } from "../server/conversation-search-tool.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { GenerationStoreLive } from "../server/make-generation-store.ts";
@@ -209,13 +210,22 @@ export class ChatRouteStream {
             summary: memorySummary,
           }),
           configuration: providerConfiguration.value,
+          tools: {
+            [ConversationSearchTool.name]: ConversationSearchTool.definition,
+          },
           webSearch: decoded.value.webSearch,
         },
-        executeTool: () =>
+        executeTool: (name, args) =>
           Effect.runPromise(
-            Effect.fail(
-              new ChatRouteStreamError({ message: "No tools are configured for this chat." }),
-            ),
+            name === ConversationSearchTool.name
+              ? ConversationSearchTool.execute({
+                  searchMessages: conversationStore.conversationReader.searchMessages,
+                  args,
+                  excludeConversationId: temporary ? undefined : conversationId,
+                }).pipe(
+                  Effect.mapError((error) => new ChatRouteStreamError({ message: error.message })),
+                )
+              : Effect.fail(new ChatRouteStreamError({ message: `Unknown tool: ${name}` })),
           ),
         onFinish: (event) => {
           if (temporary) return;

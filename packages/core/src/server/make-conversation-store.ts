@@ -39,6 +39,15 @@ export class ConversationStoreLive {
             database
               .getConversations({ userId, search })
               .pipe(Effect.map((conversations) => [...conversations])),
+          searchMessages: ({ query, excludeConversationId, limit }) =>
+            database
+              .searchConversationMessages({
+                userId,
+                query,
+                excludeConversationId,
+                limit,
+              })
+              .pipe(Effect.map((results) => [...results])),
         },
         conversationWriter: {
           create: (title) => database.createConversation({ userId, title }),

@@ -15,6 +15,7 @@ import { ConversationDatabase } from "./server/db/conversations.ts";
 import type {
   Conversation as ConversationRecord,
   ConversationDatabaseShape as ConversationDatabaseShapeRecord,
+  ConversationMessageSearchResult as ConversationMessageSearchResultRecord,
   Message as MessageRecord,
   MessageUsage as MessageUsageRecord,
   Thread as ThreadRecord,
@@ -186,6 +187,7 @@ export namespace ServerDatabase {
   export type ConsumeDiscordLinkCodeResult = ConsumeDiscordLinkCodeRecord;
   export type Conversation = ConversationRecord;
   export type ConversationDatabaseShape = ConversationDatabaseShapeRecord;
+  export type ConversationMessageSearchResult = ConversationMessageSearchResultRecord;
   export type ConversationDatabaseSchema = ConversationDatabaseSchemaRecord;
   export type ConversationRow = ConversationRowRecord;
   export type ConversationReaderShape<TEnvironment = never> =

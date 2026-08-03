@@ -7,6 +7,7 @@ import * as Stream from "effect/Stream";
 import * as Tool from "effect/unstable/ai/Tool";
 import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
+import { ConversationSearchTool } from "@emi/core/server";
 import { ServerDatabase } from "@emi/core/server/database";
 import { buildChatContext } from "../chat/context.ts";
 import {
@@ -197,6 +198,13 @@ const SearchMemories = Tool.make("search_memories", {
       }),
     ),
   }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const SearchConversations = Tool.make("search_conversations", {
+  description: ConversationSearchTool.description,
+  parameters: ConversationSearchTool.input,
   success: Schema.Unknown,
   failure: Schema.Unknown,
 });
@@ -428,6 +436,7 @@ const FitnessToolkit = Toolkit.make(
   GetGoalProgress,
   GetNextWorkout,
   SearchMemories,
+  SearchConversations,
   GetThreads,
   ReadThread,
   ReadMessage,
@@ -597,6 +606,19 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
           options: { limit: limit ?? 10 },
         })
         .pipe(Effect.map((results) => ({ results }))),
+    ),
+    search_conversations: Effect.fn("FitnessToolkit.searchConversations")((args) =>
+      ConversationSearchTool.execute({
+        searchMessages: ({ query, excludeConversationId, limit }) =>
+          conversationDatabase.searchConversationMessages({
+            userId,
+            query,
+            excludeConversationId,
+            limit,
+          }),
+        args,
+        excludeConversationId: threadTools.conversationId,
+      }),
     ),
     get_threads: Effect.fn("FitnessToolkit.getThreads")(function* () {
       const conversationId = yield* requireConversationId({ tool: "get_threads" });

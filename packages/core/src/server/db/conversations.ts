@@ -99,6 +99,11 @@ export interface Message {
   created_at: string;
 }
 
+export interface ConversationMessageSearchResult {
+  conversation: Conversation;
+  message: Message;
+}
+
 export interface SuggestionRecord {
   id: string;
   suggestions: string;
@@ -215,6 +220,85 @@ const getConversations = <TEnvironment>(
         .execute(),
     );
     return result.map(mapConversationRow);
+  });
+
+const searchConversationMessages = <TEnvironment>(
+  db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
+  userId: string,
+  query: string,
+  excludeConversationId?: string,
+  limit = 10,
+) =>
+  Effect.gen(function* () {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery === "") return [];
+
+    const kysely = yield* db.kysely;
+    const term = `%${normalizedQuery}%`;
+    const searchQuery = kysely
+      .selectFrom("conversations as c")
+      .innerJoin("messages as m", (join) =>
+        join.onRef("m.user_id", "=", "c.user_id").onRef("m.conversation_id", "=", "c.id"),
+      )
+      .select([
+        "c.id as conversation_id",
+        "c.title as conversation_title",
+        "c.status as conversation_status",
+        "c.pinned as conversation_pinned",
+        "c.created_at as conversation_created_at",
+        "c.updated_at as conversation_updated_at",
+        "m.id as message_id",
+        "m.parent_id as message_parent_id",
+        "m.role as message_role",
+        "m.parts as message_parts",
+        "m.prompt_tokens as message_prompt_tokens",
+        "m.completion_tokens as message_completion_tokens",
+        "m.total_tokens as message_total_tokens",
+        "m.model as message_model",
+        "m.created_at as message_created_at",
+      ])
+      .where("c.user_id", "=", userId)
+      .where("c.status", "in", ["regular", "archived"])
+      .where("m.parts", "like", term);
+    const scopedSearchQuery =
+      excludeConversationId === undefined
+        ? searchQuery
+        : searchQuery.where("c.id", "<>", excludeConversationId);
+    const rows = yield* QueryDatabase.tryPromise(() =>
+      scopedSearchQuery
+        .orderBy((expressionBuilder) =>
+          expressionBuilder.case().when("c.status", "=", "archived").then(1).else(0).end(),
+        )
+        .orderBy("c.pinned", "desc")
+        .orderBy("m.created_at", "desc")
+        .limit(Math.min(Math.max(Math.trunc(limit), 1), 50))
+        .execute(),
+    );
+    return rows.map(
+      (row) =>
+        ({
+          conversation: mapConversationRow({
+            id: row.conversation_id,
+            title: row.conversation_title,
+            status: row.conversation_status,
+            pinned: row.conversation_pinned,
+            created_at: row.conversation_created_at,
+            updated_at: row.conversation_updated_at,
+          }),
+          message: {
+            id: row.message_id,
+            conversation_id: row.conversation_id,
+            parent_id: row.message_parent_id,
+            role: row.message_role,
+            parts: row.message_parts,
+            prompt_tokens: row.message_prompt_tokens,
+            completion_tokens: row.message_completion_tokens,
+            total_tokens: row.message_total_tokens,
+            model: row.message_model,
+            created_at: row.message_created_at,
+          },
+        }) satisfies ConversationMessageSearchResult,
+    );
   });
 
 const getConversation = <TEnvironment>(
@@ -960,6 +1044,12 @@ export interface ConversationDatabaseShape {
     readonly userId: string;
     readonly search?: string;
   }) => DatabaseEffect<ReadonlyArray<Conversation>>;
+  readonly searchConversationMessages: (input: {
+    readonly userId: string;
+    readonly query: string;
+    readonly excludeConversationId?: string;
+    readonly limit?: number;
+  }) => DatabaseEffect<ReadonlyArray<ConversationMessageSearchResult>>;
   readonly getMessage: (input: {
     readonly userId: string;
     readonly messageId: string;
@@ -1071,6 +1161,8 @@ export class ConversationDatabase extends Context.Service<
       getConversationMessages: ({ userId, conversationId }) =>
         getConversationMessages(db, userId, conversationId),
       getConversations: ({ userId, search }) => getConversations(db, userId, search),
+      searchConversationMessages: ({ userId, query, excludeConversationId, limit }) =>
+        searchConversationMessages(db, userId, query, excludeConversationId, limit),
       getMessage: ({ userId, messageId }) => getMessage(db, userId, messageId),
       getSuggestionsById: ({ userId, id }) => getSuggestionsById(db, userId, id),
       getThread: ({ userId, threadId }) => getThread(db, userId, threadId),

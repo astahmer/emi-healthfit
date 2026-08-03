@@ -2,7 +2,6 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { ServerDatabase } from "@emi/core/server/database";
 import { HealthFit, type HealthfitToolsDatabaseSchema } from "@emi/flavor-healthfit";
-import * as Effect from "effect/Effect";
 import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 
@@ -11,9 +10,8 @@ const { definitions: tools } = HealthFit.tools;
 describe("conversation thread tools", () => {
   it("searches previous owned conversations while excluding the current one", async () => {
     const { db: rawDb } = makeSqliteDatabase();
-    const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(
-      rawDb,
-    );
+    const conversationDb =
+      narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
     const toolsDb = narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(rawDb);
     const conversationDatabase = await makeConversationDatabase(conversationDb);
     const userId = "tool-user";
