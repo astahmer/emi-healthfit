@@ -45,7 +45,9 @@ import {
 } from "./resources.ts";
 import {
   GenerationEventSchema,
+  ModelCapabilitiesSchema,
   ModelConfigurationSchema,
+  ModelDescriptorSchema,
   ModelGenerationInputSchema,
   type ModelProviderError,
 } from "./model.ts";
@@ -80,7 +82,9 @@ const protocolSchemas = {
   messageUsage: MessageUsageSchema,
   generationEvent: GenerationEventSchema,
   errorResponseDto: ErrorResponseDtoSchema,
+  modelCapabilities: ModelCapabilitiesSchema,
   modelConfiguration: ModelConfigurationSchema,
+  modelDescriptor: ModelDescriptorSchema,
   modelGenerationInput: ModelGenerationInputSchema,
   transportError: TransportErrorSchema,
   modelProviderError: TransportErrorSchema,

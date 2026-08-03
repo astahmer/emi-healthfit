@@ -218,6 +218,28 @@ describe("@emi/core/protocol", () => {
   });
 
   it("decodes model configuration and structured error responses without provider types", async () => {
+    const modelDescriptor = {
+      id: "generic-model",
+      label: "Generic model",
+      description: "A provider-neutral model descriptor.",
+      provider: "generic-provider",
+      capabilities: {
+        streaming: true,
+        toolCalling: true,
+        imageInput: false,
+        fileInput: true,
+        structuredOutput: true,
+        webSearch: false,
+        voiceInput: false,
+        voiceOutput: false,
+      },
+      limits: { contextTokens: 128_000, maxOutputTokens: 4_096 },
+      pricing: { inputUsdPerMillion: 1, outputUsdPerMillion: 2 },
+    };
+    assert.deepEqual(
+      decode(ChatProtocol.schemas.modelDescriptor, modelDescriptor),
+      modelDescriptor,
+    );
     assert.deepEqual(
       decode(ChatProtocol.schemas.modelConfiguration, {
         model: "generic-model",

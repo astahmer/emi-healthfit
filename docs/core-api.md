@@ -98,28 +98,28 @@ transition.
 The catalog is curated. Internal files may move when the catalog and its contract tests continue
 to pass.
 
-| Subpath | Responsibility | Boundary it must not cross |
-| --- | --- | --- |
-| `@emi/core` | Minimal facade: `createChatRuntime` and core protocol types | Wildcard internals, product APIs, platform dependencies |
-| `@emi/core/protocol` | Messages, parts, commands, events, errors, IDs, schemas, extension contracts | React, actor internals, server services, database rows |
-| `@emi/core/api` | Generic HTTP contract and `CoreApiClient` | HealthFit routes, raw decoding, database details |
-| `@emi/core/chat` | Explicitly provider-bound grouped chat operations | The common provider-neutral path and flat helpers |
-| `@emi/core/contract` | Generic HTTP schema composition owned by `CoreApi` | HealthFit groups, platform bindings, database rows |
-| `@emi/core/runtime` | Framework-neutral runtime, selectors, commands, subscriptions, lifecycle | React hooks and markup |
-| `@emi/core/react` | `ChatProvider`, hooks, and React lifecycle integration | Styled recipes, routing, browser globals |
-| `@emi/core/components` | Accessible controlled/headless primitives and slots | Network, persistence, product copy, mandatory CSS framework |
-| `@emi/core/components/styled` | Ready-to-use recipes and default visual layer | HealthFit branding and mandatory platform coupling |
-| `@emi/core/web` | Generic browser views, contributions, attachment policy, thread presentation | Raw actors, HealthFit UI, platform state |
-| `@emi/core/styles.css` | Design tokens, structure, states, and theme variables | App-specific pages and data visualizations |
-| `@emi/core/server` | Generic ports, use cases, auth interfaces, persistence-independent composition | D1/Drizzle row types in the primary entry |
-| `@emi/core/server/database` | Advanced SQL schemas, persistence domains, and AI SDK generation replay | Generic server contracts, common consumers, and provider-neutral replay |
-| `@emi/core/server/effect` | Effect-native services, layers, and use-case access | React-only concerns and provider message types |
-| `@emi/core/server/fetch` | `Request`/`Response` handlers over server composition | Platform-specific bindings |
-| `@emi/core/adapters/ai-sdk` | AI SDK/provider bridge to the core protocol | AI SDK types in protocol or runtime core |
-| `@emi/core/adapters/cloudflare` and `/cloudflare` | D1, Workers, R2, auth, and route composition | Cloudflare assumptions in generic server logic |
-| `@emi/core/extensions` | Namespaced extension definitions and collision-checked composition | Product code bundled into base core |
-| `@emi/core/testing` | In-memory repositories, deterministic adapters, actor harnesses, fixtures | Production runtime dependencies |
-| `@emi/core/advanced/xstate` | Deliberate actor refs, machine types, and integration helpers | Accidental access through default barrels |
+| Subpath                                           | Responsibility                                                                 | Boundary it must not cross                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `@emi/core`                                       | Minimal facade: `createChatRuntime` and core protocol types                    | Wildcard internals, product APIs, platform dependencies                 |
+| `@emi/core/protocol`                              | Messages, parts, commands, events, errors, IDs, schemas, extension contracts   | React, actor internals, server services, database rows                  |
+| `@emi/core/api`                                   | Generic HTTP contract and `CoreApiClient`                                      | HealthFit routes, raw decoding, database details                        |
+| `@emi/core/chat`                                  | Explicitly provider-bound grouped chat operations                              | The common provider-neutral path and flat helpers                       |
+| `@emi/core/contract`                              | Generic HTTP schema composition owned by `CoreApi`                             | HealthFit groups, platform bindings, database rows                      |
+| `@emi/core/runtime`                               | Framework-neutral runtime, selectors, commands, subscriptions, lifecycle       | React hooks and markup                                                  |
+| `@emi/core/react`                                 | `ChatProvider`, hooks, and React lifecycle integration                         | Styled recipes, routing, browser globals                                |
+| `@emi/core/components`                            | Accessible controlled/headless primitives and slots                            | Network, persistence, product copy, mandatory CSS framework             |
+| `@emi/core/components/styled`                     | Ready-to-use recipes and default visual layer                                  | HealthFit branding and mandatory platform coupling                      |
+| `@emi/core/web`                                   | Generic browser views, contributions, attachment policy, thread presentation   | Raw actors, HealthFit UI, platform state                                |
+| `@emi/core/styles.css`                            | Design tokens, structure, states, and theme variables                          | App-specific pages and data visualizations                              |
+| `@emi/core/server`                                | Generic ports, use cases, auth interfaces, persistence-independent composition | D1/Drizzle row types in the primary entry                               |
+| `@emi/core/server/database`                       | Advanced SQL schemas, persistence domains, and AI SDK generation replay        | Generic server contracts, common consumers, and provider-neutral replay |
+| `@emi/core/server/effect`                         | Effect-native services, layers, and use-case access                            | React-only concerns and provider message types                          |
+| `@emi/core/server/fetch`                          | `Request`/`Response` handlers over server composition                          | Platform-specific bindings                                              |
+| `@emi/core/adapters/ai-sdk`                       | AI SDK/provider bridge to the core protocol                                    | AI SDK types in protocol or runtime core                                |
+| `@emi/core/adapters/cloudflare` and `/cloudflare` | D1, Workers, R2, auth, and route composition                                   | Cloudflare assumptions in generic server logic                          |
+| `@emi/core/extensions`                            | Namespaced extension definitions and collision-checked composition             | Product code bundled into base core                                     |
+| `@emi/core/testing`                               | In-memory repositories, deterministic adapters, actor harnesses, fixtures      | Production runtime dependencies                                         |
+| `@emi/core/advanced/xstate`                       | Deliberate actor refs, machine types, and integration helpers                  | Accidental access through default barrels                               |
 
 HealthFit composes the generic contract through `@emi/flavor-healthfit/contract`. Core does not
 know HealthFit, Hevy, fitness, analytics, privacy, or workout vocabulary.
@@ -143,6 +143,13 @@ type MessagePart =
   | { type: "tool-call"; call: ToolCall }
   | { type: "tool-result"; result: ToolResult };
 ```
+
+Model selection uses the provider-neutral `ModelDescriptor` contract. It carries a stable model
+identifier, display metadata, provider label, capability booleans, optional token limits, and
+optional normalized pricing. `ModelCapabilities` covers streaming, tools, multimodal input,
+structured output, web search, and voice without importing provider SDK model objects. The
+validated schemas are available through `ChatProtocol.schemas.modelCapabilities` and
+`ChatProtocol.schemas.modelDescriptor`; provider adapters own discovery and translation.
 
 Provider adapters translate AI SDK, OpenAI-compatible, Anthropic, or custom provider values at
 the edge. The protocol must not contain `UIMessage`, `FileUIPart`, `OpenAiClientConfig`, HealthFit
@@ -193,9 +200,11 @@ const serverLayer = ChatServerEffect.Live.pipe(
   Layer.provide(configurationLayer),
 );
 
-const response = yield * ChatFetchHandlers.use((handlers) => handlers.handle(request)).pipe(
-  Effect.provide(ChatFetchHandlers.layer().pipe(Layer.provide(serverLayer))),
-);
+const response =
+  yield *
+  ChatFetchHandlers.use((handlers) => handlers.handle(request)).pipe(
+    Effect.provide(ChatFetchHandlers.layer().pipe(Layer.provide(serverLayer))),
+  );
 ```
 
 Server composition separates typed use cases, repository ports, provider/model ports, HTTP

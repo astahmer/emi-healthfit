@@ -38,7 +38,9 @@ import type {
 } from "./protocol/ids.ts";
 import type {
   GenerationEvent,
+  ModelCapabilities,
   ModelConfiguration,
+  ModelDescriptor,
   ModelGenerationInput,
   ModelProvider,
   ModelProviderError,
@@ -68,7 +70,9 @@ export type {
   MessagePart,
   MessageRole,
   MessageUsage,
+  ModelCapabilities,
   ModelConfiguration,
+  ModelDescriptor,
   ModelGenerationInput,
   ModelProvider,
   ModelProviderError,

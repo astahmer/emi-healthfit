@@ -20,8 +20,8 @@ export type ComposerConfigEvent =
 const findSupportedModel = (models: ChatModel[], currentModel: string): ChatModel | undefined => {
   const currentIdx = models.findIndex((m) => m.id === currentModel);
   return (
-    models.find((m, i) => m.supportsWebSearch && i >= currentIdx) ??
-    models.find((m) => m.supportsWebSearch)
+    models.find((model, index) => model.capabilities.webSearch && index >= currentIdx) ??
+    models.find((model) => model.capabilities.webSearch)
   );
 };
 
@@ -34,7 +34,7 @@ export const composerConfigMachine = setup({
   guards: {
     canWebSearch: ({ context }) => {
       const selected = context.models.find((m) => m.id === context.model);
-      return selected?.supportsWebSearch ?? false;
+      return selected?.capabilities.webSearch ?? false;
     },
   },
 }).createMachine({
@@ -63,7 +63,7 @@ export const composerConfigMachine = setup({
             model: ({ event }) => event.model,
             savedModelRef: ({ context, event }) => {
               const selected = context.models.find((m) => m.id === event.model);
-              if (selected?.supportsWebSearch) return null;
+              if (selected?.capabilities.webSearch) return null;
               return context.savedModelRef;
             },
           }),
@@ -76,7 +76,7 @@ export const composerConfigMachine = setup({
             const next = event.value;
             if (next) {
               const selected = context.models.find((m) => m.id === context.model);
-              if (selected?.supportsWebSearch) {
+              if (selected?.capabilities.webSearch) {
                 return { ...context, webSearch: true, savedModelRef: null };
               }
               const supported = findSupportedModel(context.models, context.model);

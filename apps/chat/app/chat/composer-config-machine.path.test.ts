@@ -3,19 +3,32 @@ import { describe, expect, it } from "vitest";
 import { composerConfigMachine } from "./composer-config-machine.ts";
 import type { ChatModel } from "../models";
 
+const modelCapabilities = (webSearch: boolean) => ({
+  streaming: true,
+  toolCalling: true,
+  imageInput: true,
+  fileInput: true,
+  structuredOutput: true,
+  webSearch,
+  voiceInput: false,
+  voiceOutput: false,
+});
+
 const models: ChatModel[] = [
   {
     id: "gpt-plain",
     label: "Plain",
     description: "No web",
-    supportsWebSearch: false,
+    provider: "test",
+    capabilities: modelCapabilities(false),
     pricing: { inputUsdPerMillion: 1, outputUsdPerMillion: 2 },
   },
   {
     id: "gpt-web",
     label: "Web",
     description: "With web",
-    supportsWebSearch: true,
+    provider: "test",
+    capabilities: modelCapabilities(true),
     pricing: { inputUsdPerMillion: 1, outputUsdPerMillion: 2 },
   },
 ];

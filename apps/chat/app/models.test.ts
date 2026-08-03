@@ -23,7 +23,7 @@ describe("chat model catalog", () => {
     expect(
       chatModels
         .filter((model) => model.id.startsWith("gpt-5.6"))
-        .every((model) => model.supportsWebSearch),
+        .every((model) => model.capabilities.webSearch),
     ).toBe(true);
   });
 });

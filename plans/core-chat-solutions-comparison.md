@@ -79,7 +79,7 @@ The matrix uses these meanings:
 | Typed tools and tool result parts                             | Strong           | Generative UI/tool slots                       | Strong                                     | Strong                                      | Strong                           | Strong                                                                                           | **Partial**. The protocol and renderer slots exist, but a complete capability/approval model is not yet first-class.                                                                                                             |
 | Attachments and file parsing                                  | Strong           | Attachment adapter                             | Upload/message support                     | Strong                                      | Strong                           | Runtime dependent                                                                                | **Strong for chat attachments; partial for knowledge ingestion**.                                                                                                                                                                |
 | Suggestions and web search                                    | Strong           | Suggestion adapter; search is runtime-specific | Tool/provider dependent                    | Strong with citations                       | Strong                           | Suggestion/agent dependent                                                                       | **Partial-to-strong**. Generic flows exist, but provider capability discovery and a reusable cited-search contract need consolidation.                                                                                           |
-| Model registry, capability discovery, and model switching     | Strong           | Runtime/application responsibility             | Provider abstraction, not product registry | Strong                                      | Strong                           | Agent/application responsibility                                                                 | **Partial**. Add a provider-neutral capability registry rather than exposing provider SDK metadata.                                                                                                                              |
+| Model registry, capability discovery, and model switching     | Strong           | Runtime/application responsibility             | Provider abstraction, not product registry | Strong                                      | Strong                           | Agent/application responsibility                                                                 | **Partial**. `ModelDescriptor` and `ModelCapabilities` now provide the provider-neutral contract; registry services and provider discovery remain future work.                                                                   |
 | Projects/workspaces and scoped instructions/files/memory      | Strong           | Thread primitives; application responsibility  | Not a product concern                      | Strong folders/knowledge/workspace features | Strong presets/agents/workspaces | Thread and shared state primitives                                                               | **Missing as a generic domain**. This is the largest product-model gap.                                                                                                                                                          |
 | Conversation search, tags, folders, pagination                | Strong           | History/persistence adapters                   | Persistence is application-owned           | Strong                                      | Strong                           | Thread listing/search APIs                                                                       | **Partial**. `ConversationSearchTool` now searches owned previous message content; ranked/indexed search, tags, folders, and cursors remain.                                                                                     |
 | Memory                                                        | Strong           | Adapter/application dependent                  | Application-owned                          | Strong                                      | Strong                           | Shared state/agent dependent                                                                     | **Strong for user-scoped chat memory**. Core exposes individual source entries plus an editable merged summary, with summary-first and source-entry fallback tools; project-scoped retention and semantic retrieval remain open. |
@@ -221,6 +221,19 @@ package:
 The next improvements should build on these boundaries instead of replacing the
 runtime with React state, introducing an untyped event bus, or putting every product
 feature in the root package.
+
+## Current packet status — C1 capability descriptors (2026-08-03)
+
+The first C1 slice is complete. `@emi/core/protocol` now validates and exports
+`ModelCapabilities` and `ModelDescriptor`, including optional normalized limits and pricing.
+The generic chat model catalog consumes that contract, while the OpenAI-specific catalog values
+remain application data. The UI checks `model.capabilities.webSearch` instead of carrying a
+provider-shaped boolean beside the descriptor.
+
+This slice deliberately does not claim that a capability registry or provider discovery service
+exists. The remaining C1 work is the canonical run identity, typed run events, approval and
+interrupt/resume semantics, and provider-neutral operational metadata. Those need a separate
+protocol decision and lifecycle fixtures before server and actor integration.
 
 ## Highest-value gaps to address
 
@@ -392,9 +405,10 @@ in one packet.
 
 ### Packet C1 — capability and run contract
 
-Define provider-neutral model/capability descriptors, canonical run identity, run
-events, approval requests, interrupt/resume semantics, and observability metadata.
-Add protocol fixtures first, then Effect services and actor integration.
+The descriptor slice is complete: keep its schemas provider-neutral and use adapters for
+discovery. Continue with canonical run identity, run events, approval requests,
+interrupt/resume semantics, and observability metadata. Add protocol fixtures first, then Effect
+services and actor integration.
 
 ### Packet C2 — resource/artifact contract
 

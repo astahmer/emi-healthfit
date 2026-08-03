@@ -109,7 +109,7 @@ export const ChatPage = ({
   });
   const activeConversationId = sessionId;
   const selectedModel = chatModels.find((model) => model.id === configState.context.model);
-  const canWebSearch = selectedModel?.supportsWebSearch ?? false;
+  const canWebSearch = selectedModel?.capabilities.webSearch ?? false;
   const historyMatchesSelection = conversationState.context.conversationId === activeConversationId;
   const conversation = historyMatchesSelection ? conversationState.context.conversation : null;
   const focusedThread = conversationState.context.threads.find(

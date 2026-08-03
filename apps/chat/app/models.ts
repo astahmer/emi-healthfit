@@ -1,12 +1,7 @@
+import type { ModelDescriptor } from "@emi/core/protocol";
 import catalog from "./models.json";
 
-export interface ChatModel {
-  id: string;
-  label: string;
-  description: string;
-  supportsWebSearch: boolean;
-  pricing: { inputUsdPerMillion: number; outputUsdPerMillion: number };
-}
+export type ChatModel = ModelDescriptor;
 
 interface ChatModelCatalog {
   pricingSource: string;
