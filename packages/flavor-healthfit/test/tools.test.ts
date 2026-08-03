@@ -18,6 +18,7 @@ describe("HealthFit tools", () => {
         "get_sleep_trend",
         "get_workout_streak",
         "search_memories",
+        "search_conversations",
         "render_component",
       ].filter((name) => !names.has(name)),
     ).toEqual([]);

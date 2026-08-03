@@ -5,6 +5,72 @@ import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("conversations SQLite integration", () => {
+  it("searches owned message content across previous conversations", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await makeConversationDatabase(db);
+    const userId = "user-a";
+    const previousConversationId = await run(
+      conversationDatabase.createConversation({ userId, title: "Recovery notes" }),
+    );
+    const [previousMessageId] = await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId: previousConversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "Should I deload this week?" }] }],
+      }),
+    );
+    const currentConversationId = await run(
+      conversationDatabase.createConversation({ userId, title: "Current chat" }),
+    );
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId: currentConversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "deload this week" }] }],
+      }),
+    );
+    const otherUserConversationId = await run(
+      conversationDatabase.createConversation({ userId: "user-b", title: "Private notes" }),
+    );
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId: "user-b",
+        conversationId: otherUserConversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "deload this week" }] }],
+      }),
+    );
+
+    const results = await run(
+      conversationDatabase.searchConversationMessages({
+        userId,
+        query: "deload",
+        excludeConversationId: currentConversationId,
+        limit: 10,
+      }),
+    );
+
+    assert.deepStrictEqual(
+      results.map(({ conversation, message }) => ({
+        conversationId: conversation.id,
+        conversationTitle: conversation.title,
+        messageId: message.id,
+        parts: message.parts,
+      })),
+      [
+        {
+          conversationId: previousConversationId,
+          conversationTitle: "Recovery notes",
+          messageId: previousMessageId,
+          parts: JSON.stringify([{ type: "text", text: "Should I deload this week?" }]),
+        },
+      ],
+    );
+  });
+
   it("persists conversation, branch, summary, suggestion, and revision lifecycle", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
