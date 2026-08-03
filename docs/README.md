@@ -5,6 +5,9 @@
 | [architecture.md](./architecture.md)               | How the system is shaped (apps, data, auth, deploy)       |
 | [core-api.md](./core-api.md)                       | Current `@emi/core` public contract and boundaries        |
 | [core-audit.md](./core-audit.md)                   | `@emi/core` audit evidence and follow-up                  |
+| [extension-guide.md](./extension-guide.md)         | Add prompts, tools, pages, renderers, and validated parts |
+| [configuration.md](./configuration.md)             | Runtime, provider, settings, and environment configuration |
+| [deployment.md](./deployment.md)                   | Generic Worker, generated app, and Alchemy deployment    |
 | [features.md](./features.md)                       | What the product can do today (and what is still planned) |
 | [USER_GUIDE.md](./USER_GUIDE.md)                   | Non-developer usage (export, upload, chat)                |
 | [database-schema.md](./database-schema.md)         | Table map and naming notes                                |

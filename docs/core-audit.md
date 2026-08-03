@@ -96,10 +96,9 @@ quality work; none is a reason to split the intentionally mixed-layer package.
 
 ## Maintainability disposition
 
-The maintainability audit is closed as of 2026-08-03. Its contract decisions and remaining product
-migration work are now recorded here and in the active
-[`core-chat-platform.md`](../plans/core-chat-platform.md) plan; the former follow-up plan is not
-kept as a second source of truth.
+The maintainability audit is closed as of 2026-08-03. Its contract decisions and completed product
+migration evidence are recorded here and in the extension and deployment guides; no separate
+follow-up plan is kept as a second source of truth.
 
 | Finding | Disposition |
 | --- | --- |
@@ -107,7 +106,7 @@ kept as a second source of truth.
 | AI SDK `UIMessageChunk` in advanced replay | Accepted as an explicit AI SDK transport contract under `@emi/core/server/database`. Portable replay would require a new versioned event format and migration, so no silent conversion is appropriate. |
 | Generic `ChatServerEffect.Live` versus HealthFit route lifecycle | Closed by scope clarification. `ChatServerEffect.Live` is reference/starter composition; `apps/api` remains the HealthFit production composition until the platform migration provides a real generic owner. |
 | Large generic persistence files | Deferred by design. The service ports are already granular; split implementation files only with the next capability change, preserving the composite adapter and real SQLite coverage. |
-| HealthFit Promise-first persistence | Transferred to the HealthFit migration slice in `core-chat-platform.md`; this is product migration work, not a reason to alter the stable core contract. |
+| HealthFit Promise-first persistence | Completed in the HealthFit runtime migration under `apps/chat/app/chat` and the generic API domains under `apps/api/src/chat`; this product work did not require altering the stable core contract. |
 | API-core Promise boundaries and unused server extension configuration | Resolved in the typed-boundary and configuration revisions documented above. |
 | Repeated request store layers | Accepted as request-scoped composition for the current Worker/D1 boundary. Revisit only when a stable long-lived runtime exists. |
 | Broad database registry, product UI wrappers, and observability | Monitor or defer until the active generic product composition needs a narrower registry, shared behavior, or stable span root. |

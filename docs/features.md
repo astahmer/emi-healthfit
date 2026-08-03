@@ -1,6 +1,9 @@
 # Features
 
-What Emi HealthFit offers today, plus status of reusable chat-platform work. How-to steps live in [USER_GUIDE.md](./USER_GUIDE.md); system shape in [architecture.md](./architecture.md); current core contract in [core-api.md](./core-api.md); remaining product migration work lives in [core-chat-platform.md](../plans/core-chat-platform.md).
+What Emi HealthFit offers today, plus the reusable chat-platform baseline. How-to steps live in
+[USER_GUIDE.md](./USER_GUIDE.md); system shape in [architecture.md](./architecture.md); current core
+contract in [core-api.md](./core-api.md); extension and deployment details live in
+[extension-guide.md](./extension-guide.md) and [deployment.md](./deployment.md).
 
 ## Core chat platform status
 
@@ -14,6 +17,11 @@ and imports, not a forced package split.
 `apps/generic-web` and `create-chat-app` provide interactive BYOK chat with durable
 history/actions, stream reconnection, queued follow-ups, and attachments. HealthFit remains a
 domain composition with fitness-specific tools, prompts, screens, and contracts.
+
+The generic baseline is verified by the `apps/generic-web` browser suite and the generated-app
+acceptance fixture. The focused matrix includes durable conversation actions, memory creation and
+deletion, branches/minimap, temporary chats, queue/force-send, attachment and settings validation,
+offline draft state, reconnect/stop/retry, theme, releases, and WebMCP safety.
 
 There are two supported development shapes. Dependency mode reuses `@emi/core` through its
 target subpaths without a fork. Source mode, the default for `create-chat-app`, copies core

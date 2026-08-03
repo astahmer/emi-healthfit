@@ -213,10 +213,11 @@ before durable user-turn persistence; a losing concurrent request returns a stru
 without an orphan message. External values pass through schemas and explicit mappers.
 
 `ChatServerEffect.Live` is the generic reference/starter composition for generated and fixture
-consumers. The HealthFit production lifecycle remains composed in
-[`apps/api/src/core/routes`](../apps/api/src/core/routes) until the active platform plan moves
-that lifecycle into a real generic composition. These are intentionally different scopes, not two
-claims of production parity.
+consumers. The HealthFit production lifecycle remains composed in the application chat domain at
+[`apps/api/src/chat`](../apps/api/src/chat). The generic Worker uses the public Cloudflare route
+factories directly; the application path retains the provider-bound AI SDK replay contract and
+HealthFit contribution hooks. These are intentionally different scopes, not two claims of
+production parity.
 
 Effect `Context.Service` and `Layer` own dependency-bearing contracts. Effect `Stream` is the
 default incremental boundary for readable streams and async iterables, preserving cancellation,

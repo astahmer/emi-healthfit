@@ -10,11 +10,9 @@ separate maintainability follow-up plan remains.
 | Plan                                                                  | Status             | Role                                                                                         |
 | --------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
 | [Core chat solutions comparison](./core-chat-solutions-comparison.md) | REFERENCE / FUTURE | Comparable chat products, capability gaps, and recommended future boundaries.                         |
-| [Core chat platform](./core-chat-platform.md)                         | ACTIVE             | Broader generic chat product, generated-app, and deployment migration.                                |
 
-Start core product work with the platform plan. Use the [core API contract](../docs/core-api.md)
-for public boundaries and [core audit](../docs/core-audit.md) for implementation evidence; use
-the platform plan for product-level fixture and deployment work.
+Start core product work with the [core API contract](../docs/core-api.md), [core audit](../docs/core-audit.md),
+and the [extension](../docs/extension-guide.md) and [deployment](../docs/deployment.md) guides.
 
 ## Integrations and experiments
 
