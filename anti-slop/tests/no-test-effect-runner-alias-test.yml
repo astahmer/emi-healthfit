@@ -1,0 +1,12 @@
+id: no-test-effect-runner-alias
+valid:
+  - |
+    const result = await Effect.runPromise(effect);
+  - |
+    const run = <Value, Error>(effect: Effect.Effect<Value, Error, RuntimeContext>) =>
+      Effect.runPromise(effect.pipe(Effect.provide(runtimeContext)));
+invalid:
+  - |
+    const run = <Value, Error>(effect: Effect.Effect<Value, Error, never>) => Effect.runPromise(effect);
+  - |
+    export const run = (effect: Effect.Effect<unknown, never, never>) => Effect.runPromise(effect);

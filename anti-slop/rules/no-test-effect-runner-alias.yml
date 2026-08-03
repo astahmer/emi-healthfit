@@ -1,0 +1,19 @@
+id: no-test-effect-runner-alias
+language: TypeScript
+files:
+  - apps/**/test/**/*.ts
+  - apps/**/test/**/*.tsx
+  - apps/**/*.test.ts
+  - apps/**/*.test.tsx
+  - packages/**/test/**/*.ts
+  - packages/**/test/**/*.tsx
+  - packages/**/*.test.ts
+  - packages/**/*.test.tsx
+message: Test code must call Effect.runPromise at the use site; do not create a no-op runner alias.
+severity: error
+rule:
+  any:
+    - pattern: 'const $NAME = ($EFFECT: $$$TYPE) => Effect.runPromise($EFFECT)'
+    - pattern: 'export const $NAME = ($EFFECT: $$$TYPE) => Effect.runPromise($EFFECT)'
+    - pattern: 'const $NAME = <$$$TYPE_PARAMS>($EFFECT: $$$TYPE) => Effect.runPromise($EFFECT)'
+    - pattern: 'export const $NAME = <$$$TYPE_PARAMS>($EFFECT: $$$TYPE) => Effect.runPromise($EFFECT)'

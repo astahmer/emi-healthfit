@@ -1,0 +1,22 @@
+id: no-handwritten-test-schema-ddl
+language: TypeScript
+files:
+  - apps/**/test/**/*.ts
+  - apps/**/test/**/*.tsx
+  - apps/**/*.test.ts
+  - apps/**/*.test.tsx
+  - packages/**/test/**/*.ts
+  - packages/**/test/**/*.tsx
+  - packages/**/*.test.ts
+  - packages/**/*.test.tsx
+message: Test databases must use generated schema statements; do not embed schemaDdl or CREATE TABLE definitions.
+severity: error
+rule:
+  any:
+    - pattern: const schemaDdl = $$$VALUE
+    - pattern: let schemaDdl = $$$VALUE
+    - pattern: var schemaDdl = $$$VALUE
+    - kind: string
+      regex: "(?i)CREATE\\s+TABLE"
+    - kind: template_string
+      regex: "(?i)CREATE\\s+TABLE"

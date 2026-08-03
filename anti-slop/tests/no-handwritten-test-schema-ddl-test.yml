@@ -1,0 +1,11 @@
+id: no-handwritten-test-schema-ddl
+valid:
+  - |
+    const schemaStatements = generatedSchemaStatements;
+  - |
+    const query = "select * from users";
+invalid:
+  - |
+    const schemaDdl = ["CREATE TABLE users (id TEXT NOT NULL)"];
+  - |
+    const schema = `CREATE TABLE users (id TEXT NOT NULL)`;
