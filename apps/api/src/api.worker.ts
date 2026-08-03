@@ -42,7 +42,11 @@ const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 const chatAppDirectory = "../chat";
 
-const DB = Cloudflare.D1.Database("GymData");
+const alchemyMigrationsDirectory = process.env.EMI_ALCHEMY_MIGRATIONS_DIR;
+export const DB = Cloudflare.D1.Database(
+  "GymData",
+  alchemyMigrationsDirectory === undefined ? {} : { migrationsDir: alchemyMigrationsDirectory },
+);
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
 const AssetsBinding = Schema.Struct({
   fetch: Schema.declare<(request: Request) => Promise<Response>>(

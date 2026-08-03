@@ -2,7 +2,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 
-import ApiLive, { Api } from "./src/api.worker.ts";
+import ApiLive, { Api, DB } from "./src/api.worker.ts";
 
 export default Alchemy.Stack(
   "emi-healthfit",
@@ -11,9 +11,7 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
-    const db = yield* Cloudflare.D1.Database("GymData", {
-      migrationsDir: "./migrations",
-    });
+    const db = yield* DB;
 
     const exportsBucket = yield* Cloudflare.R2.Bucket("Exports");
 

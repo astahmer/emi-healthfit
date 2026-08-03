@@ -11,7 +11,10 @@ import type { UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { createChatStreamEffect, type ChatStreamRequest } from "./ai-sdk.ts";
+import {
+  createAiSdkChatStreamEffect as createChatStreamEffect,
+  type AiSdkChatStreamRequest as ChatStreamRequest,
+} from "@emi/core/adapters/ai-sdk";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../platform/db/client.ts";
 import { getDiagnosticBundle } from "./diagnostics/bundle.ts";

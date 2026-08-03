@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { UIMessage } from "ai";
-import type { ChatStreamRequest } from "./ai-sdk.ts";
+import type { AiSdkChatStreamRequest as ChatStreamRequest } from "@emi/core/adapters/ai-sdk";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
 import { decodeMessageParts } from "./http/codecs.ts";

@@ -4,7 +4,7 @@ import { after, before, describe, it } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { UIMessageChunk } from "ai";
 import { Chat } from "@emi/core/chat";
-import { createChatStream } from "../src/chat/ai-sdk.ts";
+import { createAiSdkChatStream as createChatStream } from "@emi/core/adapters/ai-sdk";
 
 const toSseData = (items: unknown[]): string =>
   items.map((item) => `data: ${JSON.stringify(item)}\n\n`).join("");
