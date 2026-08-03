@@ -11,11 +11,7 @@ import type { UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import {
-  createChatStreamEffect,
-  type ChatStreamRequest,
-  validateUIMessagesEffect,
-} from "../chat/ai-sdk.ts";
+import { createChatStreamEffect, type ChatStreamRequest } from "../chat/ai-sdk.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { getDiagnosticBundle } from "../diagnostics/bundle.ts";
@@ -69,7 +65,7 @@ export const handleMessageRevision = ({
     if (Option.isNone(decoded)) {
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
     }
-    const validated = yield* validateUIMessagesEffect([
+    const validated = yield* Chat.messages.validateUIMessagesEffect([
       { id: messageId, role: "user", parts: decoded.value.parts },
     ]);
     if (!validated.success) {
@@ -267,7 +263,9 @@ export const handleAiSdkChat = (
       return yield* HttpServerResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    const validatedMessages = yield* validateUIMessagesEffect<UIMessage>(parsed.value.messages);
+    const validatedMessages = yield* Chat.messages.validateUIMessagesEffect<UIMessage>(
+      parsed.value.messages,
+    );
     if (!validatedMessages.success) {
       return yield* HttpServerResponse.json(
         { error: validatedMessages.error.message },

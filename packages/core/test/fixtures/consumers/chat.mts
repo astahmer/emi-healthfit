@@ -15,6 +15,8 @@ void Chat.generation.generateConversationTitleEffect;
 void Chat.generation.generateSuggestionsEffect;
 void Chat.generation.generateSuggestions;
 void Chat.messages.buildAssistantParts;
+void Chat.messages.validateUIMessagesEffect;
+void Chat.messages.validateStoredUIMessagesEffect;
 void Chat.orphans.getOrphanUserMessageId;
 void Chat.attachments.validateChatAttachments;
 void budget;

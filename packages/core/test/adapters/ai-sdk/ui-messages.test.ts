@@ -126,4 +126,39 @@ describe("Chat provider message boundary", () => {
       },
     );
   });
+
+  it("validates UI messages through the Chat.messages domain", async () => {
+    const validated = await Effect.runPromise(
+      Chat.messages.validateUIMessagesEffect([
+        {
+          id: "user-1",
+          role: "user",
+          parts: [{ type: "text", text: "Keep this concise." }],
+        },
+      ]),
+    );
+
+    assert.equal(validated.success, true);
+    if (validated.success) assert.equal(validated.data[0]?.id, "user-1");
+
+    const exit = await Effect.runPromiseExit(
+      Chat.messages.validateStoredUIMessagesEffect([
+        {
+          id: "assistant-1",
+          role: "assistant",
+          parts: [{ type: "unsupported", value: true }],
+        },
+      ]),
+    );
+
+    assert.equal(exit._tag, "Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons[0];
+      assert.equal(failure?._tag, "Fail");
+      if (failure?._tag === "Fail") {
+        assert.equal(failure.error._tag, "ChatUiMessagesError");
+        assert.equal(failure.error.code, "invalid-ui-message");
+      }
+    }
+  });
 });

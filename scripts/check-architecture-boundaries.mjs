@@ -155,6 +155,11 @@ const main = async () => {
         expression: /export\s+(?:type\s+)?(?:\*|\{[\s\S]*?\})\s+from\s+["']/g,
         message: "symbols must be imported and owned locally; export-from forwarding is forbidden.",
       },
+      {
+        expression: /export\s+(?:const|function)\s+validate(?:Stored)?UIMessagesEffect\b/g,
+        message:
+          "UI message validation belongs under the Chat.messages domain; do not expose flat validation helpers.",
+      },
     ]);
     if (!path.endsWith(".export.ts") && path.includes("/src/")) await scanForwardingClasses(path);
     if (path.includes("/src/") && !path.endsWith(".export.ts")) {

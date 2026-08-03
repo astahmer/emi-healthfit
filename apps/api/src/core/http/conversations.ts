@@ -13,7 +13,6 @@ import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { validateUIMessagesEffect } from "../chat/ai-sdk.ts";
 import { refreshMemorySummary } from "../chat/memory-context.ts";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
 import { withInternalError } from "./errors.ts";
@@ -119,7 +118,7 @@ export const conversationsHandlers = () => {
                 message: "Conversation requires at least one message",
               });
             }
-            const validated = yield* validateUIMessagesEffect(
+            const validated = yield* Chat.messages.validateUIMessagesEffect(
               payload.messages.map((message, index) => ({
                 id: `import-${index}`,
                 role: message.role,
@@ -401,7 +400,7 @@ export const conversationsHandlers = () => {
           "reviseMessage",
           Effect.fn("httpApi.conversations.reviseMessage")(function* ({ params, payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const validated = yield* validateUIMessagesEffect([
+            const validated = yield* Chat.messages.validateUIMessagesEffect([
               {
                 id: params.messageId,
                 role: "user",

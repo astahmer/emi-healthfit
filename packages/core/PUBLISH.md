@@ -210,7 +210,11 @@ wrapper, and `Chat.messages.fromProtocolMessage` converts persisted protocol mes
 parts for rendering. Assistant message-part normalization follows the same rule:
 `Chat.messages.buildAssistantPartsEffect` is canonical and
 `Chat.messages.buildAssistantParts` is its Promise-derived outer wrapper. Generic protocol and
-server consumers never need these AI SDK-facing methods. Provider-bound generation, memory, and
+UI-message validation follows the same domain rule: use
+`Chat.messages.validateUIMessagesEffect` and
+`Chat.messages.validateStoredUIMessagesEffect`; the latter's
+`Chat.messages.validateStoredUIMessages` Promise method is only an outer convenience. Generic
+protocol and server consumers never need these AI SDK-facing methods. Provider-bound generation, memory, and
 streaming operations expose the same paired shape under `Chat.generation`, `Chat.memory`, and
 `Chat.stream`; server code should yield the `*Effect` member directly and use the Promise member
 only at a callback or host boundary.

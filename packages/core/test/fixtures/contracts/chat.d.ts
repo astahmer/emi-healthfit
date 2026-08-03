@@ -44,6 +44,8 @@ export declare class Chat {
     readonly buildAssistantParts: (...args: ReadonlyArray<never>) => Promise<unknown>;
     readonly firstUserText: (...args: ReadonlyArray<never>) => unknown;
     readonly getProviderMessages: (...args: ReadonlyArray<never>) => unknown;
+    readonly validateUIMessagesEffect: (...args: ReadonlyArray<never>) => unknown;
+    readonly validateStoredUIMessagesEffect: (...args: ReadonlyArray<never>) => unknown;
     readonly validateStoredUIMessages: (...args: ReadonlyArray<never>) => unknown;
     readonly toProtocolParts: (...args: ReadonlyArray<never>) => unknown;
     readonly toProtocolPartsEffect: (...args: ReadonlyArray<never>) => unknown;

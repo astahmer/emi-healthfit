@@ -78,6 +78,8 @@ export class Chat {
     buildAssistantParts: MessageParts.ChatMessageParts.buildAssistantParts,
     firstUserText: ChatRequest.firstUserText,
     getProviderMessages: OrphanTurn.getProviderMessages,
+    validateUIMessagesEffect: UiMessages.ChatUiMessages.validateUIMessagesEffect,
+    validateStoredUIMessagesEffect: UiMessages.ChatUiMessages.validateStoredUIMessagesEffect,
     validateStoredUIMessages: UiMessages.ChatUiMessages.validateStoredUIMessages,
     toProtocolParts: UiMessages.ChatUiMessages.toProtocolParts,
     toProtocolPartsEffect: UiMessages.ChatUiMessages.toProtocolPartsEffect,

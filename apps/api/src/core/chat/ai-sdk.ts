@@ -1,21 +1,9 @@
 import { Chat, type OpenAiCompatibleConfiguration } from "@emi/core/chat";
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
-import {
-  safeValidateUIMessages,
-  type SafeValidateUIMessagesResult,
-  type StreamTextOnChunkCallback,
-  type ToolSet,
-  type UIMessage,
-} from "ai";
+import { type StreamTextOnChunkCallback, type ToolSet, type UIMessage } from "ai";
 import type { JSONSchema7 } from "json-schema";
 
 interface ChatConfig extends OpenAiCompatibleConfiguration {}
-
-export class AiSdkMessageValidationError extends Schema.TaggedErrorClass<AiSdkMessageValidationError>()(
-  "AiSdkMessageValidationError",
-  { message: Schema.String },
-) {}
 
 export interface ChatStreamRequest {
   messages: Array<Omit<UIMessage, "id">>;
@@ -49,24 +37,6 @@ const toCoreOptions = (options: ChatStreamOptions) => ({
     webSearch: options.request.webSearch,
   },
 });
-
-export const validateUIMessagesEffect = <T extends UIMessage>(messages: unknown) =>
-  Effect.tryPromise<SafeValidateUIMessagesResult<T>, AiSdkMessageValidationError>({
-    try: () => safeValidateUIMessages<T>({ messages }),
-    catch: (cause) =>
-      new AiSdkMessageValidationError({
-        message: cause instanceof Error ? cause.message : String(cause),
-      }),
-  });
-
-export const validateStoredUIMessagesEffect = (messages: unknown[]) =>
-  Effect.tryPromise({
-    try: () => Chat.messages.validateStoredUIMessages(messages),
-    catch: (cause) =>
-      new AiSdkMessageValidationError({
-        message: cause instanceof Error ? cause.message : String(cause),
-      }),
-  });
 
 export const createChatStreamEffect = (options: ChatStreamOptions) =>
   Chat.stream.createChatStreamEffect(toCoreOptions(options));

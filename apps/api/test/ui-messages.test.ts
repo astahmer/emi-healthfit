@@ -3,10 +3,6 @@ import { describe, it } from "node:test";
 import type { UIMessage } from "ai";
 import { Chat } from "@emi/core/chat";
 import * as Effect from "effect/Effect";
-import {
-  AiSdkMessageValidationError,
-  validateStoredUIMessagesEffect,
-} from "../src/core/chat/ai-sdk.ts";
 
 describe("stored UI messages", () => {
   it("accepts an empty history before the first user message", async () => {
@@ -50,7 +46,7 @@ describe("stored UI messages", () => {
   it("keeps stored validation failures in the tagged Effect channel", async () => {
     await assert.rejects(
       Effect.runPromise(
-        validateStoredUIMessagesEffect([
+        Chat.messages.validateStoredUIMessagesEffect([
           {
             id: "assistant-1",
             role: "assistant",
@@ -58,7 +54,8 @@ describe("stored UI messages", () => {
           },
         ]),
       ),
-      (error: unknown) => error instanceof AiSdkMessageValidationError,
+      (error: unknown) =>
+        error instanceof Error && "_tag" in error && error._tag === "ChatUiMessagesError",
     );
   });
 });

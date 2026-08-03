@@ -4,7 +4,6 @@ import type { UIMessage } from "ai";
 import type { ChatStreamRequest } from "../chat/ai-sdk.ts";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
-import { validateStoredUIMessagesEffect } from "../chat/ai-sdk.ts";
 import { decodeMessageParts } from "../http/codecs.ts";
 import { validateAttachments } from "./chat-request-codec.ts";
 import type { ChatToolDefinition } from "./chat-hooks.ts";
@@ -72,7 +71,8 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
       role: Schema.decodeUnknownSync(providerMessageRole)(row.role),
       parts: [...decodeMessageParts(row.parts)],
     }));
-  const validatedExistingMessages = yield* validateStoredUIMessagesEffect(storedMessages);
+  const validatedExistingMessages =
+    yield* Chat.messages.validateStoredUIMessagesEffect(storedMessages);
   const existingMessages = [...validatedExistingMessages];
   const requestedMessages = chatRequest.messages;
   const attachmentError = validateAttachments(requestedMessages);

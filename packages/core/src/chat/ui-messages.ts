@@ -5,6 +5,7 @@ import {
   isStaticToolUIPart,
   isTextUIPart,
   safeValidateUIMessages,
+  type SafeValidateUIMessagesResult,
   type UIMessage,
 } from "ai";
 import * as Effect from "effect/Effect";
@@ -212,6 +213,12 @@ const toUiPart = (part: MessagePart): UiMessagePart => {
   };
 };
 
+const validationError = (cause: unknown): ChatUiMessagesError =>
+  new ChatUiMessagesError({
+    code: "ui-message-validation-failed",
+    message: cause instanceof Error ? cause.message : String(cause),
+  });
+
 export class ChatUiMessages {
   static toProtocolPartsEffect({
     parts,
@@ -249,15 +256,43 @@ export class ChatUiMessages {
     };
   }
 
-  static async validateStoredUIMessages(messages: unknown[]): Promise<UIMessage[]> {
-    if (messages.length === 0) return [];
-    const validatedMessages = await safeValidateUIMessages<UIMessage>({
-      messages,
+  static validateUIMessagesEffect<T extends UIMessage>(
+    messages: unknown,
+  ): Effect.Effect<SafeValidateUIMessagesResult<T>, ChatUiMessagesError> {
+    return Effect.tryPromise({
+      try: () => safeValidateUIMessages<T>({ messages }),
+      catch: validationError,
     });
-    if (!validatedMessages.success) throw validatedMessages.error;
-    if (validatedMessages.data.some((message) => message.id.trim() === "")) {
-      throw new Error("UI messages require non-empty identifiers");
-    }
-    return validatedMessages.data;
+  }
+
+  static validateStoredUIMessagesEffect(
+    messages: ReadonlyArray<unknown>,
+  ): Effect.Effect<UIMessage[], ChatUiMessagesError> {
+    if (messages.length === 0) return Effect.succeed([]);
+    return ChatUiMessages.validateUIMessagesEffect<UIMessage>(messages).pipe(
+      Effect.flatMap((validatedMessages) => {
+        if (!validatedMessages.success) {
+          return Effect.fail(
+            new ChatUiMessagesError({
+              code: "invalid-ui-message",
+              message: validatedMessages.error.message,
+            }),
+          );
+        }
+        if (validatedMessages.data.some((message) => message.id.trim() === "")) {
+          return Effect.fail(
+            new ChatUiMessagesError({
+              code: "invalid-ui-message-id",
+              message: "UI messages require non-empty identifiers",
+            }),
+          );
+        }
+        return Effect.succeed(validatedMessages.data);
+      }),
+    );
+  }
+
+  static validateStoredUIMessages(messages: ReadonlyArray<unknown>): Promise<UIMessage[]> {
+    return Effect.runPromise(ChatUiMessages.validateStoredUIMessagesEffect(messages));
   }
 }
