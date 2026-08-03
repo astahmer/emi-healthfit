@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
-import { createChatStream } from "../src/core/chat/ai-sdk.ts";
+import { createChatStream } from "../src/chat/ai-sdk.ts";
 import { Chat } from "@emi/core/chat";
 
 const delayMilliseconds = 600;

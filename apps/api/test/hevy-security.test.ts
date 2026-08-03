@@ -3,7 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
-import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
+import { getDiagnosticBundle } from "../src/chat/diagnostics/bundle.ts";
 const {
   connect: connectHevy,
   getConnection: getHevyConnection,

@@ -5,7 +5,7 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { ServerDatabase } from "@emi/core/server/database";
 import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
-import { SecureCompare } from "../auth/secure-compare.ts";
+import { SecureCompare } from "../secure-compare.ts";
 
 const DiscordCommandEnvironment = Schema.Struct({
   DISCORD_INTERNAL_ASK_SECRET: Schema.String.check(Schema.isMinLength(16)),

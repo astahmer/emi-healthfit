@@ -3,7 +3,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { ServerDatabase } from "@emi/core/server/database";
 import type { QueryDatabaseClient } from "../../platform/db/client.ts";
-import { decodeJson } from "../lib/json-codec.ts";
+import { decodeJson } from "../../platform/json-codec.ts";
 
 const GenerationStatus = Schema.Literals([
   "pending",

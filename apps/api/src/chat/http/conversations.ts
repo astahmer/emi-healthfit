@@ -14,7 +14,7 @@ import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
-import { withInternalError } from "./errors.ts";
+import { withInternalError } from "../../platform/http/errors.ts";
 
 type Conversation = ServerDatabase.Conversation;
 type Thread = ServerDatabase.Thread;

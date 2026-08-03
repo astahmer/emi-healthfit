@@ -4,17 +4,17 @@ import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { parseDiagnosticOptions } from "../src/core/diagnostics/diagnostic-cli-options.ts";
+import { parseDiagnosticOptions } from "../src/chat/diagnostics/diagnostic-cli-options.ts";
 import {
   diagnosticBundleSchema,
   redactDiagnosticBundle,
   type DiagnosticBundle,
-} from "../src/core/diagnostics/bundle.ts";
+} from "../src/chat/diagnostics/bundle.ts";
 import {
   analyzeDiagnosticBundle,
   renderDiagnosticMarkdown,
-} from "../src/core/diagnostics/analyzer.ts";
-import { decodeJson } from "../src/core/lib/json-codec.ts";
+} from "../src/chat/diagnostics/analyzer.ts";
+import { decodeJson } from "../src/platform/json-codec.ts";
 
 const WranglerError = Schema.Struct({ stderr: Schema.optional(Schema.Unknown) });
 const QueryCommands = Schema.Array(

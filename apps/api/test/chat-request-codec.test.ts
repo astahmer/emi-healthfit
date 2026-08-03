@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { ChatStreamRequestSchema } from "../src/core/routes/chat-request-codec.ts";
+import { ChatStreamRequestSchema } from "../src/chat/request-codec.ts";
 
 const request = {
   messages: [],

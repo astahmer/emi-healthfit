@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
 import { HealthFit } from "@emi/flavor-healthfit";
-import { getDiagnosticBundle } from "../src/core/diagnostics/bundle.ts";
+import { getDiagnosticBundle } from "../src/chat/diagnostics/bundle.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import type { HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";

@@ -17,7 +17,7 @@ import {
   decodeMessageParts,
   decodeSuggestions,
   textFromMessageParts,
-} from "../src/core/http/codecs.ts";
+} from "../src/chat/http/codecs.ts";
 
 const conversation = {
   id: "conversation-1",

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const coreRoot = join(fileURLToPath(new URL("../src/core", import.meta.url)));
+const sourceRoot = join(fileURLToPath(new URL("../src", import.meta.url)));
+const legacyCoreRoot = join(sourceRoot, "core");
+const chatRoot = join(sourceRoot, "chat");
 
 const walk = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -17,14 +19,15 @@ const walk = async (directory: string): Promise<string[]> => {
   return files;
 };
 
-describe("core/healthfit boundary", () => {
-  it("keeps core modules free of healthfit imports", async () => {
-    const files = await walk(coreRoot);
+describe("API domain boundaries", () => {
+  it("keeps the legacy core namespace removed and chat modules generic", async () => {
+    await assert.rejects(access(legacyCoreRoot));
+    const files = await walk(chatRoot);
     const violations: string[] = [];
     for (const file of files) {
       const source = await readFile(file, "utf8");
-      if (source.includes("healthfit/")) {
-        violations.push(file.replace(coreRoot, "core"));
+      if (source.includes("@emi/flavor-healthfit")) {
+        violations.push(file.replace(sourceRoot, "src"));
       }
     }
     assert.deepEqual(violations, []);

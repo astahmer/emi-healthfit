@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { withInternalError } from "./errors.ts";
+import { withInternalError } from "../../platform/http/errors.ts";
 
 export const discordHandlers = () =>
   HttpApiBuilder.group(CoreApi, "discord", (handlers) =>

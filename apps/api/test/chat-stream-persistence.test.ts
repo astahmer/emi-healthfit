@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 describe("chat stream persistence boundary", () => {
   it("maps readable-stream failures into the typed Effect error channel", async () => {
     const source = await readFile(
-      fileURLToPath(new URL("../src/core/routes/chat-stream-persistence.ts", import.meta.url)),
+      fileURLToPath(new URL("../src/chat/stream-persistence.ts", import.meta.url)),
       "utf8",
     );
 

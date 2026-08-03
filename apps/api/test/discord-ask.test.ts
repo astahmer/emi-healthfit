@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { ServerDatabase } from "@emi/core/server/database";
-import { handleDiscordAsk } from "../src/core/http/discord-ask.ts";
+import { handleDiscordAsk } from "../src/discord/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 

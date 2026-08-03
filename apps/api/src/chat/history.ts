@@ -1,12 +1,12 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { UIMessage } from "ai";
-import type { ChatStreamRequest } from "../chat/ai-sdk.ts";
+import type { ChatStreamRequest } from "./ai-sdk.ts";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
-import { decodeMessageParts } from "../http/codecs.ts";
-import { validateAttachments } from "./chat-request-codec.ts";
-import type { ChatToolDefinition } from "./chat-hooks.ts";
+import { decodeMessageParts } from "./http/codecs.ts";
+import { validateAttachments } from "./request-codec.ts";
+import type { ChatToolDefinition } from "./hooks.ts";
 
 const providerMessageRole = Schema.Literals(["system", "user", "assistant"]);
 

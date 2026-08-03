@@ -8,7 +8,7 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { TtlCache } from "../cache.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
-import { decodeJsonOption } from "../../core/lib/json-codec.ts";
+import { decodeJsonOption } from "../../platform/json-codec.ts";
 
 const { buildContext: buildChatContext } = HealthFit.chat;
 const {

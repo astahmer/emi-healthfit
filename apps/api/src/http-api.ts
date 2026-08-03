@@ -21,9 +21,9 @@ import {
   memoryExtractionHandlers,
   messagesHandlers,
   threadsHandlers,
-} from "./core/http/conversations.ts";
-import { discordHandlers } from "./core/http/discord.ts";
-import { withInternalError } from "./core/http/errors.ts";
+} from "./chat/http/conversations.ts";
+import { discordHandlers } from "./discord/http/discord.ts";
+import { withInternalError } from "./platform/http/errors.ts";
 import {
   analyticsHandlers,
   dataHandlers,

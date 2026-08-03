@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseDiagnosticOptions } from "../src/core/diagnostics/diagnostic-cli-options.ts";
+import { parseDiagnosticOptions } from "../src/chat/diagnostics/diagnostic-cli-options.ts";
 
 describe("session diagnostic CLI options", () => {
   it("uses an explicitly supplied environment file", () => {

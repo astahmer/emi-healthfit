@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
-import { prepareChatHistory } from "../src/core/routes/chat-history.ts";
+import { prepareChatHistory } from "../src/chat/history.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";

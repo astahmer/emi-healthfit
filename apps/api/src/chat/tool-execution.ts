@@ -2,8 +2,8 @@ import { Chat } from "@emi/core/chat";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { ServerDatabase } from "@emi/core/server/database";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
-import type { ChatToolExecutor } from "./chat-hooks.ts";
+import type { QueryDatabaseClient } from "../platform/db/client.ts";
+import type { ChatToolExecutor } from "./hooks.ts";
 
 class ChatToolBlockedError extends Schema.TaggedErrorClass<ChatToolBlockedError>()(
   "ChatToolBlockedError",

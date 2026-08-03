@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type { JSONSchema7 } from "json-schema";
-import type { QueryDatabaseClient } from "../../platform/db/client.ts";
+import type { QueryDatabaseClient } from "../platform/db/client.ts";
 
 export type ChatToolDefinition = {
   name: string;

@@ -7,7 +7,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { deleteRawUploads } from "./data.ts";
-import { withInternalError } from "../../core/http/errors.ts";
+import { withInternalError } from "../../platform/http/errors.ts";
 
 type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 

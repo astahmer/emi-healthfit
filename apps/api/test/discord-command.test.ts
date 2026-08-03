@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { handleDiscordCommand } from "../src/core/http/discord-command.ts";
+import { handleDiscordCommand } from "../src/discord/http/discord-command.ts";
 import { run, makeSqliteDatabase } from "./sqlite.ts";
 
 const SECRET = "test-discord-command-secret";

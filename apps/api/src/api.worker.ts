@@ -12,15 +12,15 @@ import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
-import { handleDiscordAsk } from "./core/http/discord-ask.ts";
-import { handleDiscordCommand } from "./core/http/discord-command.ts";
+import { handleDiscordAsk } from "./discord/http/discord-ask.ts";
+import { handleDiscordCommand } from "./discord/http/discord-command.ts";
 import { makeQueryDatabaseClient, narrowQueryDatabaseClient } from "./platform/db/client.ts";
 import { resolveEmiBuildId } from "./platform/emi-build-id.ts";
 import {
   handleAiSdkChat,
   handleChatResume,
   handleConversationDiagnostics,
-} from "./core/routes/chat-generation-lifecycle.ts";
+} from "./chat/generation-lifecycle.ts";
 import {
   handleIngest,
   handleIngestedDataExport,
