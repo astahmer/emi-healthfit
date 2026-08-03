@@ -38,6 +38,7 @@ export interface GenericChatAppInput
       | "createId"
       | "fetch"
       | "now"
+      | "streamInactivityTimeoutMilliseconds"
       | "streamDecoder"
       | "errorDecoder"
       | "messageEncoder"

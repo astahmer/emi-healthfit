@@ -22,6 +22,7 @@ export interface ChatRuntimeOptions {
   readonly transport: {
     readonly baseUrl: string;
     readonly fetch: typeof globalThis.fetch;
+    readonly streamInactivityTimeoutMilliseconds?: number;
     readonly createConversation?: () => Promise<string>;
     readonly streamDecoder?: ChatStreamDecoder;
     readonly errorDecoder?: ChatTransportErrorDecoder;

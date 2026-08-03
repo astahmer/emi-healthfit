@@ -241,6 +241,23 @@ describe("chatTransportActor", () => {
     actor.stop();
   });
 
+  it("reports a stalled stream instead of waiting forever", async () => {
+    const pending = pendingResponse();
+    const { input, sessionEvents } = createInput({ fetch: async () => pending.response });
+    input.streamInactivityTimeoutMilliseconds = 5;
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({ type: "stream-send-requested", request });
+
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+    expect(sessionEvents).toContainEqual({
+      type: "error-reported",
+      error: "Chat response stalled before completion.",
+      messageId: "user-message",
+    });
+    actor.stop();
+  });
+
   it("retries a conversation stream through the reconnect protocol", async () => {
     const { input, sessionEvents } = createInput({
       fetch: async () => streamResponse({ chunks: assistantChunks({ text: "Resumed" }) }),
@@ -256,6 +273,19 @@ describe("chatTransportActor", () => {
     expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
       expect.objectContaining({ type: "text", text: "Resumed" }),
     );
+    actor.stop();
+  });
+
+  it("treats an empty resume response as a successful no-op", async () => {
+    const { input, sessionEvents } = createInput({
+      fetch: async () => new Response(null, { status: 204 }),
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({ type: "stream-retry-requested", conversationId: "chat-1" });
+
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+    expect(sessionEvents).not.toContainEqual(expect.objectContaining({ type: "error-reported" }));
     actor.stop();
   });
 

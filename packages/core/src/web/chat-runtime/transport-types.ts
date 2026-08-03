@@ -22,6 +22,7 @@ export interface ChatTransportActorInput {
   fetch: typeof globalThis.fetch;
   createId: () => string;
   now: () => string;
+  streamInactivityTimeoutMilliseconds?: number;
   createConversation?: () => Promise<string>;
   streamDecoder?: ChatStreamDecoder;
   errorDecoder?: ChatTransportErrorDecoder;
@@ -40,6 +41,7 @@ export interface ChatStreamDecoderInput {
   response: Response;
   now: () => string;
   createId: () => string;
+  inactivityTimeoutMilliseconds: number;
   sendMessage: (message: ChatMessage) => void;
   isCurrent: () => boolean;
 }

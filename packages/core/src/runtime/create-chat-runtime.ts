@@ -212,6 +212,7 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
       createConversation: options.transport.createConversation,
       createId: options.identity.createId,
       now: options.identity.now,
+      streamInactivityTimeoutMilliseconds: options.transport.streamInactivityTimeoutMilliseconds,
       streamDecoder: options.transport.streamDecoder,
       errorDecoder: options.transport.errorDecoder,
       messageEncoder: options.transport.messageEncoder,

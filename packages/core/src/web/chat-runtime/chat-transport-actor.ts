@@ -73,11 +73,14 @@ const appendText = ({
 const assistantText = (message: ChatMessage): string =>
   message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
 
+const defaultStreamInactivityTimeoutMilliseconds = 5 * 60 * 1_000;
+
 const consumeStreamEffect = Effect.fn("chat.transport.consumeStream")(function* ({
   activeOperation,
   response,
   now,
   createId,
+  inactivityTimeoutMilliseconds,
   sendSession,
   isCurrent,
 }: {
@@ -85,6 +88,7 @@ const consumeStreamEffect = Effect.fn("chat.transport.consumeStream")(function* 
   response: Response;
   now: () => string;
   createId: () => string;
+  inactivityTimeoutMilliseconds: number;
   sendSession: (event: ChatSessionEvent) => void;
   isCurrent: (activeOperation: number) => boolean;
 }) {
@@ -104,6 +108,13 @@ const consumeStreamEffect = Effect.fn("chat.transport.consumeStream")(function* 
       }),
     releaseLockOnEnd: true,
   }).pipe(
+    Stream.timeoutOrElse({
+      duration: inactivityTimeoutMilliseconds,
+      orElse: () =>
+        Stream.fail(
+          new ChatTransportStreamError({ message: "Chat response stalled before completion." }),
+        ),
+    }),
     Stream.takeWhile(() => isCurrent(activeOperation)),
     Stream.runForEach((chunk) =>
       Effect.sync(() => {
@@ -145,6 +156,7 @@ const consumeResponseEffect = Effect.fn("chat.transport.consumeResponse")(functi
   activeOperation,
   now,
   createId,
+  inactivityTimeoutMilliseconds,
   sendSession,
   isCurrent,
 }: {
@@ -153,6 +165,7 @@ const consumeResponseEffect = Effect.fn("chat.transport.consumeResponse")(functi
   activeOperation: number;
   now: () => string;
   createId: () => string;
+  inactivityTimeoutMilliseconds: number;
   sendSession: (event: ChatSessionEvent) => void;
   isCurrent: (activeOperation: number) => boolean;
 }) {
@@ -161,6 +174,7 @@ const consumeResponseEffect = Effect.fn("chat.transport.consumeResponse")(functi
       response,
       now,
       createId,
+      inactivityTimeoutMilliseconds,
       sendMessage: (message) => sendSession({ type: "stream-message", message }),
       isCurrent: () => isCurrent(activeOperation),
     });
@@ -170,6 +184,7 @@ const consumeResponseEffect = Effect.fn("chat.transport.consumeResponse")(functi
     response,
     now,
     createId,
+    inactivityTimeoutMilliseconds,
     sendSession,
     isCurrent,
   });
@@ -267,6 +282,9 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
             response,
             now: input.now,
             createId: input.createId,
+            inactivityTimeoutMilliseconds:
+              input.streamInactivityTimeoutMilliseconds ??
+              defaultStreamInactivityTimeoutMilliseconds,
             sendSession: input.sendSession,
             isCurrent: (currentOperation) => currentOperation === operation,
           }),
@@ -341,6 +359,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               decoded ?? { message: `Chat resume failed (${response.status}).` },
             );
           }
+          if (response.status === 204) return;
           await Effect.runPromise(
             consumeResponseEffect({
               decoder: input.streamDecoder,
@@ -348,6 +367,9 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
               response,
               now: input.now,
               createId: input.createId,
+              inactivityTimeoutMilliseconds:
+                input.streamInactivityTimeoutMilliseconds ??
+                defaultStreamInactivityTimeoutMilliseconds,
               sendSession: input.sendSession,
               isCurrent: (currentOperation) => currentOperation === operation,
             }),
