@@ -387,6 +387,45 @@ describe("generic web and worker local API topology", () => {
       const anchorMessageId = conversation.messages.at(-1)?.id;
       expect(anchorMessageId).toBeTruthy();
 
+      const revisionResponse = await authenticated("/api/chat", {
+        body: JSON.stringify({
+          config: {
+            apiKey: "generic-provider-key",
+            baseUrl: provider.baseUrl,
+            model: "test-model",
+            provider: "openai",
+          },
+          memory: { enabled: false },
+          messages: [
+            {
+              id: `${runId}-generic-user-message`,
+              createdAt: "2026-08-02T00:00:00.000Z",
+              parts: [{ text: "Revised generic Worker question", type: "text" }],
+              role: "user",
+            },
+          ],
+          replaceMessageId: `${runId}-generic-user-message`,
+          sessionId: conversationId,
+        }),
+        headers: { "content-type": "application/json", cookie: cookie ?? "" },
+        method: "POST",
+      });
+      expect(revisionResponse.status).toBe(200);
+      expect(await revisionResponse.text()).toContain("generic provider reply");
+      const revisedConversationResponse = await authenticated(
+        `/api/conversations/${conversationId}`,
+      );
+      const revisedConversation = Schema.decodeUnknownSync(
+        Schema.Struct({
+          messages: Schema.Array(Schema.Struct({ id: Schema.String, parts: Schema.String })),
+        }),
+      )(await revisedConversationResponse.json());
+      expect(
+        revisedConversation.messages.some((message) =>
+          message.parts.includes("Revised generic Worker question"),
+        ),
+      ).toBe(true);
+
       const invalidAnchorResponse = await authenticated(
         `/api/conversations/${conversationId}/threads`,
         {

@@ -1,5 +1,13 @@
 import { useState, type RefObject } from "react";
-import { ArrowDownIcon, ArrowUpIcon, PaperclipIcon, SquareIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CopyIcon,
+  DownloadIcon,
+  PaperclipIcon,
+  ShareIcon,
+  SquareIcon,
+} from "lucide-react";
 
 import type { ChatMessage } from "../../../protocol/messages.ts";
 import type { Attachment } from "../../../protocol/parts.ts";
@@ -24,6 +32,9 @@ export const ChatHeader = ({
   onToggleSidebar,
   onScroll,
   onStop,
+  onCopyConversation,
+  onDownloadConversation,
+  onShareConversation,
 }: {
   appName: string;
   temporary: boolean;
@@ -34,6 +45,9 @@ export const ChatHeader = ({
   onToggleSidebar: () => void;
   onScroll: (target: "top" | "previous" | "bottom") => void;
   onStop: () => void;
+  onCopyConversation: () => void;
+  onDownloadConversation: () => void;
+  onShareConversation: () => void;
 }) => (
   <header className="flex shrink-0 items-center gap-2 border-b px-2 py-2 md:px-4">
     <ChatSidebarToggle onToggle={onToggleSidebar} open={sidebarOpen} />
@@ -71,6 +85,33 @@ export const ChatHeader = ({
       >
         <ArrowDownIcon />
         <span className="hidden sm:inline">Bottom</span>
+      </Button>
+      <Button
+        aria-label="Copy conversation"
+        size="sm"
+        variant="outline"
+        onClick={onCopyConversation}
+      >
+        <CopyIcon />
+        <span className="hidden xl:inline">Copy</span>
+      </Button>
+      <Button
+        aria-label="Download conversation"
+        size="sm"
+        variant="outline"
+        onClick={onDownloadConversation}
+      >
+        <DownloadIcon />
+        <span className="hidden xl:inline">Download</span>
+      </Button>
+      <Button
+        aria-label="Share conversation"
+        size="sm"
+        variant="outline"
+        onClick={onShareConversation}
+      >
+        <ShareIcon />
+        <span className="hidden xl:inline">Share</span>
       </Button>
       {streaming && (
         <Button aria-label="Stop generation" size="sm" variant="secondary" onClick={onStop}>
@@ -123,6 +164,8 @@ export const MessageViewport = ({
   messageElements,
   onSelectMinimapMessage,
   onBranchMessage,
+  onEditMessage,
+  onRetryMessage,
 }: {
   messages: ReadonlyArray<ChatMessage>;
   conversationId: string | undefined;
@@ -132,8 +175,12 @@ export const MessageViewport = ({
   messageElements: Map<string, HTMLElement>;
   onSelectMinimapMessage: (messageId: string) => void;
   onBranchMessage: (messageId: string) => void;
+  onEditMessage?: (input: { messageId: string; text: string }) => void;
+  onRetryMessage?: (messageId: string) => void;
 }) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string>();
+  const [editingMessageId, setEditingMessageId] = useState<string>();
+  const [editingDraft, setEditingDraft] = useState("");
 
   const copyMessage = async ({ messageId, text }: { messageId: string; text: string }) => {
     if (typeof navigator === "undefined" || navigator.clipboard === undefined) return;
@@ -170,32 +217,75 @@ export const MessageViewport = ({
                 }}
               >
                 <MessageContent>
-                  <Bubble align={isUser ? "end" : "start"}>
-                    <BubbleContent
-                      className={cn(
-                        isUser
-                          ? "bg-primary text-primary-foreground"
-                          : "border bg-card text-card-foreground",
-                      )}
+                  {editingMessageId === message.id ? (
+                    <form
+                      className="ms-auto flex w-full max-w-[85%] flex-col gap-2 rounded-xl border bg-muted/30 p-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        if (editingDraft.trim() === "") return;
+                        onEditMessage?.({ messageId: message.id, text: editingDraft.trim() });
+                        setEditingMessageId(undefined);
+                        setEditingDraft("");
+                      }}
                     >
-                      <p className="mb-1 text-[10px] font-semibold tracking-[0.16em] text-current/60 uppercase">
-                        {message.role}
-                      </p>
-                      <div className="whitespace-pre-wrap">
-                        {text || (message.role === "assistant" && streaming ? "Thinking…" : "")}
-                      </div>
-                      {conversationId !== undefined && !temporary && (
+                      <Textarea
+                        aria-label="Edit message"
+                        autoFocus
+                        className="min-h-20 resize-y bg-transparent"
+                        onChange={(event) => setEditingDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            setEditingMessageId(undefined);
+                            setEditingDraft("");
+                          }
+                        }}
+                        value={editingDraft}
+                      />
+                      <div className="flex justify-end gap-2">
                         <Button
-                          className="mt-2"
-                          onClick={() => onBranchMessage(message.id)}
+                          onClick={() => {
+                            setEditingMessageId(undefined);
+                            setEditingDraft("");
+                          }}
                           size="xs"
-                          variant={isUser ? "secondary" : "ghost"}
+                          type="button"
+                          variant="ghost"
                         >
-                          Branch here
+                          Cancel
                         </Button>
-                      )}
-                    </BubbleContent>
-                  </Bubble>
+                        <Button disabled={editingDraft.trim() === ""} size="xs" type="submit">
+                          Update
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <Bubble align={isUser ? "end" : "start"}>
+                      <BubbleContent
+                        className={cn(
+                          isUser
+                            ? "bg-primary text-primary-foreground"
+                            : "border bg-card text-card-foreground",
+                        )}
+                      >
+                        <p className="mb-1 text-[10px] font-semibold tracking-[0.16em] text-current/60 uppercase">
+                          {message.role}
+                        </p>
+                        <div className="whitespace-pre-wrap">
+                          {text || (message.role === "assistant" && streaming ? "Thinking…" : "")}
+                        </div>
+                        {conversationId !== undefined && !temporary && (
+                          <Button
+                            className="mt-2"
+                            onClick={() => onBranchMessage(message.id)}
+                            size="xs"
+                            variant={isUser ? "secondary" : "ghost"}
+                          >
+                            Branch here
+                          </Button>
+                        )}
+                      </BubbleContent>
+                    </Bubble>
+                  )}
                   <MessageFooter>
                     {message.role}
                     <Button
@@ -206,6 +296,29 @@ export const MessageViewport = ({
                     >
                       {copiedMessageId === message.id ? "Message copied." : "Copy"}
                     </Button>
+                    {isUser && onEditMessage !== undefined && !streaming && (
+                      <Button
+                        aria-label="Edit message"
+                        onClick={() => {
+                          setEditingMessageId(message.id);
+                          setEditingDraft(text);
+                        }}
+                        size="xs"
+                        variant="ghost"
+                      >
+                        Edit
+                      </Button>
+                    )}
+                    {!isUser && onRetryMessage !== undefined && !streaming && (
+                      <Button
+                        aria-label="Retry message"
+                        onClick={() => onRetryMessage(message.id)}
+                        size="xs"
+                        variant="ghost"
+                      >
+                        Retry
+                      </Button>
+                    )}
                   </MessageFooter>
                 </MessageContent>
               </Message>

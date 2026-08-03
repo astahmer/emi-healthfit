@@ -154,6 +154,41 @@ describe("chatTransportActor", () => {
     actor.stop();
   });
 
+  it("reuses a user message identifier for a revision without allowing body collisions", async () => {
+    let requestBody: unknown;
+    const { input, sessionEvents } = createInput({
+      fetch: async (_, init) => {
+        requestBody = JSON.parse(String(init?.body));
+        return streamResponse({ chunks: assistantChunks({ text: "Revised" }) });
+      },
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({
+      type: "stream-send-requested",
+      request: {
+        ...request,
+        messages: [],
+        text: "Updated",
+        messageId: "user-original",
+        replaceMessageId: "user-original",
+        body: { replaceMessageId: "attacker-message" },
+      },
+    });
+
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+    expect(requestBody).toMatchObject({
+      replaceMessageId: "user-original",
+      messages: [
+        {
+          id: "user-original",
+          parts: [{ type: "text", text: "Updated" }],
+        },
+      ],
+    });
+    actor.stop();
+  });
+
   it("drops chunks from a superseded stream operation", async () => {
     const first = pendingResponse();
     let requests = 0;

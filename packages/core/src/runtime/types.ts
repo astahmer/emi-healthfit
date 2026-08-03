@@ -201,6 +201,7 @@ export interface ChatActions {
   }): void;
   stop(): void;
   retry(input: { readonly messageId: string }): void;
+  editMessage(input: { readonly messageId: string; readonly text: string }): void;
   selectConversation(input: { readonly conversationId: string }): void;
   selectThread(input: { readonly threadId: string }): void;
   updateConversation(input: {

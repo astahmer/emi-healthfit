@@ -150,6 +150,33 @@ export class ChatRouteStream {
           : yield* conversationStore.threadStore.getMessages(existingThread.id);
       const threadParentId = threadMessages.at(-1)?.id ?? existingThread?.anchor_message_id ?? null;
 
+      const lastMessage = protocolMessages.at(-1);
+      if (
+        decoded.value.replaceMessageId !== undefined &&
+        (temporary ||
+          lastMessage?.role !== "user" ||
+          lastMessage.id !== decoded.value.replaceMessageId)
+      ) {
+        return yield* HttpServerResponse.json(
+          { error: "Invalid message revision" },
+          { status: 400 },
+        );
+      }
+
+      let revisionParentId = threadParentId;
+      if (!temporary && decoded.value.replaceMessageId !== undefined && lastMessage !== undefined) {
+        const revised = yield* conversationStore.messageStore.reviseMessage({
+          conversationId,
+          messageId: decoded.value.replaceMessageId,
+          parts: lastMessage.parts,
+          threadId: existingThread?.id,
+        });
+        if (!revised) {
+          return yield* HttpServerResponse.json({ error: "Message not found" }, { status: 404 });
+        }
+        revisionParentId = decoded.value.replaceMessageId;
+      }
+
       const generationId = crypto.randomUUID();
       if (!temporary) {
         yield* generationStore.writer.create({
@@ -160,9 +187,8 @@ export class ChatRouteStream {
         });
       }
 
-      const lastMessage = protocolMessages.at(-1);
       const titleSource = firstUserText(protocolMessages);
-      let assistantParentId = threadParentId;
+      let assistantParentId = revisionParentId;
       const markGenerationFailed = (cause: unknown) =>
         temporary
           ? Effect.void
@@ -173,7 +199,11 @@ export class ChatRouteStream {
                 error: cause instanceof Error ? cause.message : String(cause),
               })
               .pipe(Effect.catch(() => Effect.void));
-      if (!temporary && lastMessage?.role === "user") {
+      if (
+        !temporary &&
+        lastMessage?.role === "user" &&
+        decoded.value.replaceMessageId === undefined
+      ) {
         yield* Effect.gen(function* () {
           const savedUserIds = yield* conversationStore.messageStore.saveMessages({
             conversationId,

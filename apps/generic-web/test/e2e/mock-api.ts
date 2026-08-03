@@ -375,8 +375,11 @@ export const createGenericE2eApi = ({
     if (pathname === "/api/chat" && request.method() === "POST") {
       chatCalls += 1;
       const id = "conversation-1";
-      const conversation = ensureConversation(id);
       const body = requestBody(route);
+      const temporary = body.temporary === true;
+      const conversation = temporary
+        ? createConversation({ id: `temp-${chatCalls}` })
+        : ensureConversation(id);
       lastChatRequestBody = body;
       const requestMessages = Array.isArray(body.messages) ? body.messages : [];
       const userMessage = requestMessages.at(-1);
@@ -385,24 +388,26 @@ export const createGenericE2eApi = ({
           ? JSON.stringify(userMessage.parts)
           : "";
       const assistantText = "Generic worker reply";
-      const stored = messages.get(id) ?? [];
-      stored.push(
-        {
-          id: `user-${chatCalls}`,
-          role: "user",
-          parts: userText,
-          model: null,
-          createdAt: now,
-        },
-        {
-          id: `assistant-${chatCalls}`,
-          role: "assistant",
-          parts: JSON.stringify([{ type: "text", text: assistantText }]),
-          model: "test-model",
-          createdAt: now,
-        },
-      );
-      messages.set(id, stored);
+      if (!temporary) {
+        const stored = messages.get(id) ?? [];
+        stored.push(
+          {
+            id: `user-${chatCalls}`,
+            role: "user",
+            parts: userText,
+            model: null,
+            createdAt: now,
+          },
+          {
+            id: `assistant-${chatCalls}`,
+            role: "assistant",
+            parts: JSON.stringify([{ type: "text", text: assistantText }]),
+            model: "test-model",
+            createdAt: now,
+          },
+        );
+        messages.set(id, stored);
+      }
       if (holdStream) {
         streamPromise ??= new Promise<void>((resolve) => {
           releaseStream = resolve;

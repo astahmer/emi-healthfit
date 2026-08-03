@@ -17,6 +17,8 @@ export interface ChatTransportRequest {
   messages: ChatMessage[];
   text: string;
   files: Attachment[];
+  messageId?: string;
+  replaceMessageId?: string;
   body: Record<string, unknown>;
 }
 
@@ -181,7 +183,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       request: ChatTransportRequest;
     }) => {
       const message: ChatMessage = {
-        id: input.createId(),
+        id: request.messageId ?? input.createId(),
         role: "user",
         parts: [
           ...(request.text === "" ? [] : [{ type: "text" as const, text: request.text }]),
@@ -198,6 +200,9 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
           sessionId: request.conversationId,
           threadId: request.threadId,
           temporary: request.temporary,
+          ...(request.replaceMessageId === undefined
+            ? {}
+            : { replaceMessageId: request.replaceMessageId }),
         }),
         headers: { "content-type": "application/json" },
         method: "POST",

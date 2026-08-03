@@ -67,6 +67,14 @@ export class ConversationStoreLive {
             database
               .getConversationMessages({ userId, conversationId })
               .pipe(Effect.map((messages) => [...messages])),
+          reviseMessage: ({ conversationId, messageId, parts, threadId }) =>
+            database.reviseConversationMessage({
+              userId,
+              conversationId,
+              messageId,
+              parts,
+              threadId,
+            }),
         },
         threadStore: {
           createThread: ({ conversationId, anchorMessageId, title }) =>

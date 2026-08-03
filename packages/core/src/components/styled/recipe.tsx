@@ -2,6 +2,9 @@ import { useRef, type ReactNode } from "react";
 
 import { useChatActions, useChatSelector } from "../../react-hooks.ts";
 import type { Attachment } from "../../protocol/parts.ts";
+import type { ChatMessage } from "../../protocol/messages.ts";
+import { prepareAttachments } from "../../web/attachments/attachments.ts";
+import { conversationMarkdown } from "../../web/conversation/conversation-markdown.ts";
 import {
   ChatComposer,
   ChatHeader,
@@ -17,8 +20,6 @@ import {
 import { Button } from "./internal/ui/button.tsx";
 import { SuggestionChips } from "../../web/thread/suggestion-chips.tsx";
 
-const maximumAttachments = 10;
-const maximumFileBytes = 5 * 1024 * 1024;
 const emptyReleaseNotes: ReadonlyArray<string> = [];
 
 const readFileAsDataUrl = (file: File): Promise<string> =>
@@ -37,21 +38,16 @@ const readFileAsDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-const prepareAttachments = async ({
+const prepareProtocolAttachments = async ({
   files,
   existingCount,
 }: {
   files: FileList;
   existingCount: number;
 }): Promise<ReadonlyArray<Attachment>> => {
-  const selected = Array.from(files);
-  if (existingCount + selected.length > maximumAttachments) {
-    throw new Error(`You can attach up to ${maximumAttachments} files.`);
-  }
-  const oversized = selected.find((file) => file.size > maximumFileBytes);
-  if (oversized !== undefined) throw new Error(`${oversized.name} is larger than 5 MB.`);
+  const prepared = await prepareAttachments({ files, existingCount });
   return Promise.all(
-    selected.map(async (file) => {
+    Array.from(prepared).map(async (file) => {
       const url = await readFileAsDataUrl(file);
       return {
         id: `attachment:${url}`,
@@ -63,6 +59,14 @@ const prepareAttachments = async ({
     }),
   );
 };
+
+const conversationText = (messages: ReadonlyArray<ChatMessage>) =>
+  conversationMarkdown(
+    messages.map((message) => ({
+      ...message,
+      parentId: null,
+    })),
+  );
 
 const scrollMessage = ({
   messageId,
@@ -138,7 +142,7 @@ export const ChatApp = ({
 
   const addFiles = (fileList: FileList | undefined) => {
     if (fileList === undefined) return;
-    void prepareAttachments({ files: fileList, existingCount: composer.attachments.length })
+    void prepareProtocolAttachments({ files: fileList, existingCount: composer.attachments.length })
       .then((attachments) => actions.addAttachments({ attachments }))
       .catch((cause: unknown) =>
         actions.reportError({
@@ -157,6 +161,8 @@ export const ChatApp = ({
         onBranchMessage={(messageId) => {
           if (conversationId !== undefined && !temporary) actions.createBranch({ messageId });
         }}
+        onEditMessage={({ messageId, text }) => actions.editMessage({ messageId, text })}
+        onRetryMessage={(messageId) => actions.retry({ messageId })}
         onSelectMinimapMessage={(messageId) =>
           scrollMessage({ messageId, messageElements: messageElements.current })
         }
@@ -270,6 +276,28 @@ export const ChatApp = ({
             messageCount={activeThread.messages.length}
             onScroll={scrollMessages}
             onStop={() => actions.stop()}
+            onCopyConversation={() => {
+              void navigator.clipboard?.writeText(conversationText(activeThread.messages));
+            }}
+            onDownloadConversation={() => {
+              const blob = new Blob([conversationText(activeThread.messages)], {
+                type: "text/markdown;charset=utf-8",
+              });
+              const url = URL.createObjectURL(blob);
+              const anchor = document.createElement("a");
+              anchor.href = url;
+              anchor.download = `chat-${conversationId ?? "temporary"}.md`;
+              anchor.click();
+              URL.revokeObjectURL(url);
+            }}
+            onShareConversation={() => {
+              const text = conversationText(activeThread.messages);
+              if (navigator.share !== undefined) {
+                void navigator.share({ title: appName, text });
+                return;
+              }
+              void navigator.clipboard?.writeText(text);
+            }}
             onToggleSidebar={() => actions.setSidebarOpen({ open: !sidebarOpen })}
             sidebarOpen={sidebarOpen}
             streaming={streaming}

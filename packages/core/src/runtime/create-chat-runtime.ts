@@ -158,6 +158,12 @@ const requestBody = (settings: GenericChatSettings): Record<string, unknown> => 
   webSearch: settings.webSearch,
 });
 
+const messageText = (message: ChatMessage): string =>
+  message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+
+const messageFiles = (message: ChatMessage) =>
+  message.parts.flatMap((part) => (part.type === "file" ? [part.file] : []));
+
 const buildDefaults = (model: ModelConfiguration | undefined): GenericChatSettings => ({
   ...defaultGenericChatSettings,
   ...(model === undefined ? {} : { model: model.model }),
@@ -449,14 +455,67 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     });
   };
 
+  const sendRevision = ({ messageId, text }: { messageId: string; text: string }) => {
+    const session = currentSession();
+    const settings = currentSettings();
+    const targetIndex = session.messages.findIndex((message) => message.id === messageId);
+    if (targetIndex === -1) {
+      sendSession({ type: "error-reported", error: "Message no longer exists." });
+      return;
+    }
+    const target = session.messages[targetIndex];
+    if (target === undefined || target.role !== "user") {
+      sendSession({ type: "error-reported", error: "Only user messages can be revised." });
+      return;
+    }
+    if (session.conversationId === undefined || session.temporary) {
+      sendSession({ type: "error-reported", error: "Only saved conversations can be revised." });
+      return;
+    }
+    if (text.trim() === "" && messageFiles(target).length === 0) return;
+    sendTransport({
+      type: "stream-send-requested",
+      request: {
+        conversationId: session.conversationId,
+        threadId: session.threadId,
+        temporary: false,
+        messages: session.messages.slice(0, targetIndex),
+        text,
+        files: messageFiles(target),
+        messageId: target.id,
+        replaceMessageId: target.id,
+        body: requestBody(settings),
+      },
+    });
+  };
+
+  const retryMessage = ({ messageId }: { messageId: string }) => {
+    const session = currentSession();
+    const targetIndex = session.messages.findIndex((message) => message.id === messageId);
+    if (targetIndex === -1) {
+      sendSession({ type: "error-reported", error: "Message no longer exists." });
+      return;
+    }
+    const target = session.messages[targetIndex];
+    const userIndex =
+      target?.role === "user"
+        ? targetIndex
+        : session.messages.findLastIndex(
+            (message, index) => index < targetIndex && message.role === "user",
+          );
+    const userMessage = userIndex === -1 ? undefined : session.messages[userIndex];
+    if (userMessage === undefined) {
+      sendSession({ type: "error-reported", error: "No user message is available to retry." });
+      return;
+    }
+    sendRevision({ messageId: userMessage.id, text: messageText(userMessage) });
+  };
+
   const actions: ChatActions = {
     sendMessage,
     stop: () => sendTransport({ type: "stream-cancelled" }),
-    retry: () => {
-      const conversationId = currentSession().conversationId;
-      if (conversationId !== undefined)
-        sendTransport({ type: "stream-retry-requested", conversationId });
-    },
+    retry: retryMessage,
+    editMessage: ({ messageId, text }) => sendRevision({ messageId, text }),
     selectConversation: ({ conversationId }) =>
       sendConversationStore({ type: "conversation-load-requested", conversationId }),
     selectThread: ({ threadId }) => {

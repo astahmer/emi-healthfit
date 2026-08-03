@@ -11,6 +11,14 @@ const conversation = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
+type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  parts: string;
+  model: string | null;
+  createdAt: string;
+};
+
 const memorySummary = {
   content: "The user prefers concise worker answers.",
   memoryCount: 1,
@@ -45,14 +53,14 @@ const streamResponse = () => {
 };
 
 const createFetch =
-  () =>
+  ({ conversationMessages = [] }: { conversationMessages?: StoredMessage[] } = {}) =>
   async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const pathname = new URL(url, "http://localhost").pathname;
     if (pathname === "/api/chat") return streamResponse();
     if (pathname === "/api/conversations") return response({ conversations: [conversation] });
     if (pathname === "/api/conversations/conversation-1")
-      return response({ conversation, messages: [] });
+      return response({ conversation, messages: conversationMessages });
     if (pathname === "/api/conversations/conversation-1/threads") return response({ threads: [] });
     if (pathname === "/api/memories") return response({ memories: [] });
     if (pathname === "/api/memories/summary") {
@@ -79,8 +87,10 @@ const createStorage = () => {
 
 const createOptions = ({
   drafts = createStorage(),
+  conversationMessages = [],
 }: {
   drafts?: ReturnType<typeof createStorage>;
+  conversationMessages?: StoredMessage[];
 } = {}) => {
   const settings = createStorage();
   let onlineListener: ((online: boolean) => void) | undefined;
@@ -101,7 +111,7 @@ const createOptions = ({
     }),
   );
   const options = {
-    transport: { baseUrl: "/api", fetch: createFetch() as typeof globalThis.fetch },
+    transport: { baseUrl: "/api", fetch: createFetch({ conversationMessages }) },
     storage: { settings, drafts },
     browser: {
       online: true,
@@ -185,5 +195,43 @@ describe("createChatRuntime", () => {
     runtime.dispose();
     fixture.setOnline(true);
     expect(runtime.getState().connection).toBe("offline");
+  });
+
+  it("revises a user message through the core stream contract", async () => {
+    const target = {
+      id: "user-original",
+      role: "user" as const,
+      parts: JSON.stringify([{ type: "text", text: "Original" }]),
+      model: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    } satisfies StoredMessage;
+    const fixture = createOptions({ conversationMessages: [target] });
+    let requestBody: unknown;
+    const baseFetch = fixture.options.transport.fetch;
+    fixture.options.transport.fetch = async (input, init) => {
+      if (init?.body !== undefined) requestBody = JSON.parse(String(init.body));
+      return baseFetch(input, init);
+    };
+    const runtime = createChatRuntime(fixture.options);
+
+    runtime.start();
+    runtime.actions.selectConversation({ conversationId: conversation.id });
+    await vi.waitFor(() => {
+      expect(runtime.getState().activeThread.messages).toHaveLength(1);
+    });
+
+    runtime.actions.editMessage({ messageId: target.id, text: "Revised" });
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
+
+    expect(requestBody).toMatchObject({
+      replaceMessageId: target.id,
+      messages: [
+        {
+          id: target.id,
+          parts: [{ type: "text", text: "Revised" }],
+        },
+      ],
+    });
+    runtime.dispose();
   });
 });

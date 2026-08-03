@@ -87,6 +87,12 @@ export interface MessageStoreShape<TEnvironment = never> {
     input: SaveMessagesInput,
   ) => DatabaseEffect<string[], never, TEnvironment>;
   readonly getMessages: (conversationId: string) => DatabaseEffect<Message[], never, TEnvironment>;
+  readonly reviseMessage: (input: {
+    readonly conversationId: string;
+    readonly messageId: string;
+    readonly parts: ReadonlyArray<unknown>;
+    readonly threadId?: string;
+  }) => DatabaseEffect<boolean, never, TEnvironment>;
 }
 
 export interface ThreadStoreShape<TEnvironment = never> {

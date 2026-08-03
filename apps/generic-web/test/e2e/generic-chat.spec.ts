@@ -98,6 +98,79 @@ test("sends the web-search capability through the generic chat contract", async 
   expect(api.lastChatBody()).toMatchObject({ webSearch: true });
 });
 
+test("supports message revision and assistant retry through the core runtime", async ({ page }) => {
+  const api = await openGenericChat(page);
+
+  await page.getByLabel("API key").fill("sk-test");
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Original question");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
+
+  const userMessage = page.getByTestId("messages").locator("[data-message-id]").first();
+  await userMessage.getByRole("button", { name: "Edit message", exact: true }).click();
+  await page.getByRole("textbox", { name: "Edit message", exact: true }).fill("Revised question");
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await expect(
+    page.getByTestId("messages").getByText("Revised question", { exact: true }),
+  ).toBeVisible();
+  expect(api.lastChatBody()).toMatchObject({ replaceMessageId: expect.any(String) });
+
+  const assistantMessage = page.getByTestId("messages").locator("[data-message-id]").last();
+  await assistantMessage.getByRole("button", { name: "Retry message", exact: true }).click();
+  await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
+  expect(api.chatCalls()).toBe(3);
+});
+
+test("supports queue, force-send, and branch/minimap controls", async ({ page }) => {
+  const api = await openGenericChat(page);
+
+  await page.getByLabel("API key").fill("sk-test");
+  api.holdStream();
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("First question");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Stop generation", exact: true })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Queued question");
+  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await expect(page.getByText("Queued question", { exact: true })).toBeVisible();
+  api.releaseStream();
+  await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Force send", exact: true }).click();
+  await expect(
+    page.getByTestId("messages").getByText("Queued question", { exact: true }),
+  ).toBeVisible();
+  expect(api.chatCalls()).toBe(2);
+
+  const assistantMessage = page.getByTestId("messages").locator("[data-message-id]").last();
+  await assistantMessage.getByRole("button", { name: "Branch here", exact: true }).click();
+  await expect(page.getByText("Branches", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Branch", exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "User message minimap" })).toBeVisible();
+});
+
+test("keeps temporary conversations out of durable history", async ({ page }) => {
+  const api = await openGenericChat(page);
+
+  await page.getByLabel("API key").fill("sk-test");
+  await page.getByRole("checkbox", { name: "Temporary chat" }).check();
+  await page.getByRole("textbox", { name: "Message", exact: true }).fill("Temporary question");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Generic worker reply", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Conversation history").locator("article")).toHaveCount(0);
+  expect(api.conversations).toHaveLength(0);
+});
+
+test("exposes conversation copy, download, and share controls", async ({ page }) => {
+  await openGenericChat(page);
+
+  await expect(page.getByRole("button", { name: "Copy conversation", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Download conversation", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Share conversation", exact: true })).toBeVisible();
+});
+
 test("registers safe WebMCP tools and routes them through visible actor-owned state", async ({
   page,
 }) => {
