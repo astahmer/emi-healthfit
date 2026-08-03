@@ -118,6 +118,30 @@ describe("chatSessionMachine", () => {
     expect(actor.getSnapshot().context.streamOutcome).toBe("completed");
   });
 
+  it("drops only the failed send assistant before the next request", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message],
+    });
+    actor.send({ type: "stream-started", messages: [message] });
+    actor.send({ type: "stream-message", message: persistedAssistant });
+    actor.send({ type: "error-reported", error: "Disconnected." });
+    actor.send({ type: "stream-finished" });
+
+    actor.send({
+      type: "stream-started",
+      messages: [message, persistedAssistant, { ...message, id: "message-2" }],
+    });
+
+    expect(actor.getSnapshot().context.messages).toEqual([
+      message,
+      { ...message, id: "message-2" },
+    ]);
+  });
+
   it("removes a queued follow-up after a stream has already finished", () => {
     const actor = createActor(chatSessionMachine);
     actor.start();
