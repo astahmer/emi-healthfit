@@ -39,7 +39,7 @@ const emitVersionJson = ({
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, process.cwd(), "");
-  const apiBaseUrl = environment.API_BASE_URL || "http://localhost:1337";
+  const apiBaseUrl = process.env.API_BASE_URL || environment.API_BASE_URL || "http://localhost:1337";
   const buildId =
     environment.EMI_BUILD_ID ||
     environment.CF_PAGES_COMMIT_SHA?.slice(0, 7) ||
