@@ -124,6 +124,7 @@
     "src/advanced-xstate.export.ts",
     "src/api.export.ts",
     "src/chat.export.ts",
+    "src/chat/app-config.ts",
     "src/chat/generation-terminal-state.ts",
     "src/chat/message-parts.ts",
     "src/chat/operation-budget.ts",
@@ -137,6 +138,7 @@
     "src/cloudflare/auth/anonymous-session.ts",
     "src/cloudflare/auth/make-auth.ts",
     "src/cloudflare/auth/request-auth.ts",
+    "src/cloudflare/chat-route-app.ts",
     "src/cloudflare/chat-route-conversation.ts",
     "src/cloudflare/chat-route-generation.ts",
     "src/cloudflare/chat-route-memory.ts",
@@ -261,6 +263,7 @@
     "test/adapters/cloudflare.test.ts",
     "test/advanced/xstate.test.ts",
     "test/api/api-client.test.ts",
+    "test/chat/app-config.test.ts",
     "test/chat/message-parts.test.ts",
     "test/chat/request.test.ts",
     "test/chat/settings.test.ts",
@@ -344,6 +347,7 @@
     "test/server/memory-store.memory.test.ts",
     "test/server/memory-tools.test.ts",
     "test/server/query-database.test.ts",
+    "test/server/schema.ts",
     "test/server/secure-compare.test.ts",
     "test/server/sqlite.ts",
     "test/testing/testing.test.ts",
@@ -371,6 +375,7 @@
     "test/web/thread-shell.test.tsx",
     "test/web/tool-part.test.tsx",
     "test/web/use-thread-viewport-scroll.test.tsx",
-    "test/web/webmcp-actor.test.ts"
+    "test/web/webmcp-actor.test.ts",
+    "test/web/webmcp.test.ts"
   ]
 }

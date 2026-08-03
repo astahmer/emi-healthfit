@@ -99,11 +99,28 @@ try {
     ],
     cwd: packageDirectory,
   });
+  await run({
+    command: process.execPath,
+    args: [
+      "--experimental-strip-types",
+      "bin/create-chat-app.ts",
+      "upgrade",
+      targetDirectory,
+      "--dry-run",
+    ],
+    cwd: packageDirectory,
+  });
   await run({ command: "pnpm", args: ["install"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["typecheck"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "worker", "db:generate"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "worker", "db:check"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "web", "build"], cwd: targetDirectory });
+  await run({
+    command: "pnpm",
+    args: ["--dir", "worker", "dry", "--stage", alchemyStage],
+    cwd: targetDirectory,
+    env: workerEnvironment,
+  });
 
   let worker;
   let web;
@@ -133,9 +150,19 @@ try {
         GENERIC_API_ORIGIN: "http://127.0.0.1:3233",
         GENERIC_AUTH_ORIGIN: "http://127.0.0.1:3233",
         GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
+        GENERIC_EXPECTED_APP_VERSION: "0.1.0",
       },
     });
-    await run({ command: "pnpm", args: ["--dir", "web", "test:e2e"], cwd: targetDirectory });
+    await run({
+      command: "pnpm",
+      args: ["--dir", "web", "test:e2e"],
+      cwd: targetDirectory,
+      env: {
+        GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
+        GENERIC_EXPECTED_APP_VERSION: "0.1.0",
+        GENERIC_REAL_WORKER: "1",
+      },
+    });
   } finally {
     if (web) await stopServer(web);
     if (worker) {

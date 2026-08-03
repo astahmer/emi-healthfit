@@ -1,10 +1,15 @@
 export declare class Chat {
+  static readonly app: { readonly defaultConfig: unknown };
   static readonly schemas: {
+    readonly appConfig: unknown;
     readonly chatMemoryRequest: unknown;
     readonly chatModelConfiguration: unknown;
     readonly chatStreamRequest: unknown;
     readonly compactConversationRequest: unknown;
     readonly genericChatSettings: unknown;
+    readonly release: unknown;
+    readonly releaseHistory: unknown;
+    readonly settingsDescriptor: unknown;
   };
   static readonly settings: { readonly defaultGenericChatSettings: unknown };
   static readonly prompts: {

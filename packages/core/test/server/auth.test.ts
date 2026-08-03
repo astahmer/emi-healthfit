@@ -96,6 +96,8 @@ describe("core auth helpers", () => {
   it("protects generic API routes except health and auth", () => {
     assert.equal(isGenericProtectedPath("/api/conversations"), true);
     assert.equal(isGenericProtectedPath("/api/health"), false);
+    assert.equal(isGenericProtectedPath("/api/releases"), false);
+    assert.equal(isGenericProtectedPath("/api/settings"), false);
     assert.equal(isGenericProtectedPath("/api/auth/sign-in/anonymous"), false);
     assert.equal(isGenericProtectedPath("/icon.svg"), false);
   });

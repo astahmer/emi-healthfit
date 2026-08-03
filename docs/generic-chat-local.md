@@ -13,7 +13,7 @@ For separate terminals, the Worker needs the web origin as its public auth origi
 proxies the browser's same-origin `/api` requests:
 
 ```sh
-BETTER_AUTH_URL=http://localhost:3233 pnpm generic:worker:dev
+BETTER_AUTH_URL=http://127.0.0.1:3233 pnpm generic:worker:dev
 pnpm generic:web:dev
 ```
 
@@ -68,9 +68,11 @@ The generic fixture keeps these checks distinct:
 
 - `pnpm --dir apps/generic-web test` runs unit and actor tests without a live Worker.
 - `pnpm --dir apps/generic-web test:api` is an integration test: it crosses the Vite proxy,
-  Worker routes, anonymous auth, D1 persistence, and a local OpenAI-compatible SSE provider.
+  Worker routes, anonymous auth, D1 persistence, safe settings/releases metadata, and a local
+  OpenAI-compatible SSE provider.
 - `pnpm --dir apps/generic-web test:e2e` runs browser scenarios, including the Playwright BDD
-  Gherkin features.
+  Gherkin features. Set `GENERIC_REAL_WORKER=1` to add the real Worker browser smoke; the normal
+  suite keeps deterministic route fixtures for the larger interaction matrix.
 
 The `generic:dev` startup wait is only a narrow readiness check for the Worker health route. It
 does not replace the API integration or browser E2E suites.

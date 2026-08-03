@@ -1,3 +1,4 @@
+import * as AppConfig from "./chat/app-config.ts";
 import * as GenerationTerminalState from "./chat/generation-terminal-state.ts";
 import * as MessageParts from "./chat/message-parts.ts";
 import {
@@ -23,12 +24,20 @@ import type { GenericChatSettings as GenericChatSettingsType } from "./chat/sett
 
 export class Chat {
   static readonly schemas = {
+    appConfig: AppConfig.ChatAppConfigSchema,
     chatMemoryRequest: ChatRequest.ChatMemoryRequestSchema,
     chatModelConfiguration: ChatRequest.ChatModelConfigurationSchema,
     chatStreamRequest: ChatRequest.ChatStreamRequestSchema,
     compactConversationRequest: ChatRequest.CompactConversationRequestSchema,
     genericChatSettings: ChatSettings.GenericChatSettingsSchema,
     openAiCompatibleConfiguration: OpenAiChat.configurationSchema,
+    release: AppConfig.ChatReleaseSchema,
+    releaseHistory: AppConfig.ChatReleaseHistorySchema,
+    settingsDescriptor: AppConfig.ChatSettingsDescriptorSchema,
+  } as const;
+
+  static readonly app = {
+    defaultConfig: AppConfig.defaultChatAppConfig,
   } as const;
 
   static readonly settings = {
@@ -104,3 +113,7 @@ export type GenerateTextConfiguration = GenerateTextConfigurationType;
 export type ChatOperationBudgetSnapshot = ChatOperationBudgetSnapshotType;
 export type ChatOperationCategory = ChatOperationCategoryType;
 export type GenericChatSettings = GenericChatSettingsType;
+export type ChatAppConfig = AppConfig.ChatAppConfig;
+export type ChatRelease = AppConfig.ChatRelease;
+export type ChatReleaseHistory = AppConfig.ChatReleaseHistory;
+export type ChatSettingsDescriptor = AppConfig.ChatSettingsDescriptor;

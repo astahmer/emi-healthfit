@@ -9,7 +9,7 @@ const repositoryDirectory = dirname(rootDirectory);
 const workerOrigin = "http://127.0.0.1:8787";
 const withGenericAuthOrigin = (contents) => {
   const lines = contents.split("\n").filter((line) => line.startsWith("BETTER_AUTH_SECRET="));
-  lines.push("BETTER_AUTH_URL=http://localhost:3233");
+  lines.push("BETTER_AUTH_URL=http://127.0.0.1:3233");
   return `${lines.join("\n")}\n`;
 };
 

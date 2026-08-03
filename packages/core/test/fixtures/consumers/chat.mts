@@ -2,7 +2,12 @@ import { Chat } from "@emi/core/chat";
 
 const budget = Chat.operations.createChatOperationBudget();
 
+void Chat.app.defaultConfig;
+void Chat.schemas.appConfig;
 void Chat.schemas.chatStreamRequest;
+void Chat.schemas.release;
+void Chat.schemas.releaseHistory;
+void Chat.schemas.settingsDescriptor;
 void Chat.settings.defaultGenericChatSettings;
 void Chat.prompts.defaultConversationTitlePrompt;
 void Chat.stream.createChatStreamEffect;

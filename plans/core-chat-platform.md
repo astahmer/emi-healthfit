@@ -235,14 +235,17 @@ migration rather than reopening those architecture questions.
 | Core contracts, provider streaming, generation persistence/replay, Worker routes | Partial     | Move remaining generic API services out of `apps/api/src/core`; preserve the explicit provider-bound chat and advanced AI SDK replay contracts while tightening persisted settings/release/component schemas. |
 | Generic web state                                                                | Target boundary complete | Session, transport, conversation-store, settings, browser-state, and UI actors compose behind `@emi/core/runtime`; browser smoke uses the target recipe. |
 | Generic web UI                                                                   | Target boundary complete | Target controlled/connected primitives and the styled recipe are covered by focused tests and browser smoke; richer product features remain separate.                  |
-| Generic Worker                                                                   | Partial     | Local Worker smoke now runs through the documented Vite proxy; add settings/release APIs, browser chat smoke, and credential-free Alchemy dry run.                    |
+| Generic Worker                                                                   | Acceptance slice complete | Local Worker smoke now runs through the documented Vite proxy; settings/releases APIs, real Worker browser smoke, and credential-free Alchemy dry run are covered. |
 | Owned generator                                                                  | Acceptance slice complete | Default owned `core/` workspace and install/typecheck/migration/web-build plus Worker/Vite API smoke acceptance exist; `emi.generated.json` records provenance and managed-file hashes; the safe upgrade command now reports conflicts and never overwrites them silently. |
 | User features                                                                    | Partial     | Preserve and test branches, minimap controls, memories, theme/releases, temporary chats, PWA draft/offline behavior, and every conversation action through core APIs. |
 | HealthFit migration                                                              | Pending     | Replace duplicated generic runtime/transport and Promise-first persistence with core actors and typed boundaries while retaining HealthFit-only contributions.             |
 | Documentation                                                                    | Partial     | Add extension/configuration/upgrade/deployment guides and keep the feature matrix synchronized with generated-app behavior.                                           |
 
 -> Move the reusable chat session machine, composer, message actions, sidebar/history, branch/minimap controls into core exports; keep generic-web as a thin owned app wiring config, styles, and routes.
-After that: expand the Worker/Vite smoke into browser chat flows and add the credential-free Alchemy dry-run to generated-app acceptance.
+That Worker/Vite acceptance slice is complete: the live API suite covers anonymous auth, persistence,
+streaming, settings, and releases; the real Worker browser smoke boots the authenticated composer;
+and generated-app acceptance runs both the credential-free Alchemy dry run and the browser suite.
+The next implementation slice is the remaining generic service extraction and schema tightening.
 
 The generator and safe-upgrade slices are complete: every generated workspace includes
 `emi.generated.json` with application identity, distribution mode, core version, and SHA-256
@@ -261,11 +264,11 @@ browser chat flows and adding the credential-free Alchemy dry run to generated-a
 
 ## Acceptance criteria
 
-- [ ] `apps/generic-web` renders an interactive chat, not a smoke message.
-- [ ] `apps/generic-worker` supports the documented generic HTTP API, generation streaming/replay, auth policy, and Drizzle schema.
-- [ ] A generated default app installs, generates/checks its Drizzle migration, runs locally, and deploys with Alchemy without importing HealthFit source.
+- [x] `apps/generic-web` renders an interactive chat, not a smoke message.
+- [x] `apps/generic-worker` supports the documented generic HTTP API, generation streaming/replay, auth policy, and Drizzle schema.
+- [x] A generated default app installs, generates/checks its Drizzle migration, runs locally, and deploys with Alchemy without importing HealthFit source.
 - [ ] Default generated app supports every feature marked “Core baseline” in `docs/features.md`.
-- [ ] Core entry isolation prevents contract/server/web/cloudflare/flavor import leaks; generated app boundaries prevent app-source imports.
+- [x] Core entry isolation prevents contract/server/web/cloudflare/flavor import leaks; generated app boundaries prevent app-source imports.
 - [ ] Stream refresh/reconnect, stop, retry, queued force-send, attachment validation, branches, memory lifecycle, and settings validation have focused real tests.
 - [ ] HealthFit behavior remains available through explicit contributions and no generic UI references workout/sport content.
 - [ ] `pnpm release:check` passes before each completed extraction revision.

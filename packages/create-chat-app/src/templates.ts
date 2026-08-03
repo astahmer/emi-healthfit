@@ -249,12 +249,14 @@ export const webManifest = (context: TemplateContext): string =>
 
 export const webAppConfig = (context: TemplateContext): string =>
   lines([
+    'import type { ChatAppConfig } from "@emi/core/chat";',
+    "",
     "export const genericChatAppConfig = {",
     "  name: " + JSON.stringify(context.appName) + ",",
-    '  settingsStorageKey: "chat-settings",',
+    '  settingsStorageKey: "emi-core-chat-settings",',
     '  version: "0.1.0",',
     '  releaseNotes: ["Generic chat foundations are ready for application-specific extensions."],',
-    "};",
+    "} satisfies ChatAppConfig;",
   ]);
 
 export const workerPackageJson = (context: TemplateContext): string =>
@@ -304,8 +306,13 @@ export const workerPackageJson = (context: TemplateContext): string =>
 
 export const workerAppConfig = (context: TemplateContext): string =>
   lines([
+    'import type { ChatAppConfig } from "@emi/core/chat";',
+    "",
     "export const genericWorkerAppConfig = {",
     "  name: " + JSON.stringify(context.appName) + ",",
     '  databaseName: "AppData",',
-    "};",
+    '  settingsStorageKey: "emi-core-chat-settings",',
+    '  version: "0.1.0",',
+    '  releaseNotes: ["Generic chat foundations are ready for application-specific extensions."],',
+    "} satisfies ChatAppConfig & { databaseName: string };",
   ]);

@@ -6,6 +6,7 @@ import { CoreApiClient, CoreApiClientError } from "@emi/core/api";
 
 const apiOrigin = process.env.GENERIC_API_ORIGIN ?? "http://localhost:3233";
 const expectedWorkerName = process.env.GENERIC_EXPECTED_APP_NAME ?? "Core Chat";
+const expectedWorkerVersion = process.env.GENERIC_EXPECTED_APP_VERSION ?? "0.1.0";
 
 const providerChunk = ({ content, finishReason }: { content?: string; finishReason?: string }) =>
   JSON.stringify({
@@ -118,6 +119,25 @@ describe("generic web and worker local API topology", () => {
     await expect(CoreApiClient.runPromise(client.conversations.list())).rejects.toMatchObject({
       kind: "http",
     } satisfies Partial<CoreApiClientError>);
+
+    const settingsResponse = await fetch(`${apiOrigin}/api/settings`);
+    expect(settingsResponse.status).toBe(200);
+    expect(await settingsResponse.json()).toEqual({
+      apiKey: "browser-only",
+      key: "emi-core-chat-settings",
+      storage: "local",
+    });
+
+    const releasesResponse = await fetch(`${apiOrigin}/api/releases`);
+    expect(releasesResponse.status).toBe(200);
+    expect(await releasesResponse.json()).toEqual({
+      releases: [
+        {
+          changes: ["Generic chat foundations are ready for application-specific extensions."],
+          version: expectedWorkerVersion,
+        },
+      ],
+    });
   });
 
   it("creates an anonymous session and exercises generic Worker persistence routes", async () => {

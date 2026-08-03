@@ -53,11 +53,14 @@ export default GenericWorker.make(
       db: db as unknown as CloudflareQueryDatabaseClient<
         ServerDatabase.ConversationDatabaseSchema & ServerDatabase.MemoryDatabaseSchema
       >,
+      appConfig: genericWorkerAppConfig,
     });
     yield* Effect.gen(function* () {
       yield* router.add("GET", "/api/health", () =>
         HttpServerResponse.json({ name: genericWorkerAppConfig.name }),
       );
+      yield* router.add("GET", "/api/settings", routes.settings);
+      yield* router.add("GET", "/api/releases", routes.releases);
       yield* router.add("GET", "/api/conversations", routes.conversations);
       yield* router.add("POST", "/api/conversations", routes.conversations);
       yield* router.add("GET", "/api/conversations/:conversationId", routes.conversation);

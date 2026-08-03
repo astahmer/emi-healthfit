@@ -37,6 +37,7 @@ import {
   type RequestContext,
 } from "./server/request-context.ts";
 import { makeGenericChatRoutes } from "./cloudflare/chat-routes.ts";
+import { ChatRouteApp } from "./cloudflare/chat-route-app.ts";
 import {
   CloudflareDatabase,
   type DatabaseRuntime as DatabaseRuntimeRecord,
@@ -84,6 +85,7 @@ export class Cloudflare {
   } as const;
 
   static readonly routes = {
+    ChatRouteApp,
     makeGenericChatRoutes,
   } as const;
 }

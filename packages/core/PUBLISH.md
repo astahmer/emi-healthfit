@@ -133,6 +133,12 @@ another top-level helper. A group of individually exported React components is a
 when each component is an independently consumable view primitive; it must not become a
 miscellaneous utility barrel.
 
+`Chat.schemas.appConfig`, `Chat.schemas.settingsDescriptor`, `Chat.schemas.release`, and
+`Chat.schemas.releaseHistory` own the generic app metadata boundary. `Chat.app.defaultConfig` is a
+safe local default. The Cloudflare route adapter exposes `/api/settings` with only the browser-local
+settings descriptor and `/api/releases` with typed release metadata; provider keys and persisted
+settings values never cross those routes.
+
 Effect is the canonical form for fallible protocol, server, adapter, and use-case operations. A
 canonical method returns `Effect<Success, Error, Requirements>` and preserves its typed failure
 channel. Promise APIs are derived at an outer boundary with `Effect.runPromise` or a named wrapper
