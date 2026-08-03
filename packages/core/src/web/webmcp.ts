@@ -45,7 +45,17 @@ export interface WebMcpModelContext {
   ): Promise<void>;
 }
 
-const isModelContext = (value: unknown): value is WebMcpModelContext => {
+type DetectedWebMcpModelContext = {
+  registerTool(
+    tool: WebMcpTool,
+    options?: {
+      readonly signal?: AbortSignal;
+      readonly exposedTo?: ReadonlyArray<string>;
+    },
+  ): void | Promise<void>;
+};
+
+const isModelContext = (value: unknown): value is DetectedWebMcpModelContext => {
   if (typeof value !== "object" || value === null) return false;
   if (!("registerTool" in value)) return false;
   return typeof value.registerTool === "function";
@@ -54,6 +64,11 @@ const isModelContext = (value: unknown): value is WebMcpModelContext => {
 export class WebMcp {
   static detect(source: object): WebMcpModelContext | undefined {
     const candidate = Reflect.get(source, "modelContext");
-    return isModelContext(candidate) ? candidate : undefined;
+    if (!isModelContext(candidate)) return undefined;
+    return {
+      registerTool: async (tool, options) => {
+        await candidate.registerTool(tool, options);
+      },
+    };
   }
 }
