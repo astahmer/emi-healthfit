@@ -30,12 +30,16 @@ import {
   ConversationSchema,
   MemoryDtoSchema,
   MemorySchema,
+  MemorySummaryDtoSchema,
+  MemorySummarySchema,
   ThreadDtoSchema,
   ThreadSchema,
   type Conversation,
   type ConversationDto,
   type Memory,
   type MemoryDto,
+  type MemorySummary,
+  type MemorySummaryDto,
   type Thread,
   type ThreadDto,
 } from "./resources.ts";
@@ -70,6 +74,8 @@ const protocolSchemas = {
   threadDto: ThreadDtoSchema,
   memory: MemorySchema,
   memoryDto: MemoryDtoSchema,
+  memorySummary: MemorySummarySchema,
+  memorySummaryDto: MemorySummaryDtoSchema,
   messageRole: MessageRoleSchema,
   messageUsage: MessageUsageSchema,
   generationEvent: GenerationEventSchema,
@@ -176,6 +182,26 @@ export class ChatProtocol {
         threadId: value.threadId,
         createdAt: value.createdAt,
         rank: value.rank,
+      })),
+    );
+  }
+
+  static fromMemorySummaryDto(input: unknown): ProtocolEffect<MemorySummary> {
+    return ChatProtocol.decode(ChatProtocol.schemas.memorySummaryDto, input).pipe(
+      Effect.map((value) => ({
+        content: value.content,
+        memoryCount: value.memoryCount,
+        updatedAt: value.updatedAt,
+      })),
+    );
+  }
+
+  static toMemorySummaryDto(input: MemorySummary): ProtocolEffect<MemorySummaryDto> {
+    return ChatProtocol.decode(ChatProtocol.schemas.memorySummary, input).pipe(
+      Effect.map((value) => ({
+        content: value.content,
+        memoryCount: value.memoryCount,
+        updatedAt: value.updatedAt,
       })),
     );
   }

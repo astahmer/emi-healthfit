@@ -7,7 +7,7 @@ import * as Stream from "effect/Stream";
 import * as Tool from "effect/unstable/ai/Tool";
 import * as Toolkit from "effect/unstable/ai/Toolkit";
 import type { JSONSchema7 } from "json-schema";
-import { ConversationSearchTool } from "@emi/core/server";
+import { ConversationSearchTool, MemoryTools } from "@emi/core/server";
 import { ServerDatabase } from "@emi/core/server/database";
 import { buildChatContext } from "../chat/context.ts";
 import {
@@ -187,17 +187,16 @@ const GetNextWorkout = Tool.make("get_next_workout", {
   failure: Schema.Unknown,
 });
 
-const SearchMemories = Tool.make("search_memories", {
-  description:
-    "Search permanent user memories. Call this when a question may depend on earlier chats, preferences, goals, or constraints and the supplied memory context is absent or uncertain. Never guess a past detail instead of searching.",
-  parameters: Schema.Struct({
-    query: Schema.String.annotate({ description: "Search terms to match against memories." }),
-    limit: Schema.optional(
-      Schema.Int.annotate({
-        description: "Maximum number of memories to return (default 10).",
-      }),
-    ),
-  }),
+const SearchMemorySummary = Tool.make(MemoryTools.summaryName, {
+  description: MemoryTools.summaryDescription,
+  parameters: MemoryTools.summaryInput,
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const SearchMemories = Tool.make(MemoryTools.searchName, {
+  description: MemoryTools.searchDescription,
+  parameters: MemoryTools.searchInput,
   success: Schema.Unknown,
   failure: Schema.Unknown,
 });
@@ -435,6 +434,7 @@ const FitnessToolkit = Toolkit.make(
   GetRecoveryTimeline,
   GetGoalProgress,
   GetNextWorkout,
+  SearchMemorySummary,
   SearchMemories,
   SearchConversations,
   GetThreads,
@@ -467,6 +467,12 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
 }) {
   const conversationDatabase = yield* ServerDatabase.conversations;
   const memoryDatabase = yield* ServerDatabase.memories;
+  const memoryReader: Pick<ServerDatabase.MemoryReaderShape, "search"> = {
+    search: (query, options) => memoryDatabase.searchMemories({ userId, query, options }),
+  };
+  const memorySummary: Pick<ServerDatabase.MemorySummaryStoreShape, "get"> = {
+    get: () => memoryDatabase.getMemorySummary({ userId }),
+  };
   const requireConversationId = Effect.fn("FitnessToolkit.requireConversationId")(function* ({
     tool,
   }: {
@@ -598,15 +604,12 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
     get_next_workout: Effect.fn("FitnessToolkit.getNextWorkout")(() =>
       getNextWorkout(narrow<HealthfitDatabaseSchema>(db), userId),
     ),
-    search_memories: Effect.fn("FitnessToolkit.searchMemories")(({ query, limit }) =>
-      memoryDatabase
-        .searchMemories({
-          userId,
-          query,
-          options: { limit: limit ?? 10 },
-        })
-        .pipe(Effect.map((results) => ({ results }))),
-    ),
+    search_memory_summary: Effect.fn("FitnessToolkit.searchMemorySummary")(function* (args) {
+      return yield* MemoryTools.searchSummary({ args, summary: memorySummary });
+    }),
+    search_memories: Effect.fn("FitnessToolkit.searchMemories")(function* (args) {
+      return yield* MemoryTools.search({ args, reader: memoryReader });
+    }),
     search_conversations: Effect.fn("FitnessToolkit.searchConversations")((args) =>
       ConversationSearchTool.execute({
         searchMessages: ({ query, excludeConversationId, limit }) =>

@@ -27,6 +27,10 @@ export class ChatRouteSupport {
     content: Schema.String.check(Schema.isMinLength(1)),
   });
 
+  static readonly updateMemorySummarySchema = Schema.Struct({
+    content: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
+  });
+
   static readonly suggestionsRequestSchema = Schema.Struct({
     threadId: Schema.optional(Schema.String),
     messageId: Schema.optional(Schema.String),
@@ -55,6 +59,18 @@ export class ChatRouteSupport {
       threadId: memory.thread_id,
       createdAt: memory.created_at,
       rank: memory.rank ?? 0,
+    };
+  }
+
+  static memorySummaryResponse(summary: {
+    content: string;
+    memory_count: number;
+    updated_at: string;
+  }) {
+    return {
+      content: summary.content,
+      memoryCount: summary.memory_count,
+      updatedAt: summary.updated_at,
     };
   }
 

@@ -55,6 +55,8 @@ describe("@emi/core target export surface", () => {
       "ChatServerError",
       "ConversationSearchTool",
       "ConversationSearchToolError",
+      "MemoryTools",
+      "MemoryToolsError",
     ]);
     assert.deepEqual(sortedKeys(serverDatabase), ["ServerDatabase"]);
     assert.deepEqual(sortedKeys(serverEffect), ["ChatServerEffect"]);

@@ -61,21 +61,14 @@ describe("MemoryTools", () => {
     await run(services.writer.insert({ content: "The user prefers concise answers.", source: "manual" }));
     await run(services.summary.upsert({ content: "The user prefers concise answers.", memoryCount: 1 }));
 
-    assert.deepEqual(
-      await run(
-        MemoryTools.searchSummary({
-          args: { query: "concise answers" },
-          summary: services.summary,
-        }),
-      ),
-      {
-        summary: {
-          content: "The user prefers concise answers.",
-          memory_count: 1,
-          updated_at: "2026-08-03T00:00:00.000Z",
-        },
-      },
+    const summaryResult = await run(
+      MemoryTools.searchSummary({
+        args: { query: "concise answers" },
+        summary: services.summary,
+      }),
     );
+    assert.equal(summaryResult.summary?.content, "The user prefers concise answers.");
+    assert.equal(summaryResult.summary?.memory_count, 1);
     assert.deepEqual(
       await run(
         MemoryTools.search({

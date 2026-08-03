@@ -135,7 +135,10 @@ locks when the consumer owns the stream.
 use case: it receives authentication, repository, model, configuration, and extension ports, then
 returns typed `Effect` programs for listing and generating. `ConversationSearchTool` is the
 provider-neutral, ownership-scoped tool for searching message content in previous conversations;
-generic route adapters and flavor packages can wire it to their conversation reader. Generation input is decoded with the
+generic route adapters and flavor packages can wire it to their conversation reader. `MemoryTools`
+groups the summary-first `search_memory_summary` and source-entry `search_memories` tools; the
+second tool is the deliberate fallback when the compact summary is absent or insufficient.
+Generation input is decoded with the
 protocol schemas before authentication or persistence; admission runs before user-message
 persistence; every emitted generation event is persisted through the generation port; and response
 conversations are encoded through the protocol DTO mapper.

@@ -20,6 +20,13 @@ export const Memory = Schema.Struct({
 });
 export type Memory = typeof Memory.Type;
 
+export const MemorySummary = Schema.Struct({
+  content: Content,
+  memory_count: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+  updated_at: Schema.String,
+});
+export type MemorySummary = typeof MemorySummary.Type;
+
 export class NotesApi extends HttpApiGroup.make("notes")
   .add(
     HttpApiEndpoint.get("list", "/notes", {
@@ -63,6 +70,19 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
         limit: Schema.optional(Limit),
       },
       success: Schema.Struct({ memories: Schema.Array(Memory) }),
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("summary", "/memories/summary", {
+      success: Schema.Struct({ summary: Schema.NullOr(MemorySummary) }),
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.patch("updateSummary", "/memories/summary", {
+      payload: Schema.Struct({ content: Content }),
+      success: Schema.Struct({ summary: MemorySummary }),
       error: StandardErrors,
     }),
   )

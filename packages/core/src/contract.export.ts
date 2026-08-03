@@ -32,6 +32,7 @@ import {
 import {
   MemoriesApi,
   Memory as MemorySchema,
+  MemorySummary as MemorySummarySchema,
   Note as NoteSchema,
   NotesApi,
 } from "./contract/notes-and-memories.ts";
@@ -47,7 +48,11 @@ import type {
   DiscordAccountLink as DiscordAccountLinkType,
   DiscordLinkCode as DiscordLinkCodeType,
 } from "./contract/discord.ts";
-import type { Memory as MemoryType, Note as NoteType } from "./contract/notes-and-memories.ts";
+import type {
+  Memory as MemoryType,
+  MemorySummary as MemorySummaryType,
+  Note as NoteType,
+} from "./contract/notes-and-memories.ts";
 import { HttpApi } from "effect/unstable/httpapi";
 
 const Conversation = ConversationSchema;
@@ -55,6 +60,7 @@ const CreatedDiscordLinkCode = CreatedDiscordLinkCodeSchema;
 const DiscordAccountLink = DiscordAccountLinkSchema;
 const DiscordLinkCode = DiscordLinkCodeSchema;
 const Memory = MemorySchema;
+const MemorySummary = MemorySummarySchema;
 const Message = MessageSchema;
 const MessageUsage = MessageUsageSchema;
 const Note = NoteSchema;
@@ -80,6 +86,7 @@ export {
   MemoriesApi,
   MemoriesExtraApi,
   Memory,
+  MemorySummary,
   Message,
   MessagesApi,
   MessageUsage,
@@ -100,6 +107,7 @@ export type CreatedDiscordLinkCode = CreatedDiscordLinkCodeType;
 export type DiscordAccountLink = DiscordAccountLinkType;
 export type DiscordLinkCode = DiscordLinkCodeType;
 export type Memory = MemoryType;
+export type MemorySummary = MemorySummaryType;
 export type Message = MessageType;
 export type MessageUsage = MessageUsageType;
 export type Note = NoteType;

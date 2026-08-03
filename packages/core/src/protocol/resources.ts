@@ -55,3 +55,15 @@ export type Memory = typeof MemorySchema.Type;
 
 export const MemoryDtoSchema = Schema.Struct(memoryFields);
 export type MemoryDto = typeof MemoryDtoSchema.Type;
+
+const memorySummaryFields = {
+  content: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
+  memoryCount: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+  updatedAt: TimestampSchema,
+};
+
+export const MemorySummarySchema = Schema.Struct(memorySummaryFields);
+export type MemorySummary = typeof MemorySummarySchema.Type;
+
+export const MemorySummaryDtoSchema = Schema.Struct(memorySummaryFields);
+export type MemorySummaryDto = typeof MemorySummaryDtoSchema.Type;

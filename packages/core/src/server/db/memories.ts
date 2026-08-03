@@ -198,6 +198,19 @@ const getMemories = <Environment>(
     );
   });
 
+const countMemories = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
+  Effect.gen(function* () {
+    const kysely = yield* db.kysely;
+    const result = yield* QueryDatabase.tryPromise(() =>
+      kysely
+        .selectFrom("memories")
+        .select((expressionBuilder) => expressionBuilder.fn.countAll<number>().as("count"))
+        .where("user_id", "=", userId)
+        .executeTakeFirst(),
+    );
+    return result?.count ?? 0;
+  });
+
 const getMemorySummary = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
@@ -383,6 +396,7 @@ export interface MemoryDatabaseShape {
     readonly userId: string;
     readonly messageId: string;
   }) => DatabaseEffect<void>;
+  readonly countMemories: (input: { readonly userId: string }) => DatabaseEffect<number>;
   readonly deleteMemory: (input: {
     readonly userId: string;
     readonly id: string;
@@ -450,6 +464,7 @@ export class MemoryDatabase extends Context.Service<MemoryDatabase, MemoryDataba
     return Layer.succeed(MemoryDatabase, {
       deleteMemoriesByMessage: ({ userId, messageId }) =>
         deleteMemoriesByMessage(db, userId, messageId),
+      countMemories: ({ userId }) => countMemories(db, userId),
       deleteMemory: ({ userId, id }) => deleteMemory(db, userId, id),
       deleteNote: ({ userId, id }) => deleteNote(db, userId, id),
       getMemories: ({ userId, options }) => getMemories(db, userId, options),

@@ -13,6 +13,7 @@ import { ConversationDatabase } from "../server/db/conversations.ts";
 import { GenerationDatabase } from "../server/db/generations.ts";
 import { MemoryDatabase } from "../server/db/memories.ts";
 import { ConversationSearchTool } from "../server/conversation-search-tool.ts";
+import { MemoryTools } from "../server/memory-tools.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { GenerationStoreLive } from "../server/make-generation-store.ts";
@@ -212,21 +213,43 @@ export class ChatRouteStream {
           configuration: providerConfiguration.value,
           tools: {
             [ConversationSearchTool.name]: ConversationSearchTool.definition,
+            [MemoryTools.summaryName]: {
+              description: MemoryTools.summaryDescription,
+              parameters: MemoryTools.summaryDefinition,
+            },
+            [MemoryTools.searchName]: {
+              description: MemoryTools.searchDescription,
+              parameters: MemoryTools.searchDefinition,
+            },
           },
           webSearch: decoded.value.webSearch,
         },
-        executeTool: (name, args) =>
-          Effect.runPromise(
+        executeTool: (name, args) => {
+          const tool: Effect.Effect<unknown, ChatRouteStreamError> =
             name === ConversationSearchTool.name
               ? ConversationSearchTool.execute({
                   searchMessages: conversationStore.conversationReader.searchMessages,
                   args,
                   excludeConversationId: temporary ? undefined : conversationId,
                 }).pipe(
+                  Effect.map((value): unknown => value),
                   Effect.mapError((error) => new ChatRouteStreamError({ message: error.message })),
                 )
-              : Effect.fail(new ChatRouteStreamError({ message: `Unknown tool: ${name}` })),
-          ),
+              : name === MemoryTools.summaryName
+                ? MemoryTools.searchSummary({ args, summary: memoryStore.summary }).pipe(
+                    Effect.map((value): unknown => value),
+                    Effect.mapError((error) => new ChatRouteStreamError({ message: error.message })),
+                  )
+                : name === MemoryTools.searchName
+                  ? MemoryTools.search({ args, reader: memoryStore.reader }).pipe(
+                      Effect.map((value): unknown => value),
+                      Effect.mapError(
+                        (error) => new ChatRouteStreamError({ message: error.message }),
+                      ),
+                    )
+                  : Effect.fail(new ChatRouteStreamError({ message: `Unknown tool: ${name}` }));
+          return Effect.runPromise(tool);
+        },
         onFinish: (event) => {
           if (temporary) return;
           return Effect.runPromise(

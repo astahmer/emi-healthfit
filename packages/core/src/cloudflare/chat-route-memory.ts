@@ -48,6 +48,32 @@ export class ChatRouteMemory {
       });
     });
 
+    const memorySummary = Effect.fn("core.chat.memorySummary")(function* (
+      request: HttpServerRequest,
+    ) {
+      const user = yield* CurrentUser;
+      const memoryStore = yield* memoryStoreFor(user.id);
+      if (request.method === "PATCH") {
+        const decoded = Schema.decodeUnknownOption(ChatRouteSupport.updateMemorySummarySchema)(
+          yield* request.json,
+        );
+        if (Option.isNone(decoded)) {
+          return yield* HttpServerResponse.json(
+            { error: "Invalid memory summary" },
+            { status: 400 },
+          );
+        }
+        yield* memoryStore.summary.upsert({
+          content: decoded.value.content,
+          memoryCount: yield* memoryStore.reader.count(),
+        });
+      }
+      const summary = yield* memoryStore.summary.get();
+      return yield* HttpServerResponse.json({
+        summary: summary === undefined ? null : ChatRouteSupport.memorySummaryResponse(summary),
+      });
+    });
+
     const suggestions = Effect.fn("core.chat.suggestions")(function* (request: HttpServerRequest) {
       yield* CurrentUser;
       const decoded = Schema.decodeUnknownOption(ChatRouteSupport.suggestionsRequestSchema)(
@@ -85,6 +111,6 @@ export class ChatRouteMemory {
       return yield* HttpServerResponse.json({ deleted: true });
     });
 
-    return { memories, memory, suggestions };
+    return { memories, memory, memorySummary, suggestions };
   }
 }

@@ -67,6 +67,8 @@ export default GenericWorker.make(
       yield* router.add("POST", "/api/conversations/:conversationId/compact", routes.compact);
       yield* router.add("GET", "/api/memories", routes.memories);
       yield* router.add("POST", "/api/memories", routes.memories);
+      yield* router.add("GET", "/api/memories/summary", routes.memorySummary);
+      yield* router.add("PATCH", "/api/memories/summary", routes.memorySummary);
       yield* router.add("DELETE", "/api/memories/:memoryId", routes.memory);
       yield* router.add("POST", "/api/suggestions", routes.suggestions);
       yield* router.add("GET", "/api/conversations/:conversationId/threads", routes.threads);

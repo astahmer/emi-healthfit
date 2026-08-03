@@ -37,6 +37,12 @@ type Memory = {
   rank: number;
 };
 
+type MemorySummary = {
+  content: string;
+  memoryCount: number;
+  updatedAt: string;
+};
+
 const now = "2026-08-01T00:00:00.000Z";
 
 const json = async ({
@@ -93,6 +99,11 @@ export const createGenericE2eApi = ({
   const messages = new Map<string, StoredMessage[]>();
   const threads = new Map<string, Thread[]>();
   const memories: Memory[] = [];
+  let memorySummary: MemorySummary | null = {
+    content: "The user prefers concise worker answers.",
+    memoryCount: 0,
+    updatedAt: now,
+  };
   let anonymousSessionCalls = 0;
   let socialAuthCalls = 0;
   let suggestionsCalls = 0;
@@ -303,6 +314,20 @@ export const createGenericE2eApi = ({
       }
       await json({ route, body: { error: "Not found" }, status: 404 });
       return;
+    }
+
+    if (pathname === "/api/memories/summary") {
+      if (request.method() === "GET") {
+        await json({ route, body: { summary: memorySummary } });
+        return;
+      }
+      if (request.method() === "PATCH") {
+        const body = requestBody(route);
+        const content = typeof body.content === "string" ? body.content : "";
+        memorySummary = { content, memoryCount: memories.length, updatedAt: now };
+        await json({ route, body: { summary: memorySummary } });
+        return;
+      }
     }
 
     if (pathname === "/api/memories") {

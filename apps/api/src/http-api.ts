@@ -1,4 +1,9 @@
-import { CoreApi, type Memory as ApiMemory, type Note as ApiNote } from "@emi/core/contract";
+import {
+  CoreApi,
+  type Memory as ApiMemory,
+  type MemorySummary as ApiMemorySummary,
+  type Note as ApiNote,
+} from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
@@ -53,6 +58,12 @@ const toApiMemory = (memory: ApiMemory): ApiMemory => ({
   thread_id: memory.thread_id,
   created_at: memory.created_at,
   rank: memory.rank,
+});
+
+const toApiMemorySummary = (summary: ServerDatabase.MemorySummary): ApiMemorySummary => ({
+  content: summary.content,
+  memory_count: summary.memory_count,
+  updated_at: summary.updated_at,
 });
 
 const notesHandlers = () => {
@@ -144,6 +155,31 @@ const memoriesHandlers = () => {
               messageId: payload.messageId,
             });
             return { id: requireIdentifier(id) };
+          }, withInternalError),
+        )
+        .handle(
+          "summary",
+          Effect.fn("httpApi.memories.summary")(function* () {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const summary = yield* MemoryDatabase.getMemorySummary({ userId: user.id });
+            return { summary: summary === undefined ? null : toApiMemorySummary(summary) };
+          }, withInternalError),
+        )
+        .handle(
+          "updateSummary",
+          Effect.fn("httpApi.memories.updateSummary")(function* ({ payload }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            const memoryCount = yield* MemoryDatabase.countMemories({ userId: user.id });
+            yield* MemoryDatabase.upsertMemorySummary({
+              userId: user.id,
+              content: payload.content,
+              memoryCount,
+            });
+            const summary = yield* MemoryDatabase.getMemorySummary({ userId: user.id });
+            if (summary === undefined) {
+              return yield* Effect.fail(new Error("Memory summary was not persisted."));
+            }
+            return { summary: toApiMemorySummary(summary) };
           }, withInternalError),
         )
         .handle(

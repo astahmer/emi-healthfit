@@ -22,6 +22,8 @@ import type {
   ConversationDto,
   Memory,
   MemoryDto,
+  MemorySummary,
+  MemorySummaryDto,
   Thread,
   ThreadDto,
 } from "./protocol/resources.ts";
@@ -59,6 +61,8 @@ export type {
   GenerationId,
   Memory,
   MemoryDto,
+  MemorySummary,
+  MemorySummaryDto,
   MemoryId,
   MessageId,
   MessagePart,

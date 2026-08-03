@@ -3,5 +3,13 @@ import {
   ConversationSearchTool,
   ConversationSearchToolError,
 } from "./server/conversation-search-tool.ts";
+import { MemoryTools, MemoryToolsError } from "./server/memory-tools.ts";
 
-export { ChatServer, ChatServerError, ConversationSearchTool, ConversationSearchToolError };
+export {
+  ChatServer,
+  ChatServerError,
+  ConversationSearchTool,
+  ConversationSearchToolError,
+  MemoryTools,
+  MemoryToolsError,
+};

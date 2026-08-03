@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import { ServerDatabase } from "@emi/core/server/database";
 import { HealthFit, type HealthfitToolsDatabaseSchema } from "@emi/flavor-healthfit";
-import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeConversationDatabase, makeMemoryDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 
 const { definitions: tools } = HealthFit.tools;
@@ -59,6 +59,64 @@ describe("conversation thread tools", () => {
         },
       ],
     });
+  });
+
+  it("searches the merged memory summary before individual memory entries", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const toolsDb = narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(rawDb);
+    const memoryDatabase = await makeMemoryDatabase(toolsDb);
+    const userId = "memory-tool-user";
+    await run(
+      memoryDatabase.insertMemory({
+        userId,
+        content: "The user prefers concise recovery plans.",
+        source: "manual",
+      }),
+    );
+    await run(
+      memoryDatabase.upsertMemorySummary({
+        userId,
+        content: "The user prefers concise recovery plans.",
+        memoryCount: 1,
+      }),
+    );
+
+    const summary = await run(
+      HealthFit.tools.execute({
+        db: toolsDb,
+        userId,
+        name: "search_memory_summary",
+        args: { query: "concise recovery" },
+      }),
+    );
+    const summaryPayload = JSON.parse(JSON.stringify(summary));
+    assert.deepStrictEqual(summaryPayload, {
+      summary: {
+        content: "The user prefers concise recovery plans.",
+        memory_count: 1,
+        updated_at: summaryPayload.summary.updated_at,
+      },
+    });
+
+    const details = await run(
+      HealthFit.tools.execute({
+        db: toolsDb,
+        userId,
+        name: "search_memories",
+        args: { query: "recovery" },
+      }),
+    );
+    const detailPayload = JSON.parse(JSON.stringify(details));
+    assert.deepStrictEqual(detailPayload.results, [
+      {
+        id: detailPayload.results[0].id,
+        content: "The user prefers concise recovery plans.",
+        source: "manual",
+        thread_id: null,
+        created_at: detailPayload.results[0].created_at,
+        rank: 1,
+      },
+    ]);
   });
 
   it("does not expose unscoped SQL", () => {

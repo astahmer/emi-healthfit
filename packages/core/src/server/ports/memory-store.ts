@@ -12,6 +12,7 @@ type DatabaseEffect<Value, Error = never, Environment = never> = Effect.Effect<
 export type MemoryRecord = MemorySearchResult;
 
 export interface MemoryReaderShape<TEnvironment = never> {
+  readonly count: () => DatabaseEffect<number, never, TEnvironment>;
   readonly list: (options?: {
     readonly limit?: number;
   }) => DatabaseEffect<ReadonlyArray<MemoryRecord>, never, TEnvironment>;
