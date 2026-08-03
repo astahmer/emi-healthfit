@@ -24,9 +24,10 @@ const ConversationMessageSchema = Schema.Struct({
   model: Schema.NullOr(Schema.String),
   createdAt: ChatProtocol.schemas.timestamp,
 });
+const ConversationMessagesSchema = Schema.Array(ConversationMessageSchema);
 const ConversationDetailSchema = Schema.Struct({
   conversation: ConversationSchema,
-  messages: Schema.Array(ConversationMessageSchema),
+  messages: ConversationMessagesSchema,
 });
 const ThreadSchema = Schema.Struct({
   id: Schema.String,
@@ -41,7 +42,7 @@ const ThreadSchema = Schema.Struct({
 const ThreadListSchema = Schema.Struct({ threads: Schema.Array(ThreadSchema) });
 const ThreadDetailSchema = Schema.Struct({
   thread: ThreadSchema,
-  messages: Schema.Array(ConversationMessageSchema),
+  messages: ConversationMessagesSchema,
 });
 const MemorySchema = Schema.Struct({
   id: Schema.String,
@@ -57,6 +58,8 @@ const MemorySummaryResponseSchema = Schema.Struct({
   summary: Schema.NullOr(MemorySummarySchema),
 });
 const SuggestionsResponseSchema = Schema.Struct({ suggestions: Schema.Array(Schema.String) });
+const ConversationResponseSchema = Schema.Struct({ conversation: ConversationSchema });
+const DeletedResponseSchema = Schema.Struct({ deleted: Schema.Literal(true) });
 
 export type Conversation = typeof ConversationSchema.Type;
 export type ConversationThread = typeof ThreadSchema.Type;
@@ -183,9 +186,7 @@ export const createConversationClient = ({
       body: JSON.stringify(patch),
     });
     const payload = await readResponse({ response });
-    const decoded = Schema.decodeUnknownSync(Schema.Struct({ conversation: ConversationSchema }))(
-      payload,
-    );
+    const decoded = Schema.decodeUnknownSync(ConversationResponseSchema)(payload);
     return decoded.conversation;
   };
 
@@ -198,7 +199,7 @@ export const createConversationClient = ({
       method: "DELETE",
     });
     const payload = await readResponse({ response });
-    Schema.decodeUnknownSync(Schema.Struct({ deleted: Schema.Literal(true) }))(payload);
+    Schema.decodeUnknownSync(DeletedResponseSchema)(payload);
   };
 
   const cloneConversation = async ({
@@ -210,9 +211,7 @@ export const createConversationClient = ({
       method: "POST",
     });
     const payload = await readResponse({ response });
-    const decoded = Schema.decodeUnknownSync(Schema.Struct({ conversation: ConversationSchema }))(
-      payload,
-    );
+    const decoded = Schema.decodeUnknownSync(ConversationResponseSchema)(payload);
     return decoded.conversation;
   };
 
@@ -229,8 +228,7 @@ export const createConversationClient = ({
       body: JSON.stringify({ config }),
     });
     const payload = await readResponse({ response });
-    return Schema.decodeUnknownSync(Schema.Struct({ conversation: ConversationSchema }))(payload)
-      .conversation;
+    return Schema.decodeUnknownSync(ConversationResponseSchema)(payload).conversation;
   };
 
   const listMemories = async ({ search }: { search: string }): Promise<Memory[]> => {
@@ -270,7 +268,7 @@ export const createConversationClient = ({
   const deleteMemory = async ({ memoryId }: { memoryId: string }): Promise<void> => {
     const response = await fetch(apiUrl(`/api/memories/${memoryId}`), { method: "DELETE" });
     const payload = await readResponse({ response });
-    Schema.decodeUnknownSync(Schema.Struct({ deleted: Schema.Literal(true) }))(payload);
+    Schema.decodeUnknownSync(DeletedResponseSchema)(payload);
   };
 
   const generateSuggestions = async (input: SuggestionsRequest): Promise<string[]> => {

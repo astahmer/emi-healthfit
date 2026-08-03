@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema";
 
+const ThemeSchema = Schema.Literals(["light", "dark"]);
+
 export const GenericChatSettingsSchema = Schema.Struct({
   provider: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
   apiKey: Schema.String,
@@ -11,7 +13,7 @@ export const GenericChatSettingsSchema = Schema.Struct({
   memoryEnabled: Schema.Boolean,
   memoryModel: Schema.String,
   webSearch: Schema.Boolean,
-  theme: Schema.Literals(["light", "dark"]),
+  theme: ThemeSchema,
 });
 
 export const PersistedGenericChatSettingsSchema = Schema.Struct({
@@ -25,7 +27,7 @@ export const PersistedGenericChatSettingsSchema = Schema.Struct({
   memoryEnabled: Schema.Boolean,
   memoryModel: Schema.String,
   webSearch: Schema.optional(Schema.Boolean),
-  theme: Schema.Literals(["light", "dark"]),
+  theme: ThemeSchema,
 });
 
 export type GenericChatSettings = typeof GenericChatSettingsSchema.Type;

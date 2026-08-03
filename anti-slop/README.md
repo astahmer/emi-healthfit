@@ -48,6 +48,10 @@ The current checks protect these boundaries:
   domain errors instead of returning the raw `unknown` cause;
 - generic chat rendering, scrolling, and runtime state belong in `@emi/core`, while products supply
   only product renderers, extensions, and configuration.
+- named schemas must be used by a decoder or exported contract; duplicate inline schemas should be
+  named once and reused;
+- do not wrap pure effects in providers or nest providers; provide layers only where a service is
+  actually read and compose them once at the boundary.
 
 ## Deterministic boundary checks
 
@@ -98,8 +102,10 @@ context. It rejects abstract core domain classes, empty private constructors, ex
 raw provider/platform imports in generic protocol and server contracts, `Effect.run*` inside
 generic domain code, context capture/re-provision, predicate-based handling of tagged errors,
 static service-operation facades, fallible database `Effect.promise` calls, and identity `onError` callbacks passed to
-`Stream.fromReadableStream`. The checked-in fixtures under `anti-slop/tests/oxlint/` exercise the
-plugin; `pnpm slop:check` runs both the fixture checks and a clean generic-core scan.
+`Stream.fromReadableStream`. The schema/effect scan additionally rejects unused named schemas,
+duplicate inline schema expressions, and pure or nested provider wrappers. The checked-in fixtures
+under `anti-slop/tests/oxlint/` and `anti-slop/tests/` exercise the executable rules;
+`pnpm slop:check` runs the fixture checks and clean source scans.
 Filesystem-aware boundary checks additionally reject legacy source paths, internal `index.ts`
 modules, raw SQL imports in generic handlers, and constructor-based server/adapter dependency
 injection.

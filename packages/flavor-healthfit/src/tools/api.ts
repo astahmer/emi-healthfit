@@ -219,9 +219,11 @@ const GetThreads = Tool.dynamic("get_threads", {
   failure: Schema.Unknown,
 });
 
+const ThreadIdParameters = Schema.Struct({ thread_id: Schema.String });
+
 const ReadThread = Tool.make("read_thread", {
   description: "Read the complete message chain for a side thread in this conversation.",
-  parameters: Schema.Struct({ thread_id: Schema.String }),
+  parameters: ThreadIdParameters,
   success: Schema.Unknown,
   failure: Schema.Unknown,
 });
@@ -245,7 +247,7 @@ const CreateThread = Tool.make("create_thread", {
 
 const SummarizeThread = Tool.make("summarize_thread", {
   description: "Summarize a side thread and store the summary as a message.",
-  parameters: Schema.Struct({ thread_id: Schema.String }),
+  parameters: ThreadIdParameters,
   success: Schema.Unknown,
   failure: Schema.Unknown,
 });

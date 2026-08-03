@@ -27,6 +27,8 @@ export const MemorySummary = Schema.Struct({
 });
 export type MemorySummary = typeof MemorySummary.Type;
 
+const ContentPayload = Schema.Struct({ content: Content });
+
 export class NotesApi extends HttpApiGroup.make("notes")
   .add(
     HttpApiEndpoint.get("list", "/notes", {
@@ -40,7 +42,7 @@ export class NotesApi extends HttpApiGroup.make("notes")
   )
   .add(
     HttpApiEndpoint.post("create", "/notes", {
-      payload: Schema.Struct({ content: Content }),
+      payload: ContentPayload,
       success: Created.pipe(HttpApiSchema.status(201)),
       error: StandardErrors,
     }),
@@ -48,7 +50,7 @@ export class NotesApi extends HttpApiGroup.make("notes")
   .add(
     HttpApiEndpoint.patch("update", "/notes/:id", {
       params: { id: Identifier },
-      payload: Schema.Struct({ content: Content }),
+      payload: ContentPayload,
       success: Deleted,
       error: StandardErrors,
     }),
@@ -81,7 +83,7 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
   )
   .add(
     HttpApiEndpoint.patch("updateSummary", "/memories/summary", {
-      payload: Schema.Struct({ content: Content }),
+      payload: ContentPayload,
       success: Schema.Struct({ summary: MemorySummary }),
       error: StandardErrors,
     }),
