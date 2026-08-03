@@ -346,10 +346,10 @@ export const handleAiSdkChat = (
     const memorySummary = isInitialContext
       ? yield* ServerDatabase.memoryContext
           .loadEffect({
-            database: memoryDatabase,
             userId: user.id,
             configuration: chatRequest.config,
           })
+          .pipe(Effect.provide(Layer.succeed(ServerDatabase.memories, memoryDatabase)))
           .pipe(Effect.catch(() => Effect.succeed(undefined)))
       : undefined;
 

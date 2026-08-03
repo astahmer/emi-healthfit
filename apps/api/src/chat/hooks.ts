@@ -14,6 +14,7 @@ export type ChatToolExecutor = (args: {
   name: string;
   args: Record<string, unknown>;
   conversationId?: string;
+  requestId?: string;
   summarize?: (messages: Array<{ role: string; text: string }>) => Effect.Effect<string, Error>;
 }) => Effect.Effect<unknown, unknown>;
 

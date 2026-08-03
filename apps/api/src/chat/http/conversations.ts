@@ -8,6 +8,7 @@ import {
   type ThreadWithMessages as ApiThreadWithMessages,
 } from "@emi/core/contract";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Chat } from "@emi/core/chat";
@@ -545,10 +546,10 @@ export const memoryExtractionHandlers = () => {
           if (ids.length > 0) {
             yield* ServerDatabase.memoryContext
               .refreshEffect({
-                database: MemoryDatabase,
                 userId: user.id,
                 configuration: payload.config,
               })
+              .pipe(Effect.provide(Layer.succeed(ServerDatabase.memories, MemoryDatabase)))
               .pipe(Effect.catch(() => Effect.void));
           }
           return { ids, count: ids.length };
