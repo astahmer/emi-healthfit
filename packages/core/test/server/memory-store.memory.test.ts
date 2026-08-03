@@ -23,15 +23,13 @@ const makeInMemoryDb = () =>
     runtime: databaseRuntime,
   });
 
-const run = <Value, Error>(effect: Effect.Effect<Value, Error, never>) => Effect.runPromise(effect);
-
 describe("makeMemoryStore", () => {
   it("provides granular memory services through one Effect Layer", async () => {
     const layer = MemoryStoreLive.layer({
       db: makeInMemoryDb(),
       requestContext: makeRequestContext({ userId: "memory-user" }),
     });
-    const services = await run(
+    const services = await Effect.runPromise(
       Effect.gen(function* () {
         return {
           reader: yield* MemoryReader,
@@ -41,14 +39,14 @@ describe("makeMemoryStore", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    const ids = await run(
+    const ids = await Effect.runPromise(
       services.writer.insertMany([
         { content: "  Typed memory  ", source: "manual" },
         { content: "typed memory", source: "duplicate" },
       ]),
     );
     assert.deepEqual(ids, ["memory-test-id"]);
-    assert.deepEqual(await run(services.reader.list()), [
+    assert.deepEqual(await Effect.runPromise(services.reader.list()), [
       {
         id: "memory-test-id",
         content: "Typed memory",
@@ -58,16 +56,19 @@ describe("makeMemoryStore", () => {
         rank: 0,
       },
     ]);
-    assert.equal((await run(services.reader.search("typed")))[0]?.id, "memory-test-id");
-    assert.equal(await run(services.reader.count()), 1);
+    assert.equal(
+      (await Effect.runPromise(services.reader.search("typed")))[0]?.id,
+      "memory-test-id",
+    );
+    assert.equal(await Effect.runPromise(services.reader.count()), 1);
 
-    await run(services.summary.upsert({ content: "One memory", memoryCount: 1 }));
-    const summary = await run(services.summary.get());
+    await Effect.runPromise(services.summary.upsert({ content: "One memory", memoryCount: 1 }));
+    const summary = await Effect.runPromise(services.summary.get());
     assert.equal(summary?.content, "One memory");
     assert.equal(summary?.memory_count, 1);
     assert.equal(summary?.updated_at, "2026-08-02T00:00:00.000Z");
 
-    await run(services.writer.delete("memory-test-id"));
-    assert.deepEqual(await run(services.reader.list()), []);
+    await Effect.runPromise(services.writer.delete("memory-test-id"));
+    assert.deepEqual(await Effect.runPromise(services.reader.list()), []);
   });
 });

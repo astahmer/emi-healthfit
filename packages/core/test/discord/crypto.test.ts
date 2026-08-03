@@ -8,8 +8,6 @@ import {
 } from "../../src/discord/crypto.ts";
 import { exportPublicKeyHex, generateDiscordKeyPair, signInteractionBody } from "./support.ts";
 
-const run = <A>(effect: Effect.Effect<A, never, never>) => Effect.runPromise(effect);
-
 describe("verifyEd25519Signature", () => {
   it("accepts a signature produced over the exact timestamp+body message", async () => {
     const { privateKey, publicKey } = await generateDiscordKeyPair();
@@ -18,7 +16,7 @@ describe("verifyEd25519Signature", () => {
     const publicKeyHex = await exportPublicKeyHex(publicKey);
     const signatureHex = await signInteractionBody(privateKey, timestamp, rawBody);
 
-    const valid = await run(
+    const valid = await Effect.runPromise(
       verifyEd25519Signature({ publicKeyHex, signatureHex, timestamp, rawBody }),
     );
     assert.equal(valid, true);
@@ -32,7 +30,7 @@ describe("verifyEd25519Signature", () => {
     const signatureHex = await signInteractionBody(privateKey, timestamp, rawBody);
 
     const tamperedBody = JSON.stringify({ type: 2 });
-    const valid = await run(
+    const valid = await Effect.runPromise(
       verifyEd25519Signature({ publicKeyHex, signatureHex, timestamp, rawBody: tamperedBody }),
     );
     assert.equal(valid, false);
@@ -46,14 +44,14 @@ describe("verifyEd25519Signature", () => {
     const wrongPublicKeyHex = await exportPublicKeyHex(attacker.publicKey);
     const signatureHex = await signInteractionBody(signer.privateKey, timestamp, rawBody);
 
-    const valid = await run(
+    const valid = await Effect.runPromise(
       verifyEd25519Signature({ publicKeyHex: wrongPublicKeyHex, signatureHex, timestamp, rawBody }),
     );
     assert.equal(valid, false);
   });
 
   it("rejects malformed hex without throwing", async () => {
-    const valid = await run(
+    const valid = await Effect.runPromise(
       verifyEd25519Signature({
         publicKeyHex: "not-hex",
         signatureHex: "also-not-hex",
@@ -67,7 +65,7 @@ describe("verifyEd25519Signature", () => {
   it("rejects a signature of the wrong byte length", async () => {
     const { publicKey } = await generateDiscordKeyPair();
     const publicKeyHex = await exportPublicKeyHex(publicKey);
-    const valid = await run(
+    const valid = await Effect.runPromise(
       verifyEd25519Signature({
         publicKeyHex,
         signatureHex: "aa",

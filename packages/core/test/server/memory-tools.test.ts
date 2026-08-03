@@ -12,8 +12,6 @@ import type { MemoryDatabaseSchema } from "../../src/server/db/schema.ts";
 import { makeRequestContext } from "../../src/server/request-context.ts";
 import { makeSqliteDatabase } from "./sqlite.ts";
 
-const run = <Value, Error>(effect: Effect.Effect<Value, Error, never>) => Effect.runPromise(effect);
-
 describe("MemoryTools", () => {
   it("searches the merged summary first and source entries independently", async () => {
     const layer = MemoryStoreLive.layer({
@@ -27,7 +25,7 @@ describe("MemoryTools", () => {
       }),
       requestContext: makeRequestContext({ userId: "memory-user" }),
     });
-    const services = await run(
+    const services = await Effect.runPromise(
       Effect.gen(function* () {
         return {
           reader: yield* MemoryReader,
@@ -37,14 +35,14 @@ describe("MemoryTools", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    await run(
+    await Effect.runPromise(
       services.writer.insert({ content: "The user prefers concise answers.", source: "manual" }),
     );
-    await run(
+    await Effect.runPromise(
       services.summary.upsert({ content: "The user prefers concise answers.", memoryCount: 1 }),
     );
 
-    const summaryResult = await run(
+    const summaryResult = await Effect.runPromise(
       MemoryTools.searchSummary({
         args: { query: "concise answers" },
         summary: services.summary,
@@ -53,7 +51,7 @@ describe("MemoryTools", () => {
     assert.equal(summaryResult.summary?.content, "The user prefers concise answers.");
     assert.equal(summaryResult.summary?.memory_count, 1);
     assert.deepEqual(
-      await run(
+      await Effect.runPromise(
         MemoryTools.search({
           args: { query: "concise" },
           reader: services.reader,

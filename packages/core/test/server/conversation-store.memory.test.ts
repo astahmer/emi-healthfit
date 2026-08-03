@@ -28,8 +28,6 @@ const makeInMemoryDb = () =>
     runtime: databaseRuntime,
   });
 
-const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect);
-
 describe("makeConversationStore", () => {
   it("provides each granular persistence port through one Effect Layer", async () => {
     const db = makeInMemoryDb();
@@ -37,7 +35,7 @@ describe("makeConversationStore", () => {
       db,
       requestContext: makeRequestContext({ userId: "user-layer" }),
     });
-    const services = await run(
+    const services = await Effect.runPromise(
       Effect.gen(function* () {
         return {
           reader: yield* ConversationReader,
@@ -57,7 +55,7 @@ describe("makeConversationStore", () => {
   it("binds userId from RequestContext into every operation and isolates ownership", async () => {
     const db = makeInMemoryDb();
     const makeStore = (userId: string) =>
-      run(
+      Effect.runPromise(
         ConversationStoreLive.effect({ requestContext: makeRequestContext({ userId }) }).pipe(
           Effect.provide(ConversationDatabase.layer({ db })),
         ),
@@ -65,25 +63,27 @@ describe("makeConversationStore", () => {
     const alice = await makeStore("user-alice");
     const bob = await makeStore("user-bob");
 
-    const previousConversationId = await run(alice.conversationWriter.create("Earlier chat"));
-    const [previousMessageId] = await run(
+    const previousConversationId = await Effect.runPromise(
+      alice.conversationWriter.create("Earlier chat"),
+    );
+    const [previousMessageId] = await Effect.runPromise(
       alice.messageStore.saveMessages({
         conversationId: previousConversationId,
         parentId: null,
         messages: [{ role: "user", parts: [{ type: "text", text: "My old preference" }] }],
       }),
     );
-    const conversationId = await run(alice.conversationWriter.create("Alice chat"));
+    const conversationId = await Effect.runPromise(alice.conversationWriter.create("Alice chat"));
     assert.ok(conversationId);
 
     assert.strictEqual(
-      (await run(alice.conversationReader.get(conversationId)))?.title,
+      (await Effect.runPromise(alice.conversationReader.get(conversationId)))?.title,
       "Alice chat",
     );
-    assert.strictEqual(await run(bob.conversationReader.get(conversationId)), null);
-    assert.deepStrictEqual(await run(bob.conversationReader.list()), []);
+    assert.strictEqual(await Effect.runPromise(bob.conversationReader.get(conversationId)), null);
+    assert.deepStrictEqual(await Effect.runPromise(bob.conversationReader.list()), []);
 
-    const [messageId] = await run(
+    const [messageId] = await Effect.runPromise(
       alice.messageStore.saveMessages({
         conversationId,
         parentId: null,
@@ -91,11 +91,17 @@ describe("makeConversationStore", () => {
       }),
     );
     assert.ok(messageId);
-    assert.strictEqual((await run(alice.messageStore.getMessages(conversationId))).length, 1);
-    assert.strictEqual((await run(bob.messageStore.getMessages(conversationId))).length, 0);
+    assert.strictEqual(
+      (await Effect.runPromise(alice.messageStore.getMessages(conversationId))).length,
+      1,
+    );
+    assert.strictEqual(
+      (await Effect.runPromise(bob.messageStore.getMessages(conversationId))).length,
+      0,
+    );
 
     assert.deepStrictEqual(
-      await run(
+      await Effect.runPromise(
         ConversationSearchTool.execute({
           searchMessages: alice.conversationReader.searchMessages,
           args: { query: "old preference" },
@@ -115,7 +121,7 @@ describe("makeConversationStore", () => {
       },
     );
 
-    const threadId = await run(
+    const threadId = await Effect.runPromise(
       alice.threadStore.createThread({
         conversationId,
         anchorMessageId: messageId,
@@ -123,18 +129,26 @@ describe("makeConversationStore", () => {
       }),
     );
     assert.ok(threadId);
-    assert.strictEqual((await run(alice.threadStore.getThread(threadId)))?.title, "Alice thread");
-    assert.strictEqual(await run(bob.threadStore.getThread(threadId)), null);
+    assert.strictEqual(
+      (await Effect.runPromise(alice.threadStore.getThread(threadId)))?.title,
+      "Alice thread",
+    );
+    assert.strictEqual(await Effect.runPromise(bob.threadStore.getThread(threadId)), null);
 
     assert.strictEqual(
-      await run(bob.threadStore.createThread({ conversationId, anchorMessageId: messageId })),
+      await Effect.runPromise(
+        bob.threadStore.createThread({ conversationId, anchorMessageId: messageId }),
+      ),
       null,
     );
-    assert.strictEqual(await run(bob.threadStore.addThreadMessage({ threadId, messageId })), false);
+    assert.strictEqual(
+      await Effect.runPromise(bob.threadStore.addThreadMessage({ threadId, messageId })),
+      false,
+    );
 
-    await run(bob.conversationWriter.delete(conversationId));
-    assert.ok(await run(alice.conversationReader.get(conversationId)));
-    await run(alice.conversationWriter.delete(conversationId));
-    assert.strictEqual(await run(alice.conversationReader.get(conversationId)), null);
+    await Effect.runPromise(bob.conversationWriter.delete(conversationId));
+    assert.ok(await Effect.runPromise(alice.conversationReader.get(conversationId)));
+    await Effect.runPromise(alice.conversationWriter.delete(conversationId));
+    assert.strictEqual(await Effect.runPromise(alice.conversationReader.get(conversationId)), null);
   });
 });

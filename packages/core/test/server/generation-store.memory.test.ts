@@ -41,15 +41,13 @@ const makeInMemoryDb = () =>
         ),
   });
 
-const run = <Value, Error>(effect: Effect.Effect<Value, Error, never>) => Effect.runPromise(effect);
-
 describe("makeGenerationStore", () => {
   it("provides granular generation services through one real SQLite Effect Layer", async () => {
     const layer = GenerationStoreLive.layer({
       db: makeInMemoryDb(),
       requestContext: makeRequestContext({ userId: "generation-user" }),
     });
-    const services = await run(
+    const services = await Effect.runPromise(
       Effect.gen(function* () {
         return {
           reader: yield* GenerationReader,
@@ -61,7 +59,7 @@ describe("makeGenerationStore", () => {
     );
 
     assert.equal(
-      await run(
+      await Effect.runPromise(
         services.writer.create({
           generationId: "generation-1",
           conversationId: "conversation-generation",
@@ -72,7 +70,7 @@ describe("makeGenerationStore", () => {
       true,
     );
     assert.deepEqual(
-      await run(
+      await Effect.runPromise(
         services.reader.getByRequestId({
           conversationId: "conversation-generation",
           requestId: "request-1",
@@ -86,8 +84,8 @@ describe("makeGenerationStore", () => {
         error: null,
       },
     );
-    await run(services.writer.markStreaming("generation-1"));
-    await run(
+    await Effect.runPromise(services.writer.markStreaming("generation-1"));
+    await Effect.runPromise(
       services.chunkWriter.append({
         generationId: "generation-1",
         sequence: 0,
@@ -95,19 +93,27 @@ describe("makeGenerationStore", () => {
       }),
     );
     assert.deepEqual(
-      await run(
+      await Effect.runPromise(
         services.chunkReader.getChunks({ generationId: "generation-1", afterSequence: -1 }),
       ),
       [{ sequence: 0, chunk: { type: "start" } }],
     );
-    await run(services.writer.finish({ generationId: "generation-1", status: "completed" }));
-    assert.equal((await run(services.reader.get("generation-1")))?.status, "completed");
-    assert.equal(await run(services.reader.getResumable("conversation-generation")), null);
+    await Effect.runPromise(
+      services.writer.finish({ generationId: "generation-1", status: "completed" }),
+    );
+    assert.equal(
+      (await Effect.runPromise(services.reader.get("generation-1")))?.status,
+      "completed",
+    );
+    assert.equal(
+      await Effect.runPromise(services.reader.getResumable("conversation-generation")),
+      null,
+    );
   });
 
   it("maps the database uniqueness race to the provider-neutral conflict error", async () => {
     const db = makeInMemoryDb();
-    const store = await run(
+    const store = await Effect.runPromise(
       GenerationStoreLive.effect({
         requestContext: makeRequestContext({ userId: "generation-user" }),
       }).pipe(Effect.provide(GenerationDatabase.layer({ db }))),
@@ -117,9 +123,9 @@ describe("makeGenerationStore", () => {
       conversationId: "conversation-generation",
       requestId: "request-race",
     };
-    await run(store.writer.create(input));
+    await Effect.runPromise(store.writer.create(input));
     await assert.rejects(
-      run(store.writer.create({ ...input, generationId: "generation-race-2" })),
+      Effect.runPromise(store.writer.create({ ...input, generationId: "generation-race-2" })),
       (error) => {
         return (
           error instanceof GenerationConflictError &&
