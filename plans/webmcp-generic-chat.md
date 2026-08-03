@@ -120,7 +120,8 @@ the registration signal during shutdown.
 
 ## What this allows
 
-- Agents can discover stable, structured actions on an open generic or main chat page.
+- Agents can discover stable, structured actions on the open generic chat page; the main chat app
+  can opt in later through the documented runtime boundary.
 - Agents can search and open conversations, start a chat, set the theme, inspect memories, and
   prepare a visible draft with less brittle click inference.
 - Existing auth, anonymous-session, persistence, and authorization rules remain the source of
