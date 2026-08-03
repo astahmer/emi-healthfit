@@ -11,20 +11,19 @@ import type { ChatToolDefinition } from "./hooks.ts";
 const providerMessageRole = Schema.Literals(["system", "user", "assistant"]);
 
 export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
-  database,
   userId,
   chatRequest,
   sessionId,
   isTemporary,
   tools: toolDefinitions = [],
 }: {
-  database: ServerDatabase.ConversationDatabaseShape;
   userId: string;
   chatRequest: Omit<ChatStreamRequest, "messages"> & { messages: UIMessage[] };
   sessionId: string;
   isTemporary: boolean;
   tools?: ReadonlyArray<ChatToolDefinition>;
 }) {
+  const database = yield* ServerDatabase.conversations;
   const thread =
     isTemporary || chatRequest.threadId === undefined
       ? null

@@ -103,6 +103,7 @@ const main = async () => {
     "packages/core/src/contract",
     "packages/core/src/server/db",
     "packages/core/src/cloudflare",
+    "apps/api/src",
   ];
   assertExit(runOxlint(sourcePaths), 0, "generic core Oxlint anti-slop scan");
   console.log("Oxlint anti-slop plugin checks passed.");

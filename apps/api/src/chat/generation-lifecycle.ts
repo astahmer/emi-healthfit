@@ -322,7 +322,6 @@ export const handleAiSdkChat = (
     }
 
     const preparedHistory = yield* prepareChatHistory({
-      database: conversationDatabase,
       userId: user.id,
       chatRequest,
       sessionId,

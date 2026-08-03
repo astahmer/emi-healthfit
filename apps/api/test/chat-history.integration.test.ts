@@ -21,7 +21,6 @@ describe("chat history SQLite integration", () => {
 
     const history = await run(
       prepareChatHistory({
-        database: conversationDatabase,
         userId,
         sessionId: conversationId,
         isTemporary: false,
@@ -35,7 +34,7 @@ describe("chat history SQLite integration", () => {
           ],
           config: { provider: "openai", apiKey: "key", model: "gpt-5" },
         },
-      }),
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
     );
 
     assert.equal("error" in history, false);

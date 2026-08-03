@@ -38,6 +38,9 @@ const isDatabaseDomain = (filename) =>
 const isCoreServiceEffectImplementation = (filename) =>
   isCoreEffectImplementation(filename) && !isDatabaseDomain(filename);
 
+const isServiceEffectImplementation = (filename) =>
+  isCoreServiceEffectImplementation(filename) || normalizePath(filename).includes("/apps/");
+
 const isRepositorySource = (filename) => {
   const normalizedFilename = normalizePath(filename);
   return isCoreSource(filename) || normalizedFilename.includes("/apps/");
@@ -213,12 +216,14 @@ const plugin = {
           "MemorySummaryStore",
           "MemoryWriter",
           "MessageStore",
+          "ServerDatabase",
           "ThreadStore",
         ]);
         return {
           ImportDeclaration(node) {
             const source = node.source?.value;
-            if (typeof source !== "string" || !/(?:^|\/)(?:db|ports)\//.test(source)) return;
+            if (typeof source !== "string" || !/(?:^|\/)(?:db|ports|database)(?:\/|$)/.test(source))
+              return;
             for (const specifier of node.specifiers) {
               if (specifier.type === "ImportSpecifier") {
                 const imported = specifier.imported;
@@ -234,7 +239,7 @@ const plugin = {
             }
           },
           CallExpression(node) {
-            if (!isCoreServiceEffectImplementation(context.getFilename())) return;
+            if (!isServiceEffectImplementation(context.getFilename())) return;
             const factory = node.callee;
             if (factory?.type !== "CallExpression") return;
             if (factory.callee?.type !== "MemberExpression") return;
