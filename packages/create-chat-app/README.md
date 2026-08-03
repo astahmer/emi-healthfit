@@ -42,6 +42,7 @@ Once published, the same CLI is reachable as `create-chat-app` via the `bin` fie
 
 ```text
 <target>/
+  emi.generated.json    # generator provenance and managed-file hashes
   README.md
   package.json
   pnpm-workspace.yaml
@@ -64,6 +65,10 @@ Once published, the same CLI is reachable as `create-chat-app` via the `bin` fie
 `src/guardrails.ts` hashes fixture-derived app files and scans them for relative imports that reach
 into the monorepo. Intentional owned `core/` files are exempt, because they are now part of the
 generated project. The fixture script (`pnpm fixture:chat-app`) regenerates an ignored local fixture.
+
+`emi.generated.json` records the app identity, distribution mode, core version, and SHA-256 hash of
+each generated file. A future upgrade command can use it to report locally modified files before
+changing an owned workspace.
 
 ## Deferred
 

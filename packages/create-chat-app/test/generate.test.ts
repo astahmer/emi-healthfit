@@ -22,6 +22,7 @@ describe("buildGeneratedFiles", () => {
 
     for (const path of [
       "package.json",
+      "emi.generated.json",
       "pnpm-workspace.yaml",
       ".oxfmtrc.json",
       "core/package.json",
@@ -62,6 +63,33 @@ describe("buildGeneratedFiles", () => {
       findFile(files, "core/source-manifest.json").contents,
       /@emi\/core source catalog r0/,
     );
+
+    const manifest = JSON.parse(findFile(files, "emi.generated.json").contents) as {
+      manifestVersion: number;
+      generator: string;
+      application: { name: string; slug: string };
+      distributionMode: string;
+      coreVersion: string;
+      manifestPath: string;
+      managedFiles: Array<{ path: string; sha256: string }>;
+    };
+    assert.equal(manifest.manifestVersion, 1);
+    assert.equal(manifest.generator, "@emi/create-chat-app");
+    assert.deepEqual(manifest.application, { name: "Acme Chat", slug: "acme-chat" });
+    assert.equal(manifest.distributionMode, "owned");
+    assert.equal(manifest.coreVersion, DEFAULT_CORE_VERSION);
+    assert.equal(manifest.manifestPath, "emi.generated.json");
+    assert.equal(manifest.managedFiles.length, files.length - 1);
+    assert.equal(
+      new Set(manifest.managedFiles.map((file) => file.path)).size,
+      manifest.managedFiles.length,
+    );
+    assert.ok(manifest.managedFiles.some((file) => file.path === "core/source-manifest.json"));
+    assert.ok(
+      manifest.managedFiles.every(
+        (file) => file.sha256.length === 64 && /^[0-9a-f]+$/.test(file.sha256),
+      ),
+    );
   });
 
   it("defaults @emi/core dependency version to workspace:*", () => {
@@ -91,6 +119,7 @@ describe("buildGeneratedFiles", () => {
     for (const dependency of [
       "@ai-sdk/openai",
       "@playwright/test",
+      "@vitest/coverage-v8",
       "playwright-bdd",
       "alchemy",
       "better-auth",

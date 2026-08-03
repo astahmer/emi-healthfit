@@ -223,7 +223,7 @@ The core must add explicit schemas for app settings, release metadata, component
 9. Migrate HealthFit incrementally, deleting duplicated generic source only after contract, SQLite integration, and browser-flow tests prove parity.
 10. Publish maintained feature matrix, architecture, extension guide, configuration reference, and generated-app deployment guide.
 
-## Current status and remaining migration slices (2026-07-30)
+## Current status and remaining migration slices (2026-08-03)
 
 The maintainability audit is closed. Its stable contract decisions are documented in
 [`docs/core-api.md`](../docs/core-api.md) and its evidence/dispositions in
@@ -236,13 +236,18 @@ migration rather than reopening those architecture questions.
 | Generic web state                                                                | Target boundary complete | Session, transport, conversation-store, settings, browser-state, and UI actors compose behind `@emi/core/runtime`; browser smoke uses the target recipe. |
 | Generic web UI                                                                   | Target boundary complete | Target controlled/connected primitives and the styled recipe are covered by focused tests and browser smoke; richer product features remain separate.                  |
 | Generic Worker                                                                   | Partial     | Local Worker smoke now runs through the documented Vite proxy; add settings/release APIs, browser chat smoke, and credential-free Alchemy dry run.                    |
-| Owned generator                                                                  | In progress | Default owned `core/` workspace and install/typecheck/migration/web-build plus Worker/Vite API smoke acceptance exist; add a generated-source manifest and upgrade command. |
+| Owned generator                                                                  | In progress | Default owned `core/` workspace and install/typecheck/migration/web-build plus Worker/Vite API smoke acceptance exist; `emi.generated.json` now records provenance and managed-file hashes; add the safe upgrade command. |
 | User features                                                                    | Partial     | Preserve and test branches, minimap controls, memories, theme/releases, temporary chats, PWA draft/offline behavior, and every conversation action through core APIs. |
 | HealthFit migration                                                              | Pending     | Replace duplicated generic runtime/transport and Promise-first persistence with core actors and typed boundaries while retaining HealthFit-only contributions.             |
 | Documentation                                                                    | Partial     | Add extension/configuration/upgrade/deployment guides and keep the feature matrix synchronized with generated-app behavior.                                           |
 
 -> Move the reusable chat session machine, composer, message actions, sidebar/history, branch/minimap controls into core exports; keep generic-web as a thin owned app wiring config, styles, and routes.
 After that: expand the Worker/Vite smoke into browser chat flows and add the credential-free Alchemy dry-run to generated-app acceptance.
+
+The generator provenance slice is complete: every generated workspace now includes
+`emi.generated.json` with application identity, distribution mode, core version, and SHA-256
+hashes for generated files. The next generator slice is an explicit upgrade command that reads
+this manifest, reports modified files, and never overwrites them silently.
 
 ## Open questions
 

@@ -86,6 +86,7 @@ export const workspaceConfig = (): string =>
     '  "@testing-library/react": "16.3.2"',
     '  "@testing-library/user-event": "14.6.1"',
     '  "@vitejs/plugin-react": "6.0.3"',
+    '  "@vitest/coverage-v8": "4.1.10"',
     '  ai: "6.0.224"',
     '  alchemy: "2.0.0-beta.59"',
     '  effect: "4.0.0-beta.88"',

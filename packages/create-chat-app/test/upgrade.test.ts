@@ -9,6 +9,17 @@ const parsePackageJson = (files: { path: string; contents: string }[], path: str
   return JSON.parse(file.contents) as { dependencies: Record<string, string> };
 };
 
+const parseManifest = (files: { path: string; contents: string }[]) => {
+  const file = files.find((candidate) => candidate.path === "emi.generated.json");
+  assert.ok(file !== undefined, "expected generated manifest");
+  return JSON.parse(file.contents) as {
+    application: { name: string; slug: string };
+    coreVersion: string;
+    distributionMode: string;
+    managedFiles: Array<{ path: string; sha256: string }>;
+  };
+};
+
 describe("upgrading the generated app's core dependency", () => {
   it("keeps @emi/* dependency names stable while the version string changes", () => {
     const before = buildGeneratedFiles({
@@ -69,5 +80,24 @@ describe("upgrading the generated app's core dependency", () => {
         assert.equal(after.dependencies[name], "0.2.0");
       }
     }
+  });
+
+  it("records the generated app contract for a future safe upgrade", () => {
+    const files = buildGeneratedFiles({
+      appName: "Upgrade Fixture",
+      coreVersion: "0.1.0",
+      distributionMode: "owned",
+    });
+    const manifest = parseManifest(files);
+
+    assert.deepEqual(manifest.application, {
+      name: "Upgrade Fixture",
+      slug: "upgrade-fixture",
+    });
+    assert.equal(manifest.coreVersion, "0.1.0");
+    assert.equal(manifest.distributionMode, "owned");
+    assert.ok(manifest.managedFiles.some((file) => file.path === "core/src/chat.export.ts"));
+    assert.ok(manifest.managedFiles.some((file) => file.path === "web/src/app.tsx"));
+    assert.ok(manifest.managedFiles.every((file) => file.sha256.length === 64));
   });
 });

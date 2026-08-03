@@ -1,5 +1,6 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import * as Schema from "effect/Schema";
 
@@ -105,6 +106,32 @@ const corePackageFiles = ({
     },
   );
 
+const hashContents = (contents: string): string =>
+  createHash("sha256").update(contents).digest("hex");
+
+const generatedManifest = ({
+  context,
+  files,
+}: {
+  context: TemplateContext;
+  files: GeneratedFile[];
+}): string =>
+  `${JSON.stringify(
+    {
+      manifestVersion: 1,
+      generator: "@emi/create-chat-app",
+      application: { name: context.appName, slug: context.slug },
+      distributionMode: context.distributionMode,
+      coreVersion: context.coreVersion,
+      manifestPath: "emi.generated.json",
+      managedFiles: files
+        .map((file) => ({ path: file.path, sha256: hashContents(file.contents) }))
+        .toSorted((left, right) => left.path.localeCompare(right.path)),
+    },
+    null,
+    2,
+  )}\n`;
+
 const genericWebDirectoryFiles = ({
   sourcePath,
   targetPath,
@@ -148,7 +175,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
           ...corePackageFiles({ sourcePath: "packages/core/test", targetPath: "core/test" }),
         ]
       : [];
-  return [
+  const files = [
     ...ownedCoreFiles,
     { path: "README.md", contents: templates.readme(context) },
     { path: ".env.example", contents: templates.envExample() },
@@ -217,6 +244,10 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
       contents: genericSourceFile("apps/generic-worker/src/generic.worker.ts"),
     },
     { path: "worker/migrations/.gitkeep", contents: "" },
+  ];
+  return [
+    ...files,
+    { path: "emi.generated.json", contents: generatedManifest({ context, files }) },
   ];
 };
 
