@@ -1,12 +1,18 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { JSONSchema7 } from "json-schema";
+import * as Tool from "effect/unstable/ai/Tool";
 import type { ConversationMessageSearchResult } from "./db/conversations.ts";
 import type { ConversationReaderShape } from "./ports/conversation-store.ts";
 
 const ConversationSearchInput = Schema.Struct({
-  query: Schema.String.check(Schema.isMinLength(1)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 }))),
+  query: Schema.String.check(Schema.isMinLength(1)).annotate({
+    description: "Specific words or a short phrase to search in previous conversation messages.",
+  }),
+  limit: Schema.optional(
+    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).annotate({
+      description: "Maximum number of matching messages to return (default 10).",
+    }),
+  ),
 });
 
 const StoredParts = Schema.fromJsonString(Schema.Array(Schema.Unknown));
@@ -37,33 +43,23 @@ const toToolResult = (result: ConversationMessageSearchResult) =>
     ),
   );
 
+const conversationSearchTool = Tool.make("search_conversations", {
+  description:
+    "Search message content in previous saved conversations. Use this when the user asks what they said, decided, or discussed in an earlier chat. Do not guess past details when this search can verify them.",
+  parameters: ConversationSearchInput,
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
 export class ConversationSearchTool {
-  static readonly name = "search_conversations";
-  static readonly description =
-    "Search message content in previous saved conversations. Use this when the user asks what they said, decided, or discussed in an earlier chat. Do not guess past details when this search can verify them.";
+  static readonly name = conversationSearchTool.name;
+  static readonly description = Tool.getDescription(conversationSearchTool) ?? "";
   static readonly input = ConversationSearchInput;
   static readonly definition = {
-    name: ConversationSearchTool.name,
+    name: conversationSearchTool.name,
     description: ConversationSearchTool.description,
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description:
-            "Specific words or a short phrase to search in previous conversation messages.",
-        },
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 20,
-          description: "Maximum number of matching messages to return (default 10).",
-        },
-      },
-      required: ["query"],
-      additionalProperties: false,
-    } satisfies JSONSchema7,
-  } as const;
+    parameters: Tool.getJsonSchema(conversationSearchTool),
+  };
 
   static execute = Effect.fn("core.conversation.searchTool")(function* ({
     searchMessages,

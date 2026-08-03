@@ -1,48 +1,40 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type { JSONSchema7 } from "json-schema";
+import * as Tool from "effect/unstable/ai/Tool";
 import type { MemoryReaderShape, MemorySummaryStoreShape } from "./ports/memory-store.ts";
 
 const memorySearchInput = Schema.Struct({
-  query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
-  limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 }))),
-});
-
-const memorySearchDefinition = {
-  type: "object",
-  properties: {
-    query: {
-      type: "string",
-      minLength: 1,
-      description: "Concise keywords to find in the user's individual memory entries.",
-    },
-    limit: {
-      type: "integer",
-      minimum: 1,
-      maximum: 20,
+  query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
+    description: "Concise keywords to find in the user's individual memory entries.",
+  }),
+  limit: Schema.optional(
+    Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).annotate({
       description: "Maximum number of source memory entries to return (default 10).",
-    },
-  },
-  required: ["query"],
-  additionalProperties: false,
-} satisfies JSONSchema7;
+    }),
+  ),
+});
 
 const memorySummarySearchInput = Schema.Struct({
-  query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)),
+  query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
+    description: "Concise keywords to find in the merged memory summary.",
+  }),
 });
 
-const memorySummarySearchDefinition = {
-  type: "object",
-  properties: {
-    query: {
-      type: "string",
-      minLength: 1,
-      description: "Concise keywords to find in the merged memory summary.",
-    },
-  },
-  required: ["query"],
-  additionalProperties: false,
-} satisfies JSONSchema7;
+const memorySearchTool = Tool.make("search_memories", {
+  description:
+    "Search individual source memory entries after checking search_memory_summary. Use this when the merged summary is missing or does not contain enough detail.",
+  parameters: memorySearchInput,
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const memorySummarySearchTool = Tool.make("search_memory_summary", {
+  description:
+    "Search the compact merged memory summary first for earlier user preferences, goals, or constraints. If it is missing or insufficient, call search_memories for the source entries.",
+  parameters: memorySummarySearchInput,
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
 
 export class MemoryToolsError extends Schema.TaggedErrorClass<MemoryToolsError>()(
   "MemoryToolsError",
@@ -73,16 +65,14 @@ const matchesSummary = ({ content, query }: { content: string; query: string }):
 };
 
 export class MemoryTools {
-  static readonly searchName = "search_memories";
-  static readonly searchDescription =
-    "Search individual source memory entries after checking search_memory_summary. Use this when the merged summary is missing or does not contain enough detail.";
+  static readonly searchName = memorySearchTool.name;
+  static readonly searchDescription = Tool.getDescription(memorySearchTool) ?? "";
   static readonly searchInput = memorySearchInput;
-  static readonly searchDefinition = memorySearchDefinition;
-  static readonly summaryName = "search_memory_summary";
-  static readonly summaryDescription =
-    "Search the compact merged memory summary first for earlier user preferences, goals, or constraints. If it is missing or insufficient, call search_memories for the source entries.";
+  static readonly searchDefinition = Tool.getJsonSchema(memorySearchTool);
+  static readonly summaryName = memorySummarySearchTool.name;
+  static readonly summaryDescription = Tool.getDescription(memorySummarySearchTool) ?? "";
   static readonly summaryInput = memorySummarySearchInput;
-  static readonly summaryDefinition = memorySummarySearchDefinition;
+  static readonly summaryDefinition = Tool.getJsonSchema(memorySummarySearchTool);
 
   static readonly search = Effect.fn("MemoryTools.search")(function* ({
     args,
