@@ -193,13 +193,10 @@ export const cloneConversation = async (conversationId: string): Promise<Thread>
 
 export const deleteConversation = async ({
   conversationId,
-  onDeleted,
 }: {
   conversationId: string;
-  onDeleted?: () => void;
 }): Promise<void> => {
   await runApi((client) => client.conversations.remove({ params: { id: conversationId } }));
   await deleteCachedThread(conversationId).catch(() => undefined);
-  onDeleted?.();
   notifyConversationsChanged();
 };

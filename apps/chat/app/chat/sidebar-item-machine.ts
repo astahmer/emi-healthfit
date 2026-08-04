@@ -14,7 +14,7 @@ export interface SidebarItemContext {
   copiedId: string | null;
   error: string | null;
   onRenamed?: () => void;
-  onDeleted?: () => void;
+  onDeleteStarted?: () => void;
   onChanged?: () => void;
   onCloned?: (threadId: string) => void;
 }
@@ -83,7 +83,7 @@ const downloadConversation = async ({ threadId, title }: { threadId: string; tit
 export interface SidebarItemInput {
   thread: Thread;
   onRenamed?: () => void;
-  onDeleted?: () => void;
+  onDeleteStarted?: () => void;
   onChanged?: () => void;
   onCloned?: (threadId: string) => void;
 }
@@ -98,9 +98,8 @@ export const sidebarItemMachine = setup({
     rename: fromPromise(({ input }: { input: { threadId: string; title: string } }) =>
       renameConversation(input.threadId, input.title),
     ),
-    remove: fromPromise(
-      ({ input }: { input: { conversationId: string; onDeleted?: () => void } }) =>
-        deleteConversation(input),
+    remove: fromPromise(({ input }: { input: { conversationId: string } }) =>
+      deleteConversation(input),
     ),
     copyMarkdown: fromPromise(({ input }: { input: { threadId: string } }) =>
       copyMarkdown(input.threadId),
@@ -121,6 +120,7 @@ export const sidebarItemMachine = setup({
   },
   actions: {
     notifyRenamed: ({ context }) => context.onRenamed?.(),
+    notifyDeleteStarted: ({ context }) => context.onDeleteStarted?.(),
     notifyChanged: ({ context }) => context.onChanged?.(),
   },
 }).createMachine({
@@ -132,7 +132,7 @@ export const sidebarItemMachine = setup({
     copiedId: null,
     error: null,
     onRenamed: input.onRenamed,
-    onDeleted: input.onDeleted,
+    onDeleteStarted: input.onDeleteStarted,
     onChanged: input.onChanged,
     onCloned: input.onCloned,
   }),
@@ -217,16 +217,13 @@ export const sidebarItemMachine = setup({
     confirmingDelete: {
       on: {
         "delete.cancel": "idle",
-        "delete.confirm": "deleting",
+        "delete.confirm": { target: "deleting", actions: "notifyDeleteStarted" },
       },
     },
     deleting: {
       invoke: {
         src: "remove",
-        input: ({ context }) => ({
-          conversationId: context.thread.id,
-          onDeleted: context.onDeleted,
-        }),
+        input: ({ context }) => ({ conversationId: context.thread.id }),
         onDone: { target: "deleted" },
         onError: {
           target: "idle",

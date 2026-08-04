@@ -83,21 +83,13 @@ describe("sidebarItemMachine", () => {
 
   it("enters delete confirmation and deletes on confirm", async () => {
     const thread = makeThread();
-    const onDeleted = vi.fn();
+    const onDeleteStarted = vi.fn();
     const machine = sidebarItemMachine.provide({
       actors: {
-        remove: fromPromise(
-          async ({
-            input,
-          }: {
-            input: { conversationId: string; onDeleted?: () => void };
-          }): Promise<void> => {
-            input.onDeleted?.();
-          },
-        ),
+        remove: fromPromise(async (): Promise<void> => undefined),
       },
     });
-    const actor = createActor(machine, { input: { thread, onDeleted } });
+    const actor = createActor(machine, { input: { thread, onDeleteStarted } });
     actor.start();
 
     actor.send({ type: "delete.request" });
@@ -105,8 +97,35 @@ describe("sidebarItemMachine", () => {
 
     actor.send({ type: "delete.confirm" });
 
+    expect(onDeleteStarted).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(actor.getSnapshot().matches("deleted")).toBe(true));
-    expect(onDeleted).toHaveBeenCalled();
+  });
+
+  it("notifies the active route before a slow delete request finishes", async () => {
+    const thread = makeThread();
+    const onDeleteStarted = vi.fn();
+    let releaseRemove: (() => void) | undefined;
+    const machine = sidebarItemMachine.provide({
+      actors: {
+        remove: fromPromise(
+          async (): Promise<void> =>
+            new Promise<void>((resolve) => {
+              releaseRemove = resolve;
+            }),
+        ),
+      },
+    });
+    const actor = createActor(machine, { input: { thread, onDeleteStarted } });
+    actor.start();
+
+    actor.send({ type: "delete.request" });
+    actor.send({ type: "delete.confirm" });
+
+    expect(actor.getSnapshot().matches("deleting")).toBe(true);
+    expect(onDeleteStarted).toHaveBeenCalledOnce();
+
+    releaseRemove?.();
+    await vi.waitFor(() => expect(actor.getSnapshot().matches("deleted")).toBe(true));
   });
 
   it("cancels delete confirmation", () => {

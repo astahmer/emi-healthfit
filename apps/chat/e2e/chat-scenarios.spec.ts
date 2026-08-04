@@ -35,6 +35,37 @@ test("clicks a follow-up suggestion and keeps the previous assistant answer", as
   await expect(page.getByText("Recovery looks good")).toBeVisible();
 });
 
+test("resets before delete finishes and sends a new-chat suggestion", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      chat: { persist: true, replyText: "Workout summary" },
+      snapshots: { one: sessionOneSnapshot() },
+    },
+  });
+  mock.holdDelete();
+  await mock.open(page, "/chat/one");
+
+  await expect(page.getByText("one message answer")).toBeVisible();
+  await openSessionActions(page);
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+
+  await expect(page).toHaveURL(/\/chat\/?$/);
+  await expect(page.getByRole("button", { name: "Summarize my last workout." })).toBeVisible();
+  expect(mock.state.conversations.some((conversation) => conversation.id === "one")).toBe(true);
+
+  mock.releaseDelete();
+  await expect
+    .poll(() => mock.state.conversations.find((conversation) => conversation.id === "one"))
+    .toBeUndefined();
+
+  await page.getByRole("button", { name: "Summarize my last workout." }).click();
+  await expect(page.getByText("Workout summary")).toBeVisible();
+  expect(mock.state.chat.calls).toBe(1);
+  expect(mock.state.chat.lastBody?.sessionId).toMatch(/^fresh-/);
+  expect(mock.state.chat.lastBody?.sessionId).not.toBe("one");
+});
+
 test("sends another typed message and keeps the previous assistant answer", async ({ page }) => {
   const mock = createChatMock({
     state: {

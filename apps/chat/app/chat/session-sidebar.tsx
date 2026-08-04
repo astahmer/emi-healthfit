@@ -151,19 +151,25 @@ const groupThreads = (threads: Thread[]): HistoryGroup[] => {
 interface SidebarItemProps {
   thread: Thread;
   isActive: boolean;
-  onDeleted?: () => void;
+  onDeleteStarted?: () => void;
   onChanged?: () => void;
   onCloned?: (threadId: string) => void;
 }
 
-const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: SidebarItemProps) => {
+const SidebarItem = ({
+  thread,
+  isActive,
+  onDeleteStarted,
+  onChanged,
+  onCloned,
+}: SidebarItemProps) => {
   const queryClient = useQueryClient();
   const { setOpenMobile } = useSidebar();
   const [state, send] = useMachine(sidebarItemMachine, {
     input: {
       thread,
       onRenamed: () => undefined,
-      onDeleted,
+      onDeleteStarted,
       onChanged,
       onCloned,
     },
@@ -171,7 +177,8 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
 
   const title = state.context.thread.title ?? "New chat";
   const isRenaming = state.matches("renaming") || state.matches("submittingRename");
-  const isDeleting = state.matches("confirmingDelete") || state.matches("deleting");
+  const isDeleting = state.matches("deleting");
+  const isDeleteDialogOpen = state.matches("confirmingDelete");
 
   useEffect(() => {
     send({ type: "thread.changed", thread });
@@ -304,7 +311,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
       </SidebarMenuItem>
 
       <AlertDialog
-        open={isDeleting}
+        open={isDeleteDialogOpen}
         onOpenChange={(open) => {
           if (!open) send({ type: "delete.cancel" });
         }}
@@ -418,7 +425,7 @@ export const SessionSidebar = () => {
                       key={thread.id}
                       thread={thread}
                       isActive={activeId === thread.id}
-                      onDeleted={() => {
+                      onDeleteStarted={() => {
                         if (activeId !== thread.id) return;
                         void navigate({
                           to: "/chat/{-$sessionId}",
