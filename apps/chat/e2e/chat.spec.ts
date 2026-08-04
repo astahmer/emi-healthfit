@@ -15,6 +15,19 @@ test("requires an OpenAI API key before showing the chat composer", async ({ pag
   await expect(page.getByLabel("Message input")).toBeVisible();
 });
 
+test("keeps Enter as a new line on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mock = createChatMock();
+  await mock.open(page);
+
+  const input = page.getByLabel("Message input");
+  await input.fill("First line");
+  await input.press("Enter");
+
+  await expect(input).toHaveValue("First line\n");
+  expect(mock.state.chat.calls).toBe(0);
+});
+
 test("switches sessions, renders tools, and starts a new chat", async ({ page }) => {
   await openMockedChat(page, "/chat/one");
 

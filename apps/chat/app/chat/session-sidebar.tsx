@@ -334,7 +334,7 @@ const SidebarItem = ({ thread, isActive, onDeleted, onChanged, onCloned }: Sideb
 };
 
 export const SessionSidebar = () => {
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/chat/{-$sessionId}" });
   const pathname = useLocation({ select: (location) => location.pathname });
   const queryClient = useQueryClient();
   const encodedActiveId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
