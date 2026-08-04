@@ -102,7 +102,7 @@ export const workspaceConfig = (): string =>
     '  lucide-react: "1.24.0"',
     '  miniflare: "4.20260710.0"',
     '  oxfmt: "0.56.0"',
-    '  oxlint: "1.73.0"',
+    '  oxlint: "1.77.0"',
     '  radix-ui: "1.6.2"',
     '  react: "19.2.7"',
     '  react-dom: "19.2.7"',

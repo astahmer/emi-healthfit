@@ -20,6 +20,7 @@ catalog:
   "@testing-library/react": "16.3.2"
   "@testing-library/user-event": "14.6.1"
   "@typescript/native-preview": "7.0.0-dev.20260707.2"
+  "@effect/tsgo": "0.31.0"
   "@vitejs/plugin-react": "6.0.3"
   "@vitest/coverage-v8": "4.1.10"
   "@xstate/react": "6.1.0"
@@ -41,7 +42,8 @@ catalog:
   lucide-react: "1.24.0"
   miniflare: "4.20260710.0"
   oxfmt: "0.56.0"
-  oxlint: "1.73.0"
+  oxlint: "1.77.0"
+  oxlint-tsgolint: "7.0.2001"
   portless: "0.15.5"
   radix-ui: "1.6.2"
   react: "19.2.7"
@@ -73,3 +75,12 @@ onlyBuiltDependencies:
   - msgpackr-extract
   - workerd
 trustPolicy: "off"
+minimumReleaseAgeExclude:
+  - '@effect/tsgo-darwin-arm64@0.31.0'
+  - '@effect/tsgo-darwin-x64@0.31.0'
+  - '@effect/tsgo-linux-arm64@0.31.0'
+  - '@effect/tsgo-linux-arm@0.31.0'
+  - '@effect/tsgo-linux-x64@0.31.0'
+  - '@effect/tsgo-win32-arm64@0.31.0'
+  - '@effect/tsgo-win32-x64@0.31.0'
+  - '@effect/tsgo@0.31.0'
