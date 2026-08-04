@@ -92,7 +92,6 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: apiBaseUrl,
           changeOrigin: true,
-          headers: { origin: apiBaseUrl },
         },
         "/ingest": apiBaseUrl,
       },

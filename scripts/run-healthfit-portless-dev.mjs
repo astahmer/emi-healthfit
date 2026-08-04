@@ -16,6 +16,7 @@ const portSuffix =
     ? ""
     : `:${portlessPort}`;
 const apiUrl = `${portlessScheme}://emi-healthfit.localhost${portSuffix}`;
+const webUrl = `${portlessScheme}://emi-chat.localhost${portSuffix}`;
 const apiEnvironmentKeys = new Set([
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
@@ -33,7 +34,7 @@ const createEnvironmentFile = async () => {
     const key = line.slice(0, line.indexOf("=")).trim();
     return apiEnvironmentKeys.has(key) && !line.startsWith("BETTER_AUTH_URL=");
   });
-  lines.push(`BETTER_AUTH_URL=${apiUrl}`);
+  lines.push(`BETTER_AUTH_URL=${webUrl}`);
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "emi-healthfit-portless-"));
   const environmentFile = join(temporaryDirectory, ".env");
   await writeFile(environmentFile, `${lines.join("\n")}\n`);

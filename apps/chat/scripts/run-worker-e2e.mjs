@@ -32,7 +32,7 @@ const createEnvironmentFile = async () => {
     const separatorIndex = line.indexOf("=");
     return separatorIndex > 0 && apiEnvironmentKeys.has(line.slice(0, separatorIndex).trim());
   });
-  lines.push(`BETTER_AUTH_URL=${apiUrl}`);
+  lines.push(`BETTER_AUTH_URL=${webUrl}`);
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "emi-healthfit-worker-e2e-"));
   const environmentFile = join(temporaryDirectory, ".env");
   await writeFile(environmentFile, `${lines.join("\n")}\n`);
