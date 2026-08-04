@@ -68,10 +68,12 @@ const createSignature = Effect.fn("auth.anonymous.signature")(
 
 export const createSessionCookieEffect = Effect.fn("auth.anonymous.sessionCookie")(function* ({
   baseUrl,
+  maxAgeSeconds = sessionDurationSeconds,
   secret,
   token,
 }: {
   baseUrl: string;
+  maxAgeSeconds?: number;
   secret: string;
   token: string;
 }) {
@@ -79,7 +81,7 @@ export const createSessionCookieEffect = Effect.fn("auth.anonymous.sessionCookie
   const name = `${secure ? "__Secure-" : ""}better-auth.session_token`;
   const signature = yield* createSignature({ secret, value: token });
   const value = encodeURIComponent(`${token}.${signature}`);
-  return `${name}=${value}; Max-Age=${sessionDurationSeconds}; Path=/; HttpOnly${secure ? "; Secure" : ""}; SameSite=Lax`;
+  return `${name}=${value}; Max-Age=${maxAgeSeconds}; Path=/; HttpOnly${secure ? "; Secure" : ""}; SameSite=Lax`;
 });
 
 export const createSessionCookie = (input: {

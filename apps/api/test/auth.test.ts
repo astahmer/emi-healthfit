@@ -7,12 +7,14 @@ import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 
 const {
   createAnonymousEmail,
+  createAgentSessionResponseEffect,
   createAnonymousSessionResponseEffect,
   createSessionCookie,
   createSessionCookieEffect,
   errors: { AuthError },
   isAnonymousEmail,
   isAuthorizedAuthEmail,
+  isLocalAgentAuthUrl,
   isProtectedPath,
   isTrustedAuthOrigin,
   makeAuth,
@@ -168,6 +170,77 @@ describe("authentication boundaries", () => {
     );
     assert.match(cookie, /^__Secure-better-auth\.session_token=/);
     assert.match(cookie, /; HttpOnly; Secure; SameSite=Lax$/);
+  });
+
+  it("creates a normal Better Auth session through the local headless agent path", async () => {
+    const miniflare = new Miniflare({
+      compatibilityDate: "2026-07-10",
+      d1Databases: ["DB"],
+      modules: true,
+      script: 'export default { fetch: () => new Response("ok") }',
+    });
+
+    try {
+      const database = await miniflare.getD1Database("DB");
+      const authMigration = await readFile(
+        new URL("../migrations/20260802113108_add-auth-tables.sql", import.meta.url),
+        "utf8",
+      );
+      const migrationStatements = authMigration
+        .split(";")
+        .map((statement) => statement.trim())
+        .filter((statement) => statement !== "");
+      await database.batch(migrationStatements.map((statement) => database.prepare(statement)));
+      const baseUrl = "http://localhost:1337";
+      const secret = "a secure test secret with at least 32 bytes";
+      const agentSecret = "a local agent secret with at least 32 bytes";
+      const configuration = {
+        agent: { email: "coach@example.com", secret: agentSecret },
+        allowedEmails: new Set(["coach@example.com"]),
+        appName: "Emi HealthFit",
+        baseUrl,
+        google: {
+          clientId: "google-client-id",
+          clientSecret: "google-client-secret",
+        },
+        secret,
+      };
+      const auth = makeAuth({ database, configuration });
+
+      assert.equal(isLocalAgentAuthUrl({ baseUrl }), true);
+      assert.equal(isLocalAgentAuthUrl({ baseUrl: "https://emi-healthfit.astahmer.dev" }), false);
+      const unauthorized = await Effect.runPromise(
+        createAgentSessionResponseEffect({
+          configuration,
+          database,
+          request: new Request(`${baseUrl}/api/auth/sign-in/agent`, {
+            headers: { authorization: "Bearer wrong" },
+            method: "POST",
+          }),
+        }),
+      );
+      assert.equal(unauthorized.status, 401);
+
+      const response = await Effect.runPromise(
+        createAgentSessionResponseEffect({
+          configuration,
+          database,
+          request: new Request(`${baseUrl}/api/auth/sign-in/agent`, {
+            headers: { authorization: `Bearer ${agentSecret}` },
+            method: "POST",
+          }),
+        }),
+      );
+      assert.equal(response.status, 201);
+      const setCookie = response.headers.get("set-cookie");
+      assert.notEqual(setCookie, null);
+      const cookie = setCookie?.split(";", 1)[0] ?? "";
+      const session = await auth.api.getSession({ headers: new Headers({ cookie }) });
+      assert.equal(session?.user.email, "coach@example.com");
+      assert.equal(session?.user.name, "Local agent");
+    } finally {
+      await miniflare.dispose();
+    }
   });
 
   it("creates an app-owned guest that Better Auth can read and revoke", async () => {

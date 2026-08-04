@@ -5,12 +5,12 @@ the checked-in examples contain names and safe placeholders only.
 
 ## File ownership
 
-| File                       | Used by                                               | Required values                                                                                                                                                                          |
-| -------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.env`                     | HealthFit API local dev, dry runs, and `dev:portless` | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `HEVY_CREDENTIAL_ENCRYPTION_KEY`, `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET` |
-| `.env.prod`                | Production deploy/release verification                | The eight API values above plus `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`                                                                                                       |
-| `apps/discord-bot/.env`    | Discord Worker dev/deploy and command registration    | `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`, optional `DISCORD_GUILD_ID`, `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET`                                      |
-| `apps/generic-worker/.env` | Optional standalone generic Worker dev                | Copy `apps/generic-worker/.env.example`; `pnpm generic:dev` creates a temporary file from only `BETTER_AUTH_SECRET` instead                                                              |
+| File                       | Used by                                               | Required values                                                                                                                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.env`                     | HealthFit API local dev, dry runs, and `dev:portless` | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `HEVY_CREDENTIAL_ENCRYPTION_KEY`, `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET`; optional local-only `AGENT_AUTH_SECRET` and `AGENT_AUTH_EMAIL` |
+| `.env.prod`                | Production deploy/release verification                | The eight API values above plus `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`                                                                                                                                                                       |
+| `apps/discord-bot/.env`    | Discord Worker dev/deploy and command registration    | `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`, optional `DISCORD_GUILD_ID`, `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET`                                                                                                      |
+| `apps/generic-worker/.env` | Optional standalone generic Worker dev                | Copy `apps/generic-worker/.env.example`; `pnpm generic:dev` creates a temporary file from only `BETTER_AUTH_SECRET` instead                                                                                                                              |
 
 Do not copy the HealthFit `.env` into an app directory. API package scripts explicitly load the root
 file, and the generic launcher filters its temporary file so unrelated HealthFit secrets do not reach
@@ -51,6 +51,22 @@ Register the callback matching the URL you use:
 
 Register both when switching between modes. If `.env` already exists, add the Hevy encryption key
 with `pnpm --filter @emi/api setup:hevy-key` instead of rerunning Google setup.
+
+## Headless local agent auth
+
+For MCP tools, scripts, and Playwright, configure a normal Better Auth session without opening a
+browser:
+
+```bash
+pnpm setup:agent-auth
+pnpm auth:agent
+```
+
+The setup command adds a random local-only bearer secret and the first `ALLOWED_EMAILS` address to
+`.env`. The auth command exchanges that secret for a normal, expiring Better Auth session and writes
+owner-only Playwright storage state to `apps/api/.local/agent-session.json`. The endpoint only works
+when `BETTER_AUTH_URL` is a localhost origin; it is not included in production environment examples.
+Use the generated state with Playwright or load its cookie into any MCP HTTP client.
 
 Get `OPENAI_API_KEY` from [OpenAI API keys](https://platform.openai.com/api-keys). Generate
 `DISCORD_INTERNAL_ASK_SECRET` with `openssl rand -base64 32`, then put the matching value in the

@@ -43,6 +43,8 @@ const run = async () => {
     `GOOGLE_CLIENT_ID=${credentials.web.client_id}`,
     `GOOGLE_CLIENT_SECRET=${credentials.web.client_secret}`,
     `ALLOWED_EMAILS=${allowedEmail.toLowerCase()}`,
+    `AGENT_AUTH_SECRET=${randomBytes(32).toString("base64url")}`,
+    `AGENT_AUTH_EMAIL=${allowedEmail.toLowerCase()}`,
     `# AES-GCM key for per-user Hevy API credentials (32 bytes as hex)`,
     `HEVY_CREDENTIAL_ENCRYPTION_KEY=${randomBytes(32).toString("hex")}`,
     `# Optional: set for live Hevy sync smoke tests`,

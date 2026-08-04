@@ -15,6 +15,7 @@ import {
   type RequestContext,
 } from "../../server/request-context.ts";
 import type { CloudflareQueryDatabaseClient } from "../db/client.ts";
+import { agentSignInPath, createAgentSessionResponseEffect } from "./agent-session.ts";
 import { anonymousSignInPath, createAnonymousSessionResponseEffect } from "./anonymous-session.ts";
 import { makeAuth, type AuthConfiguration } from "./make-auth.ts";
 
@@ -33,6 +34,8 @@ const GoogleAllowlistEnvironment = Schema.Struct({
   GOOGLE_CLIENT_ID: Schema.String.check(Schema.isMinLength(1)),
   GOOGLE_CLIENT_SECRET: Schema.String.check(Schema.isMinLength(1)),
   ALLOWED_EMAILS: Schema.String.check(Schema.isPattern(/\S+@\S+/)),
+  AGENT_AUTH_SECRET: Schema.optional(Schema.String),
+  AGENT_AUTH_EMAIL: Schema.optional(Schema.String),
   AUTH_APP_NAME: Schema.optional(Schema.String),
 });
 
@@ -41,9 +44,31 @@ const AnonymousAuthEnvironment = Schema.Struct({
   BETTER_AUTH_URL: Schema.String.check(Schema.isPattern(/^https?:\/\//)),
   AUTH_APP_NAME: Schema.optional(Schema.String),
   ALLOWED_EMAILS: Schema.optional(Schema.String),
+  AGENT_AUTH_SECRET: Schema.optional(Schema.String),
+  AGENT_AUTH_EMAIL: Schema.optional(Schema.String),
   GOOGLE_CLIENT_ID: Schema.optional(Schema.String),
   GOOGLE_CLIENT_SECRET: Schema.optional(Schema.String),
 });
+
+const makeAgentConfiguration = ({
+  email,
+  secret,
+}: {
+  email?: string;
+  secret?: string;
+}): AuthConfiguration["agent"] => {
+  const normalizedSecret = secret?.trim();
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (
+    normalizedSecret === undefined ||
+    normalizedSecret.length < 32 ||
+    normalizedEmail === undefined ||
+    normalizedEmail === ""
+  ) {
+    return undefined;
+  }
+  return { email: normalizedEmail, secret: normalizedSecret };
+};
 
 export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
   environment,
@@ -76,6 +101,10 @@ export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
       baseUrl: decoded.BETTER_AUTH_URL,
       secret: decoded.BETTER_AUTH_SECRET,
       allowedEmails,
+      agent: makeAgentConfiguration({
+        email: decoded.AGENT_AUTH_EMAIL,
+        secret: decoded.AGENT_AUTH_SECRET,
+      }),
       google: {
         clientId: decoded.GOOGLE_CLIENT_ID,
         clientSecret: decoded.GOOGLE_CLIENT_SECRET,
@@ -112,6 +141,10 @@ export const getAuthConfiguration = Effect.fn("auth.configuration")(function* ({
     baseUrl: decoded.BETTER_AUTH_URL,
     secret: decoded.BETTER_AUTH_SECRET,
     allowedEmails,
+    agent: makeAgentConfiguration({
+      email: decoded.AGENT_AUTH_EMAIL,
+      secret: decoded.AGENT_AUTH_SECRET,
+    }),
     google: hasGoogle
       ? {
           clientId: decoded.GOOGLE_CLIENT_ID ?? "",
@@ -164,7 +197,9 @@ export const handleAuthRequest = Effect.fn("auth.handler")(function* ({
   request: HttpServerRequest;
 }) {
   const requestAuth = yield* getRequestAuth({ db, environment, policy, request });
-  const isAnonymousSignIn = new URL(requestAuth.webRequest.url).pathname === anonymousSignInPath;
+  const pathname = new URL(requestAuth.webRequest.url).pathname;
+  const isAnonymousSignIn = pathname === anonymousSignInPath;
+  const isAgentSignIn = pathname === agentSignInPath;
   const response = isAnonymousSignIn
     ? yield* createAnonymousSessionResponseEffect({
         baseUrl: requestAuth.configuration.baseUrl,
@@ -172,20 +207,26 @@ export const handleAuthRequest = Effect.fn("auth.handler")(function* ({
         request: requestAuth.webRequest,
         secret: requestAuth.configuration.secret,
       })
-    : yield* Effect.tryPromise({
-        try: () => requestAuth.auth.handler(requestAuth.webRequest),
-        catch: (error) =>
-          new AuthError({
-            phase: "request",
-            message: `Authentication request failed: ${String(error)}`,
-          }),
-      }).pipe(
-        Effect.tapError((error) =>
-          Effect.logError("Auth handler error").pipe(
-            Effect.annotateLogs({ path: request.url, error: String(error) }),
+    : isAgentSignIn
+      ? yield* createAgentSessionResponseEffect({
+          configuration: requestAuth.configuration,
+          database: requestAuth.database,
+          request: requestAuth.webRequest,
+        })
+      : yield* Effect.tryPromise({
+          try: () => requestAuth.auth.handler(requestAuth.webRequest),
+          catch: (error) =>
+            new AuthError({
+              phase: "request",
+              message: `Authentication request failed: ${String(error)}`,
+            }),
+        }).pipe(
+          Effect.tapError((error) =>
+            Effect.logError("Auth handler error").pipe(
+              Effect.annotateLogs({ path: request.url, error: String(error) }),
+            ),
           ),
-        ),
-      );
+        );
   return HttpServerResponse.fromWeb(response);
 });
 

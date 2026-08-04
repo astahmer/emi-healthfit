@@ -116,6 +116,8 @@ export default Api.make(
         GOOGLE_CLIENT_ID: Config.redacted("GOOGLE_CLIENT_ID"),
         GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET"),
         ALLOWED_EMAILS: Config.redacted("ALLOWED_EMAILS"),
+        AGENT_AUTH_SECRET: Config.redacted("AGENT_AUTH_SECRET").pipe(Config.withDefault("")),
+        AGENT_AUTH_EMAIL: Config.string("AGENT_AUTH_EMAIL").pipe(Config.withDefault("")),
         HEVY_CREDENTIAL_ENCRYPTION_KEY: Config.redacted("HEVY_CREDENTIAL_ENCRYPTION_KEY"),
         OPENAI_API_KEY: Config.redacted("OPENAI_API_KEY"),
         DISCORD_INTERNAL_ASK_SECRET: Config.redacted("DISCORD_INTERNAL_ASK_SECRET"),

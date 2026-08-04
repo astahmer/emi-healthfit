@@ -10,6 +10,10 @@ export interface AuthConfiguration {
   baseUrl: string;
   secret: string;
   allowedEmails: ReadonlySet<string>;
+  agent?: {
+    email: string;
+    secret: string;
+  };
   google?: {
     clientId: string;
     clientSecret: string;

@@ -1,4 +1,11 @@
 import {
+  agentSignInPath,
+  AgentSessionError,
+  createAgentSessionResponse,
+  createAgentSessionResponseEffect,
+  isLocalAgentAuthUrl,
+} from "./cloudflare/auth/agent-session.ts";
+import {
   anonymousSignInPath,
   AnonymousSessionError,
   createAnonymousSessionResponse,
@@ -47,9 +54,12 @@ import {
 
 export class Cloudflare {
   static readonly auth = {
+    agentSignInPath,
     anonymousSignInPath,
     authenticateRequest,
     authenticateWorkerFetch,
+    createAgentSessionResponse,
+    createAgentSessionResponseEffect,
     createAnonymousEmail,
     createAnonymousSessionResponse,
     createAnonymousSessionResponseEffect,
@@ -60,6 +70,7 @@ export class Cloudflare {
     isAnonymousEmail,
     isAuthorizedAuthEmail,
     isGenericProtectedPath,
+    isLocalAgentAuthUrl,
     isProtectedPath,
     isTrustedAuthOrigin,
     makeAuth,
@@ -68,6 +79,7 @@ export class Cloudflare {
     readDemoPrincipalFromHeader,
     withCurrentUser,
     errors: {
+      AgentSessionError,
       AnonymousSessionError,
       AuthError,
     },
