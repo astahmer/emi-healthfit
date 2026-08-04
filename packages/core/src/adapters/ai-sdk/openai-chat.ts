@@ -160,6 +160,11 @@ const buildToolSet = ({
 const hasFunctionTools = (tools: ChatStreamRequest["tools"]): boolean =>
   tools !== undefined && Object.keys(tools).length > 0;
 
+const normalizeBaseUrl = (baseUrl: string | undefined): string | undefined => {
+  const normalized = baseUrl?.trim();
+  return normalized === undefined || normalized === "" ? undefined : normalized;
+};
+
 const toUiMessageStream = ({ result }: { readonly result: ChatStreamResult }) =>
   result.toUIMessageStream({
     generateMessageId: () => crypto.randomUUID(),
@@ -170,7 +175,7 @@ const toUiMessageStream = ({ result }: { readonly result: ChatStreamResult }) =>
 const openaiChatModel = ({ configuration }: { configuration: GenerateTextConfiguration }) => {
   const openai = createOpenAI({
     apiKey: configuration.apiKey,
-    baseURL: configuration.baseUrl,
+    baseURL: normalizeBaseUrl(configuration.baseUrl),
   });
   return openai.chat(configuration.model);
 };
@@ -203,15 +208,15 @@ export class OpenAiChat {
       try: async () => {
         const openai = createOpenAI({
           apiKey: request.configuration.apiKey,
-          baseURL: request.configuration.baseUrl,
+          baseURL: normalizeBaseUrl(request.configuration.baseUrl),
           ...(request.configuration.fetch === undefined
             ? {}
             : { fetch: request.configuration.fetch }),
         });
         const system = request.system ?? request.configuration.system;
+        const hasCustomBaseUrl = normalizeBaseUrl(request.configuration.baseUrl) !== undefined;
         const useResponsesApi =
-          request.webSearch === true ||
-          (hasFunctionTools(request.tools) && request.configuration.baseUrl === undefined);
+          request.webSearch === true || (hasFunctionTools(request.tools) && !hasCustomBaseUrl);
         const model = useResponsesApi
           ? openai.responses(request.configuration.model)
           : openai.chat(request.configuration.model);

@@ -71,6 +71,30 @@ describe("@emi/core/chat", () => {
     assert.equal(requestedPath, "/v1/responses");
   });
 
+  it("uses Responses API when the standard endpoint is explicitly blank", async () => {
+    let requestedPath: string | undefined;
+    const fetch: typeof globalThis.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      requestedPath = new URL(url).pathname;
+      throw new Error("stop request");
+    };
+    const request = createRequest({
+      fetch,
+      tools: { getWorkout: { parameters: { type: "object" } } },
+    });
+    const result = await OpenAiChat.createChatStream({
+      ...request,
+      request: {
+        ...request.request,
+        configuration: { ...request.request.configuration, baseUrl: "" },
+      },
+      onError: () => undefined,
+    });
+
+    await consumeStream(result);
+    assert.equal(requestedPath, "/v1/responses");
+  });
+
   it("keeps Chat Completions for an explicit compatible endpoint", async () => {
     let requestedPath: string | undefined;
     const fetch: typeof globalThis.fetch = async (input) => {
