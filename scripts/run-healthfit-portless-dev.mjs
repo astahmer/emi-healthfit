@@ -84,6 +84,7 @@ const run = async () => {
       "pnpm",
       "--dir",
       "apps/api",
+      "run",
       "alchemy",
       "dev",
       "--env-file",
