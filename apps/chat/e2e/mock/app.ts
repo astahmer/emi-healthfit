@@ -471,8 +471,15 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, { conversation: cloned }, 201);
   });
 
-  const deleteConversation = (context: Context, currentState: MockApiState) => {
-    const id = context.req.param("id");
+  const deleteConversation = ({
+    context,
+    currentState,
+    id,
+  }: {
+    context: Context;
+    currentState: MockApiState;
+    id: string;
+  }) => {
     currentState.conversations = currentState.conversations.filter(
       (conversation) => conversation.id !== id,
     );
@@ -480,11 +487,9 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, { success: true });
   };
 
-  app.delete("/api/conversations/:id", (context) => {
-    if (state.deleteGate !== null) {
-      return state.deleteGate.then(() => deleteConversation(context, state));
-    }
-    return deleteConversation(context, state);
+  app.delete("/api/conversations/:id", async (context) => {
+    if (state.deleteGate !== null) await state.deleteGate;
+    return deleteConversation({ context, currentState: state, id: context.req.param("id") });
   });
 
   app.post("/api/conversations/:id/compact", (context) => {

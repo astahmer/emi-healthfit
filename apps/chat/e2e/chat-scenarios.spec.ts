@@ -35,6 +35,47 @@ test("clicks a follow-up suggestion and keeps the previous assistant answer", as
   await expect(page.getByText("Recovery looks good")).toBeVisible();
 });
 
+test("recovers an empty assistant message left by an older failed turn", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: {
+        one: sessionOneSnapshot({
+          messages: [
+            {
+              id: "one-user",
+              conversationId: "one",
+              parentId: null,
+              role: "user",
+              parts: [{ type: "text", text: "Question from an older turn" }],
+              createdAt: "2026-07-14T10:00:00.000Z",
+            },
+            {
+              id: "one-assistant",
+              conversationId: "one",
+              parentId: "one-user",
+              role: "assistant",
+              parts: [],
+              createdAt: "2026-07-14T10:01:00.000Z",
+            },
+          ],
+        }),
+      },
+      chat: { persist: true, replyText: "Recovered coach reply" },
+    },
+  });
+  await mock.open(page, "/chat/one");
+
+  await expect(page.getByText("Question from an older turn")).toBeVisible();
+  await expect(page.getByText("Coach did not finish this reply.")).toBeVisible();
+  expect(mock.state.chat.calls).toBe(0);
+  await page.reload();
+  await expect(page.getByText("Coach did not finish this reply.")).toBeVisible();
+  expect(mock.state.chat.calls).toBe(0);
+  await page.getByRole("button", { name: "Retry coach response" }).click();
+  await expect(page.getByText("Recovered coach reply")).toBeVisible();
+  expect(mock.state.chat.lastBody?.replaceMessageId).toBe("one-user");
+});
+
 test("resets before delete finishes and sends a new-chat suggestion", async ({ page }) => {
   const mock = createChatMock({
     state: {
@@ -329,6 +370,20 @@ test("edits a user message and regenerates an assistant reply", async ({ page })
   mock.state.chat.replyText = "Regenerated answer";
   await page.getByLabel("Regenerate response").last().click();
   await expect(page.getByText("Regenerated answer")).toBeVisible();
+});
+
+test("regenerates from the last user message action", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: { persist: true, replyText: "Regenerated from user" },
+    },
+  });
+  await mock.open(page, "/chat/one");
+
+  await page.locator("#message-one-user").getByLabel("Regenerate from this message").click();
+  await expect(page.getByText("Regenerated from user")).toBeVisible();
+  expect(mock.state.chat.lastBody?.replaceMessageId).toBe("one-user");
 });
 
 test("forks a branch from an assistant message", async ({ page }) => {
