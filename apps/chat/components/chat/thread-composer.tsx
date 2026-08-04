@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMobile } from "@emi/core/web";
 import { type FormEvent } from "react";
 import { useChatRuntime } from "@/app/chat/chat-runtime-context";
 import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@/app/chat/follow-up-queue";
@@ -13,6 +14,7 @@ import {
 
 export const ThreadComposer = ({ composerControls }: { composerControls: ComposerControls }) => {
   const runtime = useChatRuntime();
+  const isMobile = useIsMobile();
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -64,7 +66,7 @@ export const ThreadComposer = ({ composerControls }: { composerControls: Compose
               runtime.clearQueuedFollowUpEdit();
               return;
             }
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && !event.shiftKey && !isMobile) {
               event.preventDefault();
               void runtime.submit();
               return;
@@ -82,6 +84,7 @@ export const ThreadComposer = ({ composerControls }: { composerControls: Compose
                 : "Send a message..."
           }
           aria-label="Message input"
+          enterKeyHint={isMobile ? "enter" : "send"}
           rows={1}
           className="max-h-48 min-h-11 w-full min-w-0 resize-none bg-transparent px-2.5 py-2 text-base leading-relaxed outline-none sm:min-h-14 sm:px-3"
         />
