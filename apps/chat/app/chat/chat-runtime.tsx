@@ -333,13 +333,27 @@ export const ChatRuntimeProvider = ({
         clearAttachments();
         return;
       }
+      if (!selectionMatches) {
+        if (config.sessionId !== undefined) return;
+        runtime.actions.setTemporary({ temporary: config.temporary });
+        runtime.actions.startNewConversation();
+      }
       if (options?.interrupt === true) runtime.actions.stop();
       runtime.actions.sendMessage({
         text: nextText,
         ...(text === undefined ? {} : { attachments: [] }),
       });
     },
-    [clearAttachments, editingQueuedId, runtime, state.composer, state.queuedFollowUps],
+    [
+      clearAttachments,
+      config.sessionId,
+      config.temporary,
+      editingQueuedId,
+      runtime,
+      selectionMatches,
+      state.composer,
+      state.queuedFollowUps,
+    ],
   );
 
   const revise = useCallback(
