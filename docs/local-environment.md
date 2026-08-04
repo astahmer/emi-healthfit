@@ -17,6 +17,10 @@ file, and the generic launcher filters its temporary file so unrelated HealthFit
 the generic Worker. `HEVY_API_KEY`, `D1_DATABASE_ID`, and Cloudflare credentials for one-off commands
 are not normal local runtime values.
 
+`BETTER_AUTH_URL` is the public browser origin for the mode being run. The API-only and built-SPA
+commands use the value from `.env`; `pnpm chat:dev` creates a temporary API environment with the
+Vite origin instead, so OAuth state cookies and `/chat` redirects stay on the hot-reload UI.
+
 ## Create or generate values
 
 For a manual setup:
@@ -41,7 +45,9 @@ The Google client comes from [Google Auth Platform → Clients](https://console.
 Register the callback matching the URL you use:
 
 - Fixed API: `http://localhost:1337/api/auth/callback/google`
+- Fixed chat UI: `http://127.0.0.1:3232/api/auth/callback/google`
 - Portless API: `https://emi-healthfit.localhost/api/auth/callback/google`
+- Portless chat UI: `https://emi-chat.localhost/api/auth/callback/google`
 
 Register both when switching between modes. If `.env` already exists, add the Hevy encryption key
 with `pnpm --filter @emi/api setup:hevy-key` instead of rerunning Google setup.
@@ -77,7 +83,7 @@ pnpm dev:portless
 The HealthFit Worker is at `https://emi-healthfit.localhost`. For the generic fixture, use
 `pnpm generic:dev:portless`; it exposes `https://generic-chat.localhost` and
 `https://generic-worker.localhost`. For chat UI hot reload, run `pnpm chat:dev:portless` after the
-HealthFit Portless API is running; the UI is at `https://emi-chat.localhost/chat`.
+HealthFit Portless API is running; the UI and OAuth origin are at `https://emi-chat.localhost/chat`.
 
 The first Portless run may need `pnpm exec portless trust`. Fixed-port commands remain the
 deterministic choice for Playwright and generated-app acceptance.

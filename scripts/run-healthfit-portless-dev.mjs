@@ -102,7 +102,8 @@ const run = async () => {
 
   try {
     await waitForUrl({ url: `${apiUrl}/api/auth/get-session` });
-    console.log(`HealthFit is available at ${apiUrl}`);
+    console.log(`HealthFit API is available at ${apiUrl}`);
+    console.log(`Chat OAuth origin is ${webUrl}`);
     await new Promise((resolve) => api.once("exit", resolve));
   } finally {
     cleanup();
