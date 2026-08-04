@@ -170,9 +170,10 @@ describe("ChatRuntimeProvider", () => {
       await waitFor(() => expect(value?.sessionId).toBeUndefined());
       expect(runtime?.getState().activeThread.conversationId).toBe("deleted");
 
-      if (value === undefined) throw new Error("Chat runtime value was not captured.");
+      const submittedValue = value;
+      if (submittedValue === undefined) throw new Error("Chat runtime value was not captured.");
       await act(async () => {
-        await value.submit("Summarize my last workout.");
+        await submittedValue.submit("Summarize my last workout.");
       });
       await waitFor(() => expect(chatBodies).toHaveLength(1));
       expect(chatBodies[0]?.sessionId).toBe("fresh");

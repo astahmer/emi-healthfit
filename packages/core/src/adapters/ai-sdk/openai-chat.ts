@@ -157,6 +157,9 @@ const buildToolSet = ({
   return { ...customTools, web_search: openai.tools.webSearch() };
 };
 
+const hasFunctionTools = (tools: ChatStreamRequest["tools"]): boolean =>
+  tools !== undefined && Object.keys(tools).length > 0;
+
 const toUiMessageStream = ({ result }: { readonly result: ChatStreamResult }) =>
   result.toUIMessageStream({
     generateMessageId: () => crypto.randomUUID(),
@@ -206,7 +209,10 @@ export class OpenAiChat {
             : { fetch: request.configuration.fetch }),
         });
         const system = request.system ?? request.configuration.system;
-        const model = request.webSearch
+        const useResponsesApi =
+          request.webSearch === true ||
+          (hasFunctionTools(request.tools) && request.configuration.baseUrl === undefined);
+        const model = useResponsesApi
           ? openai.responses(request.configuration.model)
           : openai.chat(request.configuration.model);
         const result = streamText({
