@@ -13,12 +13,15 @@ describe("@emi/core R7 distribution manifest", () => {
     const packageJson = await readJson(join(packageRoot, "package.json"));
     const sourceManifest = await readJson(join(packageRoot, "source-manifest.json"));
     const targetEntrypoints = Object.keys(packageJson.emi.publicApi.entrypointPaths);
-    const manifestNames = new Set(
+    const manifestNames = new Set<string>(
       sourceManifest.entrypoints.map((entry: { name: string }) => entry.name),
     );
 
     assert.equal(packageJson.private, false);
-    assert.deepEqual([...manifestNames].toSorted(), [...targetEntrypoints].toSorted());
+    assert.deepEqual(
+      [...manifestNames].toSorted((a, b) => a.localeCompare(b)),
+      [...targetEntrypoints].toSorted((a, b) => a.localeCompare(b)),
+    );
     for (const entrypoint of targetEntrypoints) {
       const exportValue = packageJson.exports[entrypoint];
       const importPath = typeof exportValue === "string" ? exportValue : exportValue.import;

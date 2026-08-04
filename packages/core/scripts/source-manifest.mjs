@@ -11,7 +11,7 @@ const filesUnder = async (directory) => {
     if (entry.isDirectory()) files.push(...(await filesUnder(path)));
     else files.push(relative(packageRoot, path).replaceAll("\\", "/"));
   }
-  return files.toSorted();
+  return files.toSorted((a, b) => a.localeCompare(b));
 };
 
 const main = async () => {
