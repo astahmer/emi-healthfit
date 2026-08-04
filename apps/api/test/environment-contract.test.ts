@@ -65,8 +65,11 @@ describe("environment file contracts", () => {
     const packageJson = JSON.parse(
       await readFile(resolve(workspaceRoot, "apps/api/package.json"), "utf8"),
     );
-    assert.equal(packageJson.scripts.dev, "pnpm alchemy dev --env-file ../../.env");
-    assert.equal(packageJson.scripts.dry, "pnpm alchemy deploy --dry-run --env-file ../../.env");
-    assert.equal(packageJson.scripts.deploy, "pnpm alchemy deploy --env-file ../../.env");
+    assert.equal(packageJson.scripts.dev, "pnpm run alchemy dev --env-file ../../.env");
+    assert.equal(
+      packageJson.scripts.dry,
+      "pnpm run alchemy deploy --dry-run --env-file ../../.env",
+    );
+    assert.equal(packageJson.scripts.deploy, "pnpm run alchemy deploy --env-file ../../.env");
   });
 });
