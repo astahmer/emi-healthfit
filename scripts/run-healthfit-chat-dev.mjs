@@ -70,7 +70,7 @@ const run = async () => {
 
   try {
     api = spawnProcess({
-      arguments: ["--dir", "apps/api", "alchemy", "dev", "dev", "--env-file", environmentFile],
+      arguments: ["--dir", "apps/api", "alchemy", "dev", "--env-file", environmentFile],
     });
     await waitForApi();
     web = spawnProcess({

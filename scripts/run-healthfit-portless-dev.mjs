@@ -86,7 +86,6 @@ const run = async () => {
       "apps/api",
       "alchemy",
       "dev",
-      "dev",
       "--env-file",
       environmentFile,
     ],
