@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsageProvider } from "@/app/usage-context";
@@ -43,6 +43,23 @@ const renderThread = (messages: MessageWithUsage[]) =>
       </ActionFeedbackProvider>
     </QueryClientProvider>,
   );
+
+const createMatchMediaResult = ({
+  media,
+  matches,
+}: {
+  media: string;
+  matches: boolean;
+}): MediaQueryList => ({
+  matches,
+  media,
+  onchange: null,
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
+});
 
 describe("Thread", () => {
   beforeEach(() => {
@@ -263,6 +280,41 @@ describe("Thread", () => {
     });
 
     expect(addFiles).toHaveBeenCalledWith(files);
+  });
+
+  it("submits Enter on desktop", () => {
+    const runtime = vi.mocked(useChatRuntime)();
+    renderThread([]);
+
+    fireEvent.keyDown(screen.getByLabelText("Message input"), {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    expect(runtime.submit).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Enter available for a new line on mobile", () => {
+    const matchMedia = vi.mocked(window.matchMedia);
+    matchMedia.mockImplementation((query) =>
+      createMatchMediaResult({ media: query, matches: query === "(max-width: 767px)" }),
+    );
+
+    try {
+      const runtime = vi.mocked(useChatRuntime)();
+      renderThread([]);
+      const input = screen.getByLabelText("Message input");
+      const keyDown = createEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+      fireEvent(input, keyDown);
+
+      expect(keyDown.defaultPrevented).toBe(false);
+      expect(runtime.submit).not.toHaveBeenCalled();
+    } finally {
+      matchMedia.mockImplementation((query) =>
+        createMatchMediaResult({ media: query, matches: false }),
+      );
+    }
   });
 
   it("edits a user turn through the XState-owned editor", async () => {
