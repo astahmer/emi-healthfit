@@ -197,4 +197,42 @@ describe("multi-step chat tool loop", () => {
     assert.ok(Array.isArray(secondMessages));
     assert.ok(secondMessages.some((message) => message.role === "tool"));
   });
+
+  it("routes default function-tool requests through the Responses API", async () => {
+    let requestedPath: string | undefined;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      requestedPath = new URL(url).pathname;
+      throw new Error("stop request");
+    };
+
+    try {
+      const result = await createChatStream({
+        request: {
+          messages: [{ role: "user", parts: [{ type: "text", text: "How am I?" }] }],
+          tools: {
+            get_recovery: {
+              description: "Get recovery",
+              parameters: { type: "object", properties: {}, additionalProperties: false },
+            },
+          },
+          config: {
+            provider: "openai",
+            apiKey: "test-key",
+            model: "gpt-5.6-terra",
+          },
+        },
+        executeTool: async () => ({ score: 82 }),
+        onError: () => undefined,
+      });
+      for await (const part of result.fullStream) void part;
+    } catch {
+      // The fake provider intentionally stops after recording the selected endpoint.
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+
+    assert.strictEqual(requestedPath, "/v1/responses");
+  });
 });
