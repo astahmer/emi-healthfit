@@ -182,6 +182,17 @@ export const ThreadMessageList = ({
     }
     return [{ message, index }];
   });
+  const lastVisibleMessage = visibleMessages.at(-1)?.message;
+  const lastMessage = runtime.messages.at(-1);
+  const lastUserMessageId = runtime.messages.findLast((message) => message.role === "user")?.id;
+  const incompleteUserMessage =
+    !runtime.isStreaming &&
+    lastVisibleMessage?.role === "user" &&
+    (lastMessage === undefined ||
+      lastMessage.id === lastVisibleMessage.id ||
+      (lastMessage.role === "assistant" && !hasVisibleContent(lastMessage)))
+      ? lastVisibleMessage
+      : undefined;
   const {
     viewportRef,
     isAwayFromTop,
@@ -379,7 +390,14 @@ export const ThreadMessageList = ({
                       });
                       sendEditor({ type: "edit.cancel" });
                     }}
-                    onRegenerate={(messageId) => void runtime.revise({ messageId })}
+                    onRegenerate={
+                      message.role === "assistant" || message.id === lastUserMessageId
+                        ? (messageId) => void runtime.revise({ messageId })
+                        : undefined
+                    }
+                    regenerateLabel={
+                      message.role === "user" ? "Regenerate from this message" : undefined
+                    }
                     onReferenceMessage={onReferenceMessage}
                     error={
                       runtime.errorMessageId === message.id
@@ -400,6 +418,28 @@ export const ThreadMessageList = ({
                     )}
                   />
                 ))}
+                {incompleteUserMessage !== undefined && (
+                  <ThreadMessage
+                    message={{
+                      id: `${incompleteUserMessage.id}-coach-recovery`,
+                      role: "assistant",
+                      parts: [
+                        {
+                          type: "text",
+                          text: "Coach did not finish this reply.",
+                        },
+                      ],
+                    }}
+                    isStreaming={false}
+                    assistantLabel="Coach"
+                    onRegenerate={() =>
+                      void runtime.revise({ messageId: incompleteUserMessage.id })
+                    }
+                    regenerateLabel="Retry coach response"
+                    regenerateText="Retry coach response"
+                    retryDisabled={runtime.isRetrying || runtime.isStreaming}
+                  />
+                )}
                 {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
                   <Message align="start" aria-live="polite" className="py-1">
                     <MessageContent>

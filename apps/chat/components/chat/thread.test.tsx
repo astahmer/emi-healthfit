@@ -138,7 +138,29 @@ describe("Thread", () => {
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
-  it("does not render an empty completed assistant message", () => {
+  it("shows a manual recovery action for an unfinished last coach reply", async () => {
+    const user = userEvent.setup();
+    const userMessage: MessageWithUsage = {
+      id: "user-orphaned",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    const message: MessageWithUsage = { id: "assistant-empty", role: "assistant", parts: [] };
+    const revise = vi.fn();
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [userMessage, message],
+      revise,
+    });
+
+    renderThread([userMessage, message]);
+
+    expect(screen.getByText("Coach did not finish this reply.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry coach response" }));
+    expect(revise).toHaveBeenCalledWith({ messageId: userMessage.id });
+  });
+
+  it("keeps a completed empty assistant message out of an otherwise empty thread", () => {
     const message: MessageWithUsage = { id: "assistant-empty", role: "assistant", parts: [] };
     vi.mocked(useChatRuntime).mockReturnValue({
       ...vi.mocked(useChatRuntime)(),
@@ -148,6 +170,7 @@ describe("Thread", () => {
     renderThread([message]);
 
     expect(document.querySelector("#message-assistant-empty")).toBeNull();
+    expect(screen.getByText("What are we working on?")).toBeInTheDocument();
   });
 
   it("shows the typing indicator before the first assistant chunk arrives", () => {
@@ -507,5 +530,20 @@ describe("Thread", () => {
     await user.click(screen.getByLabelText("Regenerate response"));
 
     expect(runtime.revise).toHaveBeenCalledWith({ messageId: "assistant-1" });
+  });
+
+  it("regenerates from the last user message", async () => {
+    const user = userEvent.setup();
+    const messages: MessageWithUsage[] = [
+      { id: "user-1", role: "user", parts: [{ type: "text", text: "Question" }] },
+      { id: "assistant-1", role: "assistant", parts: [{ type: "text", text: "Answer" }] },
+    ];
+    const runtime = vi.mocked(useChatRuntime)();
+    vi.mocked(useChatRuntime).mockReturnValue({ ...runtime, messages });
+    renderThread(messages);
+
+    await user.click(screen.getByLabelText("Regenerate from this message"));
+
+    expect(runtime.revise).toHaveBeenCalledWith({ messageId: "user-1" });
   });
 });

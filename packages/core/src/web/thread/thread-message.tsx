@@ -48,6 +48,8 @@ export interface ThreadMessageProps {
   readonly onEditCancel?: () => void;
   readonly onEditSubmit?: () => void;
   readonly onRegenerate?: (messageId: string) => void;
+  readonly regenerateLabel?: string;
+  readonly regenerateText?: string;
   readonly onReferenceMessage?: (messageId: string) => void;
   readonly error?: Error;
   readonly onRetry?: (messageId: string) => void;
@@ -96,6 +98,8 @@ export const ThreadMessage = ({
   onEditCancel,
   onEditSubmit,
   onRegenerate,
+  regenerateLabel = "Regenerate response",
+  regenerateText,
   onReferenceMessage,
   error,
   onRetry,
@@ -106,8 +110,7 @@ export const ThreadMessage = ({
   const isUser = message.role === "user";
   const text = messageText(message);
   const canEdit = isUser && !isStreaming && editingDraft === undefined && onEditStart !== undefined;
-  const canRegenerate =
-    !isUser && !isStreaming && onRegenerate !== undefined && editingDraft === undefined;
+  const canRegenerate = !isStreaming && onRegenerate !== undefined && editingDraft === undefined;
   const canRemember = !isUser && !isStreaming && text.trim() !== "" && onRemember !== undefined;
 
   const handleCopy = async (): Promise<void> => {
@@ -155,6 +158,18 @@ export const ThreadMessage = ({
                   <span className="animate-bounce [animation-delay:120ms]">·</span>
                   <span className="animate-bounce [animation-delay:240ms]">·</span>
                 </span>
+              )}
+              {canRegenerate && regenerateText !== undefined && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label={regenerateLabel}
+                  onClick={() => onRegenerate(message.id)}
+                  disabled={retryDisabled}
+                >
+                  {regenerateText}
+                </Button>
               )}
             </BubbleContent>
           </Bubble>
@@ -242,11 +257,11 @@ export const ThreadMessage = ({
               <PencilIcon className="size-3.5" />
             </Button>
           )}
-          {canRegenerate && (
+          {canRegenerate && regenerateText === undefined && (
             <Button
-              title="Regenerate response"
+              title={regenerateLabel}
               type="button"
-              aria-label="Regenerate response"
+              aria-label={regenerateLabel}
               size="xs"
               variant="ghost"
               disabled={retryDisabled}
