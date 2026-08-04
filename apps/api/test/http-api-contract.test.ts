@@ -142,6 +142,24 @@ describe("HTTP response contracts", () => {
     assert.throws(() => decodeMessageParts('{"type":"text"}'));
   });
 
+  it("normalizes persisted AI SDK dynamic tool parts", () => {
+    assert.deepStrictEqual(
+      decodeMessageParts(
+        '[{"type":"dynamic-tool","toolName":"get_workout_streak","toolCallId":"call-1","input":{},"output":{"current_streak":0},"outcome":"success","state":"output-available"}]',
+      ),
+      [
+        {
+          type: "tool-invocation",
+          toolName: "get_workout_streak",
+          toolCallId: "call-1",
+          input: {},
+          output: { current_streak: 0 },
+          state: "output-available",
+        },
+      ],
+    );
+  });
+
   it("recovers a JSON suggestion array wrapped in a malformed response", () => {
     assert.deepStrictEqual(
       Chat.generation.normalizeGeneratedStrings('["First question", "Second question"]}'),
