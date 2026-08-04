@@ -1,11 +1,14 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "$schema": "./node_modules/@effect/tsgo/oxlint-schema.json",
+  "options": {
+    "typeAware": true
+  },
   "categories": {
     "correctness": "error",
     "perf": "warn",
     "suspicious": "warn"
   },
-  "plugins": ["typescript", "react", "react-perf", "unicorn"],
+  "plugins": ["typescript", "react", "react-perf", "unicorn", "effecttsgo"],
   "jsPlugins": ["./scripts/oxlint/emi-plugin.mjs"],
   "rules": {
     "react/react-in-jsx-scope": "off",
@@ -21,7 +24,24 @@
     "emi/no-effect-service-argument": "error",
     "emi/no-fallible-database-promise": "error",
     "emi/no-untyped-readable-stream-error": "error",
-    "emi/no-export-forwarding": "error"
+    "emi/no-export-forwarding": "error",
+    "effecttsgo/any-unknown-in-error-context": "warn",
+    "typescript/await-thenable": "off",
+    "typescript/consistent-return": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-floating-promises": "off",
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-misused-spread": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-unnecessary-boolean-literal-compare": "off",
+    "typescript/no-unnecessary-type-arguments": "off",
+    "typescript/no-unnecessary-type-assertion": "off",
+    "typescript/no-unnecessary-type-conversion": "off",
+    "typescript/no-unnecessary-type-parameters": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off"
   },
   "ignorePatterns": [".next/**", ".alchemy/**", "dist/**", "coverage/**"]
 }
