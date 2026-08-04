@@ -138,6 +138,18 @@ describe("Thread", () => {
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
+  it("does not render an empty completed assistant message", () => {
+    const message: MessageWithUsage = { id: "assistant-empty", role: "assistant", parts: [] };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+    });
+
+    renderThread([message]);
+
+    expect(document.querySelector("#message-assistant-empty")).toBeNull();
+  });
+
   it("shows the typing indicator before the first assistant chunk arrives", () => {
     const message: MessageWithUsage = {
       id: "user-1",

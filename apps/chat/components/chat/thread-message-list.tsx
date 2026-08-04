@@ -80,6 +80,14 @@ const toThreadMessage = (message: UIMessage): ThreadMessageValue => ({
   parts: message.parts,
 });
 
+const hasVisibleContent = (message: UIMessage): boolean =>
+  message.parts.some((part) => {
+    if (part.type === "text" || part.type === "reasoning") {
+      return typeof part.text === "string" && part.text.trim() !== "";
+    }
+    return true;
+  });
+
 const StreamingIndicator = () => (
   <span
     className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -166,6 +174,14 @@ export const ThreadMessageList = ({
         ]
       : [],
   );
+  const visibleMessages = runtime.messages.flatMap((message, index) => {
+    const isLiveEmptyAssistant =
+      runtime.isStreaming && index === runtime.messages.length - 1 && message.role === "assistant";
+    if (message.role === "assistant" && !hasVisibleContent(message) && !isLiveEmptyAssistant) {
+      return [];
+    }
+    return [{ message, index }];
+  });
   const {
     viewportRef,
     isAwayFromTop,
@@ -288,7 +304,7 @@ export const ThreadMessageList = ({
                 <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
               </aside>
             )}
-            {runtime.messages.length === 0 && contextSummary === undefined ? (
+            {visibleMessages.length === 0 && contextSummary === undefined ? (
               <div className="my-auto space-y-6 text-center">
                 <div>
                   <h1 className="text-2xl font-semibold">What are we working on?</h1>
@@ -311,7 +327,7 @@ export const ThreadMessageList = ({
               </div>
             ) : (
               <>
-                {runtime.messages.map((message, index) => (
+                {visibleMessages.map(({ message, index }) => (
                   <ThreadMessage
                     key={message.id}
                     message={toThreadMessage(message)}
