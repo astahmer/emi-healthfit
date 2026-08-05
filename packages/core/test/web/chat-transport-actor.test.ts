@@ -268,12 +268,12 @@ describe("chatTransportActor", () => {
       first.controller()?.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
     }
     first.controller()?.close();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
-      expect.objectContaining({ type: "text", text: "Current answer" }),
-    );
-    expect(sessionEvents.filter((event) => event.type === "stream-completed")).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
+        expect.objectContaining({ type: "text", text: "Current answer" }),
+      );
+      expect(sessionEvents.filter((event) => event.type === "stream-completed")).toHaveLength(1);
+    });
     actor.stop();
   });
 
