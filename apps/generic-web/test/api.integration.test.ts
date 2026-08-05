@@ -273,7 +273,7 @@ describe("generic web and worker local API topology", () => {
     expect(await updatedSummaryResponse.json()).toMatchObject({
       summary: {
         content: "The user prefers worker-backed chats.",
-        memoryCount: 1,
+        memoryCount: 2,
       },
     });
 
