@@ -115,7 +115,8 @@ describe("conversation thread tools", () => {
         source: "manual",
         thread_id: null,
         created_at: detailPayload.results[0].created_at,
-        rank: 1,
+        deleted: false,
+        rank: 3,
       },
     ]);
   });

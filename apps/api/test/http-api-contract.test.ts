@@ -102,6 +102,7 @@ describe("HTTP response contracts", () => {
         source: "chat",
         thread_id: null,
         created_at: conversation.created_at,
+        deleted: false,
       }),
       {
         id: "memory-1",
@@ -109,6 +110,7 @@ describe("HTTP response contracts", () => {
         source: "chat",
         thread_id: null,
         created_at: conversation.created_at,
+        deleted: false,
       },
     );
   });
