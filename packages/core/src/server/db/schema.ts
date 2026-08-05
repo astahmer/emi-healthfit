@@ -116,6 +116,7 @@ export const memories = sqliteTable(
     source: text(),
     thread_id: text(),
     created_at: text().notNull(),
+    deleted_at: text(),
   },
   (table) => [
     index("idx_memories_created_at").on(table.created_at),

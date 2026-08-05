@@ -12,88 +12,109 @@
   "exports": {
     ".": {
       "types": "./dist/types/core.export.d.ts",
-      "import": "./dist/core.export.js"
+      "import": "./dist/core.export.js",
+      "require": "./dist/core.export.js"
     },
     "./protocol": {
       "types": "./dist/types/protocol.export.d.ts",
-      "import": "./dist/protocol.export.js"
+      "import": "./dist/protocol.export.js",
+      "require": "./dist/protocol.export.js"
     },
     "./api": {
       "types": "./dist/types/api.export.d.ts",
-      "import": "./dist/api.export.js"
+      "import": "./dist/api.export.js",
+      "require": "./dist/api.export.js"
     },
     "./chat": {
       "types": "./dist/types/chat.export.d.ts",
-      "import": "./dist/chat.export.js"
+      "import": "./dist/chat.export.js",
+      "require": "./dist/chat.export.js"
     },
     "./contract": {
       "types": "./dist/types/contract.export.d.ts",
-      "import": "./dist/contract.export.js"
+      "import": "./dist/contract.export.js",
+      "require": "./dist/contract.export.js"
     },
     "./cloudflare": {
       "types": "./dist/types/cloudflare.export.d.ts",
-      "import": "./dist/cloudflare.export.js"
+      "import": "./dist/cloudflare.export.js",
+      "require": "./dist/cloudflare.export.js"
     },
     "./discord": {
       "types": "./dist/types/discord.export.d.ts",
-      "import": "./dist/discord.export.js"
+      "import": "./dist/discord.export.js",
+      "require": "./dist/discord.export.js"
     },
     "./web": {
       "types": "./dist/types/web.export.d.ts",
-      "import": "./dist/web.export.js"
+      "import": "./dist/web.export.js",
+      "require": "./dist/web.export.js"
     },
     "./runtime": {
       "types": "./dist/types/runtime.export.d.ts",
-      "import": "./dist/runtime.export.js"
+      "import": "./dist/runtime.export.js",
+      "require": "./dist/runtime.export.js"
     },
     "./react": {
       "types": "./dist/types/react.export.d.ts",
-      "import": "./dist/react.export.js"
+      "import": "./dist/react.export.js",
+      "require": "./dist/react.export.js"
     },
     "./components": {
       "types": "./dist/types/components.export.d.ts",
-      "import": "./dist/components.export.js"
+      "import": "./dist/components.export.js",
+      "require": "./dist/components.export.js"
     },
     "./components/styled": {
       "types": "./dist/types/components-styled.export.d.ts",
-      "import": "./dist/components-styled.export.js"
+      "import": "./dist/components-styled.export.js",
+      "require": "./dist/components-styled.export.js"
     },
     "./styles.css": "./dist/styles/styles.css",
     "./server/effect": {
       "types": "./dist/types/server-effect.export.d.ts",
-      "import": "./dist/server-effect.export.js"
+      "import": "./dist/server-effect.export.js",
+      "require": "./dist/server-effect.export.js"
     },
     "./server/fetch": {
       "types": "./dist/types/server-fetch.export.d.ts",
-      "import": "./dist/server-fetch.export.js"
+      "import": "./dist/server-fetch.export.js",
+      "require": "./dist/server-fetch.export.js"
     },
     "./server/database": {
       "types": "./dist/types/server-database.export.d.ts",
-      "import": "./dist/server-database.export.js"
+      "import": "./dist/server-database.export.js",
+      "require": "./dist/server-database.export.js"
     },
     "./adapters/ai-sdk": {
       "types": "./dist/types/adapters/ai-sdk.export.d.ts",
-      "import": "./dist/adapters/ai-sdk.export.js"
+      "import": "./dist/adapters/ai-sdk.export.js",
+      "require": "./dist/adapters/ai-sdk.export.js"
     },
     "./adapters/cloudflare": {
       "types": "./dist/types/adapters/cloudflare.export.d.ts",
-      "import": "./dist/adapters/cloudflare.export.js"
+      "import": "./dist/adapters/cloudflare.export.js",
+      "require": "./dist/adapters/cloudflare.export.js"
     },
     "./extensions": {
       "types": "./dist/types/extensions.export.d.ts",
-      "import": "./dist/extensions.export.js"
+      "import": "./dist/extensions.export.js",
+      "require": "./dist/extensions.export.js"
     },
     "./testing": {
       "types": "./dist/types/testing.export.d.ts",
-      "import": "./dist/testing.export.js"
+      "import": "./dist/testing.export.js",
+      "require": "./dist/testing.export.js"
     },
     "./advanced/xstate": {
       "types": "./dist/types/advanced-xstate.export.d.ts",
-      "import": "./dist/advanced-xstate.export.js"
+      "import": "./dist/advanced-xstate.export.js",
+      "require": "./dist/advanced-xstate.export.js"
     },
     "./server": {
       "types": "./dist/types/server.export.d.ts",
-      "import": "./dist/server.export.js"
+      "import": "./dist/server.export.js",
+      "require": "./dist/server.export.js"
     }
   },
   "publishConfig": {
