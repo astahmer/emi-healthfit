@@ -345,6 +345,30 @@ describe("chatTransportActor", () => {
     actor.stop();
   });
 
+  it("keeps the user message retryable when the API returns a decoded error", async () => {
+    const { input, sessionEvents } = createInput({
+      fetch: async () =>
+        new Response(JSON.stringify({ error: "Request body too large" }), { status: 413 }),
+    });
+    input.errorDecoder = async ({ response }) => {
+      const body: unknown = await response.json();
+      if (typeof body === "object" && body !== null && "error" in body)
+        return { message: String(body.error) };
+      return undefined;
+    };
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({ type: "stream-send-requested", request });
+
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+    expect(sessionEvents).toContainEqual({
+      type: "error-reported",
+      error: "Request body too large",
+      messageId: "user-message",
+    });
+    actor.stop();
+  });
+
   it("retries a conversation stream through the reconnect protocol", async () => {
     const { input, sessionEvents } = createInput({
       fetch: async () => streamResponse({ chunks: assistantChunks({ text: "Resumed" }) }),

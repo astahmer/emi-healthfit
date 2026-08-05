@@ -183,4 +183,47 @@ describe("ChatRuntimeProvider", () => {
       useSettings.getState().update({ apiKey: "" });
     }
   });
+
+  it("surfaces the API error message instead of masking it as an orphan turn", async () => {
+    useSettings.getState().update({ apiKey: "test-key" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const pathname = new URL(url, "http://localhost").pathname;
+        if (pathname === "/api/conversations" && init?.method === "POST")
+          return new Response(JSON.stringify({ id: "fresh" }), { status: 201 });
+        if (pathname === "/api/chat")
+          return new Response(JSON.stringify({ error: "Request body too large" }), { status: 413 });
+        return new Response(
+          JSON.stringify({ conversations: [], threads: [], memories: [], summary: null }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    let value: ChatRuntimeValue | undefined;
+    const view = render(
+      <ChatRuntimeProvider config={{ ...config, historyReady: true }}>
+        <ValueProbe capture={(nextValue) => (value = nextValue)} />
+      </ChatRuntimeProvider>,
+      { wrapper: createWrapper() },
+    );
+
+    try {
+      const submittedValue = value;
+      if (submittedValue === undefined) throw new Error("Chat runtime value was not captured.");
+      await act(async () => {
+        await submittedValue.submit("Check this photo");
+      });
+      await waitFor(() => expect(value?.error).not.toBeNull());
+      expect(value?.error?.message).toBe("Request body too large");
+      await waitFor(() => expect(value?.errorMessageId).toBeDefined());
+      expect(value?.errorMessageId).toBeDefined();
+    } finally {
+      view.unmount();
+      useSettings.getState().update({ apiKey: "" });
+    }
+  });
 });

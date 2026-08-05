@@ -281,10 +281,9 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       if (!response.ok) {
         const decoded = await input.errorDecoder?.({ response });
         throw new ChatTransportRequestError(
-          decoded ?? {
-            message: `Chat request failed (${response.status}).`,
-            messageId: message.id,
-          },
+          decoded === undefined
+            ? { message: `Chat request failed (${response.status}).`, messageId: message.id }
+            : { message: decoded.message, messageId: decoded.messageId ?? message.id },
         );
       }
       try {

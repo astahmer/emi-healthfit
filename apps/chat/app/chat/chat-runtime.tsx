@@ -17,6 +17,8 @@ import { Chat } from "@emi/core/chat";
 import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { attachmentPreparationMachine, createBrowserFollowUpQueueSyncAdapter } from "@emi/core/web";
 import { buildNotesContext } from "../notes";
 import { useSettings } from "../settings-store";
@@ -87,6 +89,12 @@ const decodeTransportError = async ({
     return { message: error.message, messageId: error.orphanMessageId };
   }
   if (error instanceof GenerationAlreadyRunningError) return { message: error.message };
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => undefined);
+  const decoded = Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String }))(body);
+  if (Option.isSome(decoded)) return { message: decoded.value.error };
   return undefined;
 };
 
@@ -394,11 +402,9 @@ export const ChatRuntimeProvider = ({
   }, [clearAttachments, runtime]);
 
   const error = useMemo(() => {
-    if (state.errorMessageId !== undefined)
-      return new OrphanTurnError({ orphanMessageId: state.errorMessageId });
     if (state.error === undefined || state.error === "") return null;
     return new Error(state.error);
-  }, [state.error, state.errorMessageId]);
+  }, [state.error]);
   const queuedFollowUps = state.queuedFollowUps.map(toQueuedFollowUp);
   const forceSendQueued = useCallback(
     async (id?: string) => {
