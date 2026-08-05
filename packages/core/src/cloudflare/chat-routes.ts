@@ -19,7 +19,7 @@ export const makeGenericChatRoutes = <Database extends PersistedChatDatabase>({
   const memoryDb = db as unknown as CloudflareQueryDatabaseClient<MemoryDatabaseSchema>;
   return {
     ...ChatRouteApp.make({ appConfig }),
-    ...ChatRouteConversation.make({ db: conversationDb }),
+    ...ChatRouteConversation.make({ db: conversationDb, memoryDb }),
     ...ChatRouteMemory.make({ db: memoryDb }),
     ...ChatRouteStream.make({ conversationDb, memoryDb }),
   };

@@ -2,7 +2,8 @@ import { CompactConversationRequestSchema, CompactedSummarySchema } from "../cha
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
 import { ConversationDatabase } from "../server/db/conversations.ts";
-import type { ConversationDatabaseSchema } from "../server/db/schema.ts";
+import { MemoryDatabase } from "../server/db/memories.ts";
+import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
 import { ChatRouteSupport } from "./chat-route-support.ts";
@@ -15,8 +16,15 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import type { CloudflareQueryDatabaseClient } from "./db/client.ts";
 
 export class ChatRouteConversation {
-  static make({ db }: { readonly db: CloudflareQueryDatabaseClient<ConversationDatabaseSchema> }) {
+  static make({
+    db,
+    memoryDb,
+  }: {
+    readonly db: CloudflareQueryDatabaseClient<ConversationDatabaseSchema>;
+    readonly memoryDb: CloudflareQueryDatabaseClient<MemoryDatabaseSchema>;
+  }) {
     const databaseLayer = ConversationDatabase.layer({ db });
+    const memoryDatabaseLayer = MemoryDatabase.layer({ db: memoryDb });
     const storeFor = (userId: string) =>
       ConversationStoreLive.effect({
         requestContext: makeRequestContext({ userId }),
@@ -61,6 +69,16 @@ export class ChatRouteConversation {
         });
       }
       if (request.method === "DELETE") {
+        yield* Effect.gen(function* () {
+          const messages = yield* store.messageStore.getMessages(conversationId);
+          const threads = yield* store.threadStore.list(conversationId);
+          const memoryDatabase = yield* MemoryDatabase;
+          yield* memoryDatabase.softDeleteMemories({
+            userId: user.id,
+            messageIds: messages.map((message) => message.id),
+            threadIds: threads.map((thread) => thread.id),
+          });
+        }).pipe(Effect.provide(memoryDatabaseLayer));
         yield* store.conversationWriter.delete(conversationId);
         return yield* HttpServerResponse.json({ deleted: true });
       }

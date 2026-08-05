@@ -89,6 +89,7 @@ export const conversationsHandlers = () => {
     Effect.gen(function* () {
       const ConversationDatabase = yield* ServerDatabase.conversations;
       const GenerationDatabase = yield* ServerDatabase.generations;
+      const MemoryDatabase = yield* ServerDatabase.memories;
       return handlers
         .handle(
           "list",
@@ -159,6 +160,19 @@ export const conversationsHandlers = () => {
           "remove",
           Effect.fn("httpApi.conversations.remove")(function* ({ params }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
+            const messages = yield* ConversationDatabase.getConversationMessages({
+              userId: user.id,
+              conversationId: params.id,
+            });
+            const threads = yield* ConversationDatabase.getThreads({
+              userId: user.id,
+              conversationId: params.id,
+            });
+            yield* MemoryDatabase.softDeleteMemories({
+              userId: user.id,
+              messageIds: messages.map((message) => message.id),
+              threadIds: threads.map((thread) => thread.id),
+            });
             yield* ConversationDatabase.deleteConversation({
               userId: user.id,
               conversationId: params.id,
