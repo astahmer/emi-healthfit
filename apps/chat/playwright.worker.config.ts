@@ -16,7 +16,7 @@ export default defineConfig({
   reporter: "line",
   timeout: 30_000,
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://emi-chat-worker-e2e.localhost:1355",
+    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3232",
     ...devices["Desktop Chrome"],
     serviceWorkers: "block",
     trace: "retain-on-failure",

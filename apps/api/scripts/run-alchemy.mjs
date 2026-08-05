@@ -39,7 +39,7 @@ const createMigrationView = async () => {
 };
 
 const run = async () => {
-  await buildCore();
+  if (process.env.EMI_SKIP_CORE_BUILD !== "1") await buildCore();
   const viewDirectory = await createMigrationView();
   const child = spawn("pnpm", ["exec", "alchemy", ...process.argv.slice(2)], {
     cwd: apiDirectory,

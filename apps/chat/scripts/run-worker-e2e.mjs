@@ -14,13 +14,8 @@ const bddgenPath = join(
   dirname(require.resolve("playwright-bdd/package.json")),
   "dist/cli/index.js",
 );
-const processSuffix = `${process.pid}`;
-const portlessPort = process.env.PORTLESS_PORT ?? "1355";
-const apiName = `emi-healthfit-worker-e2e-${processSuffix}`;
-const webName = `emi-chat-worker-e2e-${processSuffix}`;
-const portSuffix = portlessPort === "443" ? "" : `:${portlessPort}`;
-const apiUrl = `http://${apiName}.localhost${portSuffix}`;
-const webUrl = `http://${webName}.localhost${portSuffix}`;
+const apiUrl = "http://127.0.0.1:1337";
+const webUrl = "http://127.0.0.1:3232";
 const providerUrl = "http://127.0.0.1:1399";
 const providerPort = "1399";
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -120,51 +115,16 @@ const run = async () => {
 
     api = spawnProcess({
       command: "pnpm",
-      arguments: [
-        "exec",
-        "portless",
-        "--name",
-        apiName,
-        "--app-port",
-        "1337",
-        "--",
-        "pnpm",
-        "--dir",
-        "apps/api",
-        "alchemy",
-        "dev",
-        "--env-file",
-        environmentFile,
-      ],
-      environment: { PORTLESS_PORT: portlessPort, PORTLESS_HTTPS: "0" },
+      arguments: ["--dir", "apps/api", "run", "alchemy", "dev", "--env-file", environmentFile],
     });
     await waitForStatus({ url: `${apiUrl}/api/auth/get-session` });
 
     web = spawnProcess({
       command: "pnpm",
-      arguments: [
-        "exec",
-        "portless",
-        "--name",
-        webName,
-        "--app-port",
-        "3232",
-        "--",
-        "pnpm",
-        "--dir",
-        "apps/chat",
-        "exec",
-        "vite",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "3232",
-      ],
+      arguments: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1", "--port", "3232"],
       environment: {
         API_BASE_URL: apiUrl,
         PORT: "3232",
-        PORTLESS_PORT: portlessPort,
-        PORTLESS_HTTPS: "0",
       },
     });
     await waitForStatus({ url: `${webUrl}/auth` });

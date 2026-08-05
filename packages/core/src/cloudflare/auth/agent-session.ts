@@ -18,12 +18,7 @@ export class AgentSessionError extends Schema.TaggedErrorClass<AgentSessionError
 export const isLocalAgentAuthUrl = ({ baseUrl }: { baseUrl: string }): boolean => {
   try {
     const hostname = new URL(baseUrl).hostname.toLowerCase();
-    return (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "::1" ||
-      hostname.endsWith(".localhost")
-    );
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
   } catch {
     return false;
   }

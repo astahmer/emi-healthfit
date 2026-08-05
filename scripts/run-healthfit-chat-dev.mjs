@@ -57,6 +57,19 @@ const stop = (child) => {
   if (child !== undefined && child.exitCode === null) child.kill("SIGTERM");
 };
 
+const buildCore = () =>
+  new Promise((resolveBuild, reject) => {
+    const child = spawn("pnpm", ["--dir", "packages/core", "build"], {
+      cwd: repositoryDirectory,
+      stdio: "inherit",
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) resolveBuild();
+      else reject(new Error(`@emi/core build failed (${code}).`));
+    });
+  });
+
 const run = async () => {
   const { environmentFile, temporaryDirectory } = await createEnvironmentFile();
   let api;
@@ -69,12 +82,14 @@ const run = async () => {
   process.once("SIGTERM", cleanup);
 
   try {
+    await buildCore();
     api = spawnProcess({
       arguments: ["--dir", "apps/api", "run", "alchemy", "dev", "--env-file", environmentFile],
+      environment: { EMI_SKIP_CORE_BUILD: "1" },
     });
     await waitForApi();
     web = spawnProcess({
-      arguments: ["--dir", "apps/chat", "dev"],
+      arguments: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1"],
       environment: { API_BASE_URL: apiOrigin },
     });
     const exitCode = await new Promise((resolve) => {

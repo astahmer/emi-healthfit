@@ -26,15 +26,12 @@
     "setup:google": "pnpm --filter api setup:google",
     "setup:agent-auth": "pnpm --dir apps/api setup:agent-auth",
     "auth:agent": "pnpm --dir apps/api auth:agent",
-    "dev:portless": "node scripts/run-healthfit-portless-dev.mjs",
     "chat:dev": "node scripts/run-healthfit-chat-dev.mjs",
     "chat:dev:ui": "pnpm --dir apps/chat dev",
-    "chat:dev:portless": "API_BASE_URL=https://emi-healthfit.localhost pnpm exec portless --name emi-chat -- pnpm --dir apps/chat exec vite --host 127.0.0.1",
     "chat:build": "pnpm --filter chat build",
     "models:check": "node scripts/update-openai-models.mjs --check",
     "models:update": "node scripts/update-openai-models.mjs --write",
     "generic:dev": "node scripts/run-generic-dev.mjs",
-    "generic:dev:portless": "node scripts/run-generic-portless-dev.mjs",
     "generic:worker:dev": "pnpm --filter @emi/generic-worker dev",
     "generic:web:dev": "pnpm --filter @emi/generic-web dev",
     "fixture:chat-app": "node --experimental-strip-types scripts/generate-chat-app-fixture.mjs",
@@ -46,8 +43,7 @@
     "discord:setup:check": "pnpm --filter @emi/discord-bot test:file test/setup-check.test.ts",
     "slop:check": "node scripts/check-architecture-boundaries.mjs && node scripts/check-schema-effect-antislop.mjs && node scripts/check-actor-test-pairs.mjs && node scripts/run-ast-grep.mjs scan && node scripts/check-oxlint-antislop.mjs",
     "slop:test": "node scripts/run-ast-grep.mjs test --skip-snapshot-tests",
-    "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts",
-    "portless:doctor": "pnpm exec portless doctor"
+    "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"
   },
   "devDependencies": {
     "@effect/tsgo": "catalog:",
@@ -56,7 +52,6 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
-    "portless": "catalog:",
     "typescript": "catalog:"
   }
 }

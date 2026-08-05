@@ -44,7 +44,6 @@ catalog:
   oxfmt: "0.56.0"
   oxlint: "1.77.0"
   oxlint-tsgolint: "7.0.2001"
-  portless: "0.15.5"
   radix-ui: "1.6.2"
   react: "19.2.7"
   react-dom: "19.2.7"
