@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { createConnection } from "node:net";
 import { request as httpRequest } from "node:http";
 
 const rootDirectory = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
@@ -14,10 +15,12 @@ const bddgenPath = join(
   dirname(require.resolve("playwright-bdd/package.json")),
   "dist/cli/index.js",
 );
-const apiUrl = "http://127.0.0.1:1337";
-const webUrl = "http://127.0.0.1:3232";
-const providerUrl = "http://127.0.0.1:1399";
-const providerPort = "1399";
+const apiPort = process.env.WORKER_E2E_API_PORT ?? "1337";
+const webPort = process.env.WORKER_E2E_WEB_PORT ?? "3232";
+const providerPort = process.env.PROVIDER_PORT ?? "1399";
+const apiUrl = `http://127.0.0.1:${apiPort}`;
+const webUrl = `http://127.0.0.1:${webPort}`;
+const providerUrl = `http://127.0.0.1:${providerPort}`;
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const apiEnvironmentKeys = new Set([
   "BETTER_AUTH_SECRET",
@@ -29,8 +32,48 @@ const apiEnvironmentKeys = new Set([
   "DISCORD_INTERNAL_ASK_SECRET",
 ]);
 
+if (process.env.RELEASE_SKIP_WORKER_E2E === "1") {
+  console.log("Skipping real Worker E2E (RELEASE_SKIP_WORKER_E2E=1).");
+  process.exit(0);
+}
+
+const assertPortsAvailable = async () => {
+  const ports = [apiPort, webPort, providerPort];
+  const inUse = (
+    await Promise.all(
+      ports.map(
+        (port) =>
+          new Promise((resolve) => {
+            const socket = createConnection({ host: "127.0.0.1", port: Number(port) });
+            socket.once("connect", () => {
+              socket.destroy();
+              resolve(port);
+            });
+            socket.once("error", () => resolve(null));
+          }),
+      ),
+    )
+  ).filter((port) => port !== null);
+  if (inUse.length > 0) {
+    throw new Error(
+      `Real Worker E2E needs ports ${ports.join(", ")} but ${inUse.join(", ")} is already in use. ` +
+        "Stop the occupying dev servers, override WORKER_E2E_API_PORT/WORKER_E2E_WEB_PORT/PROVIDER_PORT, " +
+        "or set RELEASE_SKIP_WORKER_E2E=1.",
+    );
+  }
+};
+
 const createEnvironmentFile = async () => {
-  const source = await readFile(join(rootDirectory, ".env"), "utf8");
+  const environmentPath = join(rootDirectory, ".env");
+  let source;
+  try {
+    source = await readFile(environmentPath, "utf8");
+  } catch {
+    throw new Error(
+      `Real Worker E2E requires ${environmentPath} (copy .env.example) ` +
+        "or set RELEASE_SKIP_WORKER_E2E=1.",
+    );
+  }
   const lines = source.split("\n").filter((line) => {
     const separatorIndex = line.indexOf("=");
     return separatorIndex > 0 && apiEnvironmentKeys.has(line.slice(0, separatorIndex).trim());
@@ -47,6 +90,7 @@ const spawnProcess = ({ command, arguments: commandArguments, environment }) =>
     cwd: rootDirectory,
     env: { ...process.env, ...environment },
     stdio: "inherit",
+    detached: true,
   });
 
 const waitForStatus = async ({ url, timeoutMs = 180_000 }) => {
@@ -81,13 +125,20 @@ const waitForChild = ({ child }) => {
 const stopChild = async ({ child }) => {
   if (child === undefined || child.exitCode !== null || child.signalCode !== null) return;
   const exit = waitForChild({ child });
-  child.kill("SIGTERM");
+  try {
+    process.kill(-child.pid, "SIGTERM");
+  } catch {}
   const stopped = await Promise.race([exit.then(() => true), delay(2_000).then(() => false)]);
-  if (!stopped) child.kill("SIGKILL");
-  await exit;
+  if (!stopped) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {}
+    await exit;
+  }
 };
 
 const run = async () => {
+  await assertPortsAvailable();
   const { environmentFile, temporaryDirectory } = await createEnvironmentFile();
   let api;
   let web;
@@ -103,28 +154,26 @@ const run = async () => {
   process.once("SIGTERM", () => void cleanup());
 
   try {
-    provider = spawn(
-      process.execPath,
-      [new URL("../e2e/mock/provider-server.mjs", import.meta.url).pathname],
-      {
-        env: { ...process.env, PROVIDER_PORT: providerPort },
-        stdio: "inherit",
-      },
-    );
+    provider = spawnProcess({
+      command: process.execPath,
+      arguments: [new URL("../e2e/mock/provider-server.mjs", import.meta.url).pathname],
+      environment: { PROVIDER_PORT: providerPort },
+    });
     await waitForStatus({ url: `${providerUrl}/health`, timeoutMs: 30_000 });
 
     api = spawnProcess({
       command: "pnpm",
-      arguments: ["--dir", "apps/api", "run", "alchemy", "dev", "--env-file", environmentFile],
+      arguments: ["--dir", "apps/api", "alchemy", "dev", "--env-file", environmentFile],
+      environment: { EMI_API_DEV_PORT: apiPort },
     });
     await waitForStatus({ url: `${apiUrl}/api/auth/get-session` });
 
     web = spawnProcess({
       command: "pnpm",
-      arguments: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1", "--port", "3232"],
+      arguments: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1", "--port", webPort],
       environment: {
         API_BASE_URL: apiUrl,
-        PORT: "3232",
+        PORT: webPort,
       },
     });
     await waitForStatus({ url: `${webUrl}/auth` });

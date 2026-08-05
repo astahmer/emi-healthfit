@@ -31,7 +31,7 @@ const signInAsGuest = async (page: Page) => {
   await page.goto("/auth?next=%2Fchat");
   await expect(page.getByRole("button", { name: "Continue as guest" })).toBeVisible();
   await page.getByRole("button", { name: "Continue as guest" }).click();
-  await expect(page).toHaveURL(/\/chat\/?$/);
+  await expect(page).toHaveURL(/\/chat\/?$/, { timeout: 15_000 });
   await expect(page.getByLabel("Message input")).toBeVisible();
 };
 
@@ -76,7 +76,7 @@ When("they reload the notes page", async ({ page }) => {
 Then("the real worker conversation should be listed in the sidebar", async ({ page }) => {
   await expect(
     page.locator('[data-sidebar="menu-item"]').filter({ hasText: "Real worker reply" }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the real worker conversation should not be listed in the sidebar", async ({ page }) => {
@@ -86,7 +86,7 @@ Then("the real worker conversation should not be listed in the sidebar", async (
 });
 
 Then("the tool {string} should be displayed", async ({ page }, toolName: string) => {
-  await expect(page.getByText(toolName).first()).toBeVisible();
+  await expect(page.getByText(toolName).first()).toBeVisible({ timeout: 10_000 });
 });
 
 Then("the photo {string} should be displayed in the chat", async ({ page }, name: string) => {

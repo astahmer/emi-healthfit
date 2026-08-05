@@ -1461,7 +1461,7 @@ When("they open session one from the sidebar", async ({ page }) => {
 });
 
 When("they delete the active session from the sidebar", async ({ page }) => {
-  await openSessionActions(page);
+  await openSessionActions(page, { href: new URL(page.url()).pathname });
   await page.getByText("Supprimer", { exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
 });
@@ -1571,7 +1571,7 @@ Then("the message {string} should not be displayed", async ({ page }, text: stri
 });
 
 Then("the assistant reply {string} should be displayed", async ({ page }, text: string) => {
-  await expect(page.getByText(text)).toBeVisible();
+  await expect(page.getByTestId("chat-thread-viewport").getByText(text).first()).toBeVisible();
 });
 
 Then("the live assistant answer and both user turns should remain visible", async ({ page }) => {

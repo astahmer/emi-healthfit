@@ -102,6 +102,10 @@ export default Api.make(
     return {
       main: import.meta.url,
       domain: stack.stage === "prod" ? PRODUCTION_DOMAIN : undefined,
+      dev: {
+        port: Number(process.env.EMI_API_DEV_PORT ?? "1337"),
+        strictPort: true,
+      },
       assets: {
         directory: chatAssets.outdir,
         hash: chatAssets.hash.pipe(Output.map((hash) => hash.output ?? buildId)),

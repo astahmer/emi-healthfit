@@ -60,5 +60,8 @@ The generic fixture keeps these checks distinct:
   Gherkin features. Set `GENERIC_REAL_WORKER=1` to add the real Worker browser smoke; the normal
   suite keeps deterministic route fixtures for the larger interaction matrix.
 
+See `docs/testing/runtime-test-matrix.md` for what each browser E2E mode mocks and what it leaves
+real (app, Worker, D1, auth, tools, provider).
+
 The `generic:dev` startup wait is only a narrow readiness check for the Worker health route. It
 does not replace the API integration or browser E2E suites.
