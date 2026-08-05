@@ -26,6 +26,10 @@ class ChatUiMessagesError extends Schema.TaggedErrorClass<ChatUiMessagesError>()
 
 const defaultCreateId = (): string => crypto.randomUUID();
 
+// AI SDK v6 emits step-start markers for every streamed step; the protocol
+// models one assistant message without step boundaries, so they are skipped.
+const isStepStartUIPart = (part: UiMessagePart): boolean => part.type === "step-start";
+
 const unsupportedPart = (part: UiMessagePart): ChatUiMessagesError =>
   new ChatUiMessagesError({
     code: "unsupported-ui-message-part",
@@ -227,7 +231,10 @@ export class ChatUiMessages {
     readonly parts: ReadonlyArray<UiMessagePart>;
     readonly createId?: () => string;
   }): Effect.Effect<ReadonlyArray<MessagePart>, ChatUiMessagesError> {
-    return Effect.forEach(parts, (part) => toProtocolPart({ part, createId }));
+    return Effect.forEach(
+      parts.filter((part) => !isStepStartUIPart(part)),
+      (part) => toProtocolPart({ part, createId }),
+    );
   }
 
   static toProtocolParts({

@@ -55,9 +55,11 @@ export const conversationPayload = ({ id, text }: { id: string; text: string }) 
 export const assistantStream = ({ messageId, text }: { messageId: string; text: string }) =>
   [
     `data: {"type":"start","messageId":"${messageId}"}`,
+    'data: {"type":"start-step"}',
     `data: {"type":"text-start","id":"${messageId}-text"}`,
     `data: {"type":"text-delta","id":"${messageId}-text","delta":"${text}"}`,
     `data: {"type":"text-end","id":"${messageId}-text"}`,
+    'data: {"type":"finish-step"}',
     'data: {"type":"finish"}',
     "data: [DONE]",
     "",
@@ -66,10 +68,12 @@ export const assistantStream = ({ messageId, text }: { messageId: string; text: 
 export const multiToolStream = ({ messageId }: { messageId: string }) =>
   [
     `data: {"type":"start","messageId":"${messageId}"}`,
+    'data: {"type":"start-step"}',
     `data: {"type":"tool-input-available","toolCallId":"call-1","toolName":"get_recovery","input":{}}`,
     `data: {"type":"tool-output-available","toolCallId":"call-1","output":{"label":"Ready","explanation":"Recovered well"}}`,
     `data: {"type":"tool-input-available","toolCallId":"call-2","toolName":"get_workout_history","input":{}}`,
     `data: {"type":"tool-output-error","toolCallId":"call-2","errorText":"Only one SELECT query is allowed."}`,
+    'data: {"type":"finish-step"}',
     `data: {"type":"text-start","id":"${messageId}-text"}`,
     `data: {"type":"text-delta","id":"${messageId}-text","delta":"Mixed tools done"}`,
     `data: {"type":"text-end","id":"${messageId}-text"}`,
