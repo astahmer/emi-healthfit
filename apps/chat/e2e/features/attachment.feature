@@ -23,3 +23,10 @@ Feature: Attachments
     And they send the message "Look at this"
     Then the assistant reply "Saw the image" should be displayed
     And the last request should contain a file part named "progress.png"
+
+  Scenario: Send a realistic photo with the chat request
+    Given a user is on session one with chat persistence
+    When they attach the photo "label-photo.png"
+    And they send the message "Look at this"
+    Then the assistant reply "Saw the image" should be displayed
+    And the last request should contain a full-size data URL for "label-photo.png"

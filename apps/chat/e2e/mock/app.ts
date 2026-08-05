@@ -68,7 +68,13 @@ export type MockChatBody = {
   replaceMessageId?: string;
   config?: { model?: string };
   messages?: Array<{
-    parts?: Array<{ type?: string; text?: string; filename?: string; mediaType?: string }>;
+    parts?: Array<{
+      type?: string;
+      text?: string;
+      filename?: string;
+      mediaType?: string;
+      url?: string;
+    }>;
   }>;
 };
 

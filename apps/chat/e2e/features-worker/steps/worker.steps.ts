@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import type { Page } from "@playwright/test";
+import { fixturePath } from "../../fixture-path.ts";
 
 const { Given, When, Then } = createBdd();
 
@@ -56,6 +57,11 @@ Given("a real worker guest is on the notes page", async ({ page }) => {
 When("they send the message {string} through the real worker", async ({ page }, text: string) => {
   await page.getByLabel("Message input").fill(text);
   await page.getByLabel("Send message").click();
+});
+
+When("they attach the photo {string} through the real worker", async ({ page }, name: string) => {
+  await page.locator('input[type="file"]').setInputFiles(fixturePath(name));
+  await expect(page.getByText(name)).toBeVisible();
 });
 
 When("they reload the chat page", async ({ page }) => {

@@ -10,7 +10,7 @@ Feature: Failed-turn recovery
     Given a user is on session one whose replies fail with status 500
     When they send the message "Please fail"
     Then the "Retry this request" button should be visible
-    And the message "Your previous request did not receive a response." should be displayed
+    And the message "Generation timed out" should be displayed
 
   Scenario: Send a new request after a persisted orphaned turn
     Given a user is on session one with a persisted orphaned turn

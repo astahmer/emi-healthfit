@@ -23,6 +23,12 @@ Feature: Real Worker chat
     Then the URL should be the new chat page
     And the real worker conversation should not be listed in the sidebar
 
+  Scenario: Send a realistic photo through the real Worker
+    Given a real worker guest is on the chat page
+    When they attach the photo "label-photo.png" through the real worker
+    And they send the message "What is in this photo?" through the real worker
+    Then the assistant reply "Real worker reply" should be displayed
+
   Scenario: Notes persist through the real API
     Given a real worker guest is on the notes page
     When they add the note "Real worker note"

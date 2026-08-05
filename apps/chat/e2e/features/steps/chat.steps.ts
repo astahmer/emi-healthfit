@@ -15,6 +15,7 @@ import {
   openSessionOneWithChatPersistence,
   tallConversationSnapshot,
 } from "./helpers.ts";
+import { fixturePath } from "../../fixture-path.ts";
 import { openSessionActions } from "../../open-session-actions.ts";
 
 const { Given, When, Then } = createBdd();
@@ -370,7 +371,7 @@ Given(
     const mock = createChatMock({
       state: {
         snapshots: { one: sessionOneSnapshot() },
-        chat: { failStatus: status },
+        chat: { failStatus: status, failBody: JSON.stringify({ error: "Generation timed out" }) },
       },
     });
     registerPageMock(page, mock);
@@ -1337,6 +1338,11 @@ When("they attach the image {string}", async ({ page }, filename: string) => {
     mimeType: filename.endsWith(".bmp") ? "image/bmp" : "image/png",
     buffer: Buffer.from("image"),
   });
+});
+
+When("they attach the photo {string}", async ({ page }, filename: string) => {
+  await page.locator('input[type="file"]').setInputFiles(fixturePath(filename));
+  await expect(page.getByText(filename)).toBeVisible();
 });
 
 When("they attach {int} images", async ({ page }, count: number) => {
@@ -2307,6 +2313,17 @@ Then(
     const parts = getPageMock(page).state.chat.lastBody?.messages?.[0]?.parts ?? [];
     const filePart = parts.find((part) => part.type === "file");
     expect(filePart?.filename).toBe(filename);
+  },
+);
+
+Then(
+  "the last request should contain a full-size data URL for {string}",
+  async ({ page }, filename: string) => {
+    const parts = getPageMock(page).state.chat.lastBody?.messages?.[0]?.parts ?? [];
+    const filePart = parts.find((part) => part.type === "file");
+    expect(filePart?.filename).toBe(filename);
+    expect(typeof filePart?.url).toBe("string");
+    expect(String(filePart?.url).length).toBeGreaterThan(500_000);
   },
 );
 
