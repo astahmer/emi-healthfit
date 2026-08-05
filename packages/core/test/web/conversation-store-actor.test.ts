@@ -116,6 +116,37 @@ describe("conversationStoreActor", () => {
     actor.stop();
   });
 
+  it("opens a requested conversation in the session", async () => {
+    const { actor, sessionEvents } = createStore();
+    actor.send({ type: "conversation-load-requested", conversationId: conversation.id });
+
+    await vi.waitFor(() => {
+      expect(sessionEvents).toContainEqual({
+        type: "conversation-opened",
+        conversationId: conversation.id,
+        messages: [message],
+      });
+    });
+    actor.stop();
+  });
+
+  it("does not open a conversation whose load outlives a new-chat reset", async () => {
+    const pending = deferred<{ conversation: Conversation; messages: ChatMessage[] }>();
+    const { actor, sessionEvents } = createStore({
+      client: createClient({ loadConversation: () => pending.promise }),
+    });
+    actor.send({ type: "conversation-load-requested", conversationId: conversation.id });
+    actor.send({ type: "threads-cleared" });
+
+    pending.resolve({ conversation, messages: [message] });
+    await vi.waitFor(() => {
+      expect(actor.getSnapshot().context.loading.conversation).toBe(false);
+    });
+
+    expect(sessionEvents.filter((event) => event.type === "conversation-opened")).toEqual([]);
+    actor.stop();
+  });
+
   it("loads and saves the user memory summary through the store actor", async () => {
     const updatedSummary = { ...memorySummary, content: "Updated summary." };
     const { actor, uiEvents } = createStore({

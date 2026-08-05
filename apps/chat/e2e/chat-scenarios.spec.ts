@@ -107,6 +107,55 @@ test("resets before delete finishes and sends a new-chat suggestion", async ({ p
   expect(mock.state.chat.lastBody?.sessionId).not.toBe("one");
 });
 
+test("deletes the active conversation after entering it from the new-chat route", async ({
+  page,
+}) => {
+  const mock = createChatMock({
+    state: {
+      chat: { persist: true, replyText: "Workout summary" },
+      snapshots: { one: sessionOneSnapshot() },
+    },
+  });
+  await mock.open(page, "/chat");
+
+  await page.getByRole("link", { name: "Session One" }).click();
+  await expect(page).toHaveURL(/\/chat\/one$/);
+  await expect(page.getByText("one message answer")).toBeVisible();
+
+  await openSessionActions(page);
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+
+  await expect(page).toHaveURL(/\/chat\/?$/);
+  await expect(page.getByRole("button", { name: "Summarize my last workout." })).toBeVisible();
+  await expect(page.getByText("one message answer")).toHaveCount(0);
+  expect(mock.state.conversations.some((conversation) => conversation.id === "one")).toBe(false);
+});
+
+test("does not resurrect a deleted conversation from stale message loads", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      chat: { persist: true, replyText: "Workout summary" },
+      snapshots: { one: sessionOneSnapshot() },
+    },
+  });
+  mock.holdMessages();
+  await mock.open(page, "/chat/one");
+
+  await page.getByRole("link", { name: "Session One" }).click();
+  await expect(page).toHaveURL(/\/chat\/one$/);
+
+  await openSessionActions(page);
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+
+  await expect(page).toHaveURL(/\/chat\/?$/);
+  mock.releaseMessages();
+
+  await expect(page.getByRole("button", { name: "Summarize my last workout." })).toBeVisible();
+  await expect(page.getByText("one message answer")).toHaveCount(0);
+});
+
 test("sends another typed message and keeps the previous assistant answer", async ({ page }) => {
   const mock = createChatMock({
     state: {

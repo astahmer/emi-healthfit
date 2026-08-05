@@ -480,7 +480,62 @@ describe("conversationMachine", () => {
     expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true);
     expect(actor.getSnapshot().context.conversation).toBeNull();
     expect(actor.getSnapshot().context.messages).toEqual([]);
+    expect(actor.getSnapshot().context.conversationId).toBeUndefined();
     expect(actor.getSnapshot().context.createdConversationId).toBeUndefined();
+  });
+
+  it("ignores a stale load for the removed conversation", async () => {
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(async () => ({
+          conversation: makeConversation(),
+          messages: [makeMessage()],
+          threads: [makeThread()],
+        })),
+      },
+    });
+    const actor = createActor(machine, { input: { conversationId: "conv-1" } });
+    actor.start();
+
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+    actor.send({ type: "conversationId.changed", conversationId: undefined });
+
+    actor.send({
+      type: "load.succeeded",
+      conversation: makeConversation(),
+      messages: [makeMessage()],
+      threads: [makeThread()],
+    });
+
+    expect(actor.getSnapshot().context.conversation).toBeNull();
+    expect(actor.getSnapshot().context.messages).toEqual([]);
+    expect(actor.getSnapshot().context.threads).toEqual([]);
+  });
+
+  it("ignores a load for a conversation that is not selected", async () => {
+    const machine = conversationMachine.provide({
+      actors: {
+        loadConversation: fromPromise(async () => ({
+          conversation: makeConversation(),
+          messages: [makeMessage()],
+          threads: [makeThread()],
+        })),
+      },
+    });
+    const actor = createActor(machine, { input: { conversationId: "conv-1" } });
+    actor.start();
+
+    await vi.waitFor(() => expect(actor.getSnapshot().matches({ ready: "idle" })).toBe(true));
+
+    actor.send({
+      type: "load.succeeded",
+      conversation: makeConversation({ id: "conv-2", title: "Other" }),
+      messages: [],
+      threads: [],
+    });
+
+    expect(actor.getSnapshot().context.conversation?.id).toBe("conv-1");
+    expect(actor.getSnapshot().context.messages).toHaveLength(1);
   });
 
   it("does not reload when the conversation id matches the created conversation id", async () => {

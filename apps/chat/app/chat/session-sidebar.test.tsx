@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,15 +17,39 @@ vi.mock("@/app/session-cache", () => ({
   setCachedMessages: vi.fn().mockResolvedValue(undefined),
 }));
 
+const locationState = vi.hoisted(() => {
+  let pathname = "/chat";
+  const listeners = new Set<() => void>();
+  return {
+    getPathname: () => pathname,
+    setPathname: (next: string) => {
+      pathname = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+});
+
+const navigateMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...props }: { children: ReactNode; to: string }) => (
     <a href={to} {...props}>
       {children}
     </a>
   ),
-  useLocation: ({ select }: { select: (location: { pathname: string }) => string }) =>
-    select({ pathname: "/chat" }),
-  useNavigate: () => vi.fn(),
+  useLocation: ({ select }: { select: (location: { pathname: string }) => string }) => {
+    const pathname = React.useSyncExternalStore(
+      locationState.subscribe,
+      locationState.getPathname,
+      locationState.getPathname,
+    );
+    return select({ pathname });
+  },
+  useNavigate: () => navigateMock,
 }));
 
 const createWrapper = () => {
@@ -104,5 +130,57 @@ describe("SessionSidebar", () => {
       },
       { timeout: 10_000 },
     );
+  });
+
+  it("navigates to a new chat when deleting the conversation that became active after mount", async () => {
+    const thread = {
+      id: "thread-1",
+      title: "Squat Session Showdown",
+      status: "regular",
+      pinned: false,
+      created_at: "2026-07-14T11:37:55.245Z",
+      updated_at: "2026-07-14T11:42:25.844Z",
+    };
+    navigateMock.mockClear();
+    locationState.setPathname("/chat");
+
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const href =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(href, window.location.origin).pathname;
+      const method = typeof input !== "string" && !(input instanceof URL) ? input.method : "GET";
+      if (path === "/api/conversations" && method === "GET") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ conversations: [thread] }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      if (path === "/api/conversations/thread-1" && method === "DELETE") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ success: true }), {
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+
+    const user = userEvent.setup();
+    render(<SessionSidebar />, { wrapper: createWrapper() });
+    await screen.findByText("Squat Session Showdown");
+
+    act(() => locationState.setPathname("/chat/thread-1"));
+
+    await user.click(screen.getByLabelText("Session actions"));
+    await user.click(await screen.findByRole("menuitem", { name: "Supprimer" }));
+    await user.click(await screen.findByRole("button", { name: "Supprimer" }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: "/chat/{-$sessionId}",
+        params: { sessionId: undefined },
+      });
+    });
   });
 });

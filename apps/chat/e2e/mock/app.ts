@@ -126,6 +126,7 @@ export type MockApiState = {
   anonymousOk: boolean;
   socialOk: boolean;
   deleteGate: Promise<void> | null;
+  messagesGate: Promise<void> | null;
   chat: {
     calls: number;
     lastBody: MockChatBody | undefined;
@@ -568,7 +569,8 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, { success: true });
   });
 
-  app.get("/api/conversations/:id/messages", (context) => {
+  app.get("/api/conversations/:id/messages", async (context) => {
+    if (state.messagesGate !== null) await state.messagesGate;
     const id = context.req.param("id");
     const snapshot = ensureSnapshot(state, id);
     const conversation =
@@ -871,6 +873,8 @@ export type MockApi = {
   releaseChat: () => void;
   holdDelete: () => void;
   releaseDelete: () => void;
+  holdMessages: () => void;
+  releaseMessages: () => void;
   setSnapshot: (id: string, snapshot: MockSnapshot) => void;
 };
 
@@ -892,6 +896,7 @@ export const createMockApi = ({
 } = {}): MockApi => {
   let releaseGate: (() => void) | null = null;
   let releaseDeleteGate: (() => void) | null = null;
+  let releaseMessagesGate: (() => void) | null = null;
   const state: MockApiState = {
     suggestions: partial?.suggestions ?? [],
     conversations: partial?.conversations ?? [...defaultConversations],
@@ -903,6 +908,7 @@ export const createMockApi = ({
     anonymousOk: partial?.anonymousOk ?? true,
     socialOk: partial?.socialOk ?? false,
     deleteGate: partial?.deleteGate ?? null,
+    messagesGate: partial?.messagesGate ?? null,
     createConversationId: partial?.createConversationId ?? null,
     chat: {
       calls: 0,
@@ -974,6 +980,18 @@ export const createMockApi = ({
     state.deleteGate = null;
   };
 
+  const holdMessages = () => {
+    state.messagesGate = new Promise<void>((resolve) => {
+      releaseMessagesGate = resolve;
+    });
+  };
+
+  const releaseMessages = () => {
+    releaseMessagesGate?.();
+    releaseMessagesGate = null;
+    state.messagesGate = null;
+  };
+
   const setSnapshot = (id: string, snapshot: MockSnapshot) => {
     state.snapshots[id] = snapshot;
   };
@@ -985,6 +1003,8 @@ export const createMockApi = ({
     releaseChat,
     holdDelete,
     releaseDelete,
+    holdMessages,
+    releaseMessages,
     setSnapshot,
   };
 };

@@ -31,6 +31,7 @@ export interface ConversationStoreContext {
   threads: ConversationThread[];
   memories: Memory[];
   memorySummary: MemorySummary | undefined;
+  requestedConversationId: string | undefined;
   loading: ConversationStoreLoading;
   error: string | undefined;
 }
@@ -411,9 +412,13 @@ export const conversationStoreActor = setup({
       loading: loading({ context, operation: "conversations", value: true }),
       error: undefined,
     })),
-    requestConversation: assign(({ context }) => ({
+    requestConversation: assign(({ context, event }) => ({
       loading: loading({ context, operation: "conversation", value: true }),
       error: undefined,
+      requestedConversationId:
+        event.type === "conversation-load-requested"
+          ? event.conversationId
+          : context.requestedConversationId,
     })),
     requestThreads: assign(({ context }) => ({
       loading: loading({ context, operation: "threads", value: true }),
@@ -517,7 +522,10 @@ export const conversationStoreActor = setup({
     finishMutation: assign(({ context }) => ({
       loading: loading({ context, operation: "mutation", value: false }),
     })),
-    clearThreads: assign({ threads: () => [] }),
+    clearThreads: assign({
+      threads: () => [],
+      requestedConversationId: () => undefined,
+    }),
     reportFailure: assign(({ context, event }) =>
       event.type === "operation-failed"
         ? {
@@ -531,12 +539,16 @@ export const conversationStoreActor = setup({
         context.sendSession({ type: "error-reported", error: event.error });
     },
     openConversation: ({ context, event }) => {
-      if (event.type === "conversation-loaded")
+      if (
+        event.type === "conversation-loaded" &&
+        event.conversation.id === context.requestedConversationId
+      ) {
         context.sendSession({
           type: "conversation-opened",
           conversationId: event.conversation.id,
           messages: event.messages,
         });
+      }
     },
     openThread: ({ context, event }) => {
       if (event.type === "thread-loaded")
@@ -568,6 +580,7 @@ export const conversationStoreActor = setup({
     threads: [],
     memories: [],
     memorySummary: undefined,
+    requestedConversationId: undefined,
     loading: initialLoading,
     error: undefined,
   }),

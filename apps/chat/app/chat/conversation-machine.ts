@@ -54,6 +54,22 @@ export interface CompactConversationConfig {
   model: string;
 }
 
+interface ConversationLoadOutput {
+  conversation: Conversation;
+  messages: MessageNode[];
+  threads: ThreadView[];
+  source?: "cache" | "network";
+}
+
+const refreshOutput = ({
+  conversationId,
+  output,
+}: {
+  conversationId: string | undefined;
+  output: Omit<ConversationLoadOutput, "source"> | undefined;
+}): Omit<ConversationLoadOutput, "source"> | null =>
+  output !== undefined && output.conversation.id === conversationId ? output : null;
+
 export interface ConversationMachineInput {
   conversationId?: string;
   createdConversationId?: string;
@@ -166,12 +182,7 @@ export const conversationMachine = setup({
       }: {
         input: { conversationId: string | undefined };
         signal: AbortSignal;
-      }): Promise<{
-        conversation: Conversation;
-        messages: MessageNode[];
-        threads: ThreadView[];
-        source?: "cache" | "network";
-      }> => {
+      }): Promise<ConversationLoadOutput> => {
         if (input.conversationId === undefined) throw new Error("conversationId is required");
         return loadConversationMessages(input.conversationId, signal);
       },
@@ -181,9 +192,7 @@ export const conversationMachine = setup({
         input,
       }: {
         input: { conversationId: string | undefined; enabled: boolean };
-      }): Promise<
-        { conversation: Conversation; messages: MessageNode[]; threads: ThreadView[] } | undefined
-      > => {
+      }): Promise<Omit<ConversationLoadOutput, "source"> | undefined> => {
         if (!input.enabled || input.conversationId === undefined) return undefined;
         return fetchConversationMessages(input.conversationId);
       },
@@ -238,6 +247,7 @@ export const conversationMachine = setup({
   },
   actions: {
     clearConversation: assign({
+      conversationId: () => undefined,
       conversation: () => null,
       createdConversationId: () => undefined,
       messages: () => [],
@@ -263,6 +273,8 @@ export const conversationMachine = setup({
     hasConversationId: ({ context }) => context.conversationId !== undefined,
     eventHasConversationId: ({ event }) =>
       event.type === "conversationId.changed" && event.conversationId !== undefined,
+    loadMatchesSelection: ({ context, event }) =>
+      event.type === "load.succeeded" && event.conversation.id === context.conversationId,
     isNewlyCreated: ({ context, event }) =>
       event.type === "conversationId.changed" &&
       event.conversationId !== undefined &&
@@ -352,12 +364,17 @@ export const conversationMachine = setup({
           enabled: context.refreshFromNetwork,
         }),
         onDone: {
-          actions: assign({
-            conversation: ({ context, event }) =>
-              event.output?.conversation ?? context.conversation,
-            messages: ({ context, event }) => event.output?.messages ?? context.messages,
-            threads: ({ context, event }) => event.output?.threads ?? context.threads,
-            refreshFromNetwork: () => false,
+          actions: assign(({ context, event }) => {
+            const loaded = refreshOutput({
+              conversationId: context.conversationId,
+              output: event.output,
+            });
+            return {
+              conversation: loaded?.conversation ?? context.conversation,
+              messages: loaded?.messages ?? context.messages,
+              threads: loaded?.threads ?? context.threads,
+              refreshFromNetwork: false,
+            };
           }),
         },
         onError: {
@@ -623,6 +640,7 @@ export const conversationMachine = setup({
       },
       on: {
         "load.succeeded": {
+          guard: "loadMatchesSelection",
           actions: assign({
             conversation: ({ event }) => event.conversation,
             messages: ({ event }) => event.messages,

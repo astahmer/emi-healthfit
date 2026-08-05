@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import {
@@ -346,6 +346,10 @@ export const SessionSidebar = () => {
   const queryClient = useQueryClient();
   const encodedActiveId = pathname.match(/^\/chat\/([^/]+)\/?$/)?.[1];
   const activeId = encodedActiveId === undefined ? undefined : decodeURIComponent(encodedActiveId);
+  const activeIdRef = useRef(activeId);
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
   const { setOpenMobile } = useSidebar();
 
   const [search, setSearch] = useState("");
@@ -426,7 +430,7 @@ export const SessionSidebar = () => {
                       thread={thread}
                       isActive={activeId === thread.id}
                       onDeleteStarted={() => {
-                        if (activeId !== thread.id) return;
+                        if (activeIdRef.current !== thread.id) return;
                         void navigate({
                           to: "/chat/{-$sessionId}",
                           params: { sessionId: undefined },
