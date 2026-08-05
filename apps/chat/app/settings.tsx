@@ -4,7 +4,7 @@ import { useMachine } from "@xstate/react";
 import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { chatModels, defaultModel } from "./models";
-import { useSettings } from "./settings-store";
+import { DEFAULT_TOKEN_BUDGET, useSettings } from "./settings-store";
 import { settingsSyncMachine } from "./settings-sync-machine";
 import { AppAboutSettings } from "./app-about-settings";
 import { DataImport } from "./data-import";
@@ -104,6 +104,25 @@ export function SettingsPanel() {
           />
         </div>
 
+        <div>
+          <label htmlFor="default-token-budget" className="text-sm font-medium">
+            Default token budget
+          </label>
+          <input
+            id="default-token-budget"
+            type="number"
+            min={0}
+            step={1_000}
+            value={settings.tokenBudget}
+            onChange={(e) => update({ tokenBudget: Math.max(0, Number(e.target.value) || 0) })}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Auto-compact trigger for new conversations. Per-conversation budgets override it; 0
+            disables the budget.
+          </p>
+        </div>
+
         <div className="flex items-start gap-3">
           <input
             id="coach-mode"
@@ -163,6 +182,7 @@ export function SettingsPanel() {
               systemPrompt:
                 "You are Emi, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
               coachMode: true,
+              tokenBudget: DEFAULT_TOKEN_BUDGET,
             })
           }
           variant="outline"

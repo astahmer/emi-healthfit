@@ -1,7 +1,10 @@
+import { Effect } from "effect";
 import * as Schema from "effect/Schema";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { defaultModel } from "./models";
+
+export const DEFAULT_TOKEN_BUDGET = 100_000;
 
 interface ChatSettings {
   provider: "openai";
@@ -10,6 +13,7 @@ interface ChatSettings {
   model: string;
   systemPrompt: string;
   coachMode: boolean;
+  tokenBudget: number;
 }
 
 const defaultSettings: ChatSettings = {
@@ -20,6 +24,7 @@ const defaultSettings: ChatSettings = {
   systemPrompt:
     "You are EmiFit, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
   coachMode: true,
+  tokenBudget: DEFAULT_TOKEN_BUDGET,
 };
 
 interface SettingsState {
@@ -35,6 +40,10 @@ const PersistedChatSettingsSchema = Schema.Struct({
     model: Schema.String,
     systemPrompt: Schema.String,
     coachMode: Schema.Boolean,
+    tokenBudget: Schema.Number.pipe(
+      Schema.optional,
+      Schema.withDecodingDefaultType(Effect.succeed(DEFAULT_TOKEN_BUDGET)),
+    ),
   }),
 });
 
@@ -50,7 +59,7 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: "emi-chat-settings",
-      version: 1,
+      version: 2,
       partialize: (state): PersistedChatSettings => ({ settings: state.settings }),
       migrate: (persistedState, version): PersistedChatSettings => {
         try {

@@ -5,6 +5,7 @@ import { CoinsIcon } from "lucide-react";
 import { chatModels } from "./models";
 import { Button } from "@/components/ui/button";
 import type { MessageUsage, MessageWithUsage } from "./sessions";
+import { useSettings } from "./settings-store";
 
 interface MessageMeta {
   usage?: MessageUsage;
@@ -81,21 +82,30 @@ const formatTokens = (tokens: number): string =>
     tokens,
   );
 
+const readStoredBudget = (storageKey: string): number | null => {
+  const raw = window.localStorage.getItem(storageKey);
+  if (raw === null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+};
+
 export const ConversationUsage = ({ conversationId }: { conversationId: string }) => {
   const usage = useUsage();
+  const { settings } = useSettings();
   const storageKey = `emi-healthfit:token-budget:${conversationId}`;
-  const [budget, setBudget] = useState(100_000);
+  const [budget, setBudget] = useState(settings.tokenBudget);
 
   useEffect(() => {
-    const storedBudget = Number(window.localStorage.getItem(storageKey));
-    if (Number.isFinite(storedBudget) && storedBudget > 0) setBudget(storedBudget);
-  }, [storageKey]);
+    setBudget(readStoredBudget(storageKey) ?? settings.tokenBudget);
+  }, [storageKey, settings.tokenBudget]);
 
   const history = Array.from(usage.metaByMessageId.entries())
     .filter((entry) => entry[1].usage !== undefined)
     .toReversed();
   const estimatedCost = history.reduce((total, entry) => total + estimateMessageCost(entry[1]), 0);
   const totalTokens = usage.totalUsage.totalTokens ?? 0;
+  const overBudget = budget > 0 && totalTokens > budget;
+  const percentUsed = budget > 0 ? Math.round((totalTokens / budget) * 100) : null;
 
   return (
     <details className="group relative">
@@ -115,33 +125,44 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
             {estimatedCost.toFixed(4)}
           </p>
         </div>
-        <label className="block text-xs font-medium">
-          Token budget
-          <input
-            type="number"
-            min={1_000}
-            step={1_000}
-            value={budget}
-            onChange={(event) => {
-              const nextBudget = Math.max(1_000, Number(event.target.value) || 1_000);
-              setBudget(nextBudget);
-              window.localStorage.setItem(storageKey, String(nextBudget));
-            }}
-            className="mt-1 w-full rounded-md border bg-background px-2 py-1.5"
-          />
-        </label>
         <div>
-          <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-            <span>{Math.min(100, Math.round((totalTokens / budget) * 100))}% used</span>
-            <span>{formatTokens(budget)}</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary"
-              style={{ width: `${Math.min(100, (totalTokens / budget) * 100)}%` }}
+          <label className="block text-xs font-medium">
+            Token budget
+            <input
+              type="number"
+              min={0}
+              step={1_000}
+              value={budget}
+              onChange={(event) => {
+                const nextBudget = Math.max(0, Number(event.target.value) || 0);
+                setBudget(nextBudget);
+                window.localStorage.setItem(storageKey, String(nextBudget));
+              }}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1.5"
             />
-          </div>
+          </label>
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            0 disables the budget for this conversation.
+          </span>
         </div>
+        {budget > 0 ? (
+          <div>
+            <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+              <span className={overBudget ? "font-medium text-destructive" : undefined}>
+                {percentUsed}% used{overBudget ? " · over budget" : ""}
+              </span>
+              <span>{formatTokens(budget)}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className={overBudget ? "h-full bg-destructive" : "h-full bg-primary"}
+                style={{ width: `${Math.min(100, percentUsed ?? 0)}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No budget set for this conversation.</p>
+        )}
         <div className="max-h-48 space-y-2 overflow-y-auto">
           {history.length === 0 ? (
             <p className="text-xs text-muted-foreground">
