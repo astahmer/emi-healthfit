@@ -53,6 +53,7 @@ describe("makeMemoryStore", () => {
         source: "manual",
         thread_id: null,
         created_at: "2026-08-02T00:00:00.000Z",
+        deleted: false,
         rank: 0,
       },
     ]);
@@ -70,5 +71,18 @@ describe("makeMemoryStore", () => {
 
     await Effect.runPromise(services.writer.delete("memory-test-id"));
     assert.deepEqual(await Effect.runPromise(services.reader.list()), []);
+    assert.equal(await Effect.runPromise(services.reader.count()), 0);
+    assert.deepEqual(
+      (await Effect.runPromise(services.reader.list({ deletedOnly: true }))).map(
+        (memory) => memory.deleted,
+      ),
+      [true],
+    );
+
+    await Effect.runPromise(services.writer.restore("memory-test-id"));
+    assert.deepEqual(
+      (await Effect.runPromise(services.reader.list())).map((memory) => memory.content),
+      ["Typed memory"],
+    );
   });
 });

@@ -54,9 +54,14 @@ export class ChatRouteMemory {
         );
         return yield* HttpServerResponse.json({ id }, { status: 201 });
       }
-      const search = new URL(request.url, "http://localhost").searchParams.get("search") ?? "";
-      const values =
-        search === "" ? yield* memoryStore.reader.list() : yield* memoryStore.reader.search(search);
+      const url = new URL(request.url, "http://localhost");
+      const search = url.searchParams.get("search") ?? "";
+      const deleted = url.searchParams.get("deleted") === "true";
+      const values = deleted
+        ? yield* memoryStore.reader.list({ deletedOnly: true })
+        : search === ""
+          ? yield* memoryStore.reader.list()
+          : yield* memoryStore.reader.search(search);
       return yield* HttpServerResponse.json({
         memories: values.map(ChatRouteSupport.memoryResponse),
       });
@@ -128,6 +133,21 @@ export class ChatRouteMemory {
       return yield* HttpServerResponse.json({ deleted: true });
     });
 
-    return { memories, memory, memorySummary, suggestions };
+    const memoryRestore = Effect.fn("core.chat.memoryRestore")(function* () {
+      const user = yield* CurrentUser;
+      const memoryStore = yield* memoryStoreFor(user.id);
+      const params = yield* HttpRouter.params;
+      const memoryId = params.memoryId;
+      if (memoryId === undefined) {
+        return yield* HttpServerResponse.json({ error: "Memory not found" }, { status: 404 });
+      }
+      yield* memoryStore.writer.restore(memoryId);
+      yield* ChatRouteSupport.syncMemorySummaryCount.pipe(
+        Effect.provide(memoryStoreLayer(memoryStore)),
+      );
+      return yield* HttpServerResponse.json({ restored: true });
+    });
+
+    return { memories, memory, memoryRestore, memorySummary, suggestions };
   }
 }

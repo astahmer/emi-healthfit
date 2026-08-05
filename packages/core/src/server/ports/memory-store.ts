@@ -15,6 +15,7 @@ export interface MemoryReaderShape<TEnvironment = never> {
   readonly count: () => DatabaseEffect<number, never, TEnvironment>;
   readonly list: (options?: {
     readonly limit?: number;
+    readonly deletedOnly?: boolean;
   }) => DatabaseEffect<ReadonlyArray<MemoryRecord>, never, TEnvironment>;
   readonly search: (
     query: string,
@@ -32,6 +33,11 @@ export interface MemoryWriterShape<TEnvironment = never> {
   readonly insert: (input: MemoryInput) => DatabaseEffect<string | null, never, TEnvironment>;
   readonly delete: (memoryId: string) => DatabaseEffect<void, never, TEnvironment>;
   readonly deleteByMessage: (messageId: string) => DatabaseEffect<void, never, TEnvironment>;
+  readonly restore: (memoryId: string) => DatabaseEffect<void, never, TEnvironment>;
+  readonly softDeleteMany: (input: {
+    readonly messageIds: ReadonlyArray<string>;
+    readonly threadIds: ReadonlyArray<string>;
+  }) => DatabaseEffect<void, never, TEnvironment>;
 }
 
 export interface MemorySummaryStoreShape<TEnvironment = never> {

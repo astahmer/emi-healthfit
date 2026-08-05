@@ -94,6 +94,17 @@ describe("memories SQLite integration", () => {
       [],
     );
     assert.strictEqual(await run(memoryDatabase.getMemorySummary({ userId: alice })), undefined);
+    assert.equal(await run(memoryDatabase.countMemories({ userId: alice })), 1);
+    assert.deepStrictEqual(
+      (
+        await run(
+          memoryDatabase.getMemories({ userId: alice, options: { deletedOnly: true } }),
+        )
+      ).map((memory) => memory.content),
+      ["Prefers morning runs"],
+    );
+    await run(memoryDatabase.restoreMemory({ userId: alice, id: morningRunsId }));
+    assert.equal(await run(memoryDatabase.countMemories({ userId: alice })), 2);
     assert.deepStrictEqual(
       (await run(memoryDatabase.getMemories({ userId: bob }))).map((memory) => memory.content),
       ["Prefers morning runs"],
@@ -106,7 +117,18 @@ describe("memories SQLite integration", () => {
       }),
     );
     await run(memoryDatabase.deleteMemory({ userId: alice, id: strengthId }));
-    assert.deepStrictEqual(await run(memoryDatabase.getMemories({ userId: alice })), []);
+    assert.deepStrictEqual(
+      (await run(memoryDatabase.getMemories({ userId: alice }))).map((memory) => memory.content),
+      ["Prefers morning runs"],
+    );
+    assert.deepStrictEqual(
+      (
+        await run(
+          memoryDatabase.getMemories({ userId: alice, options: { deletedOnly: true } }),
+        )
+      ).map((memory) => memory.content),
+      ["Tracks bench press"],
+    );
     assert.strictEqual(await run(memoryDatabase.getMemorySummary({ userId: alice })), undefined);
   });
 

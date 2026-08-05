@@ -20,6 +20,7 @@ const withRank = (memory: {
   readonly source: string | null;
   readonly thread_id: string | null;
   readonly created_at: string;
+  readonly deleted: boolean;
   readonly rank?: number;
 }) => ({
   id: memory.id,
@@ -27,6 +28,7 @@ const withRank = (memory: {
   source: memory.source,
   thread_id: memory.thread_id,
   created_at: memory.created_at,
+  deleted: memory.deleted,
   rank: memory.rank ?? 0,
 });
 
@@ -61,6 +63,9 @@ export class MemoryStoreLive {
           insert: (input) => database.insertMemory({ userId, ...input }),
           delete: (memoryId) => database.deleteMemory({ userId, id: memoryId }),
           deleteByMessage: (messageId) => database.deleteMemoriesByMessage({ userId, messageId }),
+          restore: (memoryId) => database.restoreMemory({ userId, id: memoryId }),
+          softDeleteMany: ({ messageIds, threadIds }) =>
+            database.softDeleteMemories({ userId, messageIds, threadIds }),
         },
         summary: {
           get: () => database.getMemorySummary({ userId }),

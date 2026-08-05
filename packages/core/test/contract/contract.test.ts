@@ -52,6 +52,7 @@ describe("@emi/core/contract", () => {
       source: "manual",
       thread_id: null,
       created_at: "2026-07-21T00:00:00.000Z",
+      deleted: false,
     });
     assert.equal(memory.content, "memory");
 

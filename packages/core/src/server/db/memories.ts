@@ -41,7 +41,12 @@ const insertMemories = <Environment>(
 
     const kysely = yield* db.kysely;
     const existing = yield* QueryDatabase.tryPromise(() =>
-      kysely.selectFrom("memories").select("content").where("user_id", "=", userId).execute(),
+      kysely
+        .selectFrom("memories")
+        .select("content")
+        .where("user_id", "=", userId)
+        .where("deleted_at", "is", null)
+        .execute(),
     );
     const existingKeys = new Set(existing.map((memory) => normalizeMemoryKey(memory.content)));
     const createdAt = db.runtime.now();
@@ -85,6 +90,7 @@ export interface MemorySearchResult {
   source: string | null;
   thread_id: string | null;
   created_at: string;
+  deleted: boolean;
   rank: number;
 }
 
@@ -94,6 +100,7 @@ export interface MemoryRecord {
   source: string | null;
   thread_id: string | null;
   created_at: string;
+  deleted: boolean;
 }
 
 export interface MemorySummary {
@@ -109,7 +116,10 @@ export interface Note {
   updated_at: string;
 }
 
-type MemorySearchRow = Omit<MemorySearchResult, "rank"> & { rank?: number };
+type MemorySearchRow = Omit<MemorySearchResult, "rank" | "deleted"> & {
+  rank?: number;
+  deleted_at: string | null;
+};
 
 const toMemorySearchResult = (row: MemorySearchRow): MemorySearchResult => ({
   id: row.id,
@@ -117,6 +127,7 @@ const toMemorySearchResult = (row: MemorySearchRow): MemorySearchResult => ({
   source: row.source,
   thread_id: row.thread_id,
   created_at: row.created_at,
+  deleted: row.deleted_at !== null,
   rank: row.rank ?? 0,
 });
 
@@ -134,8 +145,9 @@ const searchMemories = <Environment>(
       const result = yield* QueryDatabase.tryPromise(() =>
         kysely
           .selectFrom("memories")
-          .select(["id", "content", "source", "thread_id", "created_at"])
+          .select(["id", "content", "source", "thread_id", "created_at", "deleted_at"])
           .where("user_id", "=", userId)
+          .where("deleted_at", "is", null)
           .orderBy("created_at", "desc")
           .limit(limit)
           .execute(),
@@ -153,6 +165,7 @@ const searchMemories = <Environment>(
           "source",
           "thread_id",
           "created_at",
+          "deleted_at",
           expressionBuilder
             .case()
             .when(expressionBuilder.fn<string>("lower", ["content"]), "=", lowerTerm)
@@ -166,6 +179,7 @@ const searchMemories = <Environment>(
             .as("rank"),
         ])
         .where("user_id", "=", userId)
+        .where("deleted_at", "is", null)
         .where((expressionBuilder) =>
           expressionBuilder(
             expressionBuilder.fn<string>("lower", ["content"]),
@@ -185,19 +199,25 @@ const searchMemories = <Environment>(
 const getMemories = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
-  options: { limit?: number } = {},
+  options: { limit?: number; deletedOnly?: boolean } = {},
 ) =>
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
-    return yield* QueryDatabase.tryPromise(() =>
-      kysely
-        .selectFrom("memories")
-        .select(["id", "content", "source", "thread_id", "created_at"])
-        .where("user_id", "=", userId)
+    const query = kysely
+      .selectFrom("memories")
+      .select(["id", "content", "source", "thread_id", "created_at", "deleted_at"])
+      .where("user_id", "=", userId);
+    const scopedQuery =
+      options.deletedOnly === true
+        ? query.where("deleted_at", "is not", null)
+        : query.where("deleted_at", "is", null);
+    const rows = yield* QueryDatabase.tryPromise(() =>
+      scopedQuery
         .orderBy("created_at", "desc")
         .limit(options.limit ?? 100)
         .execute(),
     );
+    return rows.map(toMemorySearchResult);
   });
 
 const countMemories = <Environment>(db: MemoriesDb<Environment>, userId: string) =>
@@ -208,6 +228,7 @@ const countMemories = <Environment>(db: MemoriesDb<Environment>, userId: string)
         .selectFrom("memories")
         .select((expressionBuilder) => expressionBuilder.fn.countAll<number>().as("count"))
         .where("user_id", "=", userId)
+        .where("deleted_at", "is", null)
         .executeTakeFirst(),
     );
     return result?.count ?? 0;
@@ -266,6 +287,7 @@ const listMemoryIdsForMessage = <Environment>(
         .selectFrom("memories")
         .select("id")
         .where("user_id", "=", userId)
+        .where("deleted_at", "is", null)
         .where("source", "like", `%:${messageId}`)
         .execute(),
     );
@@ -276,7 +298,12 @@ const deleteMemory = <Environment>(db: MemoriesDb<Environment>, userId: string, 
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     yield* QueryDatabase.transaction(db, [
-      kysely.deleteFrom("memories").where("user_id", "=", userId).where("id", "=", id),
+      kysely
+        .updateTable("memories")
+        .set({ deleted_at: db.runtime.now() })
+        .where("user_id", "=", userId)
+        .where("id", "=", id)
+        .where("deleted_at", "is", null),
       kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
     ]);
   });
@@ -290,9 +317,50 @@ const deleteMemoriesByMessage = <Environment>(
     const kysely = yield* db.kysely;
     yield* QueryDatabase.transaction(db, [
       kysely
-        .deleteFrom("memories")
+        .updateTable("memories")
+        .set({ deleted_at: db.runtime.now() })
         .where("user_id", "=", userId)
+        .where("deleted_at", "is", null)
         .where("source", "like", `%:${messageId}`),
+      kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
+    ]);
+  });
+
+const restoreMemory = <Environment>(db: MemoriesDb<Environment>, userId: string, id: string) =>
+  Effect.gen(function* () {
+    const kysely = yield* db.kysely;
+    yield* QueryDatabase.transaction(db, [
+      kysely
+        .updateTable("memories")
+        .set({ deleted_at: null })
+        .where("user_id", "=", userId)
+        .where("id", "=", id),
+      kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
+    ]);
+  });
+
+const softDeleteMemories = <Environment>(
+  db: MemoriesDb<Environment>,
+  userId: string,
+  targets: { readonly messageIds: ReadonlyArray<string>; readonly threadIds: ReadonlyArray<string> },
+) =>
+  Effect.gen(function* () {
+    if (targets.messageIds.length === 0 && targets.threadIds.length === 0) return;
+    const kysely = yield* db.kysely;
+    yield* QueryDatabase.transaction(db, [
+      kysely
+        .updateTable("memories")
+        .set({ deleted_at: db.runtime.now() })
+        .where("user_id", "=", userId)
+        .where("deleted_at", "is", null)
+        .where((expressionBuilder) =>
+          expressionBuilder.or([
+            ...targets.messageIds.map((id) => expressionBuilder("source", "like", `%:${id}`)),
+            ...(targets.threadIds.length === 0
+              ? []
+              : [expressionBuilder("thread_id", "in", [...targets.threadIds])]),
+          ]),
+        ),
       kysely.deleteFrom("memory_summaries").where("user_id", "=", userId),
     ]);
   });
@@ -409,7 +477,7 @@ export interface MemoryDatabaseShape {
   }) => DatabaseEffect<void>;
   readonly getMemories: (input: {
     readonly userId: string;
-    readonly options?: { readonly limit?: number };
+    readonly options?: { readonly limit?: number; readonly deletedOnly?: boolean };
   }) => DatabaseEffect<ReadonlyArray<MemoryRecord>>;
   readonly getMemorySummary: (input: {
     readonly userId: string;
@@ -447,6 +515,15 @@ export interface MemoryDatabaseShape {
     readonly query: string;
     readonly limit?: number;
   }) => DatabaseEffect<ReadonlyArray<Note>>;
+  readonly restoreMemory: (input: {
+    readonly userId: string;
+    readonly id: string;
+  }) => DatabaseEffect<void>;
+  readonly softDeleteMemories: (input: {
+    readonly userId: string;
+    readonly messageIds: ReadonlyArray<string>;
+    readonly threadIds: ReadonlyArray<string>;
+  }) => DatabaseEffect<void>;
   readonly updateNote: (input: {
     readonly userId: string;
     readonly id: string;
@@ -480,6 +557,9 @@ export class MemoryDatabase extends Context.Service<MemoryDatabase, MemoryDataba
         listMemoryIdsForMessage(db, userId, messageId),
       searchMemories: ({ userId, query, options }) => searchMemories(db, userId, query, options),
       searchNotes: ({ userId, query, limit }) => searchNotes(db, userId, query, limit),
+      restoreMemory: ({ userId, id }) => restoreMemory(db, userId, id),
+      softDeleteMemories: ({ userId, messageIds, threadIds }) =>
+        softDeleteMemories(db, userId, { messageIds, threadIds }),
       updateNote: ({ userId, id, content }) => updateNote(db, userId, id, content),
       upsertMemorySummary: ({ userId, content, memoryCount }) =>
         upsertMemorySummary(db, userId, content, memoryCount),

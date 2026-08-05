@@ -16,6 +16,7 @@ export const Memory = Schema.Struct({
   source: Schema.NullOr(Schema.String),
   thread_id: Schema.NullOr(Schema.String),
   created_at: Schema.String,
+  deleted: Schema.Boolean,
   rank: Schema.optional(Schema.Number),
 });
 export type Memory = typeof Memory.Type;
@@ -70,6 +71,7 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
       query: {
         search: Schema.optional(Schema.String),
         limit: Schema.optional(Limit),
+        deleted: Schema.optional(Schema.Literal("true")),
       },
       success: Schema.Struct({ memories: Schema.Array(Memory) }),
       error: StandardErrors,
@@ -102,6 +104,13 @@ export class MemoriesApi extends HttpApiGroup.make("memories")
   )
   .add(
     HttpApiEndpoint.delete("remove", "/memories/:id", {
+      params: { id: Identifier },
+      success: Deleted,
+      error: StandardErrors,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.patch("restore", "/memories/:id/restore", {
       params: { id: Identifier },
       success: Deleted,
       error: StandardErrors,

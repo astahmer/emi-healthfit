@@ -51,6 +51,7 @@ const MemorySchema = Schema.Struct({
   source: Schema.NullOr(Schema.String),
   threadId: Schema.NullOr(Schema.String),
   createdAt: Schema.String,
+  deleted: Schema.Boolean,
   rank: Schema.Number,
 });
 const MemoryListSchema = Schema.Struct({ memories: Schema.Array(MemorySchema) });

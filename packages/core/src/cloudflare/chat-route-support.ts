@@ -49,6 +49,7 @@ export class ChatRouteSupport {
     source: string | null;
     thread_id: string | null;
     created_at: string;
+    deleted: boolean;
     rank?: number;
   }) {
     return {
@@ -57,6 +58,7 @@ export class ChatRouteSupport {
       source: memory.source,
       threadId: memory.thread_id,
       createdAt: memory.created_at,
+      deleted: memory.deleted,
       rank: memory.rank ?? 0,
     };
   }

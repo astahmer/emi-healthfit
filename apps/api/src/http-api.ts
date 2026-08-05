@@ -57,6 +57,7 @@ const toApiMemory = (memory: ApiMemory): ApiMemory => ({
   source: memory.source,
   thread_id: memory.thread_id,
   created_at: memory.created_at,
+  deleted: memory.deleted,
   rank: memory.rank,
 });
 
@@ -146,9 +147,14 @@ const memoriesHandlers = () => {
             const user = yield* CoreCloudflare.user.CurrentUser;
             const limit = query.limit ?? 100;
             const memories =
-              query.search === undefined
-                ? yield* MemoryDatabase.getMemories({ userId: user.id, options: { limit } })
-                : yield* MemoryDatabase.searchMemories({
+              query.deleted === "true"
+                ? yield* MemoryDatabase.getMemories({
+                    userId: user.id,
+                    options: { limit, deletedOnly: true },
+                  })
+                : query.search === undefined
+                  ? yield* MemoryDatabase.getMemories({ userId: user.id, options: { limit } })
+                  : yield* MemoryDatabase.searchMemories({
                     userId: user.id,
                     query: query.search,
                     options: { limit },
@@ -213,6 +219,15 @@ const memoriesHandlers = () => {
               userId: user.id,
               messageId: params.messageId,
             });
+            yield* syncMemorySummaryCount({ userId: user.id });
+            return { success: true } satisfies { success: true };
+          }, withInternalError),
+        )
+        .handle(
+          "restore",
+          Effect.fn("httpApi.memories.restore")(function* ({ params }) {
+            const user = yield* CoreCloudflare.user.CurrentUser;
+            yield* MemoryDatabase.restoreMemory({ userId: user.id, id: params.id });
             yield* syncMemorySummaryCount({ userId: user.id });
             return { success: true } satisfies { success: true };
           }, withInternalError),
