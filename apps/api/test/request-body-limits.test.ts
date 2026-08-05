@@ -35,13 +35,13 @@ describe("chat request body limits", () => {
     assert.equal(isRequestBodyTooLarge({ body }), false);
   });
 
-  it("accepts a maximum-size client attachment", () => {
-    const body = chatBodyWithAttachment({ fileBytes: 5 * 1024 * 1024 });
+  it("accepts iPhone originals up to the client cap", () => {
+    const body = chatBodyWithAttachment({ fileBytes: 25 * 1024 * 1024 });
     assert.equal(isRequestBodyTooLarge({ body }), false);
   });
 
   it("rejects oversized bodies above the safety cap", () => {
-    const body = chatBodyWithAttachment({ fileBytes: 15 * 1024 * 1024 });
+    const body = chatBodyWithAttachment({ fileBytes: 70 * 1024 * 1024 });
     assert.ok(body.length > CHAT_REQUEST_BODY_MAX_CHARS);
     assert.equal(isRequestBodyTooLarge({ body }), true);
   });

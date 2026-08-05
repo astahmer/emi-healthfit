@@ -64,9 +64,11 @@ test("validates settings and attachments before a request", async ({ page }) => 
   await page.getByLabel("Add attachments").setInputFiles({
     name: "too-large.txt",
     mimeType: "text/plain",
-    buffer: Buffer.alloc(5 * 1024 * 1024 + 1),
+    buffer: Buffer.alloc(25 * 1024 * 1024 + 1),
   });
-  await expect(page.getByText("too-large.txt is larger than 5 MB.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("too-large.txt is larger than 25 MB.", { exact: true }),
+  ).toBeVisible();
 });
 
 test("sends a protocol message through the actor runtime and renders the stream", async ({

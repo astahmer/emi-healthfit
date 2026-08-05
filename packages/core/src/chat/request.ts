@@ -64,7 +64,7 @@ const AttachmentPart = Schema.Union([
     }),
   }),
 ]);
-const maxAttachmentBytes = 5 * 1024 * 1024;
+const maxAttachmentBytes = 25 * 1024 * 1024;
 const maxAttachmentsPerMessage = 10;
 
 export const firstUserText = (
@@ -100,7 +100,7 @@ export const validateChatAttachments = (
       return `Too many attachments. Maximum ${maxAttachmentsPerMessage} per message.`;
     }
     if (attachments.some((attachment) => attachmentSize(attachment) > maxAttachmentBytes * 2)) {
-      return "One attachment is too large. Maximum size is 5 MB.";
+      return "One attachment is too large. Maximum size is 25 MB.";
     }
   }
   return undefined;
