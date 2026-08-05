@@ -115,6 +115,7 @@
   },
   "dependencies": {
     "effect": "catalog:",
+    "heic2any": "^0.0.4",
     "xstate": "catalog:"
   },
   "devDependencies": {
