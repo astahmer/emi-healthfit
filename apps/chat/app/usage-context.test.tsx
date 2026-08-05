@@ -35,4 +35,41 @@ describe("usage compositions", () => {
     expect(localStorage.getItem("emi-healthfit:token-budget:conversation-1")).toBe("300000");
     expect(screen.getByText(/100 input · 40 output/)).toBeInTheDocument();
   });
+
+  it("shows the real percentage and an over-budget state", () => {
+    localStorage.setItem("emi-healthfit:token-budget:conversation-1", "100");
+    render(
+      <UsageProvider messages={messages}>
+        <ConversationUsage conversationId="conversation-1" />
+      </UsageProvider>,
+    );
+
+    fireEvent.click(screen.getByText(/140 tokens/));
+    expect(screen.getByText(/140% used/)).toBeInTheDocument();
+    expect(screen.getByText(/over budget/)).toBeInTheDocument();
+  });
+
+  it("falls back to the settings default without a stored budget", () => {
+    localStorage.removeItem("emi-healthfit:token-budget:conversation-1");
+    render(
+      <UsageProvider messages={messages}>
+        <ConversationUsage conversationId="conversation-2" />
+      </UsageProvider>,
+    );
+
+    fireEvent.click(screen.getByText(/140 tokens/));
+    expect(screen.getByLabelText("Token budget")).toHaveValue(100000);
+  });
+
+  it("hides the progress bar when the budget is disabled", () => {
+    localStorage.setItem("emi-healthfit:token-budget:conversation-3", "0");
+    render(
+      <UsageProvider messages={messages}>
+        <ConversationUsage conversationId="conversation-3" />
+      </UsageProvider>,
+    );
+
+    fireEvent.click(screen.getByText(/140 tokens/));
+    expect(screen.getByText(/No budget set for this conversation/)).toBeInTheDocument();
+  });
 });

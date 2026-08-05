@@ -989,6 +989,43 @@ Given("a user is on the settings page", async ({ page }) => {
   await mock.open(page, "/settings");
 });
 
+When("they set the default token budget to {int}", async ({ page }, budget: number) => {
+  await page.getByLabel("Default token budget").fill(String(budget));
+});
+
+When("they navigate to session one", async ({ page }) => {
+  await page.getByRole("link", { name: "Chat" }).click();
+  await page.getByRole("link", { name: "Session One" }).click();
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+Then("the conversation token budget should be {int}", async ({ page }, budget: number) => {
+  await page
+    .getByText(/tokens/)
+    .first()
+    .click();
+  await expect(page.getByLabel("Token budget")).toHaveValue(String(budget));
+});
+
+Given("a user is on session one with a token budget of {int}", async ({ page }, budget: number) => {
+  await page.addInitScript((value: number) => {
+    localStorage.setItem("emi-healthfit:token-budget:one", String(value));
+  }, budget);
+  const mock = createChatMock({ state: { snapshots: { one: sessionOneSnapshot() } } });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+Then("the conversation usage should show it is over budget", async ({ page }) => {
+  await page
+    .getByText(/tokens/)
+    .first()
+    .click();
+  await expect(page.getByText(/150% used/)).toBeVisible();
+  await expect(page.getByText(/over budget/)).toBeVisible();
+});
+
 Given("a user is on the settings page with a stale Hevy connection", async ({ page }) => {
   const mock = createChatMock({
     state: {
