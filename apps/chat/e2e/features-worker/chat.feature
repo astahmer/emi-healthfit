@@ -29,6 +29,15 @@ Feature: Real Worker chat
     And they send the message "What is in this photo?" through the real worker
     Then the assistant reply "Real worker reply" should be displayed
 
+  Scenario: Reload keeps a persisted photo message
+    Given a real worker guest is on the chat page
+    When they attach the photo "label-photo.png" through the real worker
+    And they send the message "What is in this photo?" through the real worker
+    Then the assistant reply "Real worker reply" should be displayed
+    When they reload the chat page
+    Then the photo "label-photo.png" should be displayed in the chat
+    And the assistant reply "Real worker reply" should be displayed
+
   Scenario: Send an iPhone HEIC photo through the real Worker
     Given a real worker guest is on the chat page
     When they attach the photo "iphone-photo.heic" through the real worker

@@ -65,11 +65,18 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
         });
   const storedMessages = existingRows
     .filter((row) => row.role !== "summary")
-    .map((row) => ({
-      id: row.id,
-      role: Schema.decodeUnknownSync(providerMessageRole)(row.role),
-      parts: [...decodeMessageParts(row.parts)],
-    }));
+    .map((row) => {
+      const role = Schema.decodeUnknownSync(providerMessageRole)(row.role);
+      return {
+        id: row.id,
+        role,
+        parts: Chat.messages.fromProtocolMessage({
+          id: row.id,
+          role,
+          parts: [...decodeMessageParts(row.parts)],
+        }).parts,
+      };
+    });
   const validatedExistingMessages =
     yield* Chat.messages.validateStoredUIMessagesEffect(storedMessages);
   const existingMessages = [...validatedExistingMessages];

@@ -12,6 +12,7 @@ import {
 } from "@emi/core/contract";
 import * as Schema from "effect/Schema";
 import { Chat } from "@emi/core/chat";
+import { ChatProtocol } from "@emi/core/protocol";
 import { ServerDatabase } from "@emi/core/server/database";
 import {
   decodeMessageParts,
@@ -158,6 +159,24 @@ describe("HTTP response contracts", () => {
         },
       ],
     );
+  });
+
+  it("normalizes persisted AI SDK file parts", () => {
+    const parts = decodeMessageParts(
+      '[{"type":"file","filename":"meal.jpg","mediaType":"image/jpeg","url":"data:image/jpeg;base64,/9j/4AAQ"}]',
+    );
+    assert.deepStrictEqual(parts, [
+      {
+        type: "file",
+        file: {
+          id: "attachment:data:image/jpeg;base64,/9j/4AAQ",
+          name: "meal.jpg",
+          mediaType: "image/jpeg",
+          url: "data:image/jpeg;base64,/9j/4AAQ",
+        },
+      },
+    ]);
+    assert.doesNotThrow(() => Schema.decodeUnknownSync(ChatProtocol.schemas.messagePart)(parts[0]));
   });
 
   it("recovers a JSON suggestion array wrapped in a malformed response", () => {

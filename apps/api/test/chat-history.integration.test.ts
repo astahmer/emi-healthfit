@@ -54,7 +54,60 @@ describe("chat history SQLite integration", () => {
 
     assert.equal("error" in history, false);
     if ("error" in history) return;
-    assert.equal(history.requestWithHistory.messages[0]?.parts[0]?.type, "tool-invocation");
+    assert.equal(history.requestWithHistory.messages[0]?.parts[0]?.type, "dynamic-tool");
+  });
+
+  it("reloads persisted AI SDK file parts while preparing history", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                filename: "meal.jpg",
+                mediaType: "image/jpeg",
+                url: "data:image/jpeg;base64,/9j/4AAQ",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const history = await run(
+      prepareChatHistory({
+        userId,
+        sessionId: conversationId,
+        isTemporary: false,
+        chatRequest: {
+          messages: [],
+          config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+        },
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+
+    assert.equal("error" in history, false);
+    if ("error" in history) return;
+    const firstPart = history.requestWithHistory.messages[0]?.parts[0];
+    assert.equal(firstPart?.type, "file");
+    if (firstPart?.type !== "file") return;
+    assert.equal(firstPart.filename, "meal.jpg");
+    assert.equal(firstPart.mediaType, "image/jpeg");
+    assert.equal(firstPart.url, "data:image/jpeg;base64,/9j/4AAQ");
   });
 
   it("keeps the client message id addressable after initial persistence", async () => {

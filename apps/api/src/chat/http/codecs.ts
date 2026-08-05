@@ -23,9 +23,29 @@ const DynamicToolPart = Schema.Struct({
   errorText: Schema.optional(Schema.String),
 });
 
+const FileUiPart = Schema.Struct({
+  type: Schema.Literal("file"),
+  filename: Schema.optional(Schema.String),
+  mediaType: Schema.String,
+  url: Schema.String,
+});
+
 const toProtocolMessagePart = (value: unknown): MessagePart => {
   const canonical = Schema.decodeUnknownOption(ChatProtocol.schemas.messagePart)(value);
   if (Option.isSome(canonical)) return canonical.value;
+
+  const fileUi = Schema.decodeUnknownOption(FileUiPart)(value);
+  if (Option.isSome(fileUi)) {
+    return {
+      type: "file",
+      file: {
+        id: `attachment:${fileUi.value.url}`,
+        name: fileUi.value.filename ?? "attachment",
+        mediaType: fileUi.value.mediaType,
+        url: fileUi.value.url,
+      },
+    };
+  }
 
   const dynamicTool = Schema.decodeUnknownSync(DynamicToolPart)(value);
   const input = dynamicTool.input ?? {};

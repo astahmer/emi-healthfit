@@ -88,3 +88,7 @@ Then("the real worker conversation should not be listed in the sidebar", async (
 Then("the tool {string} should be displayed", async ({ page }, toolName: string) => {
   await expect(page.getByText(toolName).first()).toBeVisible();
 });
+
+Then("the photo {string} should be displayed in the chat", async ({ page }, name: string) => {
+  await expect(page.getByAltText(name)).toBeVisible();
+});
