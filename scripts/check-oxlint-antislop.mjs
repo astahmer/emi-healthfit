@@ -22,7 +22,7 @@ const fixture = async (name) =>
   readFile(join(repositoryRoot, "anti-slop/tests/oxlint", name), "utf8");
 
 const main = async () => {
-  const temporaryRoot = await mkdtemp(join(repositoryRoot, ".antislop-oxlint-"));
+  const temporaryRoot = await mkdtemp(join(repositoryRoot, "antislop-oxlint-check-"));
   try {
     const coreDirectory = join(temporaryRoot, "packages/core/src");
     const validAbstractPath = join(coreDirectory, "valid-domain.ts");
