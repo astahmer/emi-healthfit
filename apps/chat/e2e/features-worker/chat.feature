@@ -29,6 +29,12 @@ Feature: Real Worker chat
     And they send the message "What is in this photo?" through the real worker
     Then the assistant reply "Real worker reply" should be displayed
 
+  Scenario: Send an iPhone HEIC photo through the real Worker
+    Given a real worker guest is on the chat page
+    When they attach the photo "iphone-photo.heic" through the real worker
+    And they send the message "What is in this photo?" through the real worker
+    Then the assistant reply "Real worker reply" should be displayed
+
   Scenario: Notes persist through the real API
     Given a real worker guest is on the notes page
     When they add the note "Real worker note"

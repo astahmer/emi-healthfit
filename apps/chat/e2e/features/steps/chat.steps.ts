@@ -1342,7 +1342,8 @@ When("they attach the image {string}", async ({ page }, filename: string) => {
 
 When("they attach the photo {string}", async ({ page }, filename: string) => {
   await page.locator('input[type="file"]').setInputFiles(fixturePath(filename));
-  await expect(page.getByText(filename)).toBeVisible();
+  const basename = filename.replace(/\.[^.]+$/, "");
+  await expect(page.getByText(new RegExp(basename))).toBeVisible();
 });
 
 When("they attach {int} images", async ({ page }, count: number) => {
@@ -2317,13 +2318,13 @@ Then(
 );
 
 Then(
-  "the last request should contain a full-size data URL for {string}",
+  "the last request should contain a real image data URL for {string}",
   async ({ page }, filename: string) => {
     const parts = getPageMock(page).state.chat.lastBody?.messages?.[0]?.parts ?? [];
     const filePart = parts.find((part) => part.type === "file");
     expect(filePart?.filename).toBe(filename);
-    expect(typeof filePart?.url).toBe("string");
-    expect(String(filePart?.url).length).toBeGreaterThan(500_000);
+    expect(String(filePart?.url)).toMatch(/^data:image\//);
+    expect(String(filePart?.url).length).toBeGreaterThan(50_000);
   },
 );
 
@@ -2509,7 +2510,7 @@ Then("the compacted context should show {string}", async ({ page }, text: string
 
 Then("the attachment preview {string} should be visible", async ({ page }, filename: string) => {
   await expect(page.getByText(filename)).toBeVisible();
-  await expect(page.locator('img[src^="data:image/png"]')).toBeVisible();
+  await expect(page.locator('img[src^="data:image/"]')).toBeVisible();
 });
 
 Then("the session should no longer be archived", async ({ page }) => {

@@ -61,7 +61,8 @@ When("they send the message {string} through the real worker", async ({ page }, 
 
 When("they attach the photo {string} through the real worker", async ({ page }, name: string) => {
   await page.locator('input[type="file"]').setInputFiles(fixturePath(name));
-  await expect(page.getByText(name)).toBeVisible();
+  const basename = name.replace(/\.[^.]+$/, "");
+  await expect(page.getByText(new RegExp(basename))).toBeVisible();
 });
 
 When("they reload the chat page", async ({ page }) => {
