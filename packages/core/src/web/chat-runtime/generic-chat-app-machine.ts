@@ -171,6 +171,11 @@ export const genericChatAppMachine = setup({
         return { type: "route-sync-requested", route: event.route };
       return invalidForwardingEvent();
     }),
+    forwardRouteToBrowserState: sendTo("browserState", ({ event }) => {
+      if (event.type === "route-sync-requested")
+        return { type: "route-sync-requested", route: event.route };
+      return invalidForwardingEvent();
+    }),
     forwardRouteToQueue: sendTo("followUpQueue", ({ event }) => {
       if (event.type === "route-sync-requested")
         return { type: "route-sync-requested", route: event.route };
@@ -325,7 +330,7 @@ export const genericChatAppMachine = setup({
     },
     "lifecycle-chat-ui-command": { actions: "forwardLifecycleChatUiCommand" },
     "route-sync-requested": {
-      actions: ["forwardRouteToLifecycle", "forwardRouteToQueue"],
+      actions: ["forwardRouteToLifecycle", "forwardRouteToBrowserState", "forwardRouteToQueue"],
     },
     "queue-force-send-requested": { actions: "forwardQueueForceSend" },
     "queue-session-command": { actions: "forwardQueueSessionCommand" },

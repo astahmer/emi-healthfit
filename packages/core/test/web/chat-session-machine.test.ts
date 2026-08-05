@@ -26,14 +26,18 @@ const resumedAssistant: ChatMessage = {
 };
 
 describe("chatSessionMachine", () => {
-  it("resets a fresh chat atomically while retaining temporary mode", () => {
+  it("resets a fresh chat atomically while retaining temporary mode and the global draft", () => {
     const actor = createActor(chatSessionMachine);
     actor.start();
     actor.send({ type: "temporary-changed", temporary: true });
     actor.send({ type: "draft-changed", draft: "Discard me" });
     actor.send({ type: "fresh-started" });
 
-    expect(actor.getSnapshot().context).toEqual({ ...initialChatSession, temporary: true });
+    expect(actor.getSnapshot().context).toEqual({
+      ...initialChatSession,
+      temporary: true,
+      draft: "Discard me",
+    });
     expect(actor.getSnapshot().matches("idle")).toBe(true);
   });
 

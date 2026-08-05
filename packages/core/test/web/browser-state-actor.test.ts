@@ -26,6 +26,15 @@ describe("browserStateActor", () => {
         },
       },
     }).start();
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-1",
+        threadId: undefined,
+        temporary: false,
+      },
+    });
 
     await vi.waitFor(() => expect(actor.getSnapshot().context.draftHydrated).toBe(true));
     expect(sessionEvents).toContainEqual({ type: "draft-changed", draft: "Saved draft" });
@@ -57,6 +66,51 @@ describe("browserStateActor", () => {
     actor.send({ type: "draft-persist-requested", draft: "" });
 
     expect(writes).toEqual(["Keep this", "removed"]);
+    actor.stop();
+  });
+
+  it("hydrates the draft once on the first route sync", async () => {
+    const sessionEvents: ChatSessionEvent[] = [];
+    const actor = createActor(browserStateActor, {
+      input: {
+        draftStorageKey: "draft",
+        sendSession: (event) => sessionEvents.push(event),
+        browser: {
+          online: () => true,
+          subscribeOnline: () => () => undefined,
+          storage: {
+            getItem: () => "Saved draft",
+            setItem: () => undefined,
+            removeItem: () => undefined,
+          },
+        },
+      },
+    }).start();
+
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-1",
+        threadId: undefined,
+        temporary: false,
+      },
+    });
+    await vi.waitFor(() => expect(actor.getSnapshot().context.draftHydrated).toBe(true));
+
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-2",
+        threadId: undefined,
+        temporary: false,
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(sessionEvents.filter((event) => event.type === "draft-changed")).toHaveLength(1);
+    });
     actor.stop();
   });
 

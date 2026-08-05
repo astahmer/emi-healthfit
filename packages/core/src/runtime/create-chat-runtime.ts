@@ -266,7 +266,12 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   const invalidate = () => {
     const sessionSnapshot = actor.getSnapshot().children.session?.getSnapshot();
     const isStreaming = sessionSnapshot?.matches("streaming") ?? false;
-    const shouldDrain = autoDrainQueuedFollowUps && wasStreaming && !isStreaming;
+    const shouldDrain =
+      autoDrainQueuedFollowUps &&
+      wasStreaming &&
+      !isStreaming &&
+      (sessionSnapshot?.context.streamOutcome === "completed" ||
+        sessionSnapshot?.context.streamOutcome === "cancelled");
     wasStreaming = isStreaming;
     cachedActorSnapshot = undefined;
     cachedState = undefined;
@@ -670,6 +675,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       autoDrainQueuedFollowUps = false;
       return;
     }
+    if (childSnapshot("session")?.matches("streaming")) return;
     sendQueuedFollowUp({ followUp });
   };
 

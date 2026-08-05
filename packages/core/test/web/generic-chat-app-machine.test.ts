@@ -131,6 +131,15 @@ describe("genericChatAppMachine", () => {
     }).start();
 
     const session = actor.getSnapshot().children.session;
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-1",
+        threadId: undefined,
+        temporary: false,
+      },
+    });
     await vi.waitFor(() => expect(session?.getSnapshot().context.draft).toBe("restored draft"));
     actor.stop();
   });

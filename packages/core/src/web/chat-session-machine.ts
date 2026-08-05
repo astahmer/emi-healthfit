@@ -104,13 +104,20 @@ export const chatSessionMachine = setup({
     changeTemporary: assign(({ event }) =>
       event.type === "temporary-changed" ? { temporary: event.temporary } : {},
     ),
-    startFresh: assign(({ context }) => ({ ...initialChatSession, temporary: context.temporary })),
-    openConversation: assign(({ event }) =>
+    startFresh: assign(({ context }) => ({
+      ...initialChatSession,
+      temporary: context.temporary,
+      draft: context.draft,
+      files: context.files,
+    })),
+    openConversation: assign(({ context, event }) =>
       event.type === "conversation-opened"
         ? {
             ...initialChatSession,
             conversationId: event.conversationId,
             messages: event.messages,
+            draft: context.draft,
+            files: context.files,
           }
         : {},
     ),
@@ -121,6 +128,8 @@ export const chatSessionMachine = setup({
             conversationId: context.conversationId,
             threadId: event.threadId,
             messages: event.messages,
+            draft: context.draft,
+            files: context.files,
           }
         : {},
     ),

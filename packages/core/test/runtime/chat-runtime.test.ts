@@ -54,11 +54,18 @@ const streamResponse = () => {
 };
 
 const createFetch =
-  ({ conversationMessages = [] }: { conversationMessages?: StoredMessage[] } = {}) =>
+  ({
+    conversationMessages = [],
+    chatFetch,
+  }: {
+    conversationMessages?: StoredMessage[];
+    chatFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  } = {}) =>
   async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const pathname = new URL(url, "http://localhost").pathname;
-    if (pathname === "/api/chat") return streamResponse();
+    if (pathname === "/api/chat")
+      return chatFetch === undefined ? streamResponse() : chatFetch(input, init);
     if (pathname === "/api/chat/conversation-1/stream") return new Response(null, { status: 204 });
     if (pathname === "/api/conversations") return response({ conversations: [conversation] });
     if (pathname === "/api/conversations/conversation-1/messages/user-original")
@@ -93,11 +100,15 @@ const createOptions = ({
   drafts = createStorage(),
   conversationMessages = [],
   apiKey = "test-key",
+  chatFetch,
+  createId,
   onStreamCompleted,
 }: {
   drafts?: ReturnType<typeof createStorage>;
   conversationMessages?: StoredMessage[];
   apiKey?: string;
+  chatFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  createId?: () => string;
   onStreamCompleted?: (input: {
     conversationId: string;
     message: ChatMessage;
@@ -123,7 +134,10 @@ const createOptions = ({
     }),
   );
   const options = {
-    transport: { baseUrl: "/api", fetch: createFetch({ conversationMessages }) },
+    transport: {
+      baseUrl: "/api",
+      fetch: createFetch({ conversationMessages, chatFetch }),
+    },
     storage: { settings, drafts },
     browser: {
       online: true,
@@ -134,7 +148,10 @@ const createOptions = ({
         };
       },
     },
-    identity: { createId: () => "user-1", now: () => "2026-01-01T00:00:00.000Z" },
+    identity: {
+      createId: createId ?? (() => "user-1"),
+      now: () => "2026-01-01T00:00:00.000Z",
+    },
     lifecycle: onStreamCompleted === undefined ? undefined : { onStreamCompleted },
   };
   return { options, setOnline: (online: boolean) => onlineListener?.(online) };
@@ -376,6 +393,88 @@ describe("createChatRuntime", () => {
     await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
 
     expect(onStreamCompleted).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it("keeps the forced follow-up reply when more items are queued", async () => {
+    const encoder = new TextEncoder();
+    const streamFor = (delta: string) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start: (controller) => {
+            for (const chunk of [
+              { type: "start", messageId: `assistant-${delta}` },
+              { type: "text-start", id: "text-1" },
+              { type: "text-delta", id: "text-1", delta },
+              { type: "text-end", id: "text-1" },
+              { type: "finish" },
+            ]) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+            }
+            controller.close();
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    let heldController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const heldStream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        heldController = controller;
+      },
+    });
+    const chatReplies: Response[] = [
+      new Response(heldStream, { headers: { "content-type": "text/event-stream" } }),
+      streamFor("Forced reply"),
+      streamFor("Drained reply"),
+    ];
+    let idCounter = 0;
+    const fixture = createOptions({
+      chatFetch: async () => chatReplies.shift() ?? streamFor("Extra"),
+      createId: () => `id-${(idCounter += 1)}`,
+    });
+    const runtime = createChatRuntime(fixture.options);
+
+    runtime.start();
+    await vi.waitFor(() => expect(runtime.getState().settings.apiKey).toBe("test-key"));
+    runtime.actions.selectConversation({ conversationId: conversation.id });
+    await vi.waitFor(() => {
+      expect(runtime.getState().activeThread.conversationId).toBe(conversation.id);
+    });
+
+    runtime.actions.sendMessage({ text: "First" });
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(true));
+    await vi.waitFor(() => expect(runtime.getState().activeThread.messages).toHaveLength(1));
+    runtime.actions.sendMessage({ text: "Queued A" });
+    runtime.actions.sendMessage({ text: "Queued B" });
+    const forcedId = runtime.getState().queuedFollowUps[0]?.id;
+    if (forcedId === undefined) throw new Error("Expected a queued follow-up id");
+    expect(runtime.getState().queuedFollowUps.map((item) => item.text)).toEqual([
+      "Queued A",
+      "Queued B",
+    ]);
+
+    runtime.actions.forceSendQueuedFollowUp({ id: forcedId });
+    heldController?.close();
+
+    await vi.waitFor(() => {
+      const texts = runtime
+        .getState()
+        .activeThread.messages.flatMap((message) =>
+          message.parts.filter((part) => part.type === "text").map((part) => part.text),
+        );
+      expect(texts).toContain("Forced reply");
+    });
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
+    await vi.waitFor(() => expect(chatReplies).toHaveLength(0));
+
+    const texts = runtime
+      .getState()
+      .activeThread.messages.flatMap((message) =>
+        message.parts.filter((part) => part.type === "text").map((part) => part.text),
+      );
+    expect(texts).toContain("Forced reply");
+    expect(texts).toContain("Drained reply");
+    expect(runtime.getState().queuedFollowUps).toHaveLength(0);
     runtime.dispose();
   });
 });

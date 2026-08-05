@@ -149,6 +149,29 @@ Given("a user is on session one with a held generation", async ({ page }) => {
   registerPageMock(page, scenario.mock);
 });
 
+Given(
+  "a user is on session one with a held generation that replies {int} times",
+  async ({ page }, count: number) => {
+    const mock = createChatMock({
+      state: {
+        snapshots: { one: sessionOneSnapshot() },
+        chat: { persist: true, replyText: "Reply 1" },
+      },
+    });
+    const replies = Array.from({ length: count }, (_, index) => `Reply ${index + 1}`);
+    Object.defineProperty(mock.state.chat, "replyText", {
+      configurable: true,
+      get: () => replies[Math.max(0, mock.state.chat.calls - 1)] ?? "Mock answer",
+      set: () => undefined,
+    });
+    mock.holdChat();
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+    heldGenerationScenarios.set(page, { mock, replies });
+  },
+);
+
 Given("a user has a held generation with queued follow-ups in one tab", async ({ page }) => {
   await openHeldGeneration(page);
   await sendAndQueue({ page, message: "First question", queuedMessage: "Shared queue item" });
@@ -1170,6 +1193,119 @@ When(
   },
 );
 
+When("they queue {int} follow-ups", async ({ page }, count: number) => {
+  await page.getByLabel("Message input").fill("First question");
+  await page.getByLabel("Send message").click();
+  await expect(page.getByLabel("Stop generating")).toBeVisible();
+  for (let index = 1; index < count; index += 1) {
+    await page.getByLabel("Message input").fill(`Queue item ${index + 1}`);
+    await page.getByLabel("Send after reply").click();
+  }
+});
+
+When(
+  "they edit queued message {int} to {string}",
+  async ({ page }, index: number, text: string) => {
+    await page.getByLabel(`Edit queued message ${index}`).click();
+    await page.getByLabel("Message input").fill(text);
+    await page.getByLabel("Update queued message").click();
+  },
+);
+
+When("they force-send queued message {int}", async ({ page }, index: number) => {
+  await page.getByLabel(`Send queued message ${index} now`).click();
+});
+
+When("they cancel all queued follow-ups", async ({ page }) => {
+  await page.getByText("Clear queue").click();
+});
+
+When("they press ArrowUp to edit the last queued message", async ({ page }) => {
+  await page.getByLabel("Message input").press("ArrowUp");
+});
+
+When("they press Escape to cancel the edit", async ({ page }) => {
+  await page.getByLabel("Message input").press("Escape");
+});
+
+When("they refresh the conversation", async ({ page }) => {
+  await page.reload();
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+When("the held chat is released", async ({ page }) => {
+  getHeldGenerationScenario(page).mock.releaseChat();
+});
+
+When("they attach the image {string} while streaming", async ({ page }, filename: string) => {
+  await page.locator('input[type="file"]').setInputFiles({
+    name: filename,
+    mimeType: "image/png",
+    buffer: Buffer.from("image"),
+  });
+});
+
+When("they queue the attachment before the reply finishes", async ({ page }) => {
+  await expect(page.getByLabel("Send after reply")).toBeVisible();
+  await page.getByLabel("Send after reply").click();
+});
+
+When(
+  "they queue {string} and {string} before the reply finishes",
+  async ({ page }, first: string, second: string) => {
+    await sendAndQueue({ page, message: "First question", queuedMessage: first });
+    await page.getByLabel("Message input").fill(second);
+    await page.getByLabel("Send after reply").click();
+    const queue = page.getByLabel("Queued follow-ups");
+    await expect(queue).toContainText(first);
+    await expect(queue).toContainText(second);
+  },
+);
+
+When("they queue {string} before the reply finishes", async ({ page }, message: string) => {
+  await sendAndQueue({ page, message: "First question", queuedMessage: message });
+});
+
+Then(
+  "the queued follow-ups should contain {string} and {string}",
+  async ({ page }, first: string, second: string) => {
+    const queue = page.getByLabel("Queued follow-ups");
+    await expect(queue).toContainText(first);
+    await expect(queue).toContainText(second);
+  },
+);
+
+Then("the queued follow-ups should be empty", async ({ page }) => {
+  await expect(page.getByLabel("Queued follow-ups")).toHaveCount(0);
+});
+
+Then("the queued follow-ups should contain {string}", async ({ page }, text: string) => {
+  await expect(page.getByLabel("Queued follow-ups")).toContainText(text);
+});
+
+Then("the queued follow-ups should not be in editing mode", async ({ page }) => {
+  await expect(page.getByLabel("Queued follow-ups")).not.toContainText("(editing)");
+});
+
+Then("the queued replies should be displayed", async ({ page }) => {
+  const { mock, replies } = getHeldGenerationScenario(page);
+  mock.releaseChat();
+  for (let index = 1; index < replies.length; index += 1) {
+    const reply = replies[index];
+    if (reply !== undefined) {
+      await expect(page.getByText(reply).first()).toBeVisible();
+    }
+  }
+});
+
+Then("the forced turn should appear with its attachment", async ({ page }) => {
+  const { mock } = getHeldGenerationScenario(page);
+  mock.releaseChat();
+  await expect(page.getByText("Follow-up answer").first()).toBeVisible();
+  const parts = mock.state.chat.lastBody?.messages?.[0]?.parts ?? [];
+  expect(parts.some((part) => part.type === "file" && part.filename === "queue.png")).toBe(true);
+});
+
 When("they open the same session in another tab", async ({ context, page }) => {
   const scenario = getHeldGenerationScenario(page);
   const secondPage = await context.newPage();
@@ -1203,8 +1339,41 @@ When("they attach the image {string}", async ({ page }, filename: string) => {
   });
 });
 
+When("they attach {int} images", async ({ page }, count: number) => {
+  await page.locator('input[type="file"]').setInputFiles(
+    Array.from({ length: count }, (_, index) => ({
+      name: `progress-${index + 1}.png`,
+      mimeType: "image/png",
+      buffer: Buffer.from(`image-${index + 1}`),
+    })),
+  );
+});
+
+When("they attach {int} more image", async ({ page }, count: number) => {
+  await page.locator('input[type="file"]').setInputFiles(
+    Array.from({ length: count }, (_, index) => ({
+      name: `progress-${index + 3}.png`,
+      mimeType: "image/png",
+      buffer: Buffer.from(`image-extra-${index + 1}`),
+    })),
+  );
+});
+
+Then("{int} attachment previews should be visible", async ({ page }, count: number) => {
+  await expect(page.getByRole("button", { name: /^Remove progress-/ })).toHaveCount(count);
+});
+
 When("they remove the attachment {string}", async ({ page }, filename: string) => {
   await page.getByLabel(`Remove ${filename}`).click();
+});
+
+When("they paste the image {string}", async ({ page }, filename: string) => {
+  await page.getByLabel("Message input").evaluate((input, name) => {
+    const file = new File(["image"], name, { type: "image/png" });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input.dispatchEvent(new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true }));
+  }, filename);
 });
 
 Then(
@@ -1218,18 +1387,26 @@ Then("the unsupported image notice should be visible", async ({ page }) => {
   await expect(page.getByText(/unsupported image format/i)).toBeVisible();
 });
 
+Then("the unsupported image notice should not be visible", async ({ page }) => {
+  await expect(page.getByText(/unsupported image format/i)).toHaveCount(0);
+});
+
 When("they restore the session from the sidebar", async ({ page }) => {
   const item = page
     .locator('[data-sidebar="menu-item"]')
     .filter({ hasText: /Session One/ })
     .first();
-  await item.hover();
-  await item.getByLabel("Session actions").click();
-  await page.getByText("Restaurer").click();
+  await item.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await item.getByLabel("Session actions").click({ force: true });
+  await page.getByText("Restaurer").click({ force: true });
 });
 
 When("they copy the assistant message", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.locator("#message-one-assistant").getByLabel("Copy message").click();
+});
+
+When("they copy the assistant message without clipboard permission", async ({ page }) => {
   await page.locator("#message-one-assistant").getByLabel("Copy message").click();
 });
 
@@ -1267,6 +1444,10 @@ When("the message loads finish", async ({ page }) => {
 
 When("they retry the coach response", async ({ page }) => {
   await page.getByRole("button", { name: "Retry coach response" }).click();
+});
+
+When("they retry the failed request", async ({ page }) => {
+  await page.getByRole("button", { name: "Retry this request" }).click();
 });
 
 When("they stop the generation", async ({ page }) => {
@@ -1507,6 +1688,17 @@ When("they rename session one to {string} from the sidebar", async ({ page }, ti
   await expect(page.getByText(title).first()).toBeVisible();
 });
 
+When("they try to rename session one to an empty title from the sidebar", async ({ page }) => {
+  await openSessionActions(page);
+  await page.getByText("Renommer").click();
+  await page.getByRole("list").getByRole("textbox").fill("");
+  await page.getByRole("list").getByRole("textbox").press("Enter");
+});
+
+Then("the session rename input should be visible", async ({ page }) => {
+  await expect(page.getByRole("list").getByRole("textbox")).toBeVisible();
+});
+
 When("they pin session one from the sidebar", async ({ page }) => {
   await openSessionActions(page);
   await page.getByText("Épingler").click();
@@ -1636,6 +1828,10 @@ Then("the link {string} should not be visible", async ({ page }, label: string) 
   await expect(page.getByRole("link", { name: label })).toHaveCount(0);
 });
 
+Then("the message {string} should be hidden", async ({ page }, text: string) => {
+  await expect(page.getByText(text).first()).toBeHidden();
+});
+
 Then("session one should not be pinned", async ({ page }) => {
   const mock = getPageMock(page);
   expect(mock.state.conversations.find((conversation) => conversation.id === "one")?.pinned).toBe(
@@ -1756,6 +1952,10 @@ When("they save the assistant message to memory", async ({ page }) => {
 
 When("they remove the assistant message memories", async ({ page }) => {
   await page.locator("#message-one-assistant").getByLabel("Remove message memories").click();
+});
+
+When("they open the memory page", async ({ page }) => {
+  await page.goto("/memory");
 });
 
 When("they open the auth page with an access denied error", async ({ page }) => {
@@ -2110,22 +2310,59 @@ Then(
   },
 );
 
+Then("the last request should contain {int} file parts", async ({ page }, count: number) => {
+  const parts = getPageMock(page).state.chat.lastBody?.messages?.[0]?.parts ?? [];
+  expect(parts.filter((part) => part.type === "file")).toHaveLength(count);
+});
+
 When("they type {string} and press Enter", async ({ page }, text: string) => {
   const input = page.getByLabel("Message input");
   await input.fill(text);
   await input.press("Enter");
 });
 
+When("they type {string} and press Shift+Enter", async ({ page }, text: string) => {
+  const input = page.getByLabel("Message input");
+  await input.fill(text);
+  await input.press("Shift+Enter");
+});
+
+When("they type the draft {string}", async ({ page }, draft: string) => {
+  await page.getByLabel("Message input").fill(draft);
+});
+
+When("they go offline and type {string}", async ({ page }, draft: string) => {
+  await page.context().setOffline(true);
+  await page.getByLabel("Message input").fill(draft);
+});
+
+When("they come back online", async ({ page }) => {
+  await page.context().setOffline(false);
+});
+
 Then("the message input should contain {string}", async ({ page }, text: string) => {
   await expect(page.getByLabel("Message input")).toHaveValue(text);
+});
+
+Then("the message input should be empty", async ({ page }) => {
+  await expect(page.getByLabel("Message input")).toHaveValue("");
 });
 
 Then("the message input should keep Enter as a new line", async ({ page }) => {
   await expect(page.getByLabel("Message input")).toHaveValue("First line\n");
 });
 
+Then("the message input should contain a trailing newline", async ({ page }) => {
+  await expect(page.getByLabel("Message input")).toHaveValue("Line one\n");
+});
+
 Then("the last request should enable web search", async ({ page }) => {
   expect(getPageMock(page).state.chat.lastBody?.webSearch).toBe(true);
+});
+
+Then("the last request should contain the text {string}", async ({ page }, text: string) => {
+  const parts = getPageMock(page).state.chat.lastBody?.messages?.[0]?.parts ?? [];
+  expect(parts.some((part) => part.type === "text" && part.text === text)).toBe(true);
 });
 
 Then("the last request should be temporary", async ({ page }) => {
@@ -2188,6 +2425,35 @@ Then("the metric label {string} should be visible", async ({ page }, label: stri
   await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
 });
 
+const toolDetails = (page: Page, toolName: string) =>
+  page
+    .locator("details")
+    .filter({ has: page.locator("summary", { hasText: toolName }) })
+    .first();
+
+const toolInputDetails = (page: Page, toolName: string) =>
+  toolDetails(page, toolName).locator("details").filter({ hasText: "Input" }).first();
+
+When("they expand the input of {string}", async ({ page }, toolName: string) => {
+  const tool = toolDetails(page, toolName);
+  if (
+    !(await tool.evaluate(
+      (element) => (element instanceof HTMLDetailsElement ? element.open : false),
+    ))
+  ) {
+    await tool.locator("summary").first().click();
+  }
+  await toolInputDetails(page, toolName).locator("summary").click();
+});
+
+Then("the tool input of {string} should not be visible", async ({ page }, toolName: string) => {
+  await expect(toolInputDetails(page, toolName).locator("pre").first()).toBeHidden();
+});
+
+Then("the tool input of {string} should be visible", async ({ page }, toolName: string) => {
+  await expect(toolInputDetails(page, toolName).locator("pre").first()).toBeVisible();
+});
+
 Then("the recovery explanation {string} should be visible", async ({ page }, text: string) => {
   await expect(page.getByText(text)).toBeVisible();
 });
@@ -2234,9 +2500,19 @@ Then("the session should no longer be archived", async ({ page }) => {
     .locator('[data-sidebar="menu-item"]')
     .filter({ hasText: /Session One/ })
     .first();
-  await item.hover();
-  await item.getByLabel("Session actions").click();
+  await item.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await item.getByLabel("Session actions").click({ force: true });
   await expect(page.getByText("Archiver")).toBeVisible();
+});
+
+Then("the session should be archived", async ({ page }) => {
+  const item = page
+    .locator('[data-sidebar="menu-item"]')
+    .filter({ hasText: /Session One/ })
+    .first();
+  await item.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await item.getByLabel("Session actions").click({ force: true });
+  await expect(page.getByText("Restaurer")).toBeVisible();
 });
 
 Then("they should see the status {string}", async ({ page }, text: string) => {

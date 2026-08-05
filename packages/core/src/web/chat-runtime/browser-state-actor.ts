@@ -1,6 +1,7 @@
 import { assign, fromCallback, sendTo, setup } from "xstate";
 
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
+import type { ChatRouteInput } from "../../runtime/types.ts";
 import type { SettingsStorage } from "./settings-actor.ts";
 
 export interface BrowserStateAdapter {
@@ -25,6 +26,7 @@ export interface BrowserStateContext extends BrowserStateActorInput {
 
 export type BrowserStateActorEvent =
   | { type: "browser-noop" }
+  | { type: "route-sync-requested"; route: ChatRouteInput }
   | { type: "online-changed"; online: boolean }
   | { type: "draft-persist-requested"; draft: string }
   | { type: "draft-restored"; draft: string }
@@ -36,40 +38,50 @@ const errorMessage = ({ cause }: { cause: unknown }): string =>
 
 const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserStateActorInput>(
   ({ input, receive, sendBack }) => {
+    let hydratedOnce = false;
     const hydrate = (draft: string | null) => {
+      hydratedOnce = true;
       if (draft !== null) sendBack({ type: "draft-restored", draft });
       sendBack({ type: "draft-hydrated" });
     };
-    try {
-      const draft = input.browser.storage.getItem(input.draftStorageKey);
-      if (draft instanceof Promise)
-        void draft.then(hydrate, (cause: unknown) => {
-          sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
-          sendBack({ type: "draft-hydrated" });
-        });
-      else hydrate(draft);
-    } catch (cause) {
-      sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
-      sendBack({ type: "draft-hydrated" });
-    }
 
     const unsubscribe = input.browser.subscribeOnline((online) => {
       sendBack({ type: "online-changed", online });
     });
 
     receive((event) => {
-      if (event.type !== "draft-persist-requested") return;
-      try {
-        const persistence =
-          event.draft === ""
-            ? input.browser.storage.removeItem(input.draftStorageKey)
-            : input.browser.storage.setItem(input.draftStorageKey, event.draft);
-        if (persistence instanceof Promise)
-          void persistence.catch((cause: unknown) =>
-            sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) }),
-          );
-      } catch (cause) {
-        sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
+      if (event.type === "draft-persist-requested") {
+        try {
+          const persistence =
+            event.draft === ""
+              ? input.browser.storage.removeItem(input.draftStorageKey)
+              : input.browser.storage.setItem(input.draftStorageKey, event.draft);
+          if (persistence instanceof Promise)
+            void persistence.catch((cause: unknown) =>
+              sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) }),
+            );
+        } catch (cause) {
+          sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
+        }
+        return;
+      }
+      if (event.type === "route-sync-requested") {
+        if (hydratedOnce || !event.route.historyReady) return;
+        try {
+          const draft = input.browser.storage.getItem(input.draftStorageKey);
+          if (draft instanceof Promise) {
+            void draft.then(hydrate, (cause: unknown) => {
+              sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
+              sendBack({ type: "draft-hydrated" });
+            });
+          } else {
+            hydrate(draft);
+          }
+        } catch (cause) {
+          sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
+          sendBack({ type: "draft-hydrated" });
+        }
+        return;
       }
     });
 
@@ -95,6 +107,7 @@ export const browserStateActor = setup({
       if (event.type === "draft-restored")
         context.sendSession({ type: "draft-changed", draft: event.draft });
     },
+    forwardRouteSync: sendTo("operations", ({ event }) => event),
     reportFailure: assign(({ event }) =>
       event.type === "browser-state-failed" ? { error: event.error } : {},
     ),
@@ -110,6 +123,7 @@ export const browserStateActor = setup({
   }),
   invoke: { id: "operations", src: "operations", input: ({ context }) => context },
   on: {
+    "route-sync-requested": { actions: "forwardRouteSync" },
     "online-changed": { actions: "changeOnline" },
     "draft-persist-requested": { actions: "forwardDraftPersistence" },
     "draft-restored": { actions: "restoreDraft" },
