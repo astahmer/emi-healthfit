@@ -42,3 +42,8 @@ Feature: Delete conversations
     Then the URL should be the new chat page
     And the new chat suggestion "Summarize my last workout." should be visible
     And the message "one message answer" should not be displayed
+
+  Scenario: Unpin a pinned session from the sidebar
+    Given a user is on session one which is pinned
+    When they unpin session one from the sidebar
+    Then session one should not be pinned
