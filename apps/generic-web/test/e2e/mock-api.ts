@@ -34,6 +34,7 @@ type Memory = {
   source: string | null;
   threadId: string | null;
   createdAt: string;
+  deleted: boolean;
   rank: number;
 };
 
@@ -371,6 +372,7 @@ export const createGenericE2eApi = ({
           source: null,
           threadId: null,
           createdAt: now,
+          deleted: false,
           rank: 0,
         } satisfies Memory;
         memories.unshift(memory);
