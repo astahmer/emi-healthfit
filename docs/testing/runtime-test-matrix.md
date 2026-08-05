@@ -45,4 +45,4 @@ pnpm --dir apps/chat test:e2e:worker   # opt-in real Worker browser smoke
 
 The final handoff runs `pnpm release:check`, which includes the package coverage gates and the
 existing browser suites. The opt-in Worker smoke remains a separate topology check because it
-starts isolated Alchemy and Portless services.
+starts isolated Alchemy services.

@@ -65,13 +65,6 @@ turn the downloaded client JSON into a complete local `.env`.
    http://127.0.0.1:3232/api/auth/callback/google
    ```
 
-   If you will use named Portless URLs, also add these callbacks to the same client:
-
-   ```text
-   https://emi-healthfit.localhost/api/auth/callback/google
-   https://emi-chat.localhost/api/auth/callback/google
-   ```
-
    Scheme, host, port, path, case, and trailing slash must match exactly. Google permits HTTP only
    for localhost; deployed callbacks must use HTTPS.
 
@@ -137,16 +130,6 @@ On first install pnpm may ask you to approve native builds for `workerd` and `ms
 
 ## Local development
 
-For the memorable local HTTPS URL, run:
-
-```bash
-pnpm dev:portless
-```
-
-Open `https://emi-healthfit.localhost`. Portless creates and trusts its local certificate on first
-use. The fixed-port command remains available when a test or callback specifically needs
-`http://localhost:1337`:
-
 Run the Worker locally with Alchemy's dev server:
 
 ```bash
@@ -165,8 +148,15 @@ This starts a temporary API environment and the Vite UI together, with OAuth cal
 through `http://127.0.0.1:3232`. Stop any separately running `pnpm dev` process first. Use
 `pnpm chat:dev:ui` only when an API is already running and Google auth is not needed.
 
-For the hot-reload UI through Portless, start the API with `pnpm dev:portless` in one terminal and
-run `pnpm chat:dev:portless` in another; open `https://emi-chat.localhost/chat`.
+For a dedicated [Herdr](https://herdr.dev) workspace with API and chat in separate tabs:
+
+```bash
+pnpm dev:apps
+```
+
+Each service gets its own tab (overview tab lists the URLs); attach with `herdr`. The workspace
+label is `emi-healthfit` or `emi-healthfit-<checkout>` when run from a jj worktree, so parallel
+checkouts stay separated. Falls back to `pnpm chat:dev` if Herdr is not installed.
 
 To type-check the whole monorepo:
 

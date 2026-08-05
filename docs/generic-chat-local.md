@@ -31,14 +31,15 @@ WebMCP is an opt-in build capability. Set `VITE_WEBMCP_ENABLED=true` for local d
 the staging build; leave it unset for a normal build. The app still feature-detects
 `document.modelContext`, so browsers without WebMCP behave normally.
 
-For real Chrome local discovery, start the secure named local origin:
+For real Chrome local discovery, start the local stack:
 
 ```sh
-VITE_WEBMCP_ENABLED=true pnpm generic:dev:portless
+VITE_WEBMCP_ENABLED=true pnpm generic:dev
 ```
 
-Register WebMCP for the exact origin `https://generic-chat.localhost`, then put the returned token
-in the ignored `apps/generic-web/.env.local` file:
+Loopback origins count as secure contexts, so register WebMCP for the exact origin
+`http://127.0.0.1:3233`, then put the returned token in the ignored
+`apps/generic-web/.env.local` file:
 
 ```sh
 WEBMCP_ORIGIN_TRIAL_TOKEN=your-origin-trial-token
@@ -46,21 +47,6 @@ WEBMCP_ORIGIN_TRIAL_TOKEN=your-origin-trial-token
 
 Vite sends `Origin-Trial` only when this local/deployment variable is present; never commit the
 token or add it to a versioned example file.
-
-## Portless URLs
-
-Portless is available for named local HTTPS URLs:
-
-```sh
-pnpm generic:dev:portless
-pnpm chat:dev:portless
-pnpm portless:doctor
-```
-
-The generic stack is available at `https://generic-chat.localhost` and its Worker is routed as
-`https://generic-worker.localhost`. Portless creates and trusts its local certificate on first
-use. The fixed-port commands remain the deterministic choice for Playwright and generated-app
-acceptance.
 
 ## Test layers
 

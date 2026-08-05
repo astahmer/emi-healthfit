@@ -7,7 +7,7 @@ the checked-in examples contain names and safe placeholders only.
 
 | File                       | Used by                                               | Required values                                                                                                                                                                                                                                          |
 | -------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.env`                     | HealthFit API local dev, dry runs, and `dev:portless` | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `HEVY_CREDENTIAL_ENCRYPTION_KEY`, `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET`; optional local-only `AGENT_AUTH_SECRET` and `AGENT_AUTH_EMAIL` |
+| `.env`                     | HealthFit API local dev and dry runs                  | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `HEVY_CREDENTIAL_ENCRYPTION_KEY`, `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET`; optional local-only `AGENT_AUTH_SECRET` and `AGENT_AUTH_EMAIL` |
 | `.env.prod`                | Production deploy/release verification                | The eight API values above plus `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`                                                                                                                                                                       |
 | `apps/discord-bot/.env`    | Discord Worker dev/deploy and command registration    | `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`, optional `DISCORD_GUILD_ID`, `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET`                                                                                                      |
 | `apps/generic-worker/.env` | Optional standalone generic Worker dev                | Copy `apps/generic-worker/.env.example`; `pnpm generic:dev` creates a temporary file from only `BETTER_AUTH_SECRET` instead                                                                                                                              |
@@ -46,11 +46,9 @@ Register the callback matching the URL you use:
 
 - Fixed API: `http://localhost:1337/api/auth/callback/google`
 - Fixed chat UI: `http://127.0.0.1:3232/api/auth/callback/google`
-- Portless API: `https://emi-healthfit.localhost/api/auth/callback/google`
-- Portless chat UI: `https://emi-chat.localhost/api/auth/callback/google`
 
-Register both when switching between modes. If `.env` already exists, add the Hevy encryption key
-with `pnpm --filter @emi/api setup:hevy-key` instead of rerunning Google setup.
+If `.env` already exists, add the Hevy encryption key with `pnpm --filter @emi/api setup:hevy-key`
+instead of rerunning Google setup.
 
 ## Headless local agent auth
 
@@ -87,19 +85,17 @@ For a live Hevy smoke test, keep the Pro key out of `.env` and pass it for that 
 HEVY_API_KEY=... pnpm --filter @emi/api test:file test/hevy-live.integration.test.ts
 ```
 
-## Named local URLs
+## Local dev commands
 
-Portless is the preferred human-facing development path:
+Google OAuth only accepts loopback (`localhost`/`127.0.0.1`) or real registered domains, so local
+development stays on fixed ports:
 
-```bash
-pnpm portless:doctor
-pnpm dev:portless
-```
+- `pnpm dev` runs the API Worker at `http://localhost:1337`.
+- `pnpm chat:dev` runs the API plus the hot-reload UI at `http://127.0.0.1:3232/chat` in one
+  terminal, with `BETTER_AUTH_URL` pointed at the UI origin so OAuth cookies and `/chat` redirects
+  stay on the same host.
+- `pnpm dev:apps` runs the same stack in a dedicated [Herdr](https://herdr.dev) workspace
+  (`emi-healthfit`, or `emi-healthfit-<checkout>` for jj worktrees), with API and chat in separate
+  tabs; attach with `herdr`. It builds `@emi/core` once and skips the per-process rebuilds.
 
-The HealthFit Worker is at `https://emi-healthfit.localhost`. For the generic fixture, use
-`pnpm generic:dev:portless`; it exposes `https://generic-chat.localhost` and
-`https://generic-worker.localhost`. For chat UI hot reload, run `pnpm chat:dev:portless` after the
-HealthFit Portless API is running; the UI and OAuth origin are at `https://emi-chat.localhost/chat`.
-
-The first Portless run may need `pnpm exec portless trust`. Fixed-port commands remain the
-deterministic choice for Playwright and generated-app acceptance.
+Fixed ports are the deterministic choice for Playwright and generated-app acceptance.
