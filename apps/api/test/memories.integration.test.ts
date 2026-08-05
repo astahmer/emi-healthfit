@@ -59,7 +59,7 @@ describe("memories SQLite integration", () => {
           rank: memory.rank,
         }),
       ),
-      [{ id: morningRunsId, rank: 2 }],
+      [{ id: morningRunsId, rank: 3 }],
     );
     assert.deepStrictEqual(
       (

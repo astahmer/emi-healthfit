@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { MemoryDatabaseSchema } from "./schema.ts";
+import { scoreMemorySearch, tokenize } from "../memory-search.ts";
 
 type MemoriesDb<Environment = never> = QueryDatabaseClient<MemoryDatabaseSchema, Environment>;
 
@@ -155,45 +156,42 @@ const searchMemories = <Environment>(
       return result.map(toMemorySearchResult);
     }
 
-    const lowerTerm = term.toLowerCase();
+    const tokens = tokenize(term);
+    if (tokens.length === 0) return [];
     const result = yield* QueryDatabase.tryPromise(() =>
       kysely
         .selectFrom("memories")
-        .select((expressionBuilder) => [
-          "id",
-          "content",
-          "source",
-          "thread_id",
-          "created_at",
-          "deleted_at",
-          expressionBuilder
-            .case()
-            .when(expressionBuilder.fn<string>("lower", ["content"]), "=", lowerTerm)
-            .then(3)
-            .when(expressionBuilder.fn<string>("lower", ["content"]), "like", `${lowerTerm} %`)
-            .then(2)
-            .when(expressionBuilder.fn<string>("lower", ["content"]), "like", `%${lowerTerm}%`)
-            .then(1)
-            .else(0)
-            .end()
-            .as("rank"),
-        ])
+        .select(["id", "content", "source", "thread_id", "created_at", "deleted_at"])
         .where("user_id", "=", userId)
         .where("deleted_at", "is", null)
         .where((expressionBuilder) =>
-          expressionBuilder(
-            expressionBuilder.fn<string>("lower", ["content"]),
-            "like",
-            `%${lowerTerm}%`,
+          expressionBuilder.or(
+            tokens.map((token) =>
+              expressionBuilder(
+                expressionBuilder.fn<string>("lower", ["content"]),
+                "like",
+                `%${token}%`,
+              ),
+            ),
           ),
         )
-        .orderBy("rank", "desc")
         .orderBy("created_at", "desc")
-        .limit(limit)
         .execute(),
     );
-
-    return result.map(toMemorySearchResult);
+    const scored = result
+      .map((row) => ({
+        row,
+        score: scoreMemorySearch({ query: term, content: row.content }),
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          (a.row.created_at < b.row.created_at ? 1 : a.row.created_at > b.row.created_at ? -1 : 0),
+      );
+    return scored.slice(0, limit).map(({ row, score }) =>
+      toMemorySearchResult({ ...row, rank: score }),
+    );
   });
 
 const getMemories = <Environment>(

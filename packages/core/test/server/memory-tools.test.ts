@@ -65,7 +65,7 @@ describe("MemoryTools", () => {
             thread_id: null,
             created_at: "2026-08-03T00:00:00.000Z",
             deleted: false,
-            rank: 1,
+            rank: 3,
           },
         ],
       },

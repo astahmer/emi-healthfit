@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Tool from "effect/unstable/ai/Tool";
 import { MemoryReader, MemorySummaryStore } from "./ports/memory-store.ts";
+import { scoreMemorySearch } from "./memory-search.ts";
 
 const memorySearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
@@ -58,12 +59,6 @@ const decodeInput = <SchemaType extends Schema.Schema<unknown>>(
     ),
   );
 
-const matchesSummary = ({ content, query }: { content: string; query: string }): boolean => {
-  const terms = query.trim().toLocaleLowerCase().split(/\s+/u);
-  const normalizedContent = content.toLocaleLowerCase();
-  return terms.every((term) => normalizedContent.includes(term));
-};
-
 export class MemoryTools {
   static readonly searchName = memorySearchTool.name;
   static readonly searchDescription = Tool.getDescription(memorySearchTool) ?? "";
@@ -95,7 +90,8 @@ export class MemoryTools {
     const value = yield* summary.get();
     return {
       summary:
-        value !== undefined && matchesSummary({ content: value.content, query: input.query })
+        value !== undefined &&
+        scoreMemorySearch({ query: input.query, content: value.content }) > 0
           ? value
           : null,
     };
