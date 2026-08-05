@@ -48,8 +48,7 @@ backend API and the model.
 
 ### Real Worker mode (release gate)
 
-The chat real-Worker suite is self-contained and runs on raw fixed ports — no Portless, no named
-hosts: `pnpm --dir apps/chat test:e2e:worker` runs `apps/chat/scripts/run-worker-e2e.mjs`, which
+The chat real-Worker suite is self-contained and runs on raw fixed ports: `pnpm --dir apps/chat test:e2e:worker` runs `apps/chat/scripts/run-worker-e2e.mjs`, which
 starts:
 
 - a fake OpenAI-compatible provider (`apps/chat/e2e/mock/provider-server.mjs`) on
