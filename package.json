@@ -28,6 +28,7 @@
     "auth:agent": "pnpm --dir apps/api auth:agent",
     "chat:dev": "node scripts/run-healthfit-chat-dev.mjs",
     "chat:dev:ui": "pnpm --dir apps/chat dev",
+    "dev:apps": "node scripts/run-dev-apps.mjs",
     "chat:build": "pnpm --filter chat build",
     "models:check": "node scripts/update-openai-models.mjs --check",
     "models:update": "node scripts/update-openai-models.mjs --write",
