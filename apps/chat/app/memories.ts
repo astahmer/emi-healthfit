@@ -14,9 +14,11 @@ export class MemoryDomain {
   static async list({
     search,
     limit = 100,
+    deleted = false,
   }: {
     search?: string;
     limit?: number;
+    deleted?: boolean;
   } = {}): Promise<Memory[]> {
     const normalizedSearch = search?.trim();
     const data = await runApi((client) =>
@@ -24,6 +26,7 @@ export class MemoryDomain {
         query: {
           search: normalizedSearch === "" ? undefined : normalizedSearch,
           limit,
+          ...(deleted ? { deleted: "true" as const } : {}),
         },
       }),
     );
@@ -87,6 +90,10 @@ export class MemoryDomain {
 
   static async remove({ id }: { id: string }): Promise<void> {
     await runApi((client) => client.memories.remove({ params: { id } }));
+  }
+
+  static async restore({ id }: { id: string }): Promise<void> {
+    await runApi((client) => client.memories.restore({ params: { id } }));
   }
 
   static async removeByMessage({ messageId }: { messageId: string }): Promise<void> {

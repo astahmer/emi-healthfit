@@ -126,6 +126,7 @@ const toMemory = (value: {
   source: string | null;
   thread_id: string | null;
   created_at: string;
+  deleted: boolean;
   rank?: number;
 }): Memory => ({
   id: value.id,
@@ -133,6 +134,7 @@ const toMemory = (value: {
   source: value.source,
   threadId: value.thread_id,
   createdAt: value.created_at,
+  deleted: value.deleted,
   rank: value.rank ?? 0,
 });
 

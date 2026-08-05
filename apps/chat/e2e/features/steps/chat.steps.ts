@@ -1959,6 +1959,20 @@ Then("the memory {string} should not be visible", async ({ page }, content: stri
   await expect(page.getByText(content)).toHaveCount(0);
 });
 
+Then("the memory {string} should be disabled", async ({ page }, content: string) => {
+  const disabled = page.getByRole("region", { name: "Disabled memories" });
+  await expect(disabled.getByText(content)).toBeVisible();
+});
+
+When("they restore the memory {string}", async ({ page }, content: string) => {
+  const disabled = page.getByRole("region", { name: "Disabled memories" });
+  await disabled
+    .getByRole("listitem")
+    .filter({ hasText: content })
+    .getByRole("button", { name: "Restore" })
+    .click();
+});
+
 When("they edit the merged memory summary", async ({ page }) => {
   const summary = page.getByLabel("Merged memory summary");
   await summary.fill("The user prefers concise and recovery-aware guidance.");

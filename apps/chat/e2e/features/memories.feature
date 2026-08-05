@@ -1,12 +1,14 @@
 Feature: Memories
-  Scenario: Create, filter, and delete manually saved memories
+  Scenario: Create, filter, soft-delete, and restore manually saved memories
     Given a user has a memory "Enjoys early training"
     When they save the memory "Prefers Wednesday rest days"
     And they search memories for "Wednesday"
     Then the memory "Prefers Wednesday rest days" should be visible
     And the memory "Enjoys early training" should not be visible
     When they delete the memory "Prefers Wednesday rest days"
-    Then the memory "Prefers Wednesday rest days" should not be visible
+    Then the memory "Prefers Wednesday rest days" should be disabled
+    When they restore the memory "Prefers Wednesday rest days"
+    Then the memory "Prefers Wednesday rest days" should be visible
 
   Scenario: Show and edit the merged memory summary alongside source memories
     Given a user has a memory "Prefers Wednesday rest days" with a summary

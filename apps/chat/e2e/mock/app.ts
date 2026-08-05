@@ -53,6 +53,7 @@ export type MockMemory = {
   source: string | null;
   thread_id: string | null;
   created_at: string;
+  deleted?: boolean;
 };
 
 export type MockMemorySummary = {
@@ -796,15 +797,37 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
 
   app.get("/api/memories", (context) => {
     const search = context.req.query("search")?.trim().toLowerCase();
-    const memories =
-      search === undefined || search === ""
-        ? state.memories
-        : state.memories.filter((memory) => memory.content.toLowerCase().includes(search));
+    const deleted = context.req.query("deleted") === "true";
+    const scoped = state.memories.filter((memory) => (deleted ? memory.deleted : !memory.deleted));
+    const memories = (deleted || search === undefined || search === ""
+      ? scoped
+      : scoped.filter((memory) => memory.content.toLowerCase().includes(search))
+    ).map((memory) => ({ ...memory, deleted: memory.deleted ?? false }));
     return json(context, { memories });
   });
   app.get("/api/memories/summary", (context) => json(context, { summary: state.memorySummary }));
   app.patch("/api/memories/summary", async (context) => {
     const body = await context.req.json<{ content: string }>();
+    const previousLines = new Set(
+      (state.memorySummary?.content ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== ""),
+    );
+    const added = body.content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !previousLines.has(line));
+    state.memories = [
+      ...state.memories,
+      ...added.map((content, index) => ({
+        id: `memory-summary-edit-${index}`,
+        content,
+        source: "summary-edit",
+        thread_id: null,
+        created_at: now,
+      })),
+    ];
     state.memorySummary = {
       content: body.content,
       memory_count: state.memories.length,
@@ -858,13 +881,25 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
   });
   app.delete("/api/memories/message/:messageId", (context) => {
     const messageId = context.req.param("messageId");
-    state.memories = state.memories.filter((memory) => !memory.source?.endsWith(`:${messageId}`));
+    state.memories = state.memories.map((memory) =>
+      memory.source?.endsWith(`:${messageId}`) ? { ...memory, deleted: true } : memory,
+    );
     state.memorySummary = null;
     return json(context, { success: true });
   });
   app.delete("/api/memories/:id", (context) => {
     const id = context.req.param("id");
-    state.memories = state.memories.filter((memory) => memory.id !== id);
+    state.memories = state.memories.map((memory) =>
+      memory.id === id ? { ...memory, deleted: true } : memory,
+    );
+    state.memorySummary = null;
+    return json(context, { success: true });
+  });
+  app.patch("/api/memories/:id/restore", (context) => {
+    const id = context.req.param("id");
+    state.memories = state.memories.map((memory) =>
+      memory.id === id ? { ...memory, deleted: false } : memory,
+    );
     state.memorySummary = null;
     return json(context, { success: true });
   });

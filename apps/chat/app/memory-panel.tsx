@@ -12,6 +12,7 @@ import { queryKeys } from "./query-cache";
 const memorySource = (source: string | null | undefined): string => {
   if (source === "auto" || source === "assistant") return "Auto-saved from chat";
   if (source === "manual") return "Saved manually";
+  if (source === "summary-edit") return "Saved from a summary edit";
   return "Saved";
 };
 
@@ -28,6 +29,14 @@ export function MemoryPanel() {
   } = useQuery({
     queryKey: queryKeys.memories.list({ search }),
     queryFn: () => MemoryDomain.list({ search: search || undefined }),
+  });
+
+  const {
+    data: deletedMemories = [],
+    isLoading: deletedLoading,
+  } = useQuery({
+    queryKey: queryKeys.memories.deleted,
+    queryFn: () => MemoryDomain.list({ deleted: true }),
   });
 
   const {
@@ -57,6 +66,15 @@ export function MemoryPanel() {
     },
   });
 
+  const restoreMutation = useMutation({
+    mutationFn: ({ id }: { id: string }) => MemoryDomain.restore({ id }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.memories.all });
+      notifyMemoriesChanged();
+      feedback.show({ kind: "success", message: "Memory restored." });
+    },
+  });
+
   const [summaryDraft, setSummaryDraft] = useState<string | undefined>();
   const summaryContent = summaryDraft ?? summary?.content ?? "";
   const summaryMutation = useMutation({
@@ -82,6 +100,12 @@ export function MemoryPanel() {
   const handleDelete = async (id: string) => {
     try {
       await deleteMutation.mutateAsync({ id });
+    } catch {}
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreMutation.mutateAsync({ id });
     } catch {}
   };
 
@@ -195,6 +219,39 @@ export function MemoryPanel() {
 
       {!isLoading && memories.length === 0 && (
         <p className="text-muted-foreground text-sm">No memories yet.</p>
+      )}
+
+      {!deletedLoading && deletedMemories.length > 0 && (
+        <section aria-label="Disabled memories" className="mt-8">
+          <h3 className="mb-1 font-medium">Disabled memories</h3>
+          <p className="text-muted-foreground mb-3 text-sm">
+            Hidden from the assistant until you restore them.
+          </p>
+          <ul className="space-y-2">
+            {deletedMemories.map((memory) => (
+              <li
+                key={memory.id}
+                className="border-muted bg-muted/40 flex items-start gap-2 rounded-lg border p-3 text-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="whitespace-pre-wrap">{memory.content}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {memorySource(memory.source)} ·{" "}
+                    {new Date(memory.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void handleRestore(memory.id)}
+                  disabled={restoreMutation.isPending}
+                >
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );
