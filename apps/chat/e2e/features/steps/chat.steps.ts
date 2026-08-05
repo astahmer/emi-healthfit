@@ -2437,8 +2437,8 @@ const toolInputDetails = (page: Page, toolName: string) =>
 When("they expand the input of {string}", async ({ page }, toolName: string) => {
   const tool = toolDetails(page, toolName);
   if (
-    !(await tool.evaluate(
-      (element) => (element instanceof HTMLDetailsElement ? element.open : false),
+    !(await tool.evaluate((element) =>
+      element instanceof HTMLDetailsElement ? element.open : false,
     ))
   ) {
     await tool.locator("summary").first().click();

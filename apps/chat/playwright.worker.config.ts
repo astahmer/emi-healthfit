@@ -1,18 +1,28 @@
 import { defineConfig, devices } from "@playwright/test";
+import { defineBddConfig } from "playwright-bdd";
+
+const bddTestDir = defineBddConfig({
+  features: "e2e/features-worker/*.feature",
+  steps: ["e2e/features-worker/steps/*.ts", "e2e/features/steps/chat.steps.ts"],
+  outputDir: "e2e/.features-gen-worker",
+});
 
 export default defineConfig({
   forbidOnly: true,
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: 1,
   globalTimeout: 180_000,
   retries: 1,
   reporter: "line",
   timeout: 30_000,
-  testDir: "./e2e",
-  testMatch: /worker-smoke\.spec\.ts/,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://emi-chat-worker-e2e.localhost:1355",
     ...devices["Desktop Chrome"],
     serviceWorkers: "block",
     trace: "retain-on-failure",
   },
+  projects: [
+    { name: "worker-bdd", testDir: bddTestDir, testMatch: /\.spec\.js$/ },
+    { name: "worker-smoke", testDir: "./e2e", testMatch: /worker-smoke\.spec\.ts/ },
+  ],
 });

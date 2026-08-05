@@ -220,6 +220,13 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
   directory. Use the mock API gates (`apps/chat/e2e/mock/app.ts` hold/release helpers) to cover
   timing and race conditions deterministically.
 - Bug fixes need a regression scenario that fails before the fix and passes after it.
+- Two e2e modes exist and both matter:
+  - Mock mode (default, deterministic): `pnpm --dir apps/chat run test:e2e:run` — browser against
+    the in-repo mock API (`apps/chat/e2e/mock/`); this is the release gate.
+  - Real Worker mode (full-stack): `pnpm --dir apps/chat run test:e2e:worker` — spawns the actual
+    Worker via alchemy dev + the chat app, with only the OpenAI provider mocked by
+    `apps/chat/e2e/mock/provider-server.mjs` (`e2e/features-worker/`). Run it for auth, D1
+    persistence, tool execution, and delete flows.
 - Run the app e2e suite before handoff (`pnpm --dir apps/chat run test:e2e:run`, already part of
   `pnpm release:check`); a red or missing e2e blocks completion.
 

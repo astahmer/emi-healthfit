@@ -16,6 +16,7 @@ coverage/
 apps/chat/test-results
 apps/generic-web/test-results
 apps/chat/e2e/.features-gen
+apps/chat/e2e/.features-gen-worker
 apps/generic-web/test/e2e/.features-gen
 .cachebro
 .direnv/
