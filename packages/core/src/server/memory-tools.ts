@@ -90,8 +90,7 @@ export class MemoryTools {
     const value = yield* summary.get();
     return {
       summary:
-        value !== undefined &&
-        scoreMemorySearch({ query: input.query, content: value.content }) > 0
+        value !== undefined && scoreMemorySearch({ query: input.query, content: value.content }) > 0
           ? value
           : null,
     };

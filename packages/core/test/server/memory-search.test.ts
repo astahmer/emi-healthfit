@@ -18,13 +18,22 @@ describe("memory search scoring", () => {
   });
 
   it("prefers matches covering every query token", () => {
-    const both = scoreMemorySearch({ query: "wednesday rest", content: "Prefers Wednesday rest days" });
-    const one = scoreMemorySearch({ query: "wednesday rest", content: "Prefers Wednesday training" });
+    const both = scoreMemorySearch({
+      query: "wednesday rest",
+      content: "Prefers Wednesday rest days",
+    });
+    const one = scoreMemorySearch({
+      query: "wednesday rest",
+      content: "Prefers Wednesday training",
+    });
     assert.ok(both > one);
   });
 
   it("awards a phrase bonus when tokens appear in order", () => {
-    const inOrder = scoreMemorySearch({ query: "rest days", content: "Prefers Wednesday rest days" });
+    const inOrder = scoreMemorySearch({
+      query: "rest days",
+      content: "Prefers Wednesday rest days",
+    });
     const reversed = scoreMemorySearch({ query: "rest days", content: "Days rest after training" });
     assert.ok(inOrder > reversed);
   });

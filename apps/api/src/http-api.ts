@@ -155,10 +155,10 @@ const memoriesHandlers = () => {
                 : query.search === undefined
                   ? yield* MemoryDatabase.getMemories({ userId: user.id, options: { limit } })
                   : yield* MemoryDatabase.searchMemories({
-                    userId: user.id,
-                    query: query.search,
-                    options: { limit },
-                  });
+                      userId: user.id,
+                      query: query.search,
+                      options: { limit },
+                    });
             return { memories: memories.map(toApiMemory) };
           }, withInternalError),
         )

@@ -97,9 +97,7 @@ describe("memories SQLite integration", () => {
     assert.equal(await run(memoryDatabase.countMemories({ userId: alice })), 1);
     assert.deepStrictEqual(
       (
-        await run(
-          memoryDatabase.getMemories({ userId: alice, options: { deletedOnly: true } }),
-        )
+        await run(memoryDatabase.getMemories({ userId: alice, options: { deletedOnly: true } }))
       ).map((memory) => memory.content),
       ["Prefers morning runs"],
     );
@@ -123,9 +121,7 @@ describe("memories SQLite integration", () => {
     );
     assert.deepStrictEqual(
       (
-        await run(
-          memoryDatabase.getMemories({ userId: alice, options: { deletedOnly: true } }),
-        )
+        await run(memoryDatabase.getMemories({ userId: alice, options: { deletedOnly: true } }))
       ).map((memory) => memory.content),
       ["Tracks bench press"],
     );

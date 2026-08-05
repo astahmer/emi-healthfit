@@ -26,10 +26,7 @@ const generateSummaryRetried = ({
   );
 
 export class MemoryContext {
-  static summaryEditLines(
-    previous: string | undefined,
-    next: string,
-  ): ReadonlyArray<string> {
+  static summaryEditLines(previous: string | undefined, next: string): ReadonlyArray<string> {
     const previousLines = new Set(
       (previous ?? "")
         .split("\n")

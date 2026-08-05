@@ -189,9 +189,9 @@ const searchMemories = <Environment>(
           b.score - a.score ||
           (a.row.created_at < b.row.created_at ? 1 : a.row.created_at > b.row.created_at ? -1 : 0),
       );
-    return scored.slice(0, limit).map(({ row, score }) =>
-      toMemorySearchResult({ ...row, rank: score }),
-    );
+    return scored
+      .slice(0, limit)
+      .map(({ row, score }) => toMemorySearchResult({ ...row, rank: score }));
   });
 
 const getMemories = <Environment>(
@@ -340,7 +340,10 @@ const restoreMemory = <Environment>(db: MemoriesDb<Environment>, userId: string,
 const softDeleteMemories = <Environment>(
   db: MemoriesDb<Environment>,
   userId: string,
-  targets: { readonly messageIds: ReadonlyArray<string>; readonly threadIds: ReadonlyArray<string> },
+  targets: {
+    readonly messageIds: ReadonlyArray<string>;
+    readonly threadIds: ReadonlyArray<string>;
+  },
 ) =>
   Effect.gen(function* () {
     if (targets.messageIds.length === 0 && targets.threadIds.length === 0) return;

@@ -31,10 +31,7 @@ export function MemoryPanel() {
     queryFn: () => MemoryDomain.list({ search: search || undefined }),
   });
 
-  const {
-    data: deletedMemories = [],
-    isLoading: deletedLoading,
-  } = useQuery({
+  const { data: deletedMemories = [], isLoading: deletedLoading } = useQuery({
     queryKey: queryKeys.memories.deleted,
     queryFn: () => MemoryDomain.list({ deleted: true }),
   });
@@ -236,8 +233,7 @@ export function MemoryPanel() {
                 <div className="min-w-0 flex-1">
                   <p className="whitespace-pre-wrap">{memory.content}</p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {memorySource(memory.source)} ·{" "}
-                    {new Date(memory.created_at).toLocaleString()}
+                    {memorySource(memory.source)} · {new Date(memory.created_at).toLocaleString()}
                   </p>
                 </div>
                 <Button

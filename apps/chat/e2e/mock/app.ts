@@ -799,9 +799,10 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     const search = context.req.query("search")?.trim().toLowerCase();
     const deleted = context.req.query("deleted") === "true";
     const scoped = state.memories.filter((memory) => (deleted ? memory.deleted : !memory.deleted));
-    const memories = (deleted || search === undefined || search === ""
-      ? scoped
-      : scoped.filter((memory) => memory.content.toLowerCase().includes(search))
+    const memories = (
+      deleted || search === undefined || search === ""
+        ? scoped
+        : scoped.filter((memory) => memory.content.toLowerCase().includes(search))
     ).map((memory) => ({ ...memory, deleted: memory.deleted ?? false }));
     return json(context, { memories });
   });
