@@ -59,16 +59,23 @@ export const ToolPart = ({
 
   const input = toolPart.value.input ?? toolPart.value.args ?? toolPart.value.argsText;
   const output = toolPart.value.output ?? toolPart.value.result;
+  const errorText = typeof part.errorText === "string" ? part.errorText : undefined;
   const state = toolPart.value.state;
   const outcome = toolPart.value.outcome;
   const errorOutput = Option.isSome(Schema.decodeUnknownOption(ToolErrorOutput)(output));
   const isFailed = state === "output-error" || outcome === "error" || errorOutput;
+  const result =
+    output !== undefined
+      ? output
+      : errorText !== undefined
+        ? { type: "error-text" as const, value: errorText }
+        : undefined;
   const hasOutput =
     output !== undefined || state === "output-available" || state === "output-error";
   const shouldRenderInput = input !== undefined && toolName !== "render_component";
   const isRunning = isStreaming && !hasOutput;
   const opensByDefault =
-    isRunning || registeredRenderer !== undefined || toolName === "render_component";
+    isRunning || isFailed || registeredRenderer !== undefined || toolName === "render_component";
 
   return (
     <details className="group/tool rounded-lg border bg-muted/15" open={opensByDefault}>
@@ -99,9 +106,9 @@ export const ToolPart = ({
         )}
         {hasOutput &&
           (renderToolResult !== undefined ? (
-            renderToolResult({ toolName, result: output })
+            renderToolResult({ toolName, result })
           ) : (
-            <ToolResultContent toolName={toolName} result={output} className="mt-2" />
+            <ToolResultContent toolName={toolName} result={result} className="mt-2" />
           ))}
       </div>
     </details>

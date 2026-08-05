@@ -211,6 +211,18 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Product docs: `docs/` (architecture, features, user guide). Active
   plans stay in `plans/`.
 
+## Front-facing e2e coverage
+
+- Every user-facing feature or bug fix in `apps/chat` or `apps/generic-web` must ship with a
+  matching Playwright e2e; a front-facing change is incomplete without one.
+- Prefer a playwright-bdd `.feature` file: `apps/chat/e2e/features/` for chat,
+  `apps/generic-web/test/e2e/features/` for generic web, with steps in the adjacent `steps/`
+  directory. Use the mock API gates (`apps/chat/e2e/mock/app.ts` hold/release helpers) to cover
+  timing and race conditions deterministically.
+- Bug fixes need a regression scenario that fails before the fix and passes after it.
+- Run the app e2e suite before handoff (`pnpm --dir apps/chat run test:e2e:run`, already part of
+  `pnpm release:check`); a red or missing e2e blocks completion.
+
 ## Release handoff
 
 - During implementation and debugging, run focused checks only. Do not run the full release suite repeatedly.

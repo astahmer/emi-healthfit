@@ -23,4 +23,18 @@ describe("ToolPart", () => {
 
     expect(screen.getByText("weather")).toBeVisible();
   });
+
+  it("renders the tool error text for a failed invocation", () => {
+    renderToolPart({
+      type: "tool-invocation",
+      toolName: "get_workout_history",
+      toolCallId: "call-1",
+      state: "output-error",
+      input: {},
+      errorText: "Only one SELECT query is allowed.",
+    });
+
+    expect(screen.getByText("Failed")).toBeVisible();
+    expect(screen.getByText("Only one SELECT query is allowed.")).toBeVisible();
+  });
 });

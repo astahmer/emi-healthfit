@@ -2,8 +2,10 @@ import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import { sessionOneSnapshot } from "../../mock/app.ts";
+import { assistantStream, multiToolStream } from "../../mock/fixtures.ts";
 import { createChatMock } from "../../mock/install.ts";
 import { openMockedChat, openSessionOne, openSessionOneWithChatPersistence } from "./helpers.ts";
+import { openSessionActions } from "../../open-session-actions.ts";
 
 const { Given, When, Then } = createBdd();
 
@@ -14,6 +16,18 @@ type HeldGenerationScenario = {
 };
 
 const heldGenerationScenarios = new WeakMap<Page, HeldGenerationScenario>();
+const pageMocks = new WeakMap<Page, ReturnType<typeof createChatMock>>();
+
+const registerPageMock = (page: Page, mock: ReturnType<typeof createChatMock>) => {
+  pageMocks.set(page, mock);
+  return mock;
+};
+
+const getPageMock = (page: Page): ReturnType<typeof createChatMock> => {
+  const mock = pageMocks.get(page);
+  if (mock === undefined) throw new Error("Page mock is not initialized");
+  return mock;
+};
 
 const getHeldGenerationScenario = (page: Page): HeldGenerationScenario => {
   const scenario = heldGenerationScenarios.get(page);
@@ -158,6 +172,208 @@ Given("a user is on a new chat page that creates conversations", async ({ page }
   await mock.open(page, "/chat");
 });
 
+Given("a user is on a new chat page with session one listed", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      conversations: [
+        {
+          id: "one",
+          title: "Session One",
+          status: "regular",
+          pinned: false,
+          created_at: "2026-07-14T10:00:00.000Z",
+          updated_at: "2026-07-14T12:00:00.000Z",
+        },
+      ],
+      snapshots: { one: sessionOneSnapshot() },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat");
+  await expect(page.getByRole("link", { name: "Session One" })).toBeVisible();
+});
+
+Given("a user is on session one whose delete request is held", async ({ page }) => {
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
+  });
+  mock.holdDelete();
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+Given("a user is on session one whose message loads are held", async ({ page }) => {
+  const mock = createChatMock({
+    state: { snapshots: { one: sessionOneSnapshot() } },
+  });
+  mock.holdMessages();
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByRole("link", { name: "Session One" })).toBeVisible();
+});
+
+Given("a user is on session one with an incomplete coach reply", async ({ page }) => {
+  const base = sessionOneSnapshot();
+  const mock = createChatMock({
+    state: {
+      snapshots: {
+        one: {
+          ...base,
+          messages: [
+            {
+              id: "one-user",
+              conversationId: "one",
+              parentId: null,
+              role: "user",
+              parts: [{ type: "text", text: "Question from an older turn" }],
+              createdAt: "2026-07-14T10:00:00.000Z",
+            },
+            {
+              id: "one-assistant",
+              conversationId: "one",
+              parentId: "one-user",
+              role: "assistant",
+              parts: [],
+              createdAt: "2026-07-14T10:01:00.000Z",
+            },
+          ],
+        },
+      },
+      chat: { persist: true, replyText: "Recovered coach reply" },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("Question from an older turn")).toBeVisible();
+});
+
+Given(
+  "a user is on session one whose replies fail with status {int}",
+  async ({ page }, status: number) => {
+    const mock = createChatMock({
+      state: {
+        snapshots: { one: sessionOneSnapshot() },
+        chat: { failStatus: status },
+      },
+    });
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
+Given("a user is on session one with a persisted orphaned turn", async ({ page }) => {
+  const base = sessionOneSnapshot();
+  const mock = createChatMock({
+    state: {
+      snapshots: {
+        one: {
+          ...base,
+          messages: [
+            ...base.messages,
+            {
+              id: "30dd4f3b-02af-4168-83cc-f70d395c715c",
+              conversationId: "one",
+              parentId: null,
+              role: "user",
+              parts: [{ type: "text", text: "Previous request" }],
+              createdAt: "2026-07-17T00:00:02.000Z",
+            },
+          ],
+        },
+      },
+      chat: { persist: true, replyText: "Continued response" },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("Previous request")).toBeVisible();
+});
+
+Given("a user is on session one with a resumable generation", async ({ page }) => {
+  const base = sessionOneSnapshot();
+  const unfinished = {
+    ...base,
+    messages: [base.messages[0], { ...base.messages[1], parts: [] as unknown[] }],
+  };
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: unfinished },
+      chat: {
+        resumeStreamBody: assistantStream({
+          messageId: "resumed-assistant",
+          text: "Resumed answer",
+        }),
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+});
+
+Given("a user is on session one whose replies conflict", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: {
+        failStatus: 409,
+        failBody: JSON.stringify({
+          error: "A generation is already running",
+          generationId: "generation-conflict-1",
+        }),
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+Given("a user is on session one with a tool-answering generation", async ({ page }) => {
+  const base = sessionOneSnapshot();
+  const textOnly = {
+    ...base,
+    messages: base.messages.map((message) =>
+      message.role === "assistant"
+        ? { ...message, parts: [{ type: "text", text: "one message answer" }] }
+        : message,
+    ),
+  };
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: textOnly },
+      chat: {
+        persist: true,
+        replyText: "Mixed tools done",
+        streamBody: multiToolStream({ messageId: "tools-assistant" }),
+        persistAssistantParts: [
+          {
+            type: "tool-invocation",
+            toolName: "get_recovery",
+            toolCallId: "call-1",
+            state: "output-available",
+            input: {},
+            output: { label: "Ready", explanation: "Recovered well" },
+          },
+          {
+            type: "tool-invocation",
+            toolName: "get_workout_history",
+            toolCallId: "call-2",
+            state: "output-error",
+            input: {},
+            errorText: "Only one SELECT query is allowed.",
+          },
+          { type: "text", text: "Mixed tools done" },
+        ],
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
 When("they click the suggestion {string}", async ({ page }, suggestion: string) => {
   await page.getByRole("button", { name: suggestion }).click();
 });
@@ -265,6 +481,42 @@ When("they copy the assistant message", async ({ page }) => {
   await page.locator("#message-one-assistant").getByLabel("Copy message").click();
 });
 
+When("they open session one from the sidebar", async ({ page }) => {
+  await page.getByRole("link", { name: "Session One" }).click();
+  await expect(page).toHaveURL(/\/chat\/one$/);
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+When("they delete the active session from the sidebar", async ({ page }) => {
+  await openSessionActions(page);
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+});
+
+When("they cancel deleting the active session", async ({ page }) => {
+  await openSessionActions(page);
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Annuler" }).click();
+});
+
+When("they delete session two from the sidebar", async ({ page }) => {
+  await openSessionActions(page, { href: "/chat/two" });
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+});
+
+When("the delete request finishes", async ({ page }) => {
+  getPageMock(page).releaseDelete();
+});
+
+When("the message loads finish", async ({ page }) => {
+  getPageMock(page).releaseMessages();
+});
+
+When("they retry the coach response", async ({ page }) => {
+  await page.getByRole("button", { name: "Retry coach response" }).click();
+});
+
 Then("the message {string} should be displayed", async ({ page }, text: string) => {
   await expect(page.getByText(text).first()).toBeVisible();
 });
@@ -323,6 +575,67 @@ Then("they can see edit and cancel the shared queue", async ({ page }) => {
 
 Then("the URL should include {string}", async ({ page }, fragment: string) => {
   await expect(page).toHaveURL(new RegExp(fragment));
+});
+
+Then("the URL should be the new chat page", async ({ page }) => {
+  await expect(page).toHaveURL(/\/chat\/?$/);
+});
+
+Then("the new chat suggestion {string} should be visible", async ({ page }, suggestion: string) => {
+  await expect(page.getByRole("button", { name: suggestion })).toBeVisible();
+});
+
+Then("session one should not be listed in the sidebar", async ({ page }) => {
+  await expect(
+    page.locator('[data-sidebar="menu-item"]').filter({ hasText: "Session One" }),
+  ).toHaveCount(0);
+});
+
+Then("session two should not be listed in the sidebar", async ({ page }) => {
+  await expect(
+    page.locator('[data-sidebar="menu-item"]').filter({ hasText: "Session Two" }),
+  ).toHaveCount(0);
+});
+
+Then("the coach failure notice should be visible", async ({ page }) => {
+  await expect(page.getByText("Coach did not finish this reply.")).toBeVisible();
+});
+
+Then("the retried request should replace the previous user message", async ({ page }) => {
+  expect(getPageMock(page).state.chat.lastBody?.replaceMessageId).toBe("one-user");
+});
+
+Then("the request should not carry a replacement message", async ({ page }) => {
+  expect(getPageMock(page).state.chat.lastBody).not.toHaveProperty("replaceMessageId");
+});
+
+Then("the resumed answer {string} should be displayed", async ({ page }, text: string) => {
+  await expect(page.getByText(text)).toBeVisible();
+  expect(getPageMock(page).state.chat.resumeCalls).toBeGreaterThan(0);
+});
+
+Then("the generation conflict notice should be visible", async ({ page }) => {
+  await expect(
+    page.getByText(
+      "A reply is already in progress elsewhere. Wait for it to finish, or stop it there.",
+    ),
+  ).toBeVisible();
+});
+
+Then("the tool output {string} should be visible", async ({ page }, text: string) => {
+  await expect(page.getByText(text)).toBeVisible();
+});
+
+Then("the tool error {string} should be visible", async ({ page }, text: string) => {
+  await expect(page.getByText(text)).toBeVisible();
+});
+
+Then("the tool name {string} should be visible", async ({ page }, text: string) => {
+  await expect(page.getByText(text)).toBeVisible();
+});
+
+Then("the {string} button should be visible", async ({ page }, label: string) => {
+  await expect(page.getByRole("button", { name: label })).toBeVisible();
 });
 
 Then("the Temporary button should look active", async ({ page }) => {
