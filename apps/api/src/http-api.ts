@@ -189,11 +189,11 @@ const memoriesHandlers = () => {
           "updateSummary",
           Effect.fn("httpApi.memories.updateSummary")(function* ({ payload }) {
             const user = yield* CoreCloudflare.user.CurrentUser;
-            const memoryCount = yield* MemoryDatabase.countMemories({ userId: user.id });
-            yield* MemoryDatabase.upsertMemorySummary({
+            const previous = yield* MemoryDatabase.getMemorySummary({ userId: user.id });
+            yield* ServerDatabase.memoryContext.persistEditEffect({
               userId: user.id,
-              content: payload.content,
-              memoryCount,
+              previous: previous?.content,
+              next: payload.content,
             });
             const summary = yield* MemoryDatabase.getMemorySummary({ userId: user.id });
             if (summary === undefined) {

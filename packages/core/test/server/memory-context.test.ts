@@ -26,6 +26,49 @@ const databaseLayer = () =>
   });
 
 describe("MemoryContext", () => {
+  it("extracts only the changed lines from a summary edit", () => {
+    assert.deepEqual(MemoryContext.summaryEditLines("A\nB", "A\nB\nC"), ["C"]);
+    assert.deepEqual(
+      MemoryContext.summaryEditLines("Prefers concise answers", "Prefers edited answers"),
+      ["Prefers edited answers"],
+    );
+    assert.deepEqual(MemoryContext.summaryEditLines("A\nB", "A\nB"), []);
+    assert.deepEqual(MemoryContext.summaryEditLines(undefined, "A\n\nB"), ["A", "B"]);
+  });
+
+  it("persists summary edits as memory entries so they survive regeneration", async () => {
+    const layer = MemoryDatabase.layer({
+      db: makeSqliteDatabase<MemoryDatabaseSchema>({
+        runtime: {
+          createId: () => "memory-edit-1",
+          now: () => "2026-08-03T00:00:00.000Z",
+          nowMilliseconds: () => Date.parse("2026-08-03T00:00:00.000Z"),
+          randomBytes: (length) => new Uint8Array(length),
+        },
+      }),
+    });
+    const { summary, memories } = await Effect.runPromise(
+      Effect.gen(function* () {
+        const database = yield* MemoryDatabase;
+        yield* MemoryContext.persistEditEffect({
+          userId: "memory-user",
+          previous: "Old fact",
+          next: "Old fact\nNew corrected fact",
+        });
+        return {
+          summary: yield* database.getMemorySummary({ userId: "memory-user" }),
+          memories: yield* database.getMemories({ userId: "memory-user" }),
+        };
+      }).pipe(Effect.provide(layer)),
+    );
+    assert.equal(summary?.content, "Old fact\nNew corrected fact");
+    assert.equal(summary?.memory_count, 1);
+    assert.deepEqual(
+      memories.map((memory) => ({ content: memory.content, source: memory.source })),
+      [{ content: "New corrected fact", source: "summary-edit" }],
+    );
+  });
+
   it("reads its database dependency from Effect context", async () => {
     await assert.doesNotReject(() =>
       Effect.runPromise(

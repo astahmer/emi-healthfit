@@ -1,6 +1,7 @@
 import { OpenAiChat } from "../adapters/ai-sdk/openai-chat.ts";
 import { CurrentUser } from "../server/auth/principal.ts";
 import { MemoryDatabase } from "../server/db/memories.ts";
+import { MemoryContext } from "../server/memory-context.ts";
 import { MemoryStoreLive } from "../server/make-memory-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
 import { MemoryReader, MemorySummaryStore } from "../server/ports/memory-store.ts";
@@ -80,6 +81,13 @@ export class ChatRouteMemory {
           return yield* HttpServerResponse.json(
             { error: "Invalid memory summary" },
             { status: 400 },
+          );
+        }
+        const previous = yield* memoryStore.summary.get();
+        const added = MemoryContext.summaryEditLines(previous?.content, decoded.value.content);
+        if (added.length > 0) {
+          yield* memoryStore.writer.insertMany(
+            added.map((content) => ({ content, source: "summary-edit" })),
           );
         }
         yield* memoryStore.summary.upsert({

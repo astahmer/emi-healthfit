@@ -14,6 +14,22 @@ const memoryContextHeader =
   "If an answer depends on a past detail that is absent or uncertain, search memories before answering.";
 
 export class MemoryContext {
+  static summaryEditLines(
+    previous: string | undefined,
+    next: string,
+  ): ReadonlyArray<string> {
+    const previousLines = new Set(
+      (previous ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== ""),
+    );
+    return next
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !previousLines.has(line));
+  }
+
   static append({
     system,
     summary,
@@ -84,5 +100,29 @@ export class MemoryContext {
     const existing = yield* summary.get();
     if (existing !== undefined) return existing.content;
     return yield* MemoryContext.refreshStoreEffect({ configuration });
+  });
+
+  static persistEditEffect = Effect.fn("serverDatabase.memoryContext.persistEdit")(function* ({
+    userId,
+    previous,
+    next,
+  }: {
+    readonly userId: string;
+    readonly previous: string | undefined;
+    readonly next: string;
+  }) {
+    const database = yield* MemoryDatabase;
+    const added = MemoryContext.summaryEditLines(previous, next);
+    if (added.length > 0) {
+      yield* database.insertMemories({
+        userId,
+        inputs: added.map((content) => ({ content, source: "summary-edit" })),
+      });
+    }
+    yield* database.upsertMemorySummary({
+      userId,
+      content: next,
+      memoryCount: yield* database.countMemories({ userId }),
+    });
   });
 }
