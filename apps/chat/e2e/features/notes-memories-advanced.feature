@@ -21,4 +21,6 @@ Feature: Advanced notes and memories
     When they open the memory page
     Then the memory "one message answer" should be visible
     When they delete the memory "one message answer"
-    Then the memory "one message answer" should not be visible
+    Then the memory "one message answer" should be disabled
+    When they restore the memory "one message answer"
+    Then the memory "one message answer" should be visible

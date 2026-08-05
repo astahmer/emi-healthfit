@@ -360,7 +360,11 @@ test("creates, filters, and deletes manually saved memories", async ({ page }) =
     .filter({ hasText: "Prefers Wednesday rest days" });
   await createdMemory.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("Memory removed.")).toBeVisible();
-  await expect(page.getByText("Prefers Wednesday rest days")).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("region", { name: "Disabled memories" })
+      .getByText("Prefers Wednesday rest days"),
+  ).toBeVisible();
 });
 
 test("shows and edits the merged memory summary alongside source memories", async ({ page }) => {
