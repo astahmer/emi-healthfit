@@ -76,7 +76,8 @@ export const MessageRail = ({
                 data-message-id={message.id}
                 aria-label={`Jump to message: ${ChatThreadScroll.preview({ text: message.text, maxLength: 80 })}`}
                 className={cn(
-                  "h-0.5 rounded-full bg-foreground/35 transition-[width,background-color,opacity] duration-150",
+                  "relative h-0.5 rounded-full bg-foreground/35 transition-[width,background-color,opacity] duration-150",
+                  "before:absolute before:-inset-y-1.5 before:left-0 before:w-7 before:content-['']",
                   "hover:bg-foreground/70 focus-visible:bg-foreground/70 focus-visible:outline-none",
                   isHovered ? "w-7 bg-foreground/80" : "w-3",
                 )}

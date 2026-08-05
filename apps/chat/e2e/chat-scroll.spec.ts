@@ -153,6 +153,20 @@ test("message rail previews and jumps to a user message", async ({ page }) => {
   await expect(preview).toContainText("Session One user turn 1");
   await expect(preview.locator("time")).toHaveAttribute("datetime", "2026-07-14T10:01:00.000Z");
 
+  await page.mouse.move(600, 400);
+  await expect(preview).toHaveCount(0);
+  const railItemBox = await railItems.nth(1).boundingBox();
+  expect(railItemBox).not.toBeNull();
+  await page.mouse.move(railItemBox!.x + railItemBox!.width / 2, railItemBox!.y - 2);
+  await expect(preview).toContainText("Session One user turn 1");
+  await page.mouse.move(600, 400);
+  await expect(preview).toHaveCount(0);
+  await page.mouse.move(
+    railItemBox!.x + railItemBox!.width + 8,
+    railItemBox!.y + railItemBox!.height / 2,
+  );
+  await expect(preview).toContainText("Session One user turn 1");
+
   await railItems.nth(0).click();
   await expect.poll(async () => (await viewportMetrics(page)).scrollTop).toBeLessThan(200);
 
