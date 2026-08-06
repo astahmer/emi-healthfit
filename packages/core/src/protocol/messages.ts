@@ -2,7 +2,13 @@ import * as Schema from "effect/Schema";
 import { MessageIdSchema, TimestampSchema } from "./ids.ts";
 import { MessagePartSchema } from "./parts.ts";
 
-export const MessageRoleSchema = Schema.Literals(["user", "assistant", "system", "tool"]);
+export const MessageRoleSchema = Schema.Literals([
+  "user",
+  "assistant",
+  "system",
+  "summary",
+  "tool",
+]);
 export type MessageRole = typeof MessageRoleSchema.Type;
 
 const tokenCount = Schema.NullOr(

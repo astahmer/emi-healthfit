@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { UIMessage } from "ai";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import type { ChatUiMessage } from "@emi/core/chat";
 import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { assign, setup } from "xstate";
@@ -68,19 +68,19 @@ const messageEditorMachine = setup({
   },
 });
 
-const getText = (message: UIMessage | undefined): string =>
+const getText = (message: ChatUiMessage | undefined): string =>
   message?.parts.reduce(
     (text, part) => (part.type === "text" ? `${text}${text === "" ? "" : "\n"}${part.text}` : text),
     "",
   ) ?? "";
 
-const toThreadMessage = (message: UIMessage): ThreadMessageValue => ({
+const toThreadMessage = (message: ChatUiMessage): ThreadMessageValue => ({
   id: message.id,
   role: message.role,
   parts: message.parts,
 });
 
-const hasVisibleContent = (message: UIMessage): boolean =>
+const hasVisibleContent = (message: ChatUiMessage): boolean =>
   message.parts.some((part) => {
     if (part.type === "text" || part.type === "reasoning") {
       return typeof part.text === "string" && part.text.trim() !== "";
@@ -149,11 +149,9 @@ const FollowUpSuggestions = () => {
 };
 
 export const ThreadMessageList = ({
-  contextSummary,
   onForkMessage,
   onReferenceMessage,
 }: {
-  contextSummary?: string;
   onForkMessage?: (messageId: string) => void;
   onReferenceMessage?: (messageId: string) => void;
 }) => {
@@ -219,7 +217,7 @@ export const ThreadMessageList = ({
     }),
   );
 
-  const rememberMessage = async (message: UIMessage) => {
+  const rememberMessage = async (message: ChatUiMessage) => {
     const text = getText(message).trim();
     if (text === "") return;
     setMemoryMessageId(message.id);
@@ -306,16 +304,7 @@ export const ThreadMessageList = ({
           data-scroll-restoration-id={ChatThreadScroll.elementId}
         >
           <div className="mx-auto flex min-h-full w-full min-w-0 max-w-4xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
-            {contextSummary !== undefined && (
-              <aside
-                className="rounded-xl border bg-muted/40 px-4 py-3 text-sm"
-                aria-label="Compacted context"
-              >
-                <p className="font-medium">Compacted context</p>
-                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{contextSummary}</p>
-              </aside>
-            )}
-            {visibleMessages.length === 0 && contextSummary === undefined ? (
+            {visibleMessages.length === 0 ? (
               <div className="my-auto space-y-6 text-center">
                 <div>
                   <h1 className="text-2xl font-semibold">What are we working on?</h1>

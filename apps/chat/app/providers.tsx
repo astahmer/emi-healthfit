@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { UIMessage } from "ai";
+import type { ChatUiMessage } from "@emi/core/chat";
 import { NotesProvider } from "./notes-context";
 import { ChatRuntimeProvider } from "./chat/chat-runtime";
 import type { ConversationSnapshot } from "./conversations";
@@ -14,7 +14,7 @@ export interface ChatSessionConfig {
   historyReady?: boolean;
   sessionId?: string;
   threadId?: string;
-  initialMessages?: UIMessage[];
+  initialMessages?: ChatUiMessage[];
 }
 
 export const ChatProviders = ({

@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
-import type { FileUIPart, UIMessage } from "ai";
+import type { FileUIPart } from "ai";
+import type { ChatUiMessage } from "@emi/core/chat";
 
 export interface QueuedFollowUp {
   id: string;
@@ -15,11 +16,11 @@ export interface ChatRuntimeConfig {
   historyReady: boolean;
   sessionId?: string;
   threadId?: string;
-  initialMessages: UIMessage[];
+  initialMessages: ChatUiMessage[];
 }
 
 export interface ChatRuntimeValue {
-  messages: UIMessage[];
+  messages: ChatUiMessage[];
   sessionId: string | undefined;
   draft: string;
   files: FileUIPart[];

@@ -13,6 +13,7 @@ import * as OperationBudget from "./chat/operation-budget.ts";
 import * as OrphanTurn from "./chat/orphan-turn.ts";
 import * as ChatRequest from "./chat/request.ts";
 import * as ChatSettings from "./chat/settings.ts";
+import * as MessageCollapse from "./chat/message-collapse.ts";
 import * as StreamResponse from "./chat/stream-response.ts";
 import * as ToolCircuitBreaker from "./chat/tool-circuit-breaker.ts";
 import * as UiMessages from "./chat/ui-messages.ts";
@@ -89,6 +90,7 @@ export class Chat {
     buildAssistantParts: MessageParts.ChatMessageParts.buildAssistantParts,
     firstUserText: ChatRequest.firstUserText,
     getProviderMessages: OrphanTurn.getProviderMessages,
+    collapseCompactedMessages: MessageCollapse.collapseCompactedMessages,
     validateUIMessagesEffect: UiMessages.ChatUiMessages.validateUIMessagesEffect,
     validateStoredUIMessagesEffect: UiMessages.ChatUiMessages.validateStoredUIMessagesEffect,
     validateStoredUIMessages: UiMessages.ChatUiMessages.validateStoredUIMessages,
@@ -108,6 +110,8 @@ export class Chat {
 }
 
 export type OpenAiCompatibleConfiguration = OpenAiCompatibleConfigurationType;
+export type ChatUiMessage = UiMessages.ChatUiMessage;
+export type ChatUiMessageRole = UiMessages.ChatUiMessageRole;
 export type ChatStreamRequest = ChatStreamRequestType;
 export type ChatStreamOptions = ChatStreamOptionsType;
 export type ChatStreamPart = ChatStreamPartType;

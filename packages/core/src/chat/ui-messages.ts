@@ -16,6 +16,10 @@ import { MessagePartSchema } from "../protocol/parts.ts";
 type UiMessagePart = UIMessage["parts"][number];
 type UiToolPart = Extract<UiMessagePart, { type: `tool-${string}` | "dynamic-tool" }>;
 
+export type ChatUiMessageRole = UIMessage["role"] | "summary";
+
+export type ChatUiMessage = Omit<UIMessage, "role"> & { role: ChatUiMessageRole };
+
 class ChatUiMessagesError extends Schema.TaggedErrorClass<ChatUiMessagesError>()(
   "ChatUiMessagesError",
   {
@@ -253,9 +257,9 @@ export class ChatUiMessages {
     parts,
   }: {
     readonly id: string;
-    readonly role: "user" | "assistant" | "system" | "tool";
+    readonly role: "user" | "assistant" | "system" | "summary" | "tool";
     readonly parts: ReadonlyArray<MessagePart>;
-  }): UIMessage {
+  }): ChatUiMessage {
     return {
       id,
       role: role === "tool" ? "assistant" : role,

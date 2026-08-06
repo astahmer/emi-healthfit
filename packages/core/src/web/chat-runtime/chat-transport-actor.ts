@@ -286,6 +286,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
             : { message: decoded.message, messageId: decoded.messageId ?? message.id },
         );
       }
+      const compacted = response.headers.get("x-conversation-compacted") !== null;
       try {
         return await Effect.runPromise(
           consumeResponseEffect({
@@ -308,6 +309,13 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
           message: errorMessage({ cause, fallback: "Unable to complete this chat request." }),
           messageId: message.id,
         });
+      } finally {
+        if (compacted && resolvedRequest.conversationId !== undefined && isActive()) {
+          input.sendSession({
+            type: "conversation-compacted",
+            conversationId: resolvedRequest.conversationId,
+          });
+        }
       }
     };
 

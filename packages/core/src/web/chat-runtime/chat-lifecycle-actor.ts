@@ -187,6 +187,15 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
         session.temporary = event.temporary;
         return;
       }
+      if (event.type === "conversation-compacted") {
+        if (!route.temporary && !session.temporary) {
+          input.sendConversationStore({
+            type: "conversation-load-requested",
+            conversationId: event.conversationId,
+          });
+        }
+        return;
+      }
       if (event.type === "fresh-started") {
         session = { ...initialLifecycleSession(), temporary: session.temporary };
         isStreaming = false;

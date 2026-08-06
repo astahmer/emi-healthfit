@@ -89,10 +89,24 @@ const readStoredBudget = (storageKey: string): number | null => {
   return Number.isFinite(value) && value >= 0 ? value : null;
 };
 
+export const tokenBudgetStorageKey = (conversationId: string): string =>
+  `emi-healthfit:token-budget:${conversationId}`;
+
+export const effectiveTokenBudget = ({
+  conversationId,
+  defaultBudget,
+}: {
+  conversationId: string | undefined;
+  defaultBudget: number;
+}): number =>
+  conversationId === undefined
+    ? defaultBudget
+    : (readStoredBudget(tokenBudgetStorageKey(conversationId)) ?? defaultBudget);
+
 export const ConversationUsage = ({ conversationId }: { conversationId: string }) => {
   const usage = useUsage();
   const { settings } = useSettings();
-  const storageKey = `emi-healthfit:token-budget:${conversationId}`;
+  const storageKey = tokenBudgetStorageKey(conversationId);
   const [budget, setBudget] = useState(settings.tokenBudget);
 
   useEffect(() => {

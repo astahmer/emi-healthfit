@@ -3,6 +3,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import type { ChatModelConfiguration } from "../../chat/request.ts";
+import { collapseCompactedMessages } from "../../chat/message-collapse.ts";
 import { ChatProtocol } from "../../protocol/mappers.ts";
 import type { ChatMessage } from "../../protocol/messages.ts";
 import type { MessagePart } from "../../protocol/parts.ts";
@@ -116,7 +117,9 @@ const decodeMessages = async (
       }
     }),
   );
-  return decoded.filter((message): message is ChatMessage => message !== undefined);
+  return collapseCompactedMessages(
+    decoded.filter((message): message is ChatMessage => message !== undefined),
+  );
 };
 
 export interface ConversationClient {

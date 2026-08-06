@@ -2,6 +2,7 @@
 
 import {
   BookmarkIcon,
+  ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
   GitBranchIcon,
@@ -107,6 +108,30 @@ export const ThreadMessage = ({
   onCopyResult,
   renderToolResult,
 }: ThreadMessageProps): ReactNode => {
+  if (message.role === "summary") {
+    const summaryText = messageText(message).replace(
+      /^Use this compacted summary of the previous conversation as context:\s*/i,
+      "",
+    );
+    return (
+      <Message id={`message-${message.id}`} align="start" className="scroll-mt-28 py-1">
+        <div className="w-full space-y-4">
+          <div className="h-px bg-border" aria-hidden="true" />
+          <details
+            open
+            data-testid="compacted-summary"
+            className="group rounded-xl border bg-muted/40"
+          >
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground">
+              <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180" />
+              Context compacted
+            </summary>
+            <p className="border-t px-4 py-3 text-sm whitespace-pre-wrap">{summaryText}</p>
+          </details>
+        </div>
+      </Message>
+    );
+  }
   const isUser = message.role === "user";
   const text = messageText(message);
   const canEdit = isUser && !isStreaming && editingDraft === undefined && onEditStart !== undefined;

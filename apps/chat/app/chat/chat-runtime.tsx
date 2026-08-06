@@ -1,6 +1,6 @@
 "use client";
 
-import type { FileUIPart, UIMessage } from "ai";
+import type { FileUIPart } from "ai";
 import { useActor } from "@xstate/react";
 import {
   useCallback,
@@ -14,6 +14,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createChatRuntime } from "@emi/core";
 import { aiSdkChatStreamDecoder } from "@emi/core/adapters/ai-sdk";
 import { Chat } from "@emi/core/chat";
+import type { ChatUiMessage } from "@emi/core/chat";
 import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
@@ -22,6 +23,7 @@ import * as Schema from "effect/Schema";
 import { attachmentPreparationMachine, createBrowserFollowUpQueueSyncAdapter } from "@emi/core/web";
 import { buildNotesContext } from "../notes";
 import { useSettings } from "../settings-store";
+import { effectiveTokenBudget } from "../usage-context";
 import { queryKeys } from "../query-cache";
 import { fetchConversationMessages, type ConversationSnapshot } from "../conversations";
 import { createConversation } from "../sessions";
@@ -41,7 +43,7 @@ import {
   type QueuedFollowUp,
 } from "./chat-runtime-context";
 
-const toUiMessage = (message: ChatMessage): UIMessage =>
+const toUiMessage = (message: ChatMessage): ChatUiMessage =>
   Chat.messages.fromProtocolMessage({
     id: message.id,
     role: message.role,
@@ -123,7 +125,7 @@ const createHealthFitChatRuntime = ({
       streamDecoder: aiSdkChatStreamDecoder,
       errorDecoder: decodeTransportError,
       messageEncoder: ({ messages }) => toUiMessages({ messages: messages.slice(-1) }),
-      requestBody: ({ settings: coreSettings }) => {
+      requestBody: ({ settings: coreSettings, conversationId }) => {
         const currentSettings = useSettings.getState().settings;
         const currentConfig = configRef.current;
         const notesContext = buildNotesContext(
@@ -134,6 +136,10 @@ const createHealthFitChatRuntime = ({
             notesContext === ""
               ? currentSettings.systemPrompt
               : `${currentSettings.systemPrompt}\n\n${notesContext}`,
+          tokenBudget: effectiveTokenBudget({
+            conversationId,
+            defaultBudget: currentSettings.tokenBudget,
+          }),
           config: {
             provider: currentSettings.provider,
             apiKey: currentSettings.apiKey,

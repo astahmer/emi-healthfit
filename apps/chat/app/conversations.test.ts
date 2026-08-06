@@ -99,4 +99,59 @@ describe("conversation API decoding", () => {
     expect(submitted.url).toContain("/api/conversations/conversation-1/compact");
     await expect(submitted.json()).resolves.toEqual({ apiKey: "sk-test", model: "gpt-5" });
   });
+
+  it("keeps summary rows with their role for in-place compaction", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            conversation: {
+              id: "conversation-1",
+              title: "Workout",
+              status: "regular",
+              pinned: false,
+              created_at: "2026-07-14T10:00:00.000Z",
+              updated_at: "2026-07-14T10:00:00.000Z",
+            },
+            messages: [
+              {
+                id: "message-0",
+                conversationId: "conversation-1",
+                parentId: null,
+                role: "user",
+                parts: [{ type: "text", text: "Compact me" }],
+                createdAt: "2026-07-14T10:01:00.000Z",
+              },
+              {
+                id: "summary-1",
+                conversationId: "conversation-1",
+                parentId: null,
+                role: "summary",
+                parts: [
+                  {
+                    type: "text",
+                    text: "Use this compacted summary of the previous conversation as context:\nPrior notes.",
+                  },
+                ],
+                createdAt: "2026-07-14T10:02:00.000Z",
+              },
+              {
+                id: "message-2",
+                conversationId: "conversation-1",
+                parentId: null,
+                role: "user",
+                parts: [{ type: "text", text: "Continue" }],
+                createdAt: "2026-07-14T10:03:00.000Z",
+              },
+            ],
+            threads: [],
+          }),
+        ),
+      ),
+    );
+
+    const result = await fetchConversationMessages("conversation-1");
+    expect(result.messages.map((message) => message.role)).toEqual(["summary", "user"]);
+  });
 });

@@ -2,6 +2,7 @@ import { useState, type RefObject } from "react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
   PaperclipIcon,
@@ -204,6 +205,28 @@ export const MessageViewport = ({
           messages.map((message) => {
             const text = messageText(message);
             const isUser = message.role === "user";
+            if (message.role === "summary") {
+              const summaryText = text.replace(
+                /^Use this compacted summary of the previous conversation as context:\s*/i,
+                "",
+              );
+              return (
+                <div className="mx-auto w-full max-w-3xl" key={message.id}>
+                  <div className="mb-4 h-px bg-border" aria-hidden="true" />
+                  <details
+                    open
+                    data-testid="compacted-summary"
+                    className="group w-full rounded-xl border bg-muted/40"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground">
+                      <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180" />
+                      Context compacted
+                    </summary>
+                    <p className="border-t px-4 py-3 text-sm whitespace-pre-wrap">{summaryText}</p>
+                  </details>
+                </div>
+              );
+            }
             return (
               <Message
                 align={isUser ? "end" : "start"}

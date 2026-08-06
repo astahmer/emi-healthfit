@@ -104,7 +104,9 @@ const decodeConversationSnapshot = ({
   const raw = Schema.decodeUnknownSync(conversationPayloadSchema)(data);
   return {
     conversation: toConversation(raw.conversation),
-    messages: raw.messages.map((message) => toMessage({ raw: message, conversationId })),
+    messages: Chat.messages
+      .collapseCompactedMessages(raw.messages)
+      .map((message) => toMessage({ raw: message, conversationId })),
     threads: raw.threads.map(toThread),
   };
 };

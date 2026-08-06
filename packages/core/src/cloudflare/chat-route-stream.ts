@@ -1,4 +1,5 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import type { UIMessage } from "ai";
 import {
   ChatStreamRequestSchema,
   firstUserText,
@@ -126,9 +127,12 @@ export class ChatRouteStream {
       }
 
       const protocolMessages = decoded.value.messages;
-      const messages = protocolMessages.map((message) =>
-        ChatUiMessages.fromProtocolMessage(message),
-      );
+      const messages = protocolMessages.map((message): UIMessage => {
+        const uiMessage = ChatUiMessages.fromProtocolMessage(message);
+        return uiMessage.role === "summary"
+          ? { ...uiMessage, role: "system" }
+          : { ...uiMessage, role: uiMessage.role };
+      });
 
       const temporary = decoded.value.temporary === true;
       const memoryEnabled = decoded.value.memory?.enabled !== false;

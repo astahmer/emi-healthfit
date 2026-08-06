@@ -1,7 +1,7 @@
 import { useEffect, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-import type { UIMessage } from "ai";
+import type { ChatUiMessage, ChatUiMessageRole } from "@emi/core/chat";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { ComposerControls } from "@/components/chat/thread";
@@ -25,10 +25,10 @@ import { useConversationMachine } from "./use-conversation-machine";
 
 const HEADER_HEIGHT = 56;
 
-type RuntimeMessage = MessageNode & { role: UIMessage["role"] };
+type RuntimeMessage = MessageNode & { role: ChatUiMessageRole };
 
 const isRuntimeMessage = (message: MessageNode): message is RuntimeMessage =>
-  message.role === "user" || message.role === "assistant";
+  message.role === "user" || message.role === "assistant" || message.role === "summary";
 
 const sidebarStyle: CSSProperties & { "--sidebar-top": string } = {
   "--sidebar-top": `${HEADER_HEIGHT}px`,
@@ -40,8 +40,8 @@ const noNavigation = () => {};
 
 const noSearchChange = () => {};
 
-const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
-  messages.reduce<UIMessage[]>((runtimeMessages, message) => {
+const toRuntimeMessages = (messages: MessageNode[]): ChatUiMessage[] =>
+  messages.reduce<ChatUiMessage[]>((runtimeMessages, message) => {
     if (isRuntimeMessage(message)) {
       runtimeMessages.push({
         id: message.id,
@@ -54,7 +54,7 @@ const toRuntimeMessages = (messages: MessageNode[]): UIMessage[] =>
 
 const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
   messages.flatMap((message) =>
-    isRuntimeMessage(message)
+    message.role === "user" || message.role === "assistant"
       ? [
           {
             id: message.id,
@@ -67,21 +67,6 @@ const toUsageMessages = (messages: MessageNode[]): MessageWithUsage[] =>
         ]
       : [],
   );
-
-const compactedSummary = (messages: MessageNode[]): string | undefined => {
-  const summary = messages.findLast((message) => message.role === "summary");
-  if (summary === undefined) return undefined;
-  const text = summary.parts
-    .filter((part): part is { type: "text"; text: string } => part.type === "text")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
-  if (text === "") return undefined;
-  return text.replace(
-    /^Use this compacted summary of the previous conversation as context:\s*/i,
-    "",
-  );
-};
 
 export const ChatPage = ({
   onNavigate = noNavigation,
@@ -144,7 +129,6 @@ export const ChatPage = ({
   const hasOpenAiKey = settings.apiKey.trim() !== "";
   const runtimeMessages = toRuntimeMessages(initialMessages);
   const usageMessages = toUsageMessages(initialMessages);
-  const contextSummary = compactedSummary(initialMessages);
 
   useEffect(() => {
     if (conversation === null) return;
@@ -308,7 +292,6 @@ export const ChatPage = ({
                 activeConversationId={activeConversationId}
                 isLoading={isLoading}
                 hasOpenAiKey={hasOpenAiKey}
-                contextSummary={contextSummary}
                 composerControls={composerControls}
                 loadError={loadError}
                 onForkMessage={(messageId) => {

@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@emi/core/protocol";
+import { Chat } from "@emi/core/chat";
 import type {
   Conversation,
   ConversationClient,
@@ -93,7 +94,6 @@ const toMessage = (value: {
   model?: string;
   usage?: ChatMessage["usage"];
 }): ChatMessage | undefined => {
-  if (value.role === "summary") return undefined;
   return {
     id: value.id,
     role: value.role,
@@ -114,11 +114,13 @@ const toMessages = (
     model?: string;
     usage?: ChatMessage["usage"];
   }>,
-): ChatMessage[] =>
-  values.flatMap((value) => {
+): ChatMessage[] => {
+  const messages = values.flatMap((value) => {
     const message = toMessage(value);
     return message === undefined ? [] : [message];
   });
+  return Chat.messages.collapseCompactedMessages(messages);
+};
 
 const toMemory = (value: {
   id: string;

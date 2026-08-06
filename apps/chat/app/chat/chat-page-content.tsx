@@ -7,7 +7,6 @@ export const ChatPageContent = ({
   activeConversationId,
   isLoading,
   hasOpenAiKey,
-  contextSummary,
   composerControls,
   loadError,
   onForkMessage,
@@ -18,7 +17,6 @@ export const ChatPageContent = ({
   activeConversationId: string | undefined;
   isLoading: boolean;
   hasOpenAiKey: boolean;
-  contextSummary: string | undefined;
   composerControls: ComposerControls;
   loadError: Error | null;
   onForkMessage: (messageId: string) => void;
@@ -34,7 +32,6 @@ export const ChatPageContent = ({
         </div>
       ) : hasOpenAiKey ? (
         <Thread
-          contextSummary={contextSummary}
           onForkMessage={onForkMessage}
           onReferenceMessage={onReferenceMessage}
           composerControls={composerControls}
