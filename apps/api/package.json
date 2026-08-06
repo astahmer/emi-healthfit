@@ -55,7 +55,7 @@
     "miniflare": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "typed-openapi": "2.2.7",
+    "typed-openapi": "catalog:",
     "typescript": "catalog:",
     "wrangler": "catalog:"
   }

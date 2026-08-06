@@ -49,15 +49,22 @@ const main = async () => {
   );
 
   const stripCompatible = withoutExistingBanner.replace(
-    /export class ApiClient \{\n  baseUrl: string = "";\n  successStatusCodes = successStatusCodes;\n  errorStatusCodes = errorStatusCodes;\n\n  constructor\(public fetcher: Fetcher\) \{\}\n/,
+    /export class ApiClient \{\n  baseUrl: string = "";\n  successStatusCodes = successStatusCodes;\n  errorStatusCodes = errorStatusCodes;\n  validate: ValidateSide = "none";\n  onValidate\?: OnValidate;\n\n  constructor\(\n    public fetcher: Fetcher,\n    options\?: \{ validate\?: ValidateSide; onValidate\?: OnValidate \},\n  \) \{\n    if \(options\?\.validate !== undefined\) this\.validate = options\.validate;\n    if \(options\?\.onValidate\) this\.onValidate = options\.onValidate;\n  \}\n/,
     `export class ApiClient {
   baseUrl: string = "";
   successStatusCodes = successStatusCodes;
   errorStatusCodes = errorStatusCodes;
+  validate: ValidateSide = "none";
+  onValidate?: OnValidate;
   fetcher: Fetcher;
 
-  constructor(fetcher: Fetcher) {
+  constructor(
+    fetcher: Fetcher,
+    options?: { validate?: ValidateSide; onValidate?: OnValidate },
+  ) {
     this.fetcher = fetcher;
+    if (options?.validate !== undefined) this.validate = options.validate;
+    if (options?.onValidate) this.onValidate = options.onValidate;
   }
 `,
   );
@@ -67,6 +74,14 @@ const main = async () => {
   }
 
   await writeFile(outputPath, `${BANNER}${stripCompatible}`, "utf8");
+  const format = spawnSync("pnpm", ["exec", "oxfmt", outputPath], {
+    cwd: packageRoot,
+    stdio: "inherit",
+    shell: false,
+  });
+  if (format.status !== 0) {
+    throw new Error(`oxfmt exited with status ${String(format.status)}`);
+  }
   console.log(`Wrote ${outputPath}`);
 };
 

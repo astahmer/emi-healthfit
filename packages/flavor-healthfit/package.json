@@ -48,6 +48,7 @@
     "oxlint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "typed-openapi": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
