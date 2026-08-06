@@ -30,4 +30,25 @@ describe("chat stream request codec", () => {
 
     assert.equal(Option.isNone(decoded), true);
   });
+
+  it("accepts an optional non-negative token budget", () => {
+    const decoded = Schema.decodeUnknownOption(ChatStreamRequestSchema)({
+      ...request,
+      tokenBudget: 25_000,
+    });
+
+    assert.equal(Option.isSome(decoded), true);
+    if (Option.isSome(decoded)) {
+      assert.equal(decoded.value.tokenBudget, 25_000);
+    }
+  });
+
+  it("rejects negative token budgets", () => {
+    const decoded = Schema.decodeUnknownOption(ChatStreamRequestSchema)({
+      ...request,
+      tokenBudget: -1,
+    });
+
+    assert.equal(Option.isNone(decoded), true);
+  });
 });

@@ -1017,6 +1017,24 @@ Given("a user is on session one with a token budget of {int}", async ({ page }, 
   await expect(page.getByText("one message answer")).toBeVisible();
 });
 
+Given(
+  "a user is on session one with a token budget of {int} and persisted replies",
+  async ({ page }, budget: number) => {
+    await page.addInitScript((value: number) => {
+      localStorage.setItem("emi-healthfit:token-budget:one", String(value));
+    }, budget);
+    const mock = createChatMock({
+      state: {
+        snapshots: { one: sessionOneSnapshot() },
+        chat: { persist: true, replyText: "Auto compacted reply" },
+      },
+    });
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
 Then("the conversation usage should show it is over budget", async ({ page }) => {
   await page
     .getByText(/tokens/)
@@ -1024,6 +1042,24 @@ Then("the conversation usage should show it is over budget", async ({ page }) =>
     .click();
   await expect(page.getByText(/150% used/)).toBeVisible();
   await expect(page.getByText(/over budget/)).toBeVisible();
+});
+
+Then("the compacted summary block should be visible", async ({ page }) => {
+  const block = page.getByTestId("compacted-summary");
+  await expect(block).toBeVisible();
+  await expect(block).toContainText("Context compacted");
+  await expect(block).toContainText("Prior workout notes.");
+});
+
+Then("the message {string} should not be visible", async ({ page }, text: string) => {
+  await expect(page.getByText(text, { exact: true })).not.toBeVisible();
+});
+
+Then("the compacted summary block should be collapsible", async ({ page }) => {
+  const block = page.getByTestId("compacted-summary");
+  await expect(block).toHaveAttribute("open");
+  await block.locator("summary").click();
+  await expect(block).not.toHaveAttribute("open");
 });
 
 Given("a user is on the settings page with a stale Hevy connection", async ({ page }) => {
@@ -2555,8 +2591,9 @@ Then("they should land on the compacted session", async ({ page }) => {
 });
 
 Then("the compacted context should show {string}", async ({ page }, text: string) => {
-  await expect(page.getByLabel("Compacted context")).toBeVisible();
-  await expect(page.getByText(text)).toBeVisible();
+  const block = page.getByTestId("compacted-summary");
+  await expect(block).toBeVisible();
+  await expect(block).toContainText(text);
 });
 
 Then("the attachment preview {string} should be visible", async ({ page }, filename: string) => {

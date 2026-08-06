@@ -130,8 +130,9 @@ test("compacts a conversation into a fresh session with summary context", async 
 
   await page.getByLabel("Compact conversation and start fresh").click();
   await expect(page).toHaveURL(/\/chat\/compacted/);
-  await expect(page.getByLabel("Compacted context")).toBeVisible();
-  await expect(page.getByText("Prior workout notes.")).toBeVisible();
+  const block = page.getByTestId("compacted-summary");
+  await expect(block).toBeVisible();
+  await expect(block).toContainText("Prior workout notes.");
 });
 
 test("sends an attachment with the chat request", async ({ page }) => {

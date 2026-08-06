@@ -67,6 +67,7 @@ export type MockChatBody = {
   webSearch?: boolean;
   sessionId?: string;
   replaceMessageId?: string;
+  tokenBudget?: number;
   config?: { model?: string };
   messages?: Array<{
     parts?: Array<{
@@ -262,7 +263,10 @@ const hevySyncSummary = ({
 
 const json = (context: Context, body: unknown, status = 200) => context.json(body, status as 200);
 
-const sse = (context: Context, { body, threadId }: { body: string; threadId: string }) =>
+const sse = (
+  context: Context,
+  { body, threadId, headers }: { body: string; threadId: string; headers?: Record<string, string> },
+) =>
   context.newResponse(body, {
     status: 200,
     headers: {
@@ -270,6 +274,7 @@ const sse = (context: Context, { body, threadId }: { body: string; threadId: str
       "content-type": "text/event-stream",
       "x-thread-id": threadId,
       "x-vercel-ai-ui-message-stream": "v1",
+      ...headers,
     },
   });
 
@@ -301,6 +306,27 @@ const ensureSnapshot = (state: MockApiState, id: string): MockSnapshot => {
 
 const userTextFromBody = (body: MockChatBody | undefined): string =>
   body?.messages?.[0]?.parts?.find((part) => part.type === "text")?.text ?? "";
+
+const estimateTextTokens = (text: string): number => Math.ceil(text.length / 4);
+
+const messageUsageTokens = (message: MockMessage): number => {
+  const usage = message.usage;
+  if (
+    usage !== null &&
+    typeof usage === "object" &&
+    "totalTokens" in usage &&
+    typeof usage.totalTokens === "number"
+  ) {
+    return usage.totalTokens;
+  }
+  const text = message.parts
+    .flatMap((part) => {
+      const textPart = part as { type?: string; text?: string } | null;
+      return textPart?.type === "text" && textPart.text !== undefined ? [textPart.text] : [];
+    })
+    .join("\n");
+  return estimateTextTokens(text);
+};
 
 const persistChatTurn = ({
   state,
@@ -635,6 +661,47 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     const sessionId = state.chat.lastBody?.sessionId ?? context.req.header("x-thread-id") ?? "chat";
     const messageId = `${sessionId}-assistant-${state.chat.calls}`;
     const text = state.chat.replyText;
+    const budget =
+      typeof state.chat.lastBody?.tokenBudget === "number" && state.chat.lastBody.tokenBudget > 0
+        ? state.chat.lastBody.tokenBudget
+        : 0;
+    let compacted = false;
+    if (budget > 0 && state.chat.lastBody?.replaceMessageId === undefined) {
+      const snapshot = ensureSnapshot(state, sessionId);
+      const markerIndex = snapshot.messages.findLastIndex((message) => message.role === "summary");
+      const postMarkerRows =
+        markerIndex === -1 ? snapshot.messages : snapshot.messages.slice(markerIndex + 1);
+      const storedTokens = postMarkerRows
+        .filter((message) => message.role !== "summary")
+        .reduce((total, message) => total + messageUsageTokens(message), 0);
+      const incomingTokens = (state.chat.lastBody?.messages ?? []).reduce(
+        (total, message) =>
+          total +
+          (message.parts ?? [])
+            .filter((part) => part.type === "text" && part.text !== undefined)
+            .reduce((messageTotal, part) => messageTotal + estimateTextTokens(part.text ?? ""), 0),
+        0,
+      );
+      if (storedTokens + incomingTokens > budget) {
+        snapshot.messages = [
+          {
+            id: `${sessionId}-summary-${state.chat.calls}`,
+            conversationId: sessionId,
+            parentId: null,
+            role: "summary",
+            parts: [
+              {
+                type: "text",
+                text: "Use this compacted summary of the previous conversation as context:\nPrior workout notes.",
+              },
+            ],
+            createdAt: now,
+          },
+          ...postMarkerRows.filter((message) => message.role !== "summary"),
+        ];
+        compacted = true;
+      }
+    }
     const body =
       state.chat.streamBody ??
       state.chat.stream({
@@ -653,7 +720,11 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
       });
     }
 
-    return sse(context, { body, threadId: sessionId });
+    return sse(context, {
+      body,
+      threadId: sessionId,
+      headers: compacted ? { "x-conversation-compacted": "1" } : undefined,
+    });
   });
 
   app.get("/api/notes", (context) => {
