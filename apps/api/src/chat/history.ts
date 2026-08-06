@@ -4,6 +4,12 @@ import type { UIMessage } from "ai";
 import type { AiSdkChatStreamRequest as ChatStreamRequest } from "@emi/core/adapters/ai-sdk";
 import { Chat } from "@emi/core/chat";
 import { ServerDatabase } from "@emi/core/server/database";
+import {
+  externalizeMessageAttachmentsEffect,
+  resolveExternalizedAttachmentsEffect,
+  type ReadWriteBucketClient,
+} from "./attachment-storage.ts";
+import { maxStoredMessagePartsBytes, messagePartsJsonBytes } from "./attachment-policy.ts";
 import { decodeMessageParts } from "./http/codecs.ts";
 import { validateAttachments } from "./request-codec.ts";
 import type { ChatToolDefinition } from "./hooks.ts";
@@ -107,12 +113,14 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   chatRequest,
   sessionId,
   isTemporary,
+  bucket,
   tools: toolDefinitions = [],
 }: {
   userId: string;
   chatRequest: Omit<ChatStreamRequest, "messages"> & { messages: UIMessage[] };
   sessionId: string;
   isTemporary: boolean;
+  bucket: ReadWriteBucketClient;
   tools?: ReadonlyArray<ChatToolDefinition>;
 }) {
   const database = yield* ServerDatabase.conversations;
@@ -229,7 +237,11 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   });
   const validatedExistingMessages =
     yield* Chat.messages.validateStoredUIMessagesEffect(storedMessages);
-  const existingMessages = [...validatedExistingMessages];
+  const existingMessages = yield* resolveExternalizedAttachmentsEffect({
+    userId,
+    messages: validatedExistingMessages,
+    bucket,
+  });
 
   const replacementMessage =
     chatRequest.replaceMessageId === undefined
@@ -274,6 +286,18 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   if (!isTemporary) {
     const branchParentId =
       thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);
+    const persistedIncomingMessages = yield* externalizeMessageAttachmentsEffect({
+      userId,
+      messages: incomingMessages,
+      bucket,
+    });
+    if (
+      persistedIncomingMessages.some(
+        (message) => messagePartsJsonBytes(message.parts) > maxStoredMessagePartsBytes,
+      )
+    ) {
+      return { error: "Message is too large to store", status: 400 as const };
+    }
     const incomingIds: Array<string> =
       chatRequest.replaceMessageId === undefined
         ? [
@@ -281,7 +305,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
               userId,
               conversationId: sessionId,
               parentId: branchParentId,
-              messages: [...incomingMessages],
+              messages: [...persistedIncomingMessages],
             })),
           ]
         : [];

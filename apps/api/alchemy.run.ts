@@ -14,6 +14,7 @@ export default Alchemy.Stack(
     const db = yield* DB;
 
     const exportsBucket = yield* Cloudflare.R2.Bucket("Exports");
+    const attachmentsBucket = yield* Cloudflare.R2.Bucket("Attachments");
 
     const api = yield* Api;
 
@@ -21,6 +22,7 @@ export default Alchemy.Stack(
       url: api.url.as<string>(),
       databaseId: db.databaseId,
       bucketName: exportsBucket.bucketName,
+      attachmentsBucketName: attachmentsBucket.bucketName,
     };
   }).pipe(Effect.provide(ApiLive)),
 );

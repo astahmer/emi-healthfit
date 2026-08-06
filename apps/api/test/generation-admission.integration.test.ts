@@ -7,6 +7,7 @@ import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
 import { handleAiSdkChat } from "../src/chat/generation-lifecycle.ts";
+import { makeFakeBucket } from "./fake-bucket.ts";
 import { narrowQueryDatabaseClient, type DatabaseSchema } from "../src/platform/db/client.ts";
 import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
@@ -189,7 +190,7 @@ describe("chat generation admission", () => {
 
     const runChat = (request: ReturnType<typeof requestFor>) =>
       Effect.runPromise(
-        handleAiSdkChat(gatedDatabase, request, {}).pipe(
+        handleAiSdkChat(gatedDatabase, request, {}, {}, makeFakeBucket().bucket).pipe(
           Effect.provide(RuntimeContext.phantom),
           Effect.provideService(CoreCloudflare.user.CurrentUser, user),
           Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {

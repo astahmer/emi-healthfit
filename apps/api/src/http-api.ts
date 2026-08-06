@@ -5,7 +5,6 @@ import {
   type Note as ApiNote,
 } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
-import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -32,8 +31,7 @@ import {
   workoutsHandlers,
 } from "./healthfit/http/data.ts";
 import { hevyHandlers } from "./healthfit/http/hevy.ts";
-
-type ReadWriteBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
+import type { ReadWriteBucketClient } from "./chat/attachment-storage.ts";
 
 const HttpApiHandler = Schema.Struct({
   routes: Schema.declare<Array<HttpRouter.Route<never, never>>>(Array.isArray),
@@ -238,11 +236,13 @@ const memoriesHandlers = () => {
 
 export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   bucket,
+  attachmentsBucket,
   db,
   environment,
   router,
 }: {
   bucket: ReadWriteBucketClient;
+  attachmentsBucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
   environment: Record<string, unknown>;
   router: HttpRouter.HttpRouter;
@@ -260,7 +260,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
     Layer.mergeAll(
       notesHandlers(),
       memoriesHandlers(),
-      conversationsHandlers(),
+      conversationsHandlers({ attachmentsBucket }),
       threadsHandlers(),
       messagesHandlers(),
       memoryExtractionHandlers(),

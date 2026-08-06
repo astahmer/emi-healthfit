@@ -21,6 +21,7 @@ import {
   handleChatResume,
   handleConversationDiagnostics,
 } from "./chat/generation-lifecycle.ts";
+import { handleAttachmentRead } from "./chat/attachment-http.ts";
 import {
   handleIngest,
   handleIngestedDataExport,
@@ -48,6 +49,7 @@ export const DB = Cloudflare.D1.Database(
   alchemyMigrationsDirectory === undefined ? {} : { migrationsDir: alchemyMigrationsDirectory },
 );
 const ExportsBucket = Cloudflare.R2.Bucket("Exports");
+const AttachmentsBucket = Cloudflare.R2.Bucket("Attachments");
 const AssetsBinding = Schema.Struct({
   fetch: Schema.declare<(request: Request) => Promise<Response>>(
     (value): value is (request: Request) => Promise<Response> => typeof value === "function",
@@ -144,6 +146,7 @@ export default Api.make(
       },
     });
     const bucket = yield* Cloudflare.R2.ReadWriteBucket(ExportsBucket);
+    const attachmentsBucket = yield* Cloudflare.R2.ReadWriteBucket(AttachmentsBucket);
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
     const assetsBinding = Schema.decodeUnknownOption(AssetsBinding)(env.ASSETS);
     const assetsFetcher = Option.isSome(assetsBinding)
@@ -156,24 +159,42 @@ export default Api.make(
         cors({ request, effect: handleIngest(db, bucket, request) }),
       );
       yield* router.add("POST", "/api/chat", (request) =>
-        handleAiSdkChat(db, request, env, {
-          beforeChat: ({ db: chatDb, userId, environment }) =>
-            ensureHevyFresh({
-              db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(chatDb),
-              userId,
-              environment,
+        handleAiSdkChat(
+          db,
+          request,
+          env,
+          {
+            beforeChat: ({ db: chatDb, userId, environment }) =>
+              ensureHevyFresh({
+                db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(chatDb),
+                userId,
+                environment,
+              }),
+            coachSystemPrompt: ServerDatabase.app.composeSystemPrompt(
+              healthFitAppDefinition.promptContributors,
+            ),
+            tools: healthFitAppDefinition.tools ?? [],
+            // Kysely schema invariance: narrow the app DatabaseSchema client to the
+            // flavor tools schema at the composition boundary (see narrowQueryDatabaseClient).
+            executeTool: (args) =>
+              executeHealthfitTool({
+                ...args,
+                db: narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(args.db),
+              }),
+          },
+          attachmentsBucket,
+        ),
+      );
+      yield* router.add("GET", "/api/attachments/:objectId", (request) =>
+        Effect.gen(function* () {
+          const params = yield* HttpRouter.params;
+          return yield* cors({
+            request,
+            effect: handleAttachmentRead({
+              bucket: attachmentsBucket,
+              objectId: params.objectId ?? "",
             }),
-          coachSystemPrompt: ServerDatabase.app.composeSystemPrompt(
-            healthFitAppDefinition.promptContributors,
-          ),
-          tools: healthFitAppDefinition.tools ?? [],
-          // Kysely schema invariance: narrow the app DatabaseSchema client to the
-          // flavor tools schema at the composition boundary (see narrowQueryDatabaseClient).
-          executeTool: (args) =>
-            executeHealthfitTool({
-              ...args,
-              db: narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(args.db),
-            }),
+          });
         }),
       );
       yield* router.add("GET", "/api/chat/:conversationId/stream", (request) =>
@@ -219,7 +240,13 @@ export default Api.make(
           ),
         ),
       );
-      yield* registerHttpApi({ bucket, db, environment: env, router });
+      yield* registerHttpApi({
+        bucket,
+        attachmentsBucket,
+        db,
+        environment: env,
+        router,
+      });
       yield* router.add("*", "/*", (request) => {
         if (request.method === "OPTIONS") return handleCorsPreflight(request);
         if (request.method === "GET") return handleAssetRequest({ assetsFetcher, request });

@@ -23,6 +23,7 @@ import { isRequestBodyTooLarge } from "../platform/http/request-body-limits.ts";
 import { persistGenerationStream } from "./stream-persistence.ts";
 import { ChatStreamRequestSchema, getFirstUserText } from "./request-codec.ts";
 import { prepareChatHistory } from "./history.ts";
+import type { ReadWriteBucketClient } from "./attachment-storage.ts";
 import { createChatToolExecutor } from "./tool-execution.ts";
 import { decodeJsonOption } from "../platform/json-codec.ts";
 import type { ChatLifecycleHooks } from "./hooks.ts";
@@ -237,6 +238,7 @@ export const handleAiSdkChat = (
   request: HttpServerRequest,
   environment: Record<string, unknown>,
   hooks: ChatLifecycleHooks = {},
+  attachmentsBucket: ReadWriteBucketClient,
 ) => {
   const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);
   const memoryDb = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(db);
@@ -387,6 +389,7 @@ export const handleAiSdkChat = (
       chatRequest,
       sessionId,
       isTemporary,
+      bucket: attachmentsBucket,
       tools: hooks.tools ?? [],
     });
     if ("error" in preparedHistory) {

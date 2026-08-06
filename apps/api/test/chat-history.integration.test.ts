@@ -5,8 +5,10 @@ import { prepareChatHistory } from "../src/chat/history.ts";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
+import { makeFakeBucket } from "./fake-bucket.ts";
 
 describe("chat history SQLite integration", () => {
+  const { bucket } = makeFakeBucket();
   const summaryProviderResponse = async (_input: RequestInfo | URL, init?: RequestInit) => {
     assert.equal(String(init?.body ?? "").includes('"stream":true'), false);
     return new Response(
@@ -66,6 +68,7 @@ describe("chat history SQLite integration", () => {
         userId,
         sessionId: conversationId,
         isTemporary: false,
+        bucket,
         chatRequest: {
           messages: [],
           config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -114,6 +117,7 @@ describe("chat history SQLite integration", () => {
         userId,
         sessionId: conversationId,
         isTemporary: false,
+        bucket,
         chatRequest: {
           messages: [],
           config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -148,6 +152,7 @@ describe("chat history SQLite integration", () => {
         userId,
         sessionId: conversationId,
         isTemporary: false,
+        bucket,
         chatRequest: {
           messages: [
             {
@@ -218,6 +223,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               { id: "incoming-1", role: "user", parts: [{ type: "text", text: "More questions" }] },
@@ -279,6 +285,7 @@ describe("chat history SQLite integration", () => {
         userId,
         sessionId: conversationId,
         isTemporary: false,
+        bucket,
         chatRequest: {
           messages: [{ id: "incoming-2", role: "user", parts: [{ type: "text", text: "Hi" }] }],
           config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -330,6 +337,7 @@ describe("chat history SQLite integration", () => {
         userId,
         sessionId: conversationId,
         isTemporary: false,
+        bucket,
         chatRequest: {
           messages: [{ id: "incoming-3", role: "user", parts: [{ type: "text", text: "Hi" }] }],
           config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -385,6 +393,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               { id: "incoming-4", role: "user", parts: [{ type: "text", text: "Follow up" }] },
@@ -417,6 +426,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               { id: "incoming-5", role: "user", parts: [{ type: "text", text: "One more" }] },
@@ -510,6 +520,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               {
@@ -572,6 +583,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [{ id: "incoming-7", role: "user", parts: [{ type: "text", text: "More" }] }],
             config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -626,6 +638,7 @@ describe("chat history SQLite integration", () => {
         userId,
         sessionId: conversationId,
         isTemporary: false,
+        bucket,
         chatRequest: {
           messages: [
             // 8 characters -> 2 estimated tokens, stored 100 + 2 = 102 <= 102
@@ -679,6 +692,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               // 9 characters -> 3 estimated tokens, stored 100 + 3 = 103 > 102
@@ -735,6 +749,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [{ id: "incoming-10", role: "user", parts: [{ type: "text", text: "Hi" }] }],
             config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -788,6 +803,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [{ id: "incoming-11", role: "user", parts: [{ type: "text", text: "Hi" }] }],
             config: { provider: "openai", apiKey: "key", model: "gpt-5" },
@@ -844,6 +860,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               { id: "incoming-12", role: "user", parts: [{ type: "text", text: "Compress me" }] },
@@ -903,6 +920,7 @@ describe("chat history SQLite integration", () => {
           userId,
           sessionId: conversationId,
           isTemporary: false,
+          bucket,
           chatRequest: {
             messages: [
               {

@@ -16,6 +16,11 @@ import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
 import { withInternalError } from "../../platform/http/errors.ts";
+import {
+  externalizeMessageAttachmentsEffect,
+  type ReadWriteBucketClient,
+} from "../attachment-storage.ts";
+import { maxStoredMessagePartsBytes, messagePartsJsonBytes } from "../attachment-policy.ts";
 
 type Conversation = ServerDatabase.Conversation;
 type Thread = ServerDatabase.Thread;
@@ -84,7 +89,11 @@ const rowToMessage = (row: {
   };
 };
 
-export const conversationsHandlers = () => {
+export const conversationsHandlers = ({
+  attachmentsBucket,
+}: {
+  attachmentsBucket: ReadWriteBucketClient;
+}) => {
   return HttpApiBuilder.group(CoreApi, "conversations", (handlers) =>
     Effect.gen(function* () {
       const ConversationDatabase = yield* ServerDatabase.conversations;
@@ -133,6 +142,21 @@ export const conversationsHandlers = () => {
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
+            const uiMessages = validated.data;
+            const persistedMessages = yield* externalizeMessageAttachmentsEffect({
+              userId: user.id,
+              messages: uiMessages,
+              bucket: attachmentsBucket,
+            });
+            if (
+              persistedMessages.some(
+                (message) => messagePartsJsonBytes(message.parts) > maxStoredMessagePartsBytes,
+              )
+            ) {
+              return yield* new BadRequest({
+                message: "Message is too large to store",
+              });
+            }
             const id = yield* ConversationDatabase.createConversation({
               userId: user.id,
               title: payload.title?.trim(),
@@ -141,7 +165,7 @@ export const conversationsHandlers = () => {
               userId: user.id,
               conversationId: id,
               parentId: null,
-              messages: payload.messages.map((message) => ({
+              messages: persistedMessages.map((message) => ({
                 role: message.role,
                 parts: [...message.parts],
               })),
@@ -428,11 +452,24 @@ export const conversationsHandlers = () => {
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
+            const [persistedMessage] = yield* externalizeMessageAttachmentsEffect({
+              userId: user.id,
+              messages: validated.data,
+              bucket: attachmentsBucket,
+            });
+            if (
+              persistedMessage !== undefined &&
+              messagePartsJsonBytes(persistedMessage.parts) > maxStoredMessagePartsBytes
+            ) {
+              return yield* new BadRequest({
+                message: "Message is too large to store",
+              });
+            }
             const revised = yield* ConversationDatabase.reviseConversationMessage({
               userId: user.id,
               conversationId: params.id,
               messageId: params.messageId,
-              parts: [...payload.parts],
+              parts: [...(persistedMessage?.parts ?? payload.parts)],
               threadId: payload.threadId,
             });
             if (!revised) {
