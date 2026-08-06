@@ -51,3 +51,13 @@ Feature: Real Worker chat
     Then the note "Real worker note" should be visible
     When they delete the note "Real worker note"
     Then the note "Real worker note" should not be visible
+
+  Scenario: Auto-compacts through the real Worker and persists the summary
+    Given a real worker guest with a token budget of 5 is on the chat page
+    When they send the message "Hello real worker" through the real worker
+    Then the assistant reply "Real worker reply" should be displayed
+    When they send the message "Second question" through the real worker
+    Then the compacted summary block should be visible
+    And the compacted summary block should contain "Real worker reply"
+    When they reload the chat page
+    Then the compacted summary block should be visible

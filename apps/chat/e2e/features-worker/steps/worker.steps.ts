@@ -7,25 +7,29 @@ const { Given, When, Then } = createBdd();
 
 const providerBaseUrl = "http://127.0.0.1:1399/v1";
 
-const installRealWorkerSettings = (page: Page) =>
-  page.addInitScript((baseUrl: string) => {
-    localStorage.setItem(
-      "emi-chat-settings",
-      JSON.stringify({
-        state: {
-          settings: {
-            provider: "openai",
-            baseUrl,
-            apiKey: "worker-test-key",
-            model: "gpt-4o-mini",
-            systemPrompt: "You are a test assistant.",
-            coachMode: false,
+const installRealWorkerSettings = (page: Page, tokenBudget?: number) =>
+  page.addInitScript(
+    ({ baseUrl, tokenBudget }) => {
+      localStorage.setItem(
+        "emi-chat-settings",
+        JSON.stringify({
+          state: {
+            settings: {
+              provider: "openai",
+              baseUrl,
+              apiKey: "worker-test-key",
+              model: "gpt-4o-mini",
+              systemPrompt: "You are a test assistant.",
+              coachMode: false,
+              tokenBudget,
+            },
           },
-        },
-        version: 0,
-      }),
-    );
-  }, providerBaseUrl);
+          version: 0,
+        }),
+      );
+    },
+    { baseUrl: providerBaseUrl, tokenBudget },
+  );
 
 const signInAsGuest = async (page: Page) => {
   await page.goto("/auth?next=%2Fchat");
@@ -39,6 +43,14 @@ Given("a real worker guest is on the chat page", async ({ page }) => {
   await installRealWorkerSettings(page);
   await signInAsGuest(page);
 });
+
+Given(
+  "a real worker guest with a token budget of {int} is on the chat page",
+  async ({ page }, budget: number) => {
+    await installRealWorkerSettings(page, budget);
+    await signInAsGuest(page);
+  },
+);
 
 Given("a real worker guest is on the chat page with a conversation", async ({ page }) => {
   await installRealWorkerSettings(page);
@@ -91,4 +103,8 @@ Then("the tool {string} should be displayed", async ({ page }, toolName: string)
 
 Then("the photo {string} should be displayed in the chat", async ({ page }, name: string) => {
   await expect(page.getByAltText(name)).toBeVisible();
+});
+
+Then("the compacted summary block should contain {string}", async ({ page }, text: string) => {
+  await expect(page.getByTestId("compacted-summary")).toContainText(text);
 });

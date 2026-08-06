@@ -1035,6 +1035,79 @@ Given(
   },
 );
 
+Given(
+  "a user is on session one with a focused branch and a token budget of {int}",
+  async ({ page }, budget: number) => {
+    await page.addInitScript((value: number) => {
+      localStorage.setItem("emi-healthfit:token-budget:one", String(value));
+    }, budget);
+    const messages: MockMessage[] = [
+      {
+        id: "one-user",
+        conversationId: "one",
+        parentId: null,
+        role: "user",
+        parts: [{ type: "text", text: "one message" }],
+        createdAt: "2026-07-14T10:00:00.000Z",
+      },
+      {
+        id: "one-assistant",
+        conversationId: "one",
+        parentId: null,
+        role: "assistant",
+        parts: [{ type: "text", text: "one message answer" }],
+        model: "gpt-5.6-terra",
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+        createdAt: "2026-07-14T10:01:00.000Z",
+      },
+      {
+        id: "branch-user",
+        conversationId: "one",
+        parentId: "one-assistant",
+        role: "user",
+        parts: [{ type: "text", text: "Branch question" }],
+        createdAt: "2026-07-15T09:00:00.000Z",
+      },
+      {
+        id: "branch-assistant",
+        conversationId: "one",
+        parentId: "branch-user",
+        role: "assistant",
+        parts: [{ type: "text", text: "Branch answer" }],
+        createdAt: "2026-07-15T09:01:00.000Z",
+      },
+    ];
+    const mock = createChatMock({
+      state: {
+        snapshots: {
+          one: sessionOneSnapshot({
+            messages,
+            threads: [
+              {
+                id: "branch-1",
+                conversation_id: "one",
+                anchor_message_id: "one-assistant",
+                title: "Branch",
+                status: "regular",
+                pinned: false,
+                message_ids: ["one-assistant", "branch-user", "branch-assistant"],
+                created_at: "2026-07-15T09:00:00.000Z",
+                updated_at: "2026-07-15T09:01:00.000Z",
+              },
+            ],
+          }),
+        },
+        chat: { persist: true, replyText: "Branch compacted reply" },
+      },
+    });
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+    await page.getByRole("button", { name: "Branch", exact: true }).click();
+    await expect(page.getByText("Branch question")).toBeVisible();
+  },
+);
+
 Then("the conversation usage should show it is over budget", async ({ page }) => {
   await page
     .getByText(/tokens/)
@@ -1048,7 +1121,19 @@ Then("the compacted summary block should be visible", async ({ page }) => {
   const block = page.getByTestId("compacted-summary");
   await expect(block).toBeVisible();
   await expect(block).toContainText("Context compacted");
-  await expect(block).toContainText("Prior workout notes.");
+});
+
+Then("the compacted summary block should not be visible", async ({ page }) => {
+  await expect(page.getByTestId("compacted-summary")).toHaveCount(0);
+});
+
+Then("there should be exactly one compacted summary block", async ({ page }) => {
+  await expect(page.getByTestId("compacted-summary")).toHaveCount(1);
+});
+
+Then("the branch should have been reloaded after compaction", async ({ page }) => {
+  const mock = getPageMock(page);
+  await expect.poll(() => mock.state.threadReadCalls).toBeGreaterThan(0);
 });
 
 Then("the message {string} should not be visible", async ({ page }, text: string) => {
@@ -1600,6 +1685,10 @@ When("they pin the branch {string}", async ({ page }, title: string) => {
 
 Then("the message {string} should be displayed", async ({ page }, text: string) => {
   await expect(page.getByText(text).first()).toBeVisible();
+});
+
+Then("the message {string} should be visible", async ({ page }, text: string) => {
+  await expect(page.getByText(text, { exact: true }).first()).toBeVisible();
 });
 
 Then("the message {string} should not be displayed", async ({ page }, text: string) => {

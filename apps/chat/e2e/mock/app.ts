@@ -158,6 +158,7 @@ export type MockApiState = {
     failStatus: number | null;
     thread: MockThread | null;
   };
+  threadReadCalls: number;
   createConversationId: string | null;
   hevy: {
     status: MockHevyStatus;
@@ -602,6 +603,24 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
     return json(context, { success: true });
   });
 
+  app.get("/api/threads/:id", (context) => {
+    const threadId = context.req.param("id");
+    for (const snapshot of Object.values(state.snapshots)) {
+      const thread = snapshot.threads.find((entry) => entry.id === threadId);
+      if (thread === undefined) continue;
+      state.threadReadCalls += 1;
+      const messages = snapshot.messages.filter((message) =>
+        thread.message_ids.includes(message.id),
+      );
+      const summary = snapshot.messages.findLast((message) => message.role === "summary");
+      return json(context, {
+        thread,
+        messages: summary === undefined ? messages : [...messages, summary],
+      });
+    }
+    return json(context, { error: "Thread not found" }, 404);
+  });
+
   app.get("/api/conversations/:id/messages", async (context) => {
     if (state.messagesGate !== null) await state.messagesGate;
     const id = context.req.param("id");
@@ -684,6 +703,7 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
       );
       if (storedTokens + incomingTokens > budget) {
         snapshot.messages = [
+          ...snapshot.messages,
           {
             id: `${sessionId}-summary-${state.chat.calls}`,
             conversationId: sessionId,
@@ -697,7 +717,6 @@ const registerRoutes = (app: Hono, state: MockApiState) => {
             ],
             createdAt: now,
           },
-          ...postMarkerRows.filter((message) => message.role !== "summary"),
         ];
         compacted = true;
       }
@@ -1046,6 +1065,7 @@ export const createMockApi = ({
       failStatus: partial?.fork?.failStatus ?? null,
       thread: partial?.fork?.thread ?? null,
     },
+    threadReadCalls: 0,
     hevy: {
       status: partial?.hevy?.status ?? disconnectedHevyStatus(),
       workouts: partial?.hevy?.workouts ?? [],
