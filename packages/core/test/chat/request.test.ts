@@ -104,4 +104,46 @@ describe("chat request", () => {
       /Too many attachments/,
     );
   });
+
+  it("rejects a single attachment above the per-file byte cap", () => {
+    const oversized = `data:image/jpeg;base64,${"A".repeat(Math.ceil((26 * 1024 * 1024 * 4) / 3))}`;
+    assert.match(
+      validateChatAttachments([
+        { parts: [{ type: "file", url: oversized, mediaType: "image/jpeg" }] },
+      ]) ?? "",
+      /One attachment is too large/,
+    );
+  });
+
+  it("accepts three realistic photos under the per-message total cap", () => {
+    const photo = `data:image/jpeg;base64,${"A".repeat(Math.ceil((2 * 1024 * 1024 * 4) / 3))}`;
+    assert.equal(
+      validateChatAttachments([
+        {
+          parts: Array.from({ length: 3 }, () => ({
+            type: "file",
+            url: photo,
+            mediaType: "image/jpeg",
+          })),
+        },
+      ]),
+      undefined,
+    );
+  });
+
+  it("rejects attachments that exceed the total per-message byte cap", () => {
+    const photo = `data:image/jpeg;base64,${"A".repeat(Math.ceil((26 * 1024 * 1024 * 4) / 3))}`;
+    assert.match(
+      validateChatAttachments([
+        {
+          parts: Array.from({ length: 2 }, () => ({
+            type: "file",
+            url: photo,
+            mediaType: "image/jpeg",
+          })),
+        },
+      ]) ?? "",
+      /too large in total/,
+    );
+  });
 });

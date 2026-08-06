@@ -106,6 +106,10 @@ export class Chat {
 
   static readonly attachments = {
     validateChatAttachments: ChatRequest.validateChatAttachments,
+    limits: {
+      maxAttachmentBytes: ChatRequest.maxAttachmentBytes,
+      maxTotalAttachmentBytesPerMessage: ChatRequest.maxTotalAttachmentBytesPerMessage,
+    },
   } as const;
 }
 

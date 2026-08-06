@@ -65,7 +65,8 @@ const AttachmentPart = Schema.Union([
     }),
   }),
 ]);
-const maxAttachmentBytes = 25 * 1024 * 1024;
+export const maxAttachmentBytes = 25 * 1024 * 1024;
+export const maxTotalAttachmentBytesPerMessage = 50 * 1024 * 1024;
 const maxAttachmentsPerMessage = 10;
 
 export const firstUserText = (
@@ -81,12 +82,25 @@ export const firstUserText = (
   return undefined;
 };
 
+const dataUrlPayloadBytes = (value: string): number => {
+  const commaIndex = value.indexOf(",");
+  const encoded = commaIndex === -1 ? value : value.slice(commaIndex + 1);
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  return Math.floor((encoded.length * 3) / 4) - padding;
+};
+
 const attachmentSize = (part: typeof AttachmentPart.Type): number => {
   if (part.type === "file" && "file" in part) {
-    return part.file.size ?? part.file.url.length;
+    return (
+      part.file.size ??
+      (part.file.url.startsWith("data:")
+        ? dataUrlPayloadBytes(part.file.url)
+        : part.file.url.length)
+    );
   }
-  if (part.type === "file") return part.data?.length ?? part.url?.length ?? 0;
-  return part.image?.length ?? 0;
+  const value = part.type === "file" ? (part.data ?? part.url) : part.image;
+  if (value === undefined) return 0;
+  return value.startsWith("data:") ? dataUrlPayloadBytes(value) : value.length;
 };
 
 export const validateChatAttachments = (
@@ -100,8 +114,14 @@ export const validateChatAttachments = (
     if (attachments.length > maxAttachmentsPerMessage) {
       return `Too many attachments. Maximum ${maxAttachmentsPerMessage} per message.`;
     }
-    if (attachments.some((attachment) => attachmentSize(attachment) > maxAttachmentBytes * 2)) {
+    if (attachments.some((attachment) => attachmentSize(attachment) > maxAttachmentBytes)) {
       return "One attachment is too large. Maximum size is 25 MB.";
+    }
+    if (
+      attachments.reduce((total, attachment) => total + attachmentSize(attachment), 0) >
+      maxTotalAttachmentBytesPerMessage
+    ) {
+      return "Attachments are too large in total. Maximum size is 50 MB per message.";
     }
   }
   return undefined;

@@ -1,6 +1,12 @@
 import { Content } from "@emi/core/contract";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import {
+  dataUrlPayloadBytes,
+  maxAttachmentBytes,
+  maxAttachmentsPerMessage,
+  maxTotalAttachmentBytesPerMessage,
+} from "./attachment-policy.ts";
 
 export const ChatStreamRequestSchema = Schema.Struct({
   messages: Schema.mutable(Schema.Array(Schema.Unknown)),
@@ -39,9 +45,6 @@ const AttachmentPart = Schema.Union([
   }),
   Schema.Struct({ type: Schema.Literal("image"), image: Schema.optional(Schema.String) }),
 ]);
-const maxAttachmentBytes = 25 * 1024 * 1024;
-const maxAttachmentsPerMessage = 10;
-
 export const getFirstUserText = (
   messages: Array<{ role: string; parts: unknown[] }>,
 ): string | undefined => {
@@ -56,8 +59,9 @@ export const getFirstUserText = (
 };
 
 const getAttachmentSize = (part: typeof AttachmentPart.Type): number => {
-  if (part.type === "file") return part.data?.length ?? part.url?.length ?? 0;
-  return part.image?.length ?? 0;
+  const value = part.type === "file" ? (part.data ?? part.url) : part.image;
+  if (value === undefined) return 0;
+  return value.startsWith("data:") ? dataUrlPayloadBytes(value) : value.length;
 };
 
 export const validateAttachments = (messages: Array<{ parts: unknown[] }>): string | undefined => {
@@ -70,9 +74,15 @@ export const validateAttachments = (messages: Array<{ parts: unknown[] }>): stri
       return `Too many attachments. Maximum ${maxAttachmentsPerMessage} per message.`;
     }
     for (const attachment of attachments) {
-      if (getAttachmentSize(attachment) > maxAttachmentBytes * 2) {
+      if (getAttachmentSize(attachment) > maxAttachmentBytes) {
         return "One attachment is too large. Maximum size is 25 MB.";
       }
+    }
+    if (
+      attachments.reduce((total, attachment) => total + getAttachmentSize(attachment), 0) >
+      maxTotalAttachmentBytesPerMessage
+    ) {
+      return "Attachments are too large in total. Maximum size is 50 MB per message.";
     }
   }
   return undefined;
