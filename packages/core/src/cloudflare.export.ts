@@ -46,6 +46,20 @@ import {
 import { makeGenericChatRoutes } from "./cloudflare/chat-routes.ts";
 import { ChatRouteApp } from "./cloudflare/chat-route-app.ts";
 import {
+  attachmentObjectIdsFromParts,
+  attachmentUrlPrefix,
+  deleteAttachmentObjectsEffect,
+  externalizeMessageAttachmentsEffect,
+  externalizePartsEffect,
+  handleAttachmentRead,
+  isValidAttachmentObjectId,
+  maxStoredMessagePartsBytes,
+  messagePartsJsonBytes,
+  resolveExternalizedAttachmentsEffect,
+  resolvePartsEffect,
+  type ReadWriteBucketClient,
+} from "./cloudflare/chat-attachment-storage.ts";
+import {
   CloudflareDatabase,
   type DatabaseRuntime as DatabaseRuntimeRecord,
   type CloudflareQueryDatabaseClient,
@@ -100,6 +114,20 @@ export class Cloudflare {
     ChatRouteApp,
     makeGenericChatRoutes,
   } as const;
+
+  static readonly attachments = {
+    attachmentObjectIdsFromParts,
+    attachmentUrlPrefix,
+    deleteAttachmentObjectsEffect,
+    externalizeMessageAttachmentsEffect,
+    externalizePartsEffect,
+    handleAttachmentRead,
+    isValidAttachmentObjectId,
+    maxStoredMessagePartsBytes,
+    messagePartsJsonBytes,
+    resolveExternalizedAttachmentsEffect,
+    resolvePartsEffect,
+  } as const;
 }
 
 export type {
@@ -110,6 +138,7 @@ export type {
   CloudflareQueryDatabaseClient,
   RawQueryDatabaseClient,
   RequestContext,
+  ReadWriteBucketClient,
 };
 
 export type DatabaseRuntime = DatabaseRuntimeRecord;

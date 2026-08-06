@@ -31,6 +31,13 @@ import type {
 } from "../server/ports/generation-store.ts";
 import type { MemoryReaderShape, MemorySummaryStoreShape } from "../server/ports/memory-store.ts";
 import { ChatRouteGeneration } from "./chat-route-generation.ts";
+import {
+  externalizePartsEffect,
+  maxStoredMessagePartsBytes,
+  messagePartsJsonBytes,
+  resolveExternalizedAttachmentsEffect,
+  type ReadWriteBucketClient,
+} from "./chat-attachment-storage.ts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -76,9 +83,11 @@ export class ChatRouteStream {
   static make({
     conversationDb,
     memoryDb,
+    attachmentsBucket,
   }: {
     readonly conversationDb: CloudflareQueryDatabaseClient<ConversationDatabaseSchema>;
     readonly memoryDb: CloudflareQueryDatabaseClient<MemoryDatabaseSchema>;
+    readonly attachmentsBucket?: ReadWriteBucketClient;
   }) {
     const conversationDatabaseLayer = ConversationDatabase.layer({ db: conversationDb });
     const generationDatabaseLayer = GenerationDatabase.layer({ db: conversationDb });
@@ -127,12 +136,20 @@ export class ChatRouteStream {
       }
 
       const protocolMessages = decoded.value.messages;
-      const messages = protocolMessages.map((message): UIMessage => {
+      const uiMessages = protocolMessages.map((message): UIMessage => {
         const uiMessage = ChatUiMessages.fromProtocolMessage(message);
         return uiMessage.role === "summary"
           ? { ...uiMessage, role: "system" }
           : { ...uiMessage, role: uiMessage.role };
       });
+      const messages =
+        attachmentsBucket === undefined
+          ? uiMessages
+          : yield* resolveExternalizedAttachmentsEffect({
+              userId: user.id,
+              messages: uiMessages,
+              bucket: attachmentsBucket,
+            });
 
       const temporary = decoded.value.temporary === true;
       const memoryEnabled = decoded.value.memory?.enabled !== false;
@@ -204,11 +221,27 @@ export class ChatRouteStream {
       }
 
       let revisionParentId = threadParentId;
+      const persistedUserParts =
+        lastMessage?.role === "user"
+          ? attachmentsBucket === undefined
+            ? [...lastMessage.parts]
+            : yield* externalizePartsEffect({
+                userId: user.id,
+                parts: [...lastMessage.parts],
+                bucket: attachmentsBucket,
+              })
+          : [];
+      if (messagePartsJsonBytes(persistedUserParts) > maxStoredMessagePartsBytes) {
+        return yield* HttpServerResponse.json(
+          { error: "Message is too large to store" },
+          { status: 400 },
+        );
+      }
       if (!temporary && decoded.value.replaceMessageId !== undefined && lastMessage !== undefined) {
         const revised = yield* conversationStore.messageStore.reviseMessage({
           conversationId,
           messageId: decoded.value.replaceMessageId,
-          parts: lastMessage.parts,
+          parts: persistedUserParts,
           threadId: existingThread?.id,
         });
         if (!revised) {
@@ -248,7 +281,7 @@ export class ChatRouteStream {
           const savedUserIds = yield* conversationStore.messageStore.saveMessages({
             conversationId,
             parentId: threadParentId,
-            messages: [{ id: lastMessage.id, role: "user", parts: [...lastMessage.parts] }],
+            messages: [{ id: lastMessage.id, role: "user", parts: persistedUserParts }],
           });
           assistantParentId = savedUserIds.at(-1) ?? threadParentId;
           if (existingThread !== null) {

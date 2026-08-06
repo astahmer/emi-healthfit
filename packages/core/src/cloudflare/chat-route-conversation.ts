@@ -6,6 +6,10 @@ import { MemoryDatabase } from "../server/db/memories.ts";
 import type { ConversationDatabaseSchema, MemoryDatabaseSchema } from "../server/db/schema.ts";
 import { ConversationStoreLive } from "../server/make-conversation-store.ts";
 import { makeRequestContext } from "../server/request-context.ts";
+import {
+  deleteAttachmentObjectsEffect,
+  type ReadWriteBucketClient,
+} from "./chat-attachment-storage.ts";
 import { ChatRouteSupport } from "./chat-route-support.ts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -19,9 +23,11 @@ export class ChatRouteConversation {
   static make({
     db,
     memoryDb,
+    attachmentsBucket,
   }: {
     readonly db: CloudflareQueryDatabaseClient<ConversationDatabaseSchema>;
     readonly memoryDb: CloudflareQueryDatabaseClient<MemoryDatabaseSchema>;
+    readonly attachmentsBucket?: ReadWriteBucketClient;
   }) {
     const databaseLayer = ConversationDatabase.layer({ db });
     const memoryDatabaseLayer = MemoryDatabase.layer({ db: memoryDb });
@@ -69,8 +75,8 @@ export class ChatRouteConversation {
         });
       }
       if (request.method === "DELETE") {
+        const messages = yield* store.messageStore.getMessages(conversationId);
         yield* Effect.gen(function* () {
-          const messages = yield* store.messageStore.getMessages(conversationId);
           const threads = yield* store.threadStore.list(conversationId);
           const memoryDatabase = yield* MemoryDatabase;
           yield* memoryDatabase.softDeleteMemories({
@@ -80,6 +86,20 @@ export class ChatRouteConversation {
           });
         }).pipe(Effect.provide(memoryDatabaseLayer));
         yield* store.conversationWriter.delete(conversationId);
+        if (attachmentsBucket !== undefined) {
+          yield* deleteAttachmentObjectsEffect({
+            userId: user.id,
+            bucket: attachmentsBucket,
+            messages,
+          }).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning("chat.attachments.delete-failed").pipe(
+                Effect.annotateLogs({ conversationId, error: String(error) }),
+                Effect.as(0),
+              ),
+            ),
+          );
+        }
         return yield* HttpServerResponse.json({ deleted: true });
       }
 
