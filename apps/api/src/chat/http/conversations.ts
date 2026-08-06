@@ -12,14 +12,10 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { HttpApiBuilder } from "effect/unstable/httpapi";
 import { Chat } from "@emi/core/chat";
+import { Cloudflare as CoreCloudflare, type ReadWriteBucketClient } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
-import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { decodeMessageParts, textFromMessageParts } from "./codecs.ts";
 import { withInternalError } from "../../platform/http/errors.ts";
-import {
-  externalizeMessageAttachmentsEffect,
-  type ReadWriteBucketClient,
-} from "../attachment-storage.ts";
 import { maxStoredMessagePartsBytes, messagePartsJsonBytes } from "../attachment-policy.ts";
 
 type Conversation = ServerDatabase.Conversation;
@@ -143,11 +139,12 @@ export const conversationsHandlers = ({
               return yield* new BadRequest({ message: validated.error.message });
             }
             const uiMessages = validated.data;
-            const persistedMessages = yield* externalizeMessageAttachmentsEffect({
-              userId: user.id,
-              messages: uiMessages,
-              bucket: attachmentsBucket,
-            });
+            const persistedMessages =
+              yield* CoreCloudflare.attachments.externalizeMessageAttachmentsEffect({
+                userId: user.id,
+                messages: uiMessages,
+                bucket: attachmentsBucket,
+              });
             if (
               persistedMessages.some(
                 (message) => messagePartsJsonBytes(message.parts) > maxStoredMessagePartsBytes,
@@ -201,6 +198,20 @@ export const conversationsHandlers = ({
               userId: user.id,
               conversationId: params.id,
             });
+            yield* CoreCloudflare.attachments
+              .deleteAttachmentObjectsEffect({
+                userId: user.id,
+                bucket: attachmentsBucket,
+                messages,
+              })
+              .pipe(
+                Effect.catch((error) =>
+                  Effect.logWarning("chat.attachments.delete-failed").pipe(
+                    Effect.annotateLogs({ conversationId: params.id, error: String(error) }),
+                    Effect.as(0),
+                  ),
+                ),
+              );
             return { success: true } as const;
           }, withInternalError),
         )
@@ -452,11 +463,12 @@ export const conversationsHandlers = ({
             if (!validated.success) {
               return yield* new BadRequest({ message: validated.error.message });
             }
-            const [persistedMessage] = yield* externalizeMessageAttachmentsEffect({
-              userId: user.id,
-              messages: validated.data,
-              bucket: attachmentsBucket,
-            });
+            const [persistedMessage] =
+              yield* CoreCloudflare.attachments.externalizeMessageAttachmentsEffect({
+                userId: user.id,
+                messages: validated.data,
+                bucket: attachmentsBucket,
+              });
             if (
               persistedMessage !== undefined &&
               messagePartsJsonBytes(persistedMessage.parts) > maxStoredMessagePartsBytes

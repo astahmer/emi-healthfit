@@ -5,6 +5,7 @@ import {
   type Note as ApiNote,
 } from "@emi/core/contract";
 import { HealthFitApi } from "@emi/flavor-healthfit/contract";
+import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -14,6 +15,7 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi";
 import { ServerDatabase } from "@emi/core/server/database";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import type { ReadWriteBucketClient } from "@emi/core/cloudflare";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "./platform/db/client.ts";
 import {
   conversationsHandlers,
@@ -31,7 +33,8 @@ import {
   workoutsHandlers,
 } from "./healthfit/http/data.ts";
 import { hevyHandlers } from "./healthfit/http/hevy.ts";
-import type { ReadWriteBucketClient } from "./chat/attachment-storage.ts";
+
+type ExportsBucketClient = Effect.Success<ReturnType<typeof Cloudflare.R2.ReadWriteBucket>>;
 
 const HttpApiHandler = Schema.Struct({
   routes: Schema.declare<Array<HttpRouter.Route<never, never>>>(Array.isArray),
@@ -241,7 +244,7 @@ export const registerHttpApi = Effect.fn("httpApi.register")(function* ({
   environment,
   router,
 }: {
-  bucket: ReadWriteBucketClient;
+  bucket: ExportsBucketClient;
   attachmentsBucket: ReadWriteBucketClient;
   db: QueryDatabaseClient;
   environment: Record<string, unknown>;

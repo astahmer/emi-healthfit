@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { prepareChatHistory } from "../src/chat/history.ts";
-import { attachmentUrlPrefix } from "../src/chat/attachment-storage.ts";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 import { makeFakeBucket } from "./fake-bucket.ts";
+
+const { attachmentUrlPrefix } = CoreCloudflare.attachments;
 
 const dataUrl = ({ bytes, mediaType = "image/jpeg" }: { bytes: number; mediaType?: string }) =>
   `data:${mediaType};base64,${"A".repeat(Math.ceil((bytes * 4) / 3))}`;

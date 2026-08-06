@@ -3,12 +3,14 @@ import { describe, it } from "node:test";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import type { UIMessage } from "ai";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { makeFakeBucket } from "./fake-bucket.ts";
-import {
+
+const {
   attachmentUrlPrefix,
   externalizeMessageAttachmentsEffect,
   resolveExternalizedAttachmentsEffect,
-} from "../src/chat/attachment-storage.ts";
+} = CoreCloudflare.attachments;
 
 const dataUrl = ({ bytes, mediaType = "image/jpeg" }: { bytes: number; mediaType?: string }) =>
   `data:${mediaType};base64,${"A".repeat(Math.ceil((bytes * 4) / 3))}`;

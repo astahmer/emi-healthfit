@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ReadWriteBucketClient } from "../src/chat/attachment-storage.ts";
+import type { ReadWriteBucketClient } from "@emi/core/cloudflare";
 
 export interface FakeStoredObject {
   readonly key: string;

@@ -1,4 +1,5 @@
 import { Chat } from "@emi/core/chat";
+import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 
 export const maxAttachmentBytes = Chat.attachments.limits.maxAttachmentBytes;
 export const maxTotalAttachmentBytesPerMessage =
@@ -6,9 +7,7 @@ export const maxTotalAttachmentBytesPerMessage =
 
 export const maxAttachmentsPerMessage = 10;
 
-// Cloudflare D1 caps a single stored string/blob at 2 MB; keep a safety margin
-// so persisted message JSON never trips SQLITE_TOOBIG.
-export const maxStoredMessagePartsBytes = 1_800_000;
+export const maxStoredMessagePartsBytes = CoreCloudflare.attachments.maxStoredMessagePartsBytes;
 
 export const dataUrlPayloadBytes = (value: string): number => {
   const commaIndex = value.indexOf(",");
@@ -17,5 +16,4 @@ export const dataUrlPayloadBytes = (value: string): number => {
   return Math.floor((encoded.length * 3) / 4) - padding;
 };
 
-export const messagePartsJsonBytes = (parts: readonly unknown[]): number =>
-  new TextEncoder().encode(JSON.stringify(parts)).byteLength;
+export const messagePartsJsonBytes = CoreCloudflare.attachments.messagePartsJsonBytes;

@@ -21,7 +21,6 @@ import {
   handleChatResume,
   handleConversationDiagnostics,
 } from "./chat/generation-lifecycle.ts";
-import { handleAttachmentRead } from "./chat/attachment-http.ts";
 import {
   handleIngest,
   handleIngestedDataExport,
@@ -190,7 +189,7 @@ export default Api.make(
           const params = yield* HttpRouter.params;
           return yield* cors({
             request,
-            effect: handleAttachmentRead({
+            effect: CoreCloudflare.attachments.handleAttachmentRead({
               bucket: attachmentsBucket,
               objectId: params.objectId ?? "",
             }),

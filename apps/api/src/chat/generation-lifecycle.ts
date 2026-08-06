@@ -11,6 +11,7 @@ import type { UIMessage } from "ai";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import type { ReadWriteBucketClient } from "@emi/core/cloudflare";
 import {
   createAiSdkChatStreamEffect as createChatStreamEffect,
   type AiSdkChatStreamRequest as ChatStreamRequest,
@@ -23,7 +24,6 @@ import { isRequestBodyTooLarge } from "../platform/http/request-body-limits.ts";
 import { persistGenerationStream } from "./stream-persistence.ts";
 import { ChatStreamRequestSchema, getFirstUserText } from "./request-codec.ts";
 import { prepareChatHistory } from "./history.ts";
-import type { ReadWriteBucketClient } from "./attachment-storage.ts";
 import { createChatToolExecutor } from "./tool-execution.ts";
 import { decodeJsonOption } from "../platform/json-codec.ts";
 import type { ChatLifecycleHooks } from "./hooks.ts";

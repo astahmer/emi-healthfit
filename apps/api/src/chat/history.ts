@@ -3,12 +3,8 @@ import * as Schema from "effect/Schema";
 import type { UIMessage } from "ai";
 import type { AiSdkChatStreamRequest as ChatStreamRequest } from "@emi/core/adapters/ai-sdk";
 import { Chat } from "@emi/core/chat";
+import { Cloudflare as CoreCloudflare, type ReadWriteBucketClient } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
-import {
-  externalizeMessageAttachmentsEffect,
-  resolveExternalizedAttachmentsEffect,
-  type ReadWriteBucketClient,
-} from "./attachment-storage.ts";
 import { maxStoredMessagePartsBytes, messagePartsJsonBytes } from "./attachment-policy.ts";
 import { decodeMessageParts } from "./http/codecs.ts";
 import { validateAttachments } from "./request-codec.ts";
@@ -237,7 +233,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   });
   const validatedExistingMessages =
     yield* Chat.messages.validateStoredUIMessagesEffect(storedMessages);
-  const existingMessages = yield* resolveExternalizedAttachmentsEffect({
+  const existingMessages = yield* CoreCloudflare.attachments.resolveExternalizedAttachmentsEffect({
     userId,
     messages: validatedExistingMessages,
     bucket,
@@ -286,11 +282,12 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
   if (!isTemporary) {
     const branchParentId =
       thread === null ? null : (existingRows.at(-1)?.id ?? thread.anchor_message_id);
-    const persistedIncomingMessages = yield* externalizeMessageAttachmentsEffect({
-      userId,
-      messages: incomingMessages,
-      bucket,
-    });
+    const persistedIncomingMessages =
+      yield* CoreCloudflare.attachments.externalizeMessageAttachmentsEffect({
+        userId,
+        messages: incomingMessages,
+        bucket,
+      });
     if (
       persistedIncomingMessages.some(
         (message) => messagePartsJsonBytes(message.parts) > maxStoredMessagePartsBytes,
