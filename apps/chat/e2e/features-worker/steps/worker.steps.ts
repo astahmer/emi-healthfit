@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { createBdd } from "playwright-bdd";
 import type { Page } from "@playwright/test";
 import { fixturePath } from "../../fixture-path.ts";
+import { openSessionActions } from "../../open-session-actions.ts";
 
 const { Given, When, Then } = createBdd();
 
@@ -116,6 +117,18 @@ Then(
 
 Then("{int} photos should be displayed in the chat", async ({ page }, count: number) => {
   await expect(page.locator('img[alt^="label-photo"]')).toHaveCount(count, { timeout: 10_000 });
+});
+
+Then("deleting the conversation removes its uploaded photos", async ({ page }) => {
+  const src = await page.locator('img[alt^="label-photo"]').first().getAttribute("src");
+  expect(src).toMatch(/^\/api\/attachments\//);
+  await openSessionActions(page, { href: new URL(page.url()).pathname });
+  await page.getByText("Supprimer", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await expect(page).toHaveURL(/\/chat\/?$/);
+  await expect
+    .poll(async () => (await page.request.get(src ?? "")).status(), { timeout: 10_000 })
+    .toBe(404);
 });
 
 Then("the compacted summary block should contain {string}", async ({ page }, text: string) => {

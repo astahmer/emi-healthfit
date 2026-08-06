@@ -33,3 +33,11 @@ test("boots authenticated chat through the real Worker and exposes safe app meta
   await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });
+
+test("protects and answers attachment reads through the real Worker", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Continue as guest" }).click();
+  await expect(page.getByRole("heading", { name: "How can I help?" })).toBeVisible();
+  const missing = await page.request.get("/api/attachments/not-a-real-object");
+  expect(missing.status()).toBe(404);
+});
