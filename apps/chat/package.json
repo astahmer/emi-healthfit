@@ -60,7 +60,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "esbuild": "catalog:",
-    "fake-indexeddb": "6.2.4",
+    "fake-indexeddb": "6.2.5",
     "hono": "catalog:",
     "jsdom": "catalog:",
     "oxfmt": "catalog:",

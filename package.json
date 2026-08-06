@@ -47,8 +47,8 @@
     "diagnose:session": "node --experimental-strip-types apps/api/scripts/diagnose-session.ts"
   },
   "devDependencies": {
+    "@ast-grep/cli": "0.45.0",
     "@effect/tsgo": "catalog:",
-    "@ast-grep/cli": "0.44.1",
     "knip": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",

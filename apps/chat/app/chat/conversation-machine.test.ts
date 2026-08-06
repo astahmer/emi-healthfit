@@ -279,12 +279,10 @@ describe("conversationMachine", () => {
           messages: [makeMessage()],
           threads: [makeThread()],
         })),
-        pinThread: fromPromise(
-          async (): Promise<{ threadId: string; pinned: boolean }> => ({
-            threadId: "thread-1",
-            pinned: true,
-          }),
-        ),
+        pinThread: fromPromise(async (): Promise<{ threadId: string; pinned: boolean }> => ({
+          threadId: "thread-1",
+          pinned: true,
+        })),
       },
     });
     const actor = createActor(machine, { input: { conversationId: "conv-1" } });
