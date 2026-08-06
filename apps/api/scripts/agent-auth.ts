@@ -5,9 +5,9 @@ import { z } from "zod";
 
 const workspaceRoot = resolve(import.meta.dirname, "../../..");
 const AgentResponse = z.object({
-  expiresAt: z.string().datetime(),
+  expiresAt: z.iso.datetime(),
   user: z.object({
-    email: z.string().email(),
+    email: z.email(),
     id: z.string().min(1),
     name: z.string().min(1),
   }),

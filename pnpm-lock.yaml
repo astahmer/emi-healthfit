@@ -175,8 +175,8 @@ catalogs:
       specifier: 5.32.5
       version: 5.32.5
     zod:
-      specifier: 3.25.76
-      version: 3.25.76
+      specifier: 4.4.3
+      version: 4.4.3
     zustand:
       specifier: 5.0.14
       version: 5.0.14
@@ -215,7 +215,7 @@ importers:
     dependencies:
       '@ai-sdk/openai':
         specifier: 'catalog:'
-        version: 4.0.30(zod@3.25.76)
+        version: 4.0.30(zod@4.4.3)
       '@emi/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -224,7 +224,7 @@ importers:
         version: link:../../packages/flavor-healthfit
       ai:
         specifier: 'catalog:'
-        version: 7.0.52(zod@3.25.76)
+        version: 7.0.52(zod@4.4.3)
       alchemy:
         specifier: 'catalog:'
         version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
@@ -245,7 +245,7 @@ importers:
         version: 0.4.0(kysely@0.29.4)
       zod:
         specifier: 'catalog:'
-        version: 3.25.76
+        version: 4.4.3
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
@@ -300,7 +300,7 @@ importers:
         version: 6.1.0(@types/react@19.2.18)(react@19.2.8)(xstate@5.32.5)
       ai:
         specifier: 'catalog:'
-        version: 7.0.52(zod@3.25.76)
+        version: 7.0.52(zod@4.4.3)
       better-auth:
         specifier: 'catalog:'
         version: 1.6.26(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
@@ -339,7 +339,7 @@ importers:
         version: 5.32.5
       zod:
         specifier: 'catalog:'
-        version: 3.25.76
+        version: 4.4.3
       zustand:
         specifier: 'catalog:'
         version: 5.0.14(@types/react@19.2.18)(immer@11.1.15)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
@@ -735,10 +735,10 @@ importers:
         version: link:../core
       '@json-render/core':
         specifier: 0.19.0
-        version: 0.19.0(zod@3.25.76)
+        version: 0.19.0(zod@4.4.3)
       '@json-render/react':
         specifier: 0.19.0
-        version: 0.19.0(react@19.2.8)(zod@3.25.76)
+        version: 0.19.0(react@19.2.8)(zod@4.4.3)
       alchemy:
         specifier: 'catalog:'
         version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
@@ -768,7 +768,7 @@ importers:
         version: 5.32.5
       zod:
         specifier: 'catalog:'
-        version: 3.25.76
+        version: 4.4.3
     devDependencies:
       '@tanstack/react-query':
         specifier: 'catalog:'
@@ -6835,9 +6835,6 @@ packages:
   youch@4.1.0-beta.10:
     resolution: {integrity: sha512-rLfVLB4FgQneDr0dv1oddCVZmKjcJ6yX6mS4pU82Mq/Dt9a3cLZQ62pDBL4AUO+uVrCvtWz3ZFUL2HFAFJ/BXQ==}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -6866,13 +6863,6 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
-  '@ai-sdk/gateway@4.0.41(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.5
-      '@ai-sdk/provider-utils': 5.0.21(zod@3.25.76)
-      '@vercel/oidc': 3.2.0
-      zod: 3.25.76
-
   '@ai-sdk/gateway@4.0.41(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.5
@@ -6880,26 +6870,11 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.4.3
 
-  '@ai-sdk/openai@4.0.30(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.5
-      '@ai-sdk/provider-utils': 5.0.21(zod@3.25.76)
-      zod: 3.25.76
-
   '@ai-sdk/openai@4.0.30(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.5
       '@ai-sdk/provider-utils': 5.0.21(zod@4.4.3)
       zod: 4.4.3
-
-  '@ai-sdk/provider-utils@5.0.21(zod@3.25.76)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.5
-      '@standard-schema/spec': 1.1.0
-      '@workflow/serde': 4.1.0
-      eventsource-parser: 3.1.0
-      undici: 7.29.0
-      zod: 3.25.76
 
   '@ai-sdk/provider-utils@5.0.21(zod@4.4.3)':
     dependencies:
@@ -8082,13 +8057,13 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@json-render/core@0.19.0(zod@3.25.76)':
+  '@json-render/core@0.19.0(zod@4.4.3)':
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
-  '@json-render/react@0.19.0(react@19.2.8)(zod@3.25.76)':
+  '@json-render/react@0.19.0(react@19.2.8)(zod@4.4.3)':
     dependencies:
-      '@json-render/core': 0.19.0(zod@3.25.76)
+      '@json-render/core': 0.19.0(zod@4.4.3)
       react: 19.2.8
     transitivePeerDependencies:
       - zod
@@ -9987,13 +9962,6 @@ snapshots:
       xstate: 5.32.5
     transitivePeerDependencies:
       - '@types/react'
-
-  ai@7.0.52(zod@3.25.76):
-    dependencies:
-      '@ai-sdk/gateway': 4.0.41(zod@3.25.76)
-      '@ai-sdk/provider': 4.0.5
-      '@ai-sdk/provider-utils': 5.0.21(zod@3.25.76)
-      zod: 3.25.76
 
   ai@7.0.52(zod@4.4.3):
     dependencies:
@@ -12624,8 +12592,6 @@ snapshots:
       '@speed-highlight/core': 1.2.23
       cookie: 1.1.1
       youch-core: 0.3.3
-
-  zod@3.25.76: {}
 
   zod@4.4.3: {}
 
