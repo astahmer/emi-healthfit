@@ -74,7 +74,7 @@ When("they send the message {string} through the real worker", async ({ page }, 
 When("they attach the photo {string} through the real worker", async ({ page }, name: string) => {
   await page.locator('input[type="file"]').setInputFiles(fixturePath(name));
   const basename = name.replace(/\.[^.]+$/, "");
-  await expect(page.getByText(new RegExp(basename))).toBeVisible();
+  await expect(page.getByText(new RegExp(basename)).first()).toBeVisible();
 });
 
 When("they reload the chat page", async ({ page }) => {
@@ -103,6 +103,19 @@ Then("the tool {string} should be displayed", async ({ page }, toolName: string)
 
 Then("the photo {string} should be displayed in the chat", async ({ page }, name: string) => {
   await expect(page.getByAltText(name)).toBeVisible();
+});
+
+Then(
+  "the assistant reply {string} should be displayed after the photo upload",
+  async ({ page }, text: string) => {
+    await expect(page.getByTestId("chat-thread-viewport").getByText(text).first()).toBeVisible({
+      timeout: 20_000,
+    });
+  },
+);
+
+Then("{int} photos should be displayed in the chat", async ({ page }, count: number) => {
+  await expect(page.locator('img[alt^="label-photo"]')).toHaveCount(count, { timeout: 10_000 });
 });
 
 Then("the compacted summary block should contain {string}", async ({ page }, text: string) => {

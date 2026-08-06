@@ -44,6 +44,25 @@ Feature: Real Worker chat
     And they send the message "What is in this photo?" through the real worker
     Then the assistant reply "Real worker reply" should be displayed
 
+  Scenario: Send three photos through the real Worker
+    Given a real worker guest is on the chat page
+    When they attach the photo "label-photo.png" through the real worker
+    And they attach the photo "label-photo.png" through the real worker
+    And they attach the photo "label-photo.png" through the real worker
+    And they send the message "What is in these photos?" through the real worker
+    Then the assistant reply "Real worker reply" should be displayed after the photo upload
+
+  Scenario: Reload keeps three persisted photos
+    Given a real worker guest is on the chat page
+    When they attach the photo "label-photo.png" through the real worker
+    And they attach the photo "label-photo.png" through the real worker
+    And they attach the photo "label-photo.png" through the real worker
+    And they send the message "What is in these photos?" through the real worker
+    Then the assistant reply "Real worker reply" should be displayed after the photo upload
+    When they reload the chat page
+    Then 3 photos should be displayed in the chat
+    And the assistant reply "Real worker reply" should be displayed
+
   Scenario: Notes persist through the real API
     Given a real worker guest is on the notes page
     When they add the note "Real worker note"

@@ -29,9 +29,9 @@ export const ComposerAttachments = ({ runtime }: { runtime: ChatRuntimeValue }) 
   <>
     {runtime.files.length > 0 && (
       <div className="flex flex-wrap gap-2 px-2 pb-2">
-        {runtime.files.map((file) => (
+        {runtime.files.map((file, index) => (
           <div
-            key={file.url}
+            key={`${file.url}-${index}`}
             className="flex max-w-56 items-center gap-2 rounded-md border bg-background p-1 text-xs"
           >
             {file.mediaType.startsWith("image/") && (
