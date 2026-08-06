@@ -116,4 +116,111 @@ describe("conversation client response boundaries", () => {
       "Anonymous session unavailable.",
     );
   });
+
+  it("collapses compacted conversation history into summary plus newer rows", async () => {
+    const client = createClient({
+      response: new Response(
+        JSON.stringify({
+          conversation: {
+            id: "conversation-1",
+            title: null,
+            status: "regular",
+            pinned: false,
+            createdAt: "2026-07-14T10:00:00.000Z",
+            updatedAt: "2026-07-14T10:00:00.000Z",
+          },
+          messages: [
+            {
+              id: "old-user",
+              parentId: null,
+              role: "user",
+              parts: JSON.stringify([{ type: "text", text: "Old question" }]),
+              model: null,
+              createdAt: "2026-07-14T10:00:00.000Z",
+            },
+            {
+              id: "old-assistant",
+              parentId: null,
+              role: "assistant",
+              parts: JSON.stringify([{ type: "text", text: "Old answer" }]),
+              model: null,
+              createdAt: "2026-07-14T10:01:00.000Z",
+            },
+            {
+              id: "summary-1",
+              parentId: null,
+              role: "summary",
+              parts: JSON.stringify([{ type: "text", text: "Compacted notes" }]),
+              model: null,
+              createdAt: "2026-07-20T00:00:00.000Z",
+            },
+            {
+              id: "new-user",
+              parentId: null,
+              role: "user",
+              parts: JSON.stringify([{ type: "text", text: "Follow up" }]),
+              model: null,
+              createdAt: "2026-07-20T00:01:00.000Z",
+            },
+          ],
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    });
+
+    const loaded = await client.loadConversation({ conversationId: "conversation-1" });
+    expect(loaded.messages.map((message) => message.id)).toEqual(["summary-1", "new-user"]);
+  });
+
+  it("keeps branch rows and the summary when loading a thread detail", async () => {
+    const client = createClient({
+      response: new Response(
+        JSON.stringify({
+          thread: {
+            id: "thread-1",
+            conversationId: "conversation-1",
+            anchorMessageId: "anchor",
+            title: "Branch",
+            status: "regular",
+            pinned: false,
+            createdAt: "2026-07-14T10:00:00.000Z",
+            updatedAt: "2026-07-14T10:00:00.000Z",
+          },
+          messages: [
+            {
+              id: "anchor",
+              parentId: null,
+              role: "user",
+              parts: JSON.stringify([{ type: "text", text: "Root question" }]),
+              model: null,
+              createdAt: "2026-07-14T10:00:00.000Z",
+            },
+            {
+              id: "branch-1",
+              parentId: "anchor",
+              role: "assistant",
+              parts: JSON.stringify([{ type: "text", text: "Branch answer" }]),
+              model: null,
+              createdAt: "2026-07-14T10:05:00.000Z",
+            },
+            {
+              id: "summary-1",
+              parentId: "branch-1",
+              role: "summary",
+              parts: JSON.stringify([{ type: "text", text: "Compacted notes" }]),
+              model: null,
+              createdAt: "2026-07-20T00:00:00.000Z",
+            },
+          ],
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    });
+
+    const loaded = await client.loadThread({
+      conversationId: "conversation-1",
+      threadId: "thread-1",
+    });
+    expect(loaded.messages.map((message) => message.id)).toEqual(["summary-1", "branch-1"]);
+  });
 });

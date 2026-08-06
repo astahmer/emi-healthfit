@@ -96,6 +96,7 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
     let historyKey: string | undefined;
     let historyController: AbortController | undefined;
     let historyScheduled = false;
+    let completedStream: { conversationId: string; message: ChatMessage } | undefined;
 
     const abortHistory = () => {
       historyController?.abort();
@@ -139,6 +140,7 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
       input.sendChatUi({ type: "queued-follow-up-edit-cleared" });
       input.sendConversationStore({ type: "threads-cleared" });
       session = { ...initialLifecycleSession(), temporary: route.temporary };
+      completedStream = undefined;
       isStreaming = false;
       abortHistory();
       historyKey = undefined;
@@ -189,10 +191,18 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
       }
       if (event.type === "conversation-compacted") {
         if (!route.temporary && !session.temporary) {
-          input.sendConversationStore({
-            type: "conversation-load-requested",
-            conversationId: event.conversationId,
-          });
+          if (route.threadId !== undefined && session.threadId === route.threadId) {
+            input.sendConversationStore({
+              type: "thread-load-requested",
+              conversationId: event.conversationId,
+              threadId: route.threadId,
+            });
+          } else {
+            input.sendConversationStore({
+              type: "conversation-load-requested",
+              conversationId: event.conversationId,
+            });
+          }
         }
         return;
       }
@@ -233,6 +243,7 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
         return;
       }
       if (event.type === "stream-started") {
+        completedStream = undefined;
         session = {
           ...session,
           messages: removeMessage({
@@ -248,6 +259,7 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
         return;
       }
       if (event.type === "stream-resumed") {
+        completedStream = undefined;
         session = {
           ...session,
           resumeMessageId:
@@ -274,6 +286,13 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
       }
       if (event.type === "stream-completed") {
         session.streamOutcome = "completed";
+        const message =
+          session.conversationId === undefined
+            ? undefined
+            : session.messages.find((candidate) => candidate.id === session.streamMessageId);
+        if (session.conversationId !== undefined && message !== undefined) {
+          completedStream = { conversationId: session.conversationId, message };
+        }
         return;
       }
       if (event.type === "stream-cancelled") {
@@ -287,24 +306,34 @@ const chatLifecycleOperations = fromCallback<ChatLifecycleActorEvent, ChatLifecy
       if (event.type !== "stream-finished") return;
       isStreaming = false;
       session.resumeMessageId = undefined;
+      const completed = completedStream;
       if (
-        session.streamOrigin === "send" &&
-        session.streamOutcome === "completed" &&
-        session.conversationId !== undefined &&
-        session.streamMessageId !== undefined
+        completed !== undefined ||
+        (session.streamOrigin === "send" &&
+          session.streamOutcome === "completed" &&
+          session.conversationId !== undefined &&
+          session.streamMessageId !== undefined)
       ) {
-        const message = session.messages.find(
-          (candidate) => candidate.id === session.streamMessageId && candidate.role === "assistant",
-        );
-        if (message !== undefined)
-          void Promise.resolve(
-            input.onStreamCompleted?.({
-              conversationId: session.conversationId,
-              message,
-              temporary: session.temporary,
-            }),
-          ).catch(() => undefined);
+        const message =
+          completed?.message ??
+          session.messages.find(
+            (candidate) =>
+              candidate.id === session.streamMessageId && candidate.role === "assistant",
+          );
+        if (message !== undefined) {
+          const conversationId = completed?.conversationId ?? session.conversationId;
+          if (conversationId !== undefined) {
+            void Promise.resolve(
+              input.onStreamCompleted?.({
+                conversationId,
+                message,
+                temporary: session.temporary,
+              }),
+            ).catch(() => undefined);
+          }
+        }
       }
+      completedStream = undefined;
       scheduleHistory();
     };
 

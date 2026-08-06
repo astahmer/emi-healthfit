@@ -26,9 +26,11 @@ const encoder = new TextEncoder();
 const streamResponse = ({
   chunks,
   conversationId,
+  compacted,
 }: {
   chunks: ReadonlyArray<Record<string, unknown>>;
   conversationId?: string;
+  compacted?: boolean;
 }): Response =>
   new Response(
     new ReadableStream<Uint8Array>({
@@ -40,7 +42,10 @@ const streamResponse = ({
       },
     }),
     {
-      headers: conversationId === undefined ? {} : { "x-conversation-id": conversationId },
+      headers: {
+        ...(conversationId === undefined ? {} : { "x-conversation-id": conversationId }),
+        ...(compacted === true ? { "x-conversation-compacted": "1" } : {}),
+      },
     },
   );
 
@@ -122,6 +127,55 @@ describe("chatTransportActor", () => {
       expect.objectContaining({ type: "text", text: "Hi there" }),
     );
     actor.stop();
+  });
+
+  it("emits conversation-compacted when the response carries the compaction header", async () => {
+    const { input, sessionEvents } = createInput({
+      fetch: async () =>
+        streamResponse({
+          chunks: assistantChunks({ text: "Compacted reply" }),
+          conversationId: "chat-1",
+          compacted: true,
+        }),
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({
+      type: "stream-send-requested",
+      request: { ...request, conversationId: "chat-1" },
+    });
+
+    await vi.waitFor(() => {
+      expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
+    });
+
+    expect(sessionEvents).toContainEqual({
+      type: "conversation-compacted",
+      conversationId: "chat-1",
+    });
+    expect(sessionEvents).toContainEqual({ type: "stream-completed" });
+  });
+
+  it("does not emit conversation-compacted without the compaction header", async () => {
+    const { input, sessionEvents } = createInput({
+      fetch: async () =>
+        streamResponse({
+          chunks: assistantChunks({ text: "Plain reply" }),
+          conversationId: "chat-1",
+        }),
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({
+      type: "stream-send-requested",
+      request: { ...request, conversationId: "chat-1" },
+    });
+
+    await vi.waitFor(() => {
+      expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
+    });
+
+    expect(sessionEvents.some((event) => event.type === "conversation-compacted")).toBe(false);
   });
 
   it("keeps transport-owned body fields protected from custom body collisions", async () => {

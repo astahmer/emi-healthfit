@@ -108,19 +108,18 @@ const toMessages = (
   values: ReadonlyArray<{
     id: string;
     conversationId: string;
+    parentId: string | null;
     role: "user" | "assistant" | "system" | "summary";
     parts: ChatMessage["parts"];
     createdAt: string;
     model?: string;
     usage?: ChatMessage["usage"];
   }>,
-): ChatMessage[] => {
-  const messages = values.flatMap((value) => {
+): ChatMessage[] =>
+  Chat.messages.collapseCompactedMessages(values).flatMap((value) => {
     const message = toMessage(value);
     return message === undefined ? [] : [message];
   });
-  return Chat.messages.collapseCompactedMessages(messages);
-};
 
 const toMemory = (value: {
   id: string;

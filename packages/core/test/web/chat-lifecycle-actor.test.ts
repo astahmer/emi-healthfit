@@ -114,4 +114,136 @@ describe("chat lifecycle actor", () => {
     expect(state.history).toEqual(["conversation-new"]);
     actor.stop();
   });
+
+  it("reloads the focused thread when a compaction is signalled", async () => {
+    const state = input();
+    const actor = createActor(chatLifecycleActor, { input: state.result }).start();
+    await tick();
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-1",
+        threadId: "thread-1",
+        temporary: false,
+      },
+    });
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-opened", conversationId: "conversation-1", messages: [] },
+    });
+    actor.send({
+      type: "session-event",
+      event: { type: "thread-opened", threadId: "thread-1", messages: [] },
+    });
+    state.conversationCommands.length = 0;
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-compacted", conversationId: "conversation-1" },
+    });
+    await tick();
+
+    expect(state.conversationCommands).toContainEqual({
+      type: "thread-load-requested",
+      conversationId: "conversation-1",
+      threadId: "thread-1",
+    });
+    expect(
+      state.conversationCommands.some((command) => command.type === "conversation-load-requested"),
+    ).toBe(false);
+    actor.stop();
+  });
+
+  it("reloads the whole conversation when no thread is focused", async () => {
+    const state = input();
+    const actor = createActor(chatLifecycleActor, { input: state.result }).start();
+    await tick();
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-1",
+        threadId: undefined,
+        temporary: false,
+      },
+    });
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-opened", conversationId: "conversation-1", messages: [] },
+    });
+    state.conversationCommands.length = 0;
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-compacted", conversationId: "conversation-1" },
+    });
+    await tick();
+
+    expect(state.conversationCommands).toContainEqual({
+      type: "conversation-load-requested",
+      conversationId: "conversation-1",
+    });
+    actor.stop();
+  });
+
+  it("ignores compaction signals in temporary routes", async () => {
+    const state = input();
+    const actor = createActor(chatLifecycleActor, { input: state.result }).start();
+    await tick();
+    actor.send({
+      type: "route-sync-requested",
+      route: { historyReady: true, sessionId: undefined, threadId: undefined, temporary: true },
+    });
+    state.conversationCommands.length = 0;
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-compacted", conversationId: "conversation-1" },
+    });
+    await tick();
+
+    expect(state.conversationCommands).toEqual([]);
+    actor.stop();
+  });
+
+  it("completes stream callbacks even when the session is reloaded mid-stream", async () => {
+    const state = input();
+    const actor = createActor(chatLifecycleActor, { input: state.result }).start();
+    await tick();
+    actor.send({
+      type: "route-sync-requested",
+      route: {
+        historyReady: true,
+        sessionId: "conversation-1",
+        threadId: undefined,
+        temporary: false,
+      },
+    });
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-identified", conversationId: "conversation-1" },
+    });
+    actor.send({
+      type: "session-event",
+      event: {
+        type: "stream-started",
+        messages: [message({ id: "user-1", role: "user" })],
+      },
+    });
+    actor.send({
+      type: "session-event",
+      event: {
+        type: "stream-message",
+        message: message({ id: "assistant-1", role: "assistant" }),
+      },
+    });
+    actor.send({ type: "session-event", event: { type: "stream-completed" } });
+    actor.send({
+      type: "session-event",
+      event: { type: "conversation-opened", conversationId: "conversation-1", messages: [] },
+    });
+    actor.send({ type: "session-event", event: { type: "stream-finished" } });
+    await tick();
+
+    expect(state.completed).toEqual(["conversation-1"]);
+    actor.stop();
+  });
 });

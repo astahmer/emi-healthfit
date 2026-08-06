@@ -1,17 +1,22 @@
-export const collapseCompactedMessages = <Message extends { role: string; createdAt: string }>(
+export const collapseCompactedMessages = <
+  Message extends { role: string; createdAt: string; parentId?: string | null },
+>(
   messages: ReadonlyArray<Message>,
 ): Message[] => {
-  const marker = messages
-    .filter((message) => message.role === "summary")
-    .toSorted((left, right) => left.createdAt.localeCompare(right.createdAt))
-    .at(-1);
+  const markerIndex = messages.findLastIndex((message) => message.role === "summary");
+  if (markerIndex === -1) return [...messages];
+  const marker = messages[markerIndex];
   if (marker === undefined) return [...messages];
   return [
     marker,
     ...messages
       .filter(
         (message) =>
-          message !== marker && message.role !== "summary" && message.createdAt > marker.createdAt,
+          message !== marker &&
+          message.role !== "summary" &&
+          (message.parentId === null || message.parentId === undefined
+            ? messages.indexOf(message) > markerIndex
+            : true),
       )
       .toSorted((left, right) => left.createdAt.localeCompare(right.createdAt)),
   ];

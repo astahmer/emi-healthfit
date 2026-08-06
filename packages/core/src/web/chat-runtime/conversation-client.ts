@@ -21,6 +21,7 @@ const ConversationSchema = Schema.Struct({
 const ConversationListSchema = Schema.Struct({ conversations: Schema.Array(ConversationSchema) });
 const ConversationMessageSchema = Schema.Struct({
   id: Schema.String,
+  parentId: Schema.optional(Schema.NullOr(Schema.String)),
   role: ChatProtocol.schemas.messageRole,
   parts: Schema.String,
   model: Schema.NullOr(Schema.String),
@@ -94,8 +95,9 @@ const pathSegment = (value: string): string => encodeURIComponent(value);
 const decodeMessages = async (
   values: ReadonlyArray<typeof ConversationMessageSchema.Type>,
 ): Promise<ChatMessage[]> => {
+  const collapsed = collapseCompactedMessages(values);
   const decoded = await Promise.all(
-    values.map(async (message): Promise<ChatMessage | undefined> => {
+    collapsed.map(async (message): Promise<ChatMessage | undefined> => {
       try {
         return await Effect.runPromise(
           Schema.decodeUnknownEffect(
@@ -117,9 +119,7 @@ const decodeMessages = async (
       }
     }),
   );
-  return collapseCompactedMessages(
-    decoded.filter((message): message is ChatMessage => message !== undefined),
-  );
+  return decoded.filter((message): message is ChatMessage => message !== undefined);
 };
 
 export interface ConversationClient {

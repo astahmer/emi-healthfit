@@ -108,6 +108,7 @@ export class ChatRouteSupport {
     id: string;
     role: string;
     parts: string;
+    parent_id: string | null;
     model: string | null;
     created_at: string;
   }) {
@@ -115,6 +116,7 @@ export class ChatRouteSupport {
       id: message.id,
       role: message.role,
       parts: message.parts,
+      parentId: message.parent_id,
       model: message.model,
       createdAt: message.created_at,
     };
