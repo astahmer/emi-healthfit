@@ -1,5 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,7 +23,9 @@ const fixture = async (name) =>
   readFile(join(repositoryRoot, "anti-slop/tests/oxlint", name), "utf8");
 
 const main = async () => {
-  const temporaryRoot = await mkdtemp(join(repositoryRoot, "antislop-oxlint-check-"));
+  // Fixtures live outside the repository so oxlint still lints them (it skips
+  // gitignored paths) without ever showing up in the JJ working copy.
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "antislop-oxlint-"));
   try {
     const coreDirectory = join(temporaryRoot, "packages/core/src");
     const validAbstractPath = join(coreDirectory, "valid-domain.ts");
