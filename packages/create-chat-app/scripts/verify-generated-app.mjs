@@ -126,15 +126,15 @@ try {
   let web;
   try {
     worker = startServer({
-      command: "pnpm",
-      args: ["--dir", "worker", "dev", "--stage", alchemyStage],
-      cwd: targetDirectory,
+      command: join(targetDirectory, "worker/node_modules/.bin/alchemy"),
+      args: ["dev", "--stage", alchemyStage],
+      cwd: join(targetDirectory, "worker"),
       env: workerEnvironment,
     });
     web = startServer({
-      command: "pnpm",
-      args: ["--dir", "web", "dev", "--host", "127.0.0.1"],
-      cwd: targetDirectory,
+      command: join(targetDirectory, "web/node_modules/.bin/vite"),
+      args: ["--port", "3233", "--host", "127.0.0.1"],
+      cwd: join(targetDirectory, "web"),
       env: {
         VITE_WEBMCP_ENABLED: "true",
         VITE_WORKER_ORIGIN: "http://127.0.0.1:8787",

@@ -85,9 +85,9 @@ const createEnvironmentFile = async () => {
   return { environmentFile, temporaryDirectory };
 };
 
-const spawnProcess = ({ command, arguments: commandArguments, environment }) =>
+const spawnProcess = ({ command, arguments: commandArguments, environment, cwd = rootDirectory }) =>
   spawn(command, commandArguments, {
-    cwd: rootDirectory,
+    cwd,
     env: { ...process.env, ...environment },
     stdio: "inherit",
     detached: true,
@@ -162,19 +162,21 @@ const run = async () => {
     await waitForStatus({ url: `${providerUrl}/health`, timeoutMs: 30_000 });
 
     api = spawnProcess({
-      command: "pnpm",
-      arguments: ["--dir", "apps/api", "alchemy", "dev", "--env-file", environmentFile],
+      command: process.execPath,
+      arguments: ["scripts/run-alchemy.mjs", "dev", "--env-file", environmentFile],
       environment: { EMI_API_DEV_PORT: apiPort },
+      cwd: join(rootDirectory, "apps/api"),
     });
     await waitForStatus({ url: `${apiUrl}/api/auth/get-session` });
 
     web = spawnProcess({
-      command: "pnpm",
-      arguments: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1", "--port", webPort],
+      command: join(rootDirectory, "apps/chat/node_modules/.bin/vite"),
+      arguments: ["--host", "127.0.0.1", "--port", webPort],
       environment: {
         API_BASE_URL: apiUrl,
         PORT: webPort,
       },
+      cwd: join(rootDirectory, "apps/chat"),
     });
     await waitForStatus({ url: `${webUrl}/auth` });
 
