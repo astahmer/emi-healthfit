@@ -113,3 +113,37 @@ and configurable as a default in Settings; `0` disables it (already shipped).
 
 Remote-synced budgets, auto-compact triggered while just viewing, cost display changes, physically
 deleting old rows, per-model context limits.
+
+## Shipped (2026-08-06)
+
+Implemented end-to-end. Deviations from the recommended design, with justification:
+
+- **No compaction marker column / no Drizzle migration.** The latest `summary` row is the marker:
+  it is inserted at the compaction point, so `created_at > latest summary` already identifies
+  post-compaction rows. A nullable `compacted_before_message_id` column would duplicate that
+  state and drift. `history.ts` filters pre-marker rows, maps the latest summary to a system
+  message, and (for threads) collapses to `summary + branch rows`.
+- **Repeated compactions regenerate the summary over all non-summary rows**, superseding older
+  summaries, so rows between the old and new marker are never lost from context.
+- **Client reload via response header.** `prepareChatHistory` returns `compacted`; the stream
+  response carries `x-conversation-compacted`; the core transport emits a
+  `conversation-compacted` session event and the lifecycle actor reloads the conversation from
+  the store. This makes the summary block appear without a manual refresh.
+- **Client-side collapse.** The messages endpoint still returns every row; the client collapses
+  pre-marker rows through `Chat.messages.collapseCompactedMessages` in all three decode paths
+  (`conversations.ts`, `healthfit-chat-adapter`, core `conversation-client`). Old rows stay in
+  D1.
+- **The "Compacted context" top aside was removed** in favor of the in-flow collapsible block
+  (both rendered the same text for compacted conversations). `compactedSummary` plumbing in
+  `page.tsx`/`chat-page-content.tsx`/`thread.tsx`/`thread-message-list.tsx` was dropped.
+- **Trigger scope:** compaction runs for new sends only (not `replaceMessageId` revisions), and
+  never blocks the request — summary-generation failure logs and proceeds uncompacted.
+- **Known tradeoffs (v1):** a focused thread resets to the root conversation view after an
+  auto-compact reload; a 409-generation conflict can still insert a summary row because the
+  trigger runs in `prepareChatHistory` before the conflict check; memory extraction
+  (`onStreamCompleted`) may be skipped on the compacting send because the session is reloaded.
+
+Acceptance coverage: API SQLite integration tests in `apps/api/test/chat-history.integration.test.ts`
+(over-budget summary + provider payload, under-budget unchanged, budget `0` no-op, stacked
+compactions, thread collapse), codec contract tests, unit tests for the collapsible block and the
+collapse helper, and a mock-mode Playwright scenario in `usage.feature`.
