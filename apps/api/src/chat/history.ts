@@ -29,9 +29,11 @@ const estimateIncomingTokens = (messages: ReadonlyArray<UIMessage>): number =>
     0,
   );
 
-const latestSummaryRow = (
-  rows: ReadonlyArray<ServerDatabase.Message>,
-): ServerDatabase.Message | undefined => rows.filter((row) => row.role === "summary").at(-1);
+const latestSummaryIndex = (rows: ReadonlyArray<ServerDatabase.Message>): number =>
+  rows.findLastIndex((row) => row.role === "summary");
+
+const rowIndexById = (rows: ReadonlyArray<ServerDatabase.Message>, rowId: string): number =>
+  rows.findIndex((row) => row.id === rowId);
 
 const storedUsageTokens = (rows: ReadonlyArray<ServerDatabase.Message>): number =>
   rows.reduce(
@@ -55,11 +57,11 @@ const autoCompactOverBudgetEffect = Effect.fn("chatHistory.autoCompact")(functio
   configuration: ChatStreamRequest["config"];
 }) {
   const database = yield* ServerDatabase.conversations;
-  const marker = latestSummaryRow(rows);
+  const markerIndex = latestSummaryIndex(rows);
   const activeRows =
-    marker === undefined
+    markerIndex < 0
       ? rows.filter((row) => row.role !== "summary")
-      : rows.filter((row) => row.role !== "summary" && row.created_at > marker.created_at);
+      : rows.slice(markerIndex + 1).filter((row) => row.role !== "summary");
   if (storedUsageTokens(activeRows) + estimateIncomingTokens(incomingMessages) <= budget) {
     return { compacted: false, rows };
   }
@@ -164,7 +166,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
             threadId: thread.id,
           });
           const anchor = conversationRows.find((row) => row.id === thread.anchor_message_id);
-          const marker = latestSummaryRow(conversationRows);
+          const markerIndex = latestSummaryIndex(conversationRows);
           const contextRows =
             anchor === undefined
               ? []
@@ -172,16 +174,23 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
                   (row) =>
                     row.parent_id === null &&
                     row.created_at <= anchor.created_at &&
-                    (marker === undefined || row.created_at > marker.created_at),
+                    (markerIndex < 0 || rowIndexById(conversationRows, row.id) > markerIndex),
                 );
           const mergedRows = [
             ...new Map([...contextRows, ...branchRows].map((row) => [row.id, row])).values(),
           ]
-            .filter((row) => marker === undefined || row.created_at > marker.created_at)
+            .filter(
+              (row) =>
+                row.parent_id !== null ||
+                markerIndex < 0 ||
+                rowIndexById(conversationRows, row.id) > markerIndex,
+            )
             .toSorted((left, right) => left.created_at.localeCompare(right.created_at));
-          return [...(marker === undefined ? [] : [marker]), ...mergedRows];
+          return [...(markerIndex < 0 ? [] : [conversationRows[markerIndex]]), ...mergedRows];
         });
-  const summaryMarker = latestSummaryRow(existingRows);
+  const summaryMarker = existingRows.findLast((row) => row.role === "summary");
+  const preMarkerCount =
+    summaryMarker === undefined ? 0 : rowIndexById(existingRows, summaryMarker.id);
   const storedMessages = existingRows.flatMap((row) => {
     if (row.role === "summary") {
       return row.id === summaryMarker?.id
@@ -201,7 +210,7 @@ export const prepareChatHistory = Effect.fn("chatHistory.prepare")(function* ({
     if (
       thread === null &&
       summaryMarker !== undefined &&
-      row.created_at <= summaryMarker.created_at
+      rowIndexById(existingRows, row.id) < preMarkerCount
     ) {
       return [];
     }

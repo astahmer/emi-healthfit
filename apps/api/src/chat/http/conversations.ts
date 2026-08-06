@@ -466,7 +466,13 @@ export const threadsHandlers = () => {
               userId: user.id,
               threadId: params.id,
             });
-            return { thread: toApiThread(thread), messages: rows.map(rowToMessage) };
+            const conversationRows = yield* ConversationDatabase.getConversationMessages({
+              userId: user.id,
+              conversationId: thread.conversation_id,
+            });
+            const latestSummary = conversationRows.filter((row) => row.role === "summary").at(-1);
+            const messages = latestSummary === undefined ? rows : [...rows, latestSummary];
+            return { thread: toApiThread(thread), messages: messages.map(rowToMessage) };
           }, withInternalError),
         )
         .handle(

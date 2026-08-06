@@ -324,68 +324,10 @@ export const handleAiSdkChat = (
       }
     }
 
-    const preparedHistory = yield* prepareChatHistory({
-      userId: user.id,
-      chatRequest,
-      sessionId,
-      isTemporary,
-      tools: hooks.tools ?? [],
-    });
-    if ("error" in preparedHistory) {
-      return yield* HttpServerResponse.json(
-        { error: preparedHistory.error },
-        { status: preparedHistory.status },
-      );
-    }
-    const {
-      thread,
-      requestWithHistory,
-      incomingMessages,
-      lastIncomingMessageId,
-      isInitialContext,
-      compacted,
-    } = preparedHistory;
-
-    const memorySummary = isInitialContext
-      ? yield* ServerDatabase.memoryContext
-          .loadEffect({
-            userId: user.id,
-            configuration: chatRequest.config,
-          })
-          .pipe(Effect.provide(Layer.succeed(ServerDatabase.memories, memoryDatabase)))
-          .pipe(Effect.catch(() => Effect.succeed(undefined)))
-      : undefined;
-
     const executionContext = isTemporary
       ? undefined
       : yield* Cloudflare.Workers.WorkerExecutionContext;
     const generationId = crypto.randomUUID();
-    const budget = Chat.operations.createChatOperationBudget();
-    if (hooks.beforeChat !== undefined) {
-      yield* hooks.beforeChat({ db, userId: user.id, environment });
-    }
-
-    const executeTool =
-      hooks.executeTool ??
-      (({ name }): Effect.Effect<unknown, NoChatToolExecutorError> =>
-        Effect.fail(
-          new NoChatToolExecutorError({ message: `No tool executor registered for ${name}` }),
-        ));
-    const { recordEvent, executeToolWithServices } = createChatToolExecutor({
-      db,
-      generationDatabase,
-      userId: user.id,
-      sessionId,
-      generationId,
-      requestId,
-      traceId,
-      isTemporary,
-      apiKey,
-      baseUrl: chatRequest.config.baseUrl,
-      model: chatRequest.config.model,
-      executeTool,
-      budget,
-    });
 
     if (!isTemporary) {
       const cancelledGenerations = yield* generationDatabase.cancelRunningGenerations({
@@ -438,6 +380,78 @@ export const handleAiSdkChat = (
           { status: 409 },
         );
       }
+    }
+
+    const preparedHistory = yield* prepareChatHistory({
+      userId: user.id,
+      chatRequest,
+      sessionId,
+      isTemporary,
+      tools: hooks.tools ?? [],
+    });
+    if ("error" in preparedHistory) {
+      if (!isTemporary) {
+        yield* generationDatabase
+          .finishGeneration({
+            userId: user.id,
+            generationId,
+            status: "failed",
+            error: preparedHistory.error,
+          })
+          .pipe(Effect.catch(() => Effect.void));
+      }
+      return yield* HttpServerResponse.json(
+        { error: preparedHistory.error },
+        { status: preparedHistory.status },
+      );
+    }
+    const {
+      thread,
+      requestWithHistory,
+      incomingMessages,
+      lastIncomingMessageId,
+      isInitialContext,
+      compacted,
+    } = preparedHistory;
+
+    const memorySummary = isInitialContext
+      ? yield* ServerDatabase.memoryContext
+          .loadEffect({
+            userId: user.id,
+            configuration: chatRequest.config,
+          })
+          .pipe(Effect.provide(Layer.succeed(ServerDatabase.memories, memoryDatabase)))
+          .pipe(Effect.catch(() => Effect.succeed(undefined)))
+      : undefined;
+
+    const budget = Chat.operations.createChatOperationBudget();
+    if (hooks.beforeChat !== undefined) {
+      yield* hooks.beforeChat({ db, userId: user.id, environment });
+    }
+
+    const executeTool =
+      hooks.executeTool ??
+      (({ name }): Effect.Effect<unknown, NoChatToolExecutorError> =>
+        Effect.fail(
+          new NoChatToolExecutorError({ message: `No tool executor registered for ${name}` }),
+        ));
+    const { recordEvent, executeToolWithServices } = createChatToolExecutor({
+      db,
+      generationDatabase,
+      userId: user.id,
+      sessionId,
+      generationId,
+      requestId,
+      traceId,
+      isTemporary,
+      apiKey,
+      baseUrl: chatRequest.config.baseUrl,
+      model: chatRequest.config.model,
+      executeTool,
+      budget,
+    });
+
+    if (!isTemporary) {
       yield* recordEvent("generation.created", { threadId: chatRequest.threadId ?? null });
     }
 

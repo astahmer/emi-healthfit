@@ -530,7 +530,399 @@ describe("chat history SQLite integration", () => {
       assert.equal(history.compacted, true);
       assert.deepEqual(
         history.requestWithHistory.messages.map((message) => message.role),
+        ["system", "assistant", "user"],
+      );
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("proceeds without compacting when summary generation fails", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "Expensive reply" }],
+            usage: { prompt_tokens: 5000, completion_tokens: 5000, total_tokens: 10000 },
+          },
+        ],
+      }),
+    );
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("provider unavailable");
+    }) as typeof fetch;
+    try {
+      const history = await run(
+        prepareChatHistory({
+          userId,
+          sessionId: conversationId,
+          isTemporary: false,
+          chatRequest: {
+            messages: [{ id: "incoming-7", role: "user", parts: [{ type: "text", text: "More" }] }],
+            config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+            tokenBudget: 1,
+          },
+        }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+      );
+
+      assert.equal("error" in history, false);
+      if ("error" in history) return;
+      assert.equal(history.compacted, false);
+      assert.deepEqual(
+        history.requestWithHistory.messages.map((message) => message.role),
+        ["assistant", "user"],
+      );
+      const rows = await run(
+        conversationDatabase.getConversationMessages({ userId, conversationId }),
+      );
+      assert.equal(rows.filter((row) => row.role === "summary").length, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("does not compact when the stored usage plus the incoming message sits exactly on the budget", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "Fourteen character text" }],
+            usage: { prompt_tokens: 100, completion_tokens: 0, total_tokens: 100 },
+          },
+        ],
+      }),
+    );
+
+    const history = await run(
+      prepareChatHistory({
+        userId,
+        sessionId: conversationId,
+        isTemporary: false,
+        chatRequest: {
+          messages: [
+            // 8 characters -> 2 estimated tokens, stored 100 + 2 = 102 <= 102
+            { id: "incoming-8", role: "user", parts: [{ type: "text", text: "12345678" }] },
+          ],
+          config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+          tokenBudget: 102,
+        },
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+
+    assert.equal("error" in history, false);
+    if ("error" in history) return;
+    assert.equal(history.compacted, false);
+    const rows = await run(
+      conversationDatabase.getConversationMessages({ userId, conversationId }),
+    );
+    assert.equal(rows.filter((row) => row.role === "summary").length, 0);
+  });
+
+  it("compacts as soon as the stored usage plus the incoming message exceeds the budget", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "assistant",
+            parts: [{ type: "text", text: "Fourteen character text" }],
+            usage: { prompt_tokens: 100, completion_tokens: 0, total_tokens: 100 },
+          },
+        ],
+      }),
+    );
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = summaryProviderResponse as typeof fetch;
+    try {
+      const history = await run(
+        prepareChatHistory({
+          userId,
+          sessionId: conversationId,
+          isTemporary: false,
+          chatRequest: {
+            messages: [
+              // 9 characters -> 3 estimated tokens, stored 100 + 3 = 103 > 102
+              { id: "incoming-9", role: "user", parts: [{ type: "text", text: "123456789" }] },
+            ],
+            config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+            tokenBudget: 102,
+          },
+        }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+      );
+
+      assert.equal("error" in history, false);
+      if ("error" in history) return;
+      assert.equal(history.compacted, true);
+      const rows = await run(
+        conversationDatabase.getConversationMessages({ userId, conversationId }),
+      );
+      assert.equal(rows.filter((row) => row.role === "summary").length, 1);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("falls back to a text estimate when stored usage tokens are missing", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "assistant",
+            // 200 characters -> 50 estimated tokens
+            parts: [{ type: "text", text: "x".repeat(200) }],
+          },
+        ],
+      }),
+    );
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = summaryProviderResponse as typeof fetch;
+    try {
+      const history = await run(
+        prepareChatHistory({
+          userId,
+          sessionId: conversationId,
+          isTemporary: false,
+          chatRequest: {
+            messages: [{ id: "incoming-10", role: "user", parts: [{ type: "text", text: "Hi" }] }],
+            config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+            tokenBudget: 50,
+          },
+        }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+      );
+
+      assert.equal("error" in history, false);
+      if ("error" in history) return;
+      assert.equal(history.compacted, true);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("never compacts a conversation that only contains summary rows", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "summary",
+            parts: [
+              {
+                type: "text",
+                text: "Use this compacted summary of the previous conversation as context:\nNotes",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = summaryProviderResponse as typeof fetch;
+    try {
+      const history = await run(
+        prepareChatHistory({
+          userId,
+          sessionId: conversationId,
+          isTemporary: false,
+          chatRequest: {
+            messages: [{ id: "incoming-11", role: "user", parts: [{ type: "text", text: "Hi" }] }],
+            config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+            tokenBudget: 1,
+          },
+        }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+      );
+
+      assert.equal("error" in history, false);
+      if ("error" in history) return;
+      assert.equal(history.compacted, false);
+      assert.deepEqual(
+        history.requestWithHistory.messages.map((message) => message.role),
         ["system", "user"],
+      );
+      const rows = await run(
+        conversationDatabase.getConversationMessages({ userId, conversationId }),
+      );
+      assert.equal(rows.filter((row) => row.role === "summary").length, 1);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("keeps a thread anchored after the compaction marker in full context", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(rawDb);
+    const conversationDatabase = await run(
+      Effect.gen(function* () {
+        return yield* ServerDatabase.conversations;
+      }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+    );
+    const userId = "user-a";
+    const conversationId = await run(conversationDatabase.createConversation({ userId }));
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [
+          {
+            role: "user",
+            parts: [{ type: "text", text: "Root question" }],
+            usage: { prompt_tokens: 2000, completion_tokens: 0, total_tokens: 2000 },
+          },
+        ],
+      }),
+    );
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = summaryProviderResponse as typeof fetch;
+    try {
+      const first = await run(
+        prepareChatHistory({
+          userId,
+          sessionId: conversationId,
+          isTemporary: false,
+          chatRequest: {
+            messages: [
+              { id: "incoming-12", role: "user", parts: [{ type: "text", text: "Compress me" }] },
+            ],
+            config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+            tokenBudget: 2000,
+          },
+        }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+      );
+      assert.equal("error" in first, false);
+      if ("error" in first) return;
+      assert.equal(first.compacted, true);
+
+      const threadId = await run(
+        conversationDatabase.createThread({
+          userId,
+          conversationId,
+          anchorMessageId: "incoming-12",
+          title: "Post-compaction branch",
+        }),
+      );
+      if (threadId === null) throw new Error("Expected a thread");
+      const [branchMessageId] = await run(
+        conversationDatabase.saveConversationMessages({
+          userId,
+          conversationId,
+          parentId: "incoming-12",
+          messages: [
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "Branch after compaction" }],
+              usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+            },
+          ],
+        }),
+      );
+      if (branchMessageId !== undefined) {
+        await run(
+          conversationDatabase.addThreadMessage({
+            userId,
+            threadId,
+            messageId: branchMessageId,
+          }),
+        );
+      }
+      console.log(
+        "DEBUG rows before second:",
+        JSON.stringify(
+          (await run(conversationDatabase.getConversationMessages({ userId, conversationId }))).map(
+            (row) => ({ id: row.id, role: row.role, created_at: row.created_at }),
+          ),
+        ),
+      );
+
+      const second = await run(
+        prepareChatHistory({
+          userId,
+          sessionId: conversationId,
+          isTemporary: false,
+          chatRequest: {
+            messages: [
+              {
+                id: "incoming-13",
+                role: "user",
+                parts: [{ type: "text", text: "Branch follow up" }],
+              },
+            ],
+            config: { provider: "openai", apiKey: "key", model: "gpt-5" },
+            threadId,
+            tokenBudget: 1000,
+          },
+        }).pipe(Effect.provide(ServerDatabase.conversations.layer({ db }))),
+      );
+
+      assert.equal("error" in second, false);
+      if ("error" in second) return;
+      assert.deepEqual(
+        second.requestWithHistory.messages.map((message) => message.role),
+        ["system", "user", "assistant", "user"],
       );
     } finally {
       globalThis.fetch = previousFetch;
