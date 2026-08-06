@@ -120,12 +120,19 @@ const assertProductionMigrations = () => {
     (name) => (latestApplied === undefined || name > latestApplied) && !applied.has(name),
   );
   if (pending.length > 0) {
-    throw new Error(`Apply production D1 migrations before release: ${pending.join(", ")}`);
+    throw new Error(
+      `Apply production D1 migrations before release (pnpm --filter @emi/api db:migrate:prod): ${pending.join(", ")}`,
+    );
   }
 };
 
 runPnpm({ args: ["release:check"] });
 assertProductionMigrations();
+run({
+  command: "node",
+  cwd: resolve(rootDirectory, "apps/api"),
+  args: ["--experimental-strip-types", "scripts/verify-prod-drift.ts"],
+});
 
 if (run({ command: "jj", args: ["diff", "--from", "@-", "--to", "@", "--summary"] }) !== "") {
   throw new Error("Commit the release before deploying so the JJ revision is stable.");
