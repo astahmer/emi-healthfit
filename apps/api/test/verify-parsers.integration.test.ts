@@ -9,10 +9,12 @@ const verifyParsersScript = fileURLToPath(new URL("../scripts/verify-parsers.ts"
 
 describe("parser verification", () => {
   it("uses committed anonymized fixtures without a local data directory", async () => {
-    const { stdout } = await executeFile(process.execPath, [
-      "--experimental-strip-types",
-      verifyParsersScript,
-    ]);
+    const childEnv = { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" };
+    const { stdout } = await executeFile(
+      process.execPath,
+      ["--experimental-strip-types", verifyParsersScript],
+      { env: childEnv },
+    );
 
     assert.match(stdout, /daily: 2/);
     assert.match(stdout, /workouts: 2/);
