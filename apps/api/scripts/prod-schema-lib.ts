@@ -114,25 +114,43 @@ const baselinePosition = (): string => {
   return header.slice(baselineHeader.length).trim();
 };
 
-const replayStatements = (database: DatabaseSync, sql: string): void => {
+const replayStatements = (database: DatabaseSync, sql: string, errors: string[]): void => {
   for (const statement of sql.split("--> statement-breakpoint")) {
-    if (statement.trim() !== "") database.exec(statement);
+    if (statement.trim() === "") continue;
+    try {
+      database.exec(statement);
+    } catch (cause) {
+      errors.push(
+        `${statement.trim().slice(0, 80)}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
   }
 };
 
-export const buildExpectedSchema = (): Array<Record<string, string>> => {
+export const buildExpectedSchema = (): {
+  rows: Array<Record<string, string>>;
+  replayErrors: string[];
+} => {
   const directory = mkdtempSync(join(tmpdir(), "emi-prod-schema-"));
   const databasePath = join(directory, "expected.db");
   try {
     const database = new DatabaseSync(databasePath);
     try {
-      replayStatements(database, readFileSync(baselineFilePath, "utf8"));
+      const replayErrors: string[] = [];
+      replayStatements(database, readFileSync(baselineFilePath, "utf8"), replayErrors);
       const position = baselinePosition();
       for (const name of journalMigrations()) {
         if (name <= `${position}.sql`) continue;
-        replayStatements(database, readFileSync(resolve(packageRoot, "migrations", name), "utf8"));
+        replayStatements(
+          database,
+          readFileSync(resolve(packageRoot, "migrations", name), "utf8"),
+          replayErrors,
+        );
       }
-      return database.prepare(schemaQuery).all() as Array<Record<string, string>>;
+      return {
+        rows: database.prepare(schemaQuery).all() as Array<Record<string, string>>,
+        replayErrors,
+      };
     } finally {
       database.close();
     }
