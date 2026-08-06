@@ -138,12 +138,30 @@ Implemented end-to-end. Deviations from the recommended design, with justificati
   `page.tsx`/`chat-page-content.tsx`/`thread.tsx`/`thread-message-list.tsx` was dropped.
 - **Trigger scope:** compaction runs for new sends only (not `replaceMessageId` revisions), and
   never blocks the request — summary-generation failure logs and proceeds uncompacted.
-- **Known tradeoffs (v1):** a focused thread resets to the root conversation view after an
-  auto-compact reload; a 409-generation conflict can still insert a summary row because the
-  trigger runs in `prepareChatHistory` before the conflict check; memory extraction
-  (`onStreamCompleted`) may be skipped on the compacting send because the session is reloaded.
+- **Threads preserved (2026-08-06 follow-up):** the lifecycle reloads the focused thread
+  (`thread-load-requested`) instead of the conversation; `threads.read` now appends the latest
+  summary; the client collapse keeps branch rows (`parentId` set) and hides the pre-marker
+  anchor, so "summary + branch rows" holds in both the provider payload and the UI.
+- **409 race fixed:** generation admission (`cancelRunningGenerations` + `createGeneration`)
+  now runs before `prepareChatHistory`, so a request that loses the race returns 409 before it
+  compacts or persists anything; validation failures after admission mark the generation failed.
+- **`onStreamCompleted` preserved:** the lifecycle captures the completed assistant message at
+  `stream-completed`, so memory extraction still fires even when the compaction reload replaces
+  the session before `stream-finished`.
+- **Timestamp-tie safety:** compaction markers are positional (conversation array order = D1
+  insertion order), not `created_at` comparisons, in both `history.ts` and the client collapse;
+  rows saved in the same millisecond as the marker are classified correctly.
+- **Known tradeoffs (v1):** a compaction that lands while a generation conflict is in flight can
+  still insert a summary row only if it won the race (the winner's request proceeds); the
+  reloaded thread view drops the pre-marker anchor row from the display.
 
 Acceptance coverage: API SQLite integration tests in `apps/api/test/chat-history.integration.test.ts`
 (over-budget summary + provider payload, under-budget unchanged, budget `0` no-op, stacked
-compactions, thread collapse), codec contract tests, unit tests for the collapsible block and the
-collapse helper, and a mock-mode Playwright scenario in `usage.feature`.
+compactions, thread collapse before/after the marker, summary-failure fallback, exact-budget
+boundary, estimate fallback), a generation-admission race test
+(`apps/api/test/generation-admission.integration.test.ts`) proving a 409 loser never compacts or
+persists, codec contract tests, transport/lifecycle actor tests for the compaction header, thread
+reload, and captured completion, unit tests for the collapsible block and the collapse helper,
+mock-mode Playwright scenarios in `usage.feature` (auto-compact, exact-budget no-op, stacked
+summaries, focused-branch preservation), and a real-Worker scenario proving the summary is
+compacted and persisted through D1.
