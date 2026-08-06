@@ -52,6 +52,12 @@ in `@emi/core`.
 
 - Streaming assistant replies with configurable GPT-compatible providers (BYOK).
 - Resumable generations: refresh or reconnect without losing an in-flight answer.
+- Photo and file attachments are compressed client-side, then externalized to R2
+  before the message row is written, so D1 history stays well under the 2 MB row
+  ceiling. Legacy base64 attachments remain readable, and per-file (25 MB) and
+  per-message (50 MB) caps are enforced with friendly errors. The same storage
+  path powers the generic Worker, and deleting a conversation also deletes its
+  uploaded attachment objects.
 - Conversation history: create, rename, pin, archive, clone, delete, search.
 - Compact a durable conversation into a fresh chat seeded with its model-generated summary.
 - Optional long-term memory: automatically extract durable details from saved replies, summarize them for later context, and search, add, or delete them in the sidebar.
