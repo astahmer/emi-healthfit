@@ -144,7 +144,7 @@ describe("generic core chat route", () => {
         Effect.provideService(CoreCloudflare.user.CurrentUser, user),
         Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {
           waitUntil: (promise: Promise<unknown>) => pendingTasks.push(promise),
-        }),
+        } as Cloudflare.Workers.WorkerExecutionContext),
       );
       return Effect.runPromise(
         providedChat as Effect.Effect<

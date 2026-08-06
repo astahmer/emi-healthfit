@@ -10,8 +10,8 @@ catalogs:
       specifier: 4.0.30
       version: 4.0.30
     '@cloudflare/workers-types':
-      specifier: 4.20250805.0
-      version: 4.20250805.0
+      specifier: 5.20260804.1
+      version: 5.20260804.1
     '@effect/platform-node':
       specifier: 4.0.0-beta.88
       version: 4.0.0-beta.88
@@ -230,13 +230,13 @@ importers:
         version: 7.0.52(zod@4.4.3)
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
+        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
       better-auth:
         specifier: 'catalog:'
-        version: 1.6.26(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
+        version: 1.6.26(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.88
@@ -252,7 +252,7 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 4.20250805.0
+        version: 5.20260804.1
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2))
@@ -282,7 +282,7 @@ importers:
         version: 7.0.2
       wrangler:
         specifier: 'catalog:'
-        version: 4.118.0(@cloudflare/workers-types@4.20250805.0)
+        version: 4.118.0(@cloudflare/workers-types@5.20260804.1)
 
   apps/chat:
     dependencies:
@@ -430,14 +430,14 @@ importers:
         version: link:../../packages/flavor-healthfit
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
+        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.88
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 4.20250805.0
+        version: 5.20260804.1
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
@@ -455,7 +455,7 @@ importers:
         version: 7.0.2
       wrangler:
         specifier: 'catalog:'
-        version: 4.118.0(@cloudflare/workers-types@4.20250805.0)
+        version: 4.118.0(@cloudflare/workers-types@5.20260804.1)
 
   apps/generic-web:
     dependencies:
@@ -552,10 +552,10 @@ importers:
         version: link:../../packages/core
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
+        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.88
@@ -568,7 +568,7 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 4.20250805.0
+        version: 5.20260804.1
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2))
@@ -592,7 +592,7 @@ importers:
         version: 7.0.2
       wrangler:
         specifier: 'catalog:'
-        version: 4.118.0(@cloudflare/workers-types@4.20250805.0)
+        version: 4.118.0(@cloudflare/workers-types@5.20260804.1)
 
   packages/core:
     dependencies:
@@ -611,7 +611,7 @@ importers:
         version: 4.0.30(zod@4.4.3)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 4.20250805.0
+        version: 5.20260804.1
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 6.9.1
@@ -644,10 +644,10 @@ importers:
         version: 7.0.52(zod@4.4.3)
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
+        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
       better-auth:
         specifier: 'catalog:'
-        version: 1.6.26(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
+        version: 1.6.26(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -659,7 +659,7 @@ importers:
         version: 0.31.10
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
       esbuild:
         specifier: 'catalog:'
         version: 0.28.1
@@ -744,13 +744,13 @@ importers:
         version: 0.19.0(react@19.2.8)(zod@4.4.3)
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
+        version: 2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2)
       clsx:
         specifier: 'catalog:'
         version: 2.1.1
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
+        version: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.88
@@ -1257,9 +1257,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@4.20250805.0':
-    resolution: {integrity: sha512-HOt0lqFiw5WzhvxH/IViMAWI/zwzokCSx33DlRnJqECT9khskK9X4Jrw/+IiAprJ5YloiFxK8Xn1oGbsabdUWg==}
 
   '@cloudflare/workers-types@5.20260804.1':
     resolution: {integrity: sha512-B1dwxpN6e5RZXZkE5zpZj+ooNeNZ1mwavLIyHDYe10ojhlGTwDfe8sAl7R1mMXc1cyIsbr+jKVdvmMEyVcdTdg==}
@@ -7233,21 +7230,6 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)':
-    dependencies:
-      '@better-auth/utils': 0.4.2
-      '@better-fetch/fetch': 1.3.1
-      '@opentelemetry/semantic-conventions': 1.43.0
-      '@standard-schema/spec': 1.1.0
-      better-call: 1.3.7(zod@4.4.3)
-      jose: 6.2.8
-      kysely: 0.29.4
-      nanostores: 1.4.2
-      zod: 4.4.3
-    optionalDependencies:
-      '@cloudflare/workers-types': 4.20250805.0
-      '@opentelemetry/api': 1.9.1
-
   '@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)':
     dependencies:
       '@better-auth/utils': 0.4.2
@@ -7263,26 +7245,12 @@ snapshots:
       '@cloudflare/workers-types': 5.20260804.1
       '@opentelemetry/api': 1.9.1
 
-  '@better-auth/drizzle-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))':
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/utils': 0.4.2
-    optionalDependencies:
-      drizzle-orm: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
-
   '@better-auth/drizzle-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))':
     dependencies:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/utils': 0.4.2
     optionalDependencies:
       drizzle-orm: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
-
-  '@better-auth/kysely-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(kysely@0.29.4)':
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/utils': 0.4.2
-    optionalDependencies:
-      kysely: 0.29.4
 
   '@better-auth/kysely-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(kysely@0.29.4)':
     dependencies:
@@ -7291,22 +7259,10 @@ snapshots:
     optionalDependencies:
       kysely: 0.29.4
 
-  '@better-auth/memory-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)':
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/utils': 0.4.2
-
   '@better-auth/memory-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)':
     dependencies:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/utils': 0.4.2
-
-  '@better-auth/mongo-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))':
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/utils': 0.4.2
-    optionalDependencies:
-      mongodb: 6.21.0(@aws-sdk/credential-providers@3.1103.0)
 
   '@better-auth/mongo-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))':
     dependencies:
@@ -7315,21 +7271,10 @@ snapshots:
     optionalDependencies:
       mongodb: 6.21.0(@aws-sdk/credential-providers@3.1103.0)
 
-  '@better-auth/prisma-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)':
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/utils': 0.4.2
-
   '@better-auth/prisma-adapter@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)':
     dependencies:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/utils': 0.4.2
-
-  '@better-auth/telemetry@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)':
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/utils': 0.4.2
-      '@better-fetch/fetch': 1.3.1
 
   '@better-auth/telemetry@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)':
     dependencies:
@@ -7400,10 +7345,7 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20260730.1':
     optional: true
 
-  '@cloudflare/workers-types@4.20250805.0': {}
-
-  '@cloudflare/workers-types@5.20260804.1':
-    optional: true
+  '@cloudflare/workers-types@5.20260804.1': {}
 
   '@colors/colors@1.5.0':
     optional: true
@@ -9953,7 +9895,7 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
-  alchemy@2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2):
+  alchemy@2.0.0-beta.59(@effect/platform-node@4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2)))(@types/node@26.1.2)(@types/react@19.2.18)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(effect@4.0.0-beta.88)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)(workerd@1.20260730.1)(ws@8.21.2):
     dependencies:
       '@alchemy.run/node-utils': 0.0.5
       '@aws-sdk/credential-providers': 3.1103.0
@@ -9995,7 +9937,7 @@ snapshots:
     optionalDependencies:
       '@effect/platform-node': 4.0.0-beta.88(effect@4.0.0-beta.88)(ioredis@5.11.1(supports-color@10.2.2))
       drizzle-kit: 0.31.10
-      drizzle-orm: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
+      drizzle-orm: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
       vite: 8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
       ws: 8.21.2
     transitivePeerDependencies:
@@ -10055,38 +9997,6 @@ snapshots:
   baseline-browser-mapping@2.11.12: {}
 
   before-after-hook@4.0.0: {}
-
-  better-auth@1.6.26(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10):
-    dependencies:
-      '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
-      '@better-auth/drizzle-adapter': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))
-      '@better-auth/kysely-adapter': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(kysely@0.29.4)
-      '@better-auth/memory-adapter': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)
-      '@better-auth/mongo-adapter': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))
-      '@better-auth/prisma-adapter': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)
-      '@better-auth/telemetry': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@4.20250805.0)(@opentelemetry/api@1.9.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)
-      '@better-auth/utils': 0.4.2
-      '@better-fetch/fetch': 1.3.1
-      '@noble/ciphers': 2.2.0
-      '@noble/hashes': 2.2.0
-      better-call: 1.3.7(zod@4.4.3)
-      defu: 6.1.7
-      jose: 6.2.8
-      kysely: 0.29.4
-      nanostores: 1.4.2
-      zod: 4.4.3
-    optionalDependencies:
-      drizzle-kit: 0.31.10
-      drizzle-orm: 0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
-      mongodb: 6.21.0(@aws-sdk/credential-providers@3.1103.0)
-      mysql2: 3.23.2(@types/node@26.1.2)
-      pg: 8.22.0
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
-    transitivePeerDependencies:
-      - '@cloudflare/workers-types'
-      - '@opentelemetry/api'
 
   better-auth@1.6.26(@cloudflare/workers-types@5.20260804.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0))(mongodb@6.21.0(@aws-sdk/credential-providers@3.1103.0))(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10):
     dependencies:
@@ -10328,16 +10238,6 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.1
 
-  drizzle-orm@0.45.2(@cloudflare/workers-types@4.20250805.0)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0):
-    optionalDependencies:
-      '@cloudflare/workers-types': 4.20250805.0
-      '@electric-sql/pglite': 0.3.15
-      '@libsql/client': 0.17.4
-      '@opentelemetry/api': 1.9.1
-      kysely: 0.29.4
-      mysql2: 3.23.2(@types/node@26.1.2)
-      pg: 8.22.0
-
   drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0):
     optionalDependencies:
       '@cloudflare/workers-types': 5.20260804.1
@@ -10347,7 +10247,6 @@ snapshots:
       kysely: 0.29.4
       mysql2: 3.23.2(@types/node@26.1.2)
       pg: 8.22.0
-    optional: true
 
   effect@4.0.0-beta.88:
     dependencies:
@@ -12494,7 +12393,7 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20260730.1
       '@cloudflare/workerd-windows-64': 1.20260730.1
 
-  wrangler@4.118.0(@cloudflare/workers-types@4.20250805.0):
+  wrangler@4.118.0(@cloudflare/workers-types@5.20260804.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260730.1)
@@ -12505,7 +12404,7 @@ snapshots:
       unenv: 2.0.0-rc.24
       workerd: 1.20260730.1
     optionalDependencies:
-      '@cloudflare/workers-types': 4.20250805.0
+      '@cloudflare/workers-types': 5.20260804.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - bufferutil
