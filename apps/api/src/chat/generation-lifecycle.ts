@@ -343,6 +343,7 @@ export const handleAiSdkChat = (
       incomingMessages,
       lastIncomingMessageId,
       isInitialContext,
+      compacted,
     } = preparedHistory;
 
     const memorySummary = isInitialContext
@@ -654,6 +655,7 @@ export const handleAiSdkChat = (
         "x-generation-id": generationId,
         "x-request-id": requestId,
         "x-trace-id": traceId,
+        ...(compacted ? { "x-conversation-compacted": "1" } : {}),
       },
     });
 

@@ -26,6 +26,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
   temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Content),
   threadId: Schema.optional(Content),
+  tokenBudget: Schema.optional(Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))),
   requestId: Schema.optional(Schema.String.check(Schema.isUUID())),
 });
 

@@ -47,6 +47,7 @@ export interface ChatStreamRequest {
   tools?: Record<string, { description?: string; parameters: JSONSchema7 }>;
   configuration: OpenAiCompatibleConfiguration;
   webSearch?: boolean | undefined;
+  tokenBudget?: number | undefined;
   signal?: AbortSignal | undefined;
 }
 

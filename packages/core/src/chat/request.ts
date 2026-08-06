@@ -43,6 +43,7 @@ export const ChatStreamRequestSchema = Schema.Struct({
   temporary: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
   threadId: Schema.optional(Schema.String),
+  tokenBudget: Schema.optional(Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))),
   replaceMessageId: Schema.optional(nonEmptyText),
   requestId: Schema.optional(Schema.String.check(Schema.isUUID())),
   webSearch: Schema.optional(Schema.Boolean),

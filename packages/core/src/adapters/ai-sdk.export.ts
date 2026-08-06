@@ -160,7 +160,8 @@ const toUiMessage = (message: ChatMessage): UIMessage => {
   }
   return {
     id: message.id,
-    role: message.role === "tool" ? "assistant" : message.role,
+    role:
+      message.role === "tool" ? "assistant" : message.role === "summary" ? "system" : message.role,
     parts,
   };
 };
@@ -424,6 +425,7 @@ export interface AiSdkChatStreamRequest {
   readonly temporary?: boolean;
   readonly sessionId?: string;
   readonly threadId?: string;
+  readonly tokenBudget?: number;
   readonly replaceMessageId?: string;
   readonly requestId?: string;
 }
