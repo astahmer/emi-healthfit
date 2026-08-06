@@ -3,6 +3,7 @@ import { RuntimeContext } from "alchemy";
 import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
@@ -14,6 +15,7 @@ import { genericWorkerAppConfig } from "./app-config.ts";
 const DB = Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
   migrationsDir: "./migrations",
 });
+const AttachmentsBucket = Cloudflare.R2.Bucket("Attachments");
 
 type GenericDatabaseSchema = ServerDatabase.ConversationDatabaseSchema &
   ServerDatabase.AuthDatabaseSchema &
@@ -48,12 +50,14 @@ export default GenericWorker.make(
       },
     });
     const env: Record<string, unknown> = yield* Cloudflare.Workers.WorkerEnvironment;
+    const attachmentsBucket = yield* Cloudflare.R2.ReadWriteBucket(AttachmentsBucket);
     const router = yield* HttpRouter.make;
     const routes = CoreCloudflare.routes.makeGenericChatRoutes({
       db: db as unknown as CloudflareQueryDatabaseClient<
         ServerDatabase.ConversationDatabaseSchema & ServerDatabase.MemoryDatabaseSchema
       >,
       appConfig: genericWorkerAppConfig,
+      attachmentsBucket,
     });
     yield* Effect.gen(function* () {
       yield* router.add("GET", "/api/health", () =>
@@ -93,6 +97,15 @@ export default GenericWorker.make(
         routes.thread,
       );
       yield* router.add("POST", "/api/chat", routes.chat);
+      yield* router.add("GET", "/api/attachments/:objectId", () =>
+        Effect.gen(function* () {
+          const params = yield* HttpRouter.params;
+          return yield* CoreCloudflare.attachments.handleAttachmentRead({
+            bucket: attachmentsBucket,
+            objectId: params.objectId ?? "",
+          });
+        }),
+      );
       yield* router.add("GET", "/api/chat/:conversationId/stream", () =>
         Effect.gen(function* () {
           const params = yield* HttpRouter.params;
@@ -126,5 +139,9 @@ export default GenericWorker.make(
         Effect.provide(RuntimeContext.phantom),
       ),
     };
-  }).pipe(Effect.provide(Cloudflare.D1.QueryDatabaseBinding)),
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(Cloudflare.D1.QueryDatabaseBinding, Cloudflare.R2.ReadWriteBucketBinding),
+    ),
+  ),
 );

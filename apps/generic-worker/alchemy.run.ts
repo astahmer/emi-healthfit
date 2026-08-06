@@ -16,12 +16,14 @@ export default Alchemy.Stack(
     const db = yield* Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
       migrationsDir: fileURLToPath(new URL("./migrations", import.meta.url)),
     });
+    const attachmentsBucket = yield* Cloudflare.R2.Bucket("Attachments");
 
     const worker = yield* GenericWorker;
 
     return {
       url: worker.url.as<string>(),
       databaseId: db.databaseId,
+      attachmentsBucketName: attachmentsBucket.bucketName,
     };
   }).pipe(Effect.provide(GenericWorkerLive)),
 );
