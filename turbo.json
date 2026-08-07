@@ -1,0 +1,35 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "envMode": "loose",
+  "globalDependencies": [
+    "anti-slop/**",
+    "flake.lock",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "scripts/**"
+  ],
+  "tasks": {
+    "format": {
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build", "^build"],
+      "outputs": []
+    },
+    "test:release": {
+      "dependsOn": ["build", "^build"],
+      "outputs": []
+    }
+  }
+}

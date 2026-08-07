@@ -11,6 +11,7 @@ export default defineConfig({
   forbidOnly: true,
   fullyParallel: true,
   globalTimeout: 180_000,
+  workers: Number(process.env.PLAYWRIGHT_WORKERS ?? 5),
   retries: 1,
   reporter: "line",
   timeout: 20_000,

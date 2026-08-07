@@ -19,6 +19,7 @@ apps/chat/e2e/.features-gen
 apps/chat/e2e/.features-gen-worker
 apps/generic-web/test/e2e/.features-gen
 .cachebro
+.turbo
 .direnv/
 .diagnostics/
 apps/api/.local/

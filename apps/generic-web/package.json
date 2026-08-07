@@ -10,6 +10,7 @@
     "start": "vite preview --port 3233",
     "test": "vitest run --exclude test/api.integration.test.ts",
     "test:coverage": "vitest run --coverage --exclude test/api.integration.test.ts",
+    "test:release": "pnpm test:coverage",
     "test:api": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "bddgen && playwright test",
     "test:e2e:install": "playwright install chromium",

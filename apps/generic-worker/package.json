@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "dry": "alchemy deploy --dry-run",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
+    "test:release": "pnpm test",
     "test:file": "node --test --experimental-strip-types",
     "typecheck": "tsc --noEmit",
     "format": "oxfmt --check",

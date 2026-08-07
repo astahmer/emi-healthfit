@@ -13,6 +13,7 @@
     "dry:adopt": "alchemy deploy --dry-run --adopt",
     "register": "node --experimental-strip-types scripts/register-commands.ts",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
+    "test:release": "pnpm test",
     "test:file": "node --test --experimental-strip-types",
     "typecheck": "tsc --noEmit",
     "format": "oxfmt --check",

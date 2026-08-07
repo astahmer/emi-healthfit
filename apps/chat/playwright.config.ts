@@ -13,6 +13,7 @@ export default defineConfig({
   // The 230-test suite runs in ~2.5 min on an idle machine; keep enough
   // headroom that background load cannot kill the whole release gate.
   globalTimeout: 600_000,
+  workers: Number(process.env.PLAYWRIGHT_WORKERS ?? 5),
   // Prefer deterministic waits over retries. One retry covers CF/worker timing
   // noise without masking product races the way higher retry counts can.
   retries: 1,

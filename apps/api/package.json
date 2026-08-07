@@ -18,6 +18,7 @@
     "dry": "pnpm run alchemy deploy --dry-run --env-file ../../.env",
     "test": "node --test --experimental-strip-types test/**/*.test.ts",
     "test:coverage": "node --experimental-test-coverage --test-coverage-lines=50 --test-coverage-functions=40 --test-coverage-branches=30 --test --experimental-strip-types test/**/*.test.ts",
+    "test:release": "pnpm test:coverage",
     "test:file": "node --test --experimental-strip-types",
     "typecheck": "tsc --noEmit",
     "format": "oxfmt --check",

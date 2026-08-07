@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 4),
     setupFiles: ["./test/setup.ts"],
     include: [
       "app/**/*.test.{ts,tsx}",
