@@ -110,7 +110,7 @@ try {
     ],
     cwd: packageDirectory,
   });
-  await run({ command: "pnpm", args: ["install"], cwd: targetDirectory });
+  await run({ command: "pnpm", args: ["install", "--frozen-lockfile"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["typecheck"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "worker", "db:generate"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "worker", "db:check"], cwd: targetDirectory });

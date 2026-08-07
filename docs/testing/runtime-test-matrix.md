@@ -96,6 +96,9 @@ The release gate is staged so local debugging can rerun only the layer that chan
 the static graph and package builds locally; the test, generated-app, database, and browser stages
 remain explicit because they create or inspect external state.
 
+Generated acceptance workspaces include a checked-in lockfile, so their install skips dependency
+resolution and only links the pnpm store contents.
+
 ```sh
 pnpm check:fast       # static checks plus non-coverage unit tests
 pnpm check:affected   # static plus unit checks for Turbo-affected packages

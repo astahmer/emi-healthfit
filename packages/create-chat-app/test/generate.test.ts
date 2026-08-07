@@ -24,6 +24,7 @@ describe("buildGeneratedFiles", () => {
       "package.json",
       "emi.generated.json",
       "pnpm-workspace.yaml",
+      "pnpm-lock.yaml",
       ".oxfmtrc.json",
       "core/package.json",
       "core/source-manifest.json",

@@ -93,6 +93,9 @@ const coreSourcePackageJson = (): string => {
   )}\n`;
 };
 
+const generatedWorkspaceLockfile = (): string =>
+  readFileSync(new URL("./generated-workspace-pnpm-lock.yaml", import.meta.url), "utf8");
+
 const corePackageFiles = ({
   sourcePath,
   targetPath,
@@ -159,6 +162,7 @@ export const buildGeneratedFiles = (options: BuildFilesOptions): GeneratedFile[]
       ? [
           { path: "package.json", contents: templates.workspacePackageJson(context) },
           { path: "pnpm-workspace.yaml", contents: templates.workspaceConfig() },
+          { path: "pnpm-lock.yaml", contents: generatedWorkspaceLockfile() },
           { path: ".oxfmtrc.json", contents: templates.workspaceFormatConfig() },
           { path: "core/package.json", contents: coreSourcePackageJson() },
           {
