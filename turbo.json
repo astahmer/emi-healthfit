@@ -1,13 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "envMode": "loose",
-  "globalDependencies": [
-    "anti-slop/**",
-    "flake.lock",
-    "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-    "scripts/**"
-  ],
+  "globalDependencies": ["anti-slop/**", "flake.lock", "pnpm-lock.yaml", "pnpm-workspace.yaml"],
   "tasks": {
     "format": {
       "outputs": []
