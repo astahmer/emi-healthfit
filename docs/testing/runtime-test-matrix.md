@@ -77,6 +77,44 @@ The generic-web real-Worker smoke is `test/e2e/worker-smoke.spec.ts`, skipped un
 `GENERIC_REAL_WORKER=1 pnpm --dir apps/generic-web test:e2e`; it asserts `/api/health`,
 `/api/settings`, `/api/releases`, and guest auth boot through the Vite proxy.
 
+## Staged release checks
+
+The release gate is staged so local debugging can rerun only the layer that changed. Turbo caches
+the static graph and package builds locally; the test, generated-app, database, and browser stages
+remain explicit because they create or inspect external state.
+
+```sh
+pnpm check:fast       # static checks plus non-coverage unit tests
+pnpm check:unit       # non-coverage unit tests only
+pnpm check:static     # architecture, lint, typecheck, and builds
+pnpm check:tests      # one release test pass, including coverage thresholds
+pnpm check:verify     # API verification checks
+pnpm check:schema     # generated-vs-production schema check
+pnpm check:generated  # generated-app acceptance, API integration, and generated browser tests
+pnpm check:e2e        # chat mock, generic-web mock, and chat real-Worker browser suites
+pnpm release:check    # all stages in release order
+```
+
+After a failure, resume from the failed stage instead of restarting earlier work:
+
+```sh
+pnpm release:check -- --from tests
+pnpm release:check -- --from generated
+pnpm release:check -- --from e2e
+```
+
+For a single browser retry, reuse the existing chat build and ask Playwright for its failed tests:
+
+```sh
+pnpm --dir apps/chat test:e2e:run -- --last-failed
+pnpm --dir apps/generic-web test:e2e -- --last-failed
+pnpm --dir apps/chat test:e2e:worker -- --last-failed
+```
+
+On memory-constrained machines, lower the independent schedulers together:
+`RELEASE_CONCURRENCY=2 VITEST_MAX_WORKERS=2 PLAYWRIGHT_WORKERS=3 pnpm release:check`.
+The defaults are three Turbo tasks, three Vitest workers, and four Playwright workers.
+
 ## Minimum actor/provider assertions
 
 For a new actor, test at least the normal completion and failure paths. For a replaceable or
@@ -90,15 +128,11 @@ with the real platform topology when the adapter affects routing or deployment.
 Use focused checks during implementation:
 
 ```text
-pnpm --dir packages/core test:coverage
-pnpm --dir apps/chat test:coverage
-pnpm --dir apps/generic-web test:coverage
-pnpm --dir apps/api test:coverage
+pnpm release:tests
 pnpm --dir apps/chat test:e2e:worker   # real Worker browser smoke (part of release:check)
 ```
 
-The final handoff runs `pnpm release:check`, which includes the package coverage gates and the
-mock-mode browser suites (`pnpm --filter @emi/chat test:e2e` and
-`pnpm --filter @emi/generic-web test:e2e`) plus the chat real-Worker suite
-(`pnpm --filter @emi/chat test:e2e:worker`). The generic-web Worker smoke stays opt-in because it
-expects a Worker already running locally.
+The final handoff runs `pnpm release:check`. Its release test stage uses each package's
+`test:release` task, so coverage is collected in the same test pass instead of rerunning the regular
+suite. The generic-web Worker smoke stays opt-in because it expects a Worker already running
+locally.
