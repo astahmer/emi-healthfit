@@ -21,6 +21,8 @@
     "release:check": "node scripts/release-check.mjs",
     "release:check:lowram": "RELEASE_CONCURRENCY=2 VITEST_MAX_WORKERS=2 PLAYWRIGHT_WORKERS=3 pnpm release:check",
     "check:fast": "node scripts/release-check.mjs --fast",
+    "check:affected": "node scripts/release-check.mjs --affected",
+    "check:smoke": "node scripts/release-check.mjs --stage smoke",
     "check:unit": "node scripts/release-check.mjs --stage unit",
     "check:static": "node scripts/release-check.mjs --stage static",
     "check:tests": "node scripts/release-check.mjs --stage tests",

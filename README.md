@@ -467,10 +467,12 @@ source changes; `test:e2e:run` only serves the existing `dist/` directory. If Ch
 available, run `pnpm --filter @emi/chat e2e:install` once. Each test run selects an unused local
 port, so an existing development server cannot be mistaken for the static build.
 
-For the staged release workflow, use `pnpm check:fast` while iterating, then rerun only the failed
-stage with `pnpm release:check -- --from <stage>` (`static`, `tests`, `verify`, `schema`, `generated`,
-or `e2e`). The full gate is `pnpm release:check`; it uses Turbo's local task cache and reuses the
-chat build for the mock browser suite. Tune resource use with
+For the staged release workflow, use `pnpm check:fast` while iterating. `pnpm check:affected` runs
+static and unit checks for Turbo-affected packages; `pnpm check:smoke` runs four representative
+mock browser tests. Rerun only a failed full stage with `pnpm release:check -- --from <stage>`
+(`static`, `tests`, `verify`, `schema`, `generated`, or `e2e`). Use `--profile <prefix>` to write
+Turbo Chrome tracing files. The full gate is `pnpm release:check`; it uses Turbo's local task cache
+and reuses the chat build for the mock browser suite. Tune resource use with
 `RELEASE_CONCURRENCY`, `VITEST_MAX_WORKERS`, and `PLAYWRIGHT_WORKERS`.
 
 ## Contributing

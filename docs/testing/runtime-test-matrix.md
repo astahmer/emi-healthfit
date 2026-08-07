@@ -85,6 +85,8 @@ remain explicit because they create or inspect external state.
 
 ```sh
 pnpm check:fast       # static checks plus non-coverage unit tests
+pnpm check:affected   # static plus unit checks for Turbo-affected packages
+pnpm check:smoke      # four high-signal mock browser tests
 pnpm check:unit       # non-coverage unit tests only
 pnpm check:static     # architecture, lint, typecheck, and builds
 pnpm check:tests      # one release test pass, including coverage thresholds
@@ -95,6 +97,11 @@ pnpm check:e2e        # chat mock, generic-web mock, and chat real-Worker browse
 pnpm release:check    # all stages in release order
 ```
 
+`check:affected` is an iteration shortcut, not release evidence: it uses Turbo's `--affected`
+graph and still runs the repository-wide architecture checks. `check:smoke` rebuilds chat, then
+checks one representative chat session flow, settings version flow, generic runtime boot, and
+viewport layout. Use `check:e2e` or the full gate before release.
+
 After a failure, resume from the failed stage instead of restarting earlier work:
 
 ```sh
@@ -103,11 +110,20 @@ pnpm release:check -- --from generated
 pnpm release:check -- --from e2e
 ```
 
+Profile Turbo scheduling while investigating slow checks. The value is a filename prefix; one
+Chrome tracing file is written for each Turbo stage that runs:
+
+```sh
+pnpm release:check -- --profile .cache/release-profile
+```
+
+Open the generated `*.json` files in Chrome tracing or `chrome://tracing` after the run.
+
 For a single browser retry, reuse the existing chat build and ask Playwright for its failed tests:
 
 ```sh
 pnpm --dir apps/chat test:e2e:run -- --last-failed
-pnpm --dir apps/generic-web test:e2e -- --last-failed
+pnpm --dir apps/generic-web test:e2e --last-failed
 pnpm --dir apps/chat test:e2e:worker -- --last-failed
 ```
 
