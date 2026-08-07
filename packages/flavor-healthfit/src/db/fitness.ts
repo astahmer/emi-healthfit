@@ -873,11 +873,11 @@ export const getIngestedDataExportSummary = Effect.fn("dataExport.readSummary")(
       first:
         [sources.dailyActivity.first, sources.healthWorkouts.first, sources.sleepSessions.first]
           .filter((value) => value !== null)
-          .toSorted()[0] ?? null,
+          .toSorted((left, right) => left.localeCompare(right))[0] ?? null,
       last:
         [sources.dailyActivity.last, sources.healthWorkouts.last, sources.sleepSessions.last]
           .filter((value) => value !== null)
-          .toSorted()
+          .toSorted((left, right) => left.localeCompare(right))
           .at(-1) ?? null,
     },
     hevyRange: { first: sources.hevySessions.first, last: sources.hevySessions.last },

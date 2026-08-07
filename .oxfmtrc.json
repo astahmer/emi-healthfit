@@ -6,6 +6,7 @@
     ".alchemy/**",
     "dist/**",
     "coverage/**",
+    "packages/create-chat-app/src/generated-workspace-pnpm-lock.yaml",
     "**/migrations/meta/**"
   ]
 }
