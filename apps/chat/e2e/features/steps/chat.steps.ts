@@ -2077,11 +2077,15 @@ When("they delete the memory {string}", async ({ page }, content: string) => {
 });
 
 Then("the memory {string} should be visible", async ({ page }, content: string) => {
-  await expect(page.getByText(content)).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Active memories" }).getByText(content),
+  ).toBeVisible();
 });
 
 Then("the memory {string} should not be visible", async ({ page }, content: string) => {
-  await expect(page.getByText(content)).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Active memories" }).getByText(content)).toHaveCount(
+    0,
+  );
 });
 
 Then("the memory {string} should be disabled", async ({ page }, content: string) => {

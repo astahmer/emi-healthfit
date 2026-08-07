@@ -178,7 +178,7 @@ export function MemoryPanel() {
       {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
       {error !== null && <p className="text-destructive text-sm">{error.message}</p>}
 
-      <ul className="space-y-2">
+      <ul aria-label="Active memories" className="space-y-2">
         {memories.map((memory) => {
           const provenance = MemoryDomain.provenance(memory);
           return (
