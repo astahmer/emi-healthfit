@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,13 @@ const providerPort = process.env.PROVIDER_PORT ?? "1399";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const webUrl = `http://127.0.0.1:${webPort}`;
 const providerUrl = `http://127.0.0.1:${providerPort}`;
+const serviceStateDirectory = join(rootDirectory, ".cache/worker-e2e");
+const serviceStatePath = join(serviceStateDirectory, "state.json");
+const controlArguments = new Set(["--up", "--reuse", "--down"]);
+const requestedControl = process.argv.slice(2).find((argument) => controlArguments.has(argument));
+const playwrightArguments = process.argv
+  .slice(2)
+  .filter((argument) => argument !== "--" && !controlArguments.has(argument));
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const apiEnvironmentKeys = new Set([
   "BETTER_AUTH_SECRET",
@@ -31,11 +38,6 @@ const apiEnvironmentKeys = new Set([
   "OPENAI_API_KEY",
   "DISCORD_INTERNAL_ASK_SECRET",
 ]);
-
-if (process.env.RELEASE_SKIP_WORKER_E2E === "1") {
-  console.log("Skipping real Worker E2E (RELEASE_SKIP_WORKER_E2E=1).");
-  process.exit(0);
-}
 
 const assertPortsAvailable = async () => {
   const ports = [apiPort, webPort, providerPort];
@@ -85,13 +87,22 @@ const createEnvironmentFile = async () => {
   return { environmentFile, temporaryDirectory };
 };
 
-const spawnProcess = ({ command, arguments: commandArguments, environment, cwd = rootDirectory }) =>
-  spawn(command, commandArguments, {
+const spawnProcess = ({
+  command,
+  arguments: commandArguments,
+  environment,
+  cwd = rootDirectory,
+  stdio = "inherit",
+}) => {
+  const child = spawn(command, commandArguments, {
     cwd,
     env: { ...process.env, ...environment },
-    stdio: "inherit",
+    stdio,
     detached: true,
   });
+  if (stdio === "ignore") child.unref();
+  return child;
+};
 
 const waitForStatus = async ({ url, timeoutMs = 180_000 }) => {
   const deadline = Date.now() + timeoutMs;
@@ -137,27 +148,75 @@ const stopChild = async ({ child }) => {
   }
 };
 
-const run = async () => {
+const stopProcessGroup = async ({ pid }) => {
+  if (!Number.isInteger(pid)) return;
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {}
+  await delay(500);
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {}
+};
+
+const readServiceState = async () => {
+  try {
+    return JSON.parse(await readFile(serviceStatePath, "utf8"));
+  } catch {
+    return undefined;
+  }
+};
+
+const stopPersistentServices = async () => {
+  const state = await readServiceState();
+  if (state !== undefined) {
+    await Promise.all(
+      [state.webPid, state.providerPid, state.apiPid].map((pid) => stopProcessGroup({ pid })),
+    );
+    await rm(state.temporaryDirectory, { force: true, recursive: true });
+  }
+  await rm(serviceStatePath, { force: true });
+  console.log(
+    state === undefined
+      ? "No persistent Worker E2E services found."
+      : "Worker E2E services stopped.",
+  );
+};
+
+const persistentServicesAreHealthy = async (state) => {
+  if (![state.apiPid, state.webPid, state.providerPid].every(Number.isInteger)) return false;
+  try {
+    await Promise.all([
+      waitForStatus({ url: `${state.providerUrl}/health`, timeoutMs: 2_000 }),
+      waitForStatus({ url: `${state.apiUrl}/api/auth/get-session`, timeoutMs: 2_000 }),
+      waitForStatus({ url: `${state.webUrl}/auth`, timeoutMs: 2_000 }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const startServices = async ({ persistent }) => {
   await assertPortsAvailable();
   const { environmentFile, temporaryDirectory } = await createEnvironmentFile();
+  const stdio = persistent ? "ignore" : "inherit";
   let api;
   let web;
   let provider;
-  let playwright;
   const cleanup = async () => {
-    await stopChild({ child: playwright });
     await stopChild({ child: web });
     await stopChild({ child: provider });
     await stopChild({ child: api });
+    await rm(temporaryDirectory, { force: true, recursive: true });
   };
-  process.once("SIGINT", () => void cleanup());
-  process.once("SIGTERM", () => void cleanup());
 
   try {
     provider = spawnProcess({
       command: process.execPath,
       arguments: [new URL("../e2e/mock/provider-server.mjs", import.meta.url).pathname],
       environment: { PROVIDER_PORT: providerPort },
+      stdio,
     });
     await waitForStatus({ url: `${providerUrl}/health`, timeoutMs: 30_000 });
 
@@ -166,6 +225,7 @@ const run = async () => {
       arguments: ["scripts/run-alchemy.mjs", "dev", "--env-file", environmentFile],
       environment: { EMI_API_DEV_PORT: apiPort },
       cwd: join(rootDirectory, "apps/api"),
+      stdio,
     });
     await waitForStatus({ url: `${apiUrl}/api/auth/get-session` });
 
@@ -177,26 +237,100 @@ const run = async () => {
         PORT: webPort,
       },
       cwd: join(rootDirectory, "apps/chat"),
+      stdio,
     });
     await waitForStatus({ url: `${webUrl}/auth` });
 
-    const bddgen = spawn(process.execPath, [bddgenPath, "--config", configPath], {
-      cwd: join(rootDirectory, "apps/chat"),
-      stdio: "inherit",
-    });
-    await waitForChild({ child: bddgen });
+    const state = {
+      apiPid: api.pid,
+      apiUrl,
+      providerPid: provider.pid,
+      providerUrl,
+      temporaryDirectory,
+      webPid: web.pid,
+      webUrl,
+    };
+    if (persistent) {
+      await mkdir(serviceStateDirectory, { recursive: true });
+      await writeFile(serviceStatePath, `${JSON.stringify(state, null, 2)}\n`);
+      console.log(`Worker E2E services ready: ${webUrl} (state ${serviceStatePath}).`);
+      return state;
+    }
+    return { ...state, api, provider, web };
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
+};
 
-    playwright = spawnProcess({
-      command: process.execPath,
-      arguments: [playwrightPath, "test", "--config", configPath, ...process.argv.slice(2)],
-      environment: { E2E_BASE_URL: webUrl, HEALTHFIT_REAL_WORKER: "1" },
-    });
+const ensurePersistentServices = async () => {
+  const existing = await readServiceState();
+  if (existing !== undefined && (await persistentServicesAreHealthy(existing))) {
+    console.log(`Reusing Worker E2E services at ${existing.webUrl}.`);
+    return existing;
+  }
+  if (existing !== undefined) await stopPersistentServices();
+  return startServices({ persistent: true });
+};
+
+const runBrowserTests = async ({ baseUrl }) => {
+  const bddgen = spawn(process.execPath, [bddgenPath, "--config", configPath], {
+    cwd: join(rootDirectory, "apps/chat"),
+    stdio: "inherit",
+  });
+  const bddgenResult = await waitForChild({ child: bddgen });
+  if (bddgenResult.code !== 0) {
+    throw new Error(
+      `Worker E2E BDD generation failed with code ${bddgenResult.code ?? "unknown"}.`,
+    );
+  }
+
+  const playwright = spawnProcess({
+    command: process.execPath,
+    arguments: [playwrightPath, "test", "--config", configPath, ...playwrightArguments],
+    environment: { E2E_BASE_URL: baseUrl, HEALTHFIT_REAL_WORKER: "1" },
+  });
+  try {
     const result = await waitForChild({ child: playwright });
-    process.exitCode = result.code ?? 1;
+    return result.code ?? 1;
+  } finally {
+    await stopChild({ child: playwright });
+  }
+};
+
+const runEphemeral = async () => {
+  const services = await startServices({ persistent: false });
+  const cleanup = async () => {
+    await stopChild({ child: services.web });
+    await stopChild({ child: services.provider });
+    await stopChild({ child: services.api });
+    await rm(services.temporaryDirectory, { force: true, recursive: true });
+  };
+  process.once("SIGINT", () => void cleanup());
+  process.once("SIGTERM", () => void cleanup());
+  try {
+    process.exitCode = await runBrowserTests({ baseUrl: services.webUrl });
   } finally {
     await cleanup();
-    await rm(temporaryDirectory, { force: true, recursive: true });
   }
+};
+
+const run = async () => {
+  if (requestedControl === "--down") {
+    await stopPersistentServices();
+    return;
+  }
+  if (process.env.RELEASE_SKIP_WORKER_E2E === "1") {
+    console.log("Skipping real Worker E2E (RELEASE_SKIP_WORKER_E2E=1).");
+    return;
+  }
+  if (requestedControl === "--up" || requestedControl === "--reuse") {
+    const services = await ensurePersistentServices();
+    if (requestedControl === "--up") return;
+    process.exitCode = await runBrowserTests({ baseUrl: services.webUrl });
+    return;
+  }
+  await runEphemeral();
 };
 
 await run();

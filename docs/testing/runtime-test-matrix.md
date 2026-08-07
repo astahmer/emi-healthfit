@@ -72,6 +72,19 @@ The runner fails fast when any of its ports (`1337`, `3232`, `1399`) is already 
 `.env` is missing. `release:check` runs this suite after the mock suites; set
 `RELEASE_SKIP_WORKER_E2E=1` to skip it (e.g. while a dev server occupies the fixed ports).
 
+For repeated Worker debugging, keep services alive across browser reruns:
+
+```sh
+pnpm --dir apps/chat test:e2e:worker:up
+pnpm --dir apps/chat test:e2e:worker:run -- --grep "authenticates through"
+pnpm --dir apps/chat test:e2e:worker:run -- --last-failed
+pnpm --dir apps/chat test:e2e:worker:down
+```
+
+`worker:run` reuses provider, API, and Vite processes. If a run fails, services remain up for the
+next retry; run `worker:down` when finished. Normal `test:e2e:worker` stays self-contained and
+cleans up automatically for release checks.
+
 The generic-web real-Worker smoke is `test/e2e/worker-smoke.spec.ts`, skipped unless
 `GENERIC_REAL_WORKER=1`. Start the Worker (e.g. `pnpm generic:dev`) and run
 `GENERIC_REAL_WORKER=1 pnpm --dir apps/generic-web test:e2e`; it asserts `/api/health`,
