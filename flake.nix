@@ -29,13 +29,9 @@
               jq
               nodejs_26
               openssl
-              playwright-driver
               pnpm
               python3
             ];
-
-            PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
-            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
 
             shellHook = ''
               export PNPM_HOME="$PWD/.direnv/pnpm"
