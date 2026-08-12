@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -104,7 +104,6 @@ const stopServer = async (server) => {
 const packageDirectory = fileURLToPath(new URL("..", import.meta.url));
 const targetDirectory = await mkdtemp(join(tmpdir(), "create-chat-app-"));
 const alchemyStage = `generated-acceptance-${process.pid}`;
-const alchemyHome = join(targetDirectory, ".home");
 const workspaceEnvironmentPath = join(packageDirectory, "../../.env.prod");
 const workspaceEnvironment = existsSync(workspaceEnvironmentPath)
   ? parseEnv(readFileSync(workspaceEnvironmentPath, "utf8"))
@@ -119,12 +118,11 @@ const webOrigin = `http://127.0.0.1:${webPort}`;
 const workerEnvironment = {
   ALCHEMY_STAGE: alchemyStage,
   ALCHEMY_LOCAL_STATE: "1",
-  ALCHEMY_PROFILE: `${alchemyStage}-ci`,
+  ALCHEMY_PROFILE: process.env.ALCHEMY_PROFILE ?? "default",
   AUTH_APP_NAME: "Acceptance Chat",
   BETTER_AUTH_SECRET: "generated-app-acceptance-secret-1234567890",
   BETTER_AUTH_URL: webOrigin,
   CI: "1",
-  HOME: alchemyHome,
   PORT: `${workerPort}`,
   ...(cloudflareAccountId === undefined ? {} : { CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId }),
   ...(cloudflareApiToken === undefined ? {} : { CLOUDFLARE_API_TOKEN: cloudflareApiToken }),
@@ -158,7 +156,6 @@ try {
   await run({ command: "pnpm", args: ["--dir", "worker", "db:generate"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "worker", "db:check"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "web", "build"], cwd: targetDirectory });
-  await mkdir(alchemyHome, { recursive: true });
   await run({
     command: "pnpm",
     args: ["--dir", "worker", "dry", "--stage", alchemyStage],
