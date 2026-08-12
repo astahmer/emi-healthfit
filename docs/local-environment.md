@@ -75,7 +75,7 @@ the bot should call. Use `DISCORD_GUILD_ID` only for fast guild command registra
 global commands.
 
 `CLOUDFLARE_ACCOUNT_ID` is in the Cloudflare dashboard account URL. Create a narrowly scoped API
-token in the Cloudflare API Tokens page, or use `alchemy login` and omit those values when the command
+token in the Cloudflare API Tokens page, or use `pnpm alchemy:login` and omit those values when the command
 does not need Wrangler API access. Keep them in `.env.prod` only when using the release verification
 or documented operational commands that load that file.
 

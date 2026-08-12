@@ -49,6 +49,11 @@ Alchemy is the deployment authority. Do not apply migrations or deploy the Worke
 Keep `BETTER_AUTH_URL` equal to the exact public origin and use separate secrets per stage. The
 generic scaffold has no HealthFit credentials, prompts, routes, or UI imports.
 
+The HealthFit repository keeps Alchemy as a workspace dependency. Run `pnpm alchemy:login` (or bare
+`alchemy login` inside the Nix/direnv shell) to configure or replace Cloudflare credentials. Raw
+`pnpm exec alchemy login` only refreshes an existing profile and can report an OAuth refresh failure
+when its stored token has expired.
+
 Before a release, run the repository gate once after the final code change:
 
 ```sh

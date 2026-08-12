@@ -20,7 +20,7 @@ It answers questions like "what should I train today?", "am I recovered enough?"
 - [pnpm](https://pnpm.io) 11+
 - Node 26+ (for `--experimental-strip-types`)
 - A Cloudflare account
-- [Alchemy CLI login](https://alchemy.run/docs/getting-started) (`alchemy login`)
+- [Alchemy CLI login](https://alchemy.run/docs/getting-started) (`pnpm alchemy:login`)
 
 Alternatively, install Nix + direnv and run `direnv allow`. The checked-in flake provides Node 26,
 pnpm 11, Playwright browsers, Python, and the deployment utilities used by the repository.
@@ -29,7 +29,13 @@ pnpm 11, Playwright browsers, Python, and the deployment utilities used by the r
 
 ```bash
 pnpm install
+pnpm alchemy:login
 ```
+
+Alchemy is installed in the workspace, so no global CLI install is needed. `pnpm alchemy:login`
+runs the interactive `alchemy login --configure` flow; use it when a stored Cloudflare OAuth
+refresh token has expired. `pnpm alchemy:profile` inspects the configured profile without printing
+credential values.
 
 Environment files are intentionally scoped by app. Start with the [local environment guide](docs/local-environment.md)
 before filling in `.env`; it lists where each value comes from, what generates it, and which commands
