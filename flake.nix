@@ -35,7 +35,7 @@
 
             shellHook = ''
               export PNPM_HOME="$PWD/.direnv/pnpm"
-              export PATH="$PNPM_HOME:$PATH"
+              export PATH="$PWD/scripts/bin:$PWD/apps/api/node_modules/.bin:$PWD/node_modules/.bin:$PNPM_HOME:$PATH"
               mkdir -p "$PNPM_HOME"
             '';
           };

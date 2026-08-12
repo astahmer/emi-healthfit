@@ -41,7 +41,15 @@ const createMigrationView = async () => {
 const run = async () => {
   if (process.env.EMI_SKIP_CORE_BUILD !== "1") await buildCore();
   const viewDirectory = await createMigrationView();
-  const child = spawn("pnpm", ["exec", "alchemy", ...process.argv.slice(2)], {
+  const argumentsToForward = process.argv.slice(2).filter((argument) => argument !== "--");
+  const alchemyArguments =
+    argumentsToForward[0] === "login" &&
+    !argumentsToForward.includes("--configure") &&
+    !argumentsToForward.includes("--help") &&
+    !argumentsToForward.includes("-h")
+      ? ["login", "--configure", ...argumentsToForward.slice(1)]
+      : argumentsToForward;
+  const child = spawn("pnpm", ["exec", "alchemy", ...alchemyArguments], {
     cwd: apiDirectory,
     env: { ...process.env, EMI_ALCHEMY_MIGRATIONS_DIR: viewDirectory },
     stdio: "inherit",

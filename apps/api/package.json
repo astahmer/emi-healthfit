@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "alchemy": "node scripts/run-alchemy.mjs",
+    "alchemy:og": "alchemy",
+    "alchemy:login": "pnpm run alchemy login --configure",
+    "alchemy:profile": "pnpm run alchemy profile show",
     "deploy": "pnpm run alchemy deploy --env-file ../../.env",
     "deploy:prod": "pnpm run alchemy deploy --stage prod --env-file ../../.env.prod --yes",
     "destroy": "pnpm run alchemy destroy",

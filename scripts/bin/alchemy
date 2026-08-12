@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repository_directory=$(CDPATH= cd -- "$script_directory/../.." && pwd)
+
+if [ "${1:-}" = "login" ]; then
+  shift
+  exec pnpm --dir "$repository_directory/apps/api" run alchemy -- login --configure "$@"
+fi
+
+exec pnpm --dir "$repository_directory/apps/api" run alchemy -- "$@"
