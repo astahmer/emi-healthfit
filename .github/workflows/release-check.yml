@@ -1,0 +1,133 @@
+name: Release check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release_checks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: static
+            command: pnpm check:static
+            timeout: 20
+          - name: tests
+            command: pnpm check:tests
+            timeout: 30
+          - name: verify
+            command: pnpm check:verify
+            timeout: 15
+          - name: schema
+            command: pnpm check:schema
+            timeout: 15
+          - name: generated
+            command: pnpm check:generated
+            timeout: 30
+          - name: chat-e2e
+            command: pnpm --dir apps/chat test:e2e
+            timeout: 25
+          - name: generic-e2e
+            command: pnpm --dir apps/generic-web test:e2e
+            timeout: 20
+          - name: worker-e2e
+            command: pnpm --dir apps/chat test:e2e:worker
+            timeout: 25
+    env:
+      CI: "1"
+      PLAYWRIGHT_WORKERS: "3"
+      VITEST_MAX_WORKERS: "2"
+      RELEASE_CONCURRENCY: "3"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Cache Turbo outputs
+        if: contains(matrix.name, 'static') || matrix.name == 'tests'
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ matrix.name }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-${{ matrix.name }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      - name: Build shared packages for browser tests
+        if: matrix.name == 'chat-e2e' || matrix.name == 'generic-e2e'
+        run: pnpm --filter @emi/core build
+
+      - name: Build shared packages for parser verification
+        if: matrix.name == 'verify'
+        run: pnpm --filter @emi/core build
+
+      - name: Cache Playwright browsers
+        if: matrix.name == 'generated' || contains(matrix.name, 'e2e')
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Chromium
+        if: matrix.name == 'generated' || contains(matrix.name, 'e2e')
+        run: pnpm --dir apps/chat exec playwright install --with-deps chromium
+
+      - name: Create Worker E2E environment
+        if: matrix.name == 'worker-e2e'
+        run: |
+          {
+            printf '%s\n' 'BETTER_AUTH_SECRET=ci-only-better-auth-secret-1234567890'
+            printf '%s\n' 'BETTER_AUTH_URL=http://127.0.0.1:3232'
+            printf '%s\n' 'GOOGLE_CLIENT_ID=ci-google-client'
+            printf '%s\n' 'GOOGLE_CLIENT_SECRET=ci-google-secret'
+            printf '%s\n' 'ALLOWED_EMAILS=ci@example.com'
+            printf '%s\n' 'HEVY_CREDENTIAL_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+            printf '%s\n' 'OPENAI_API_KEY=ci-openai-key'
+            printf '%s\n' 'DISCORD_INTERNAL_ASK_SECRET=ci-discord-secret-123456'
+          } > .env
+
+      - name: Run release check
+        if: matrix.name != 'worker-e2e'
+        run: ${{ matrix.command }}
+
+      - name: Run Worker E2E with isolated local state
+        if: matrix.name == 'worker-e2e'
+        env:
+          ALCHEMY_LOCAL_STATE: "1"
+        run: ${{ matrix.command }}
+
+  release_gate:
+    name: release-gate
+    if: ${{ always() }}
+    needs: release_checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every release check
+        run: test "${{ needs.release_checks.result }}" = success
