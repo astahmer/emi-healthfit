@@ -11,7 +11,7 @@ pnpm --filter chat dev
 
 Open [http://localhost:3232/chat](http://localhost:3232/chat).
 
-Production assets are built by Alchemy (`Command.Build` in `apps/api/src/api.worker.ts`). Run `pnpm release` to stamp the deployed build with a UTC date version, deployment time, immutable JJ commit, and JJ change ID. The same release metadata creates the in-app `/releases` history from JJ revision descriptions.
+Production assets are built by Alchemy (`Command.Build` in `apps/api/src/api.worker.ts`). Run `pnpm release` from the repository root to create a timestamped GitHub Release; its published-release workflow stamps the deployed build with a UTC date version, deployment time, immutable commit, and release tag. The same release metadata creates the in-app `/releases` history from revision descriptions.
 
 Key files:
 

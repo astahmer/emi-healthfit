@@ -164,7 +164,9 @@ pnpm release:tests
 pnpm --dir apps/chat test:e2e:worker   # real Worker browser smoke (part of release:check)
 ```
 
-The final handoff runs `pnpm release:check`. Its release test stage uses each package's
+The final full evidence gate is `pnpm release:check`. The local release handoff uses
+`pnpm check:handoff`, which runs static checks, non-coverage unit tests, parser verification, and
+schema checks. The full gate's release test stage uses each package's
 `test:release` task, so coverage is collected in the same test pass instead of rerunning the regular
 suite. The generic-web Worker smoke stays opt-in because it expects a Worker already running
 locally.

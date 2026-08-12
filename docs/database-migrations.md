@@ -19,7 +19,8 @@ Production schema changes must flow through the code-driven schema. The invarian
 - `pnpm --filter @emi/api db:baseline:prod` — captures production DDL as the new baseline. Refuses
   while production has pending migrations or drift; `--force` exists only for deliberate
   reconciliation.
-- `pnpm release` — refuses to deploy until `db:verify:prod` passes.
+- `pnpm release:deploy` — refuses to deploy until `db:verify:prod` passes, then deploys the tagged
+  revision through the production Alchemy stage.
 
 ## When verification fails
 

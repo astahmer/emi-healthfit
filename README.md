@@ -219,7 +219,7 @@ Create `.env.prod` with production values for every variable in `.env.example`:
 - `ALLOWED_EMAILS` accepts a comma-separated list. Keep exactly one address through the legacy-data
   migration, then add accounts only after the isolation smoke test passes.
 
-Build the frontend and deploy the production stage:
+Build the frontend and deploy the production stage manually:
 
 ```bash
 pnpm build
@@ -250,6 +250,19 @@ account). After that bootstrap deploy:
 
 Never assume a successful bare deployment updated production. Confirm both the stage and env file in
 the command before approving an Alchemy plan.
+
+For the normal production release flow, push the final changes to `main`, then run:
+
+```bash
+pnpm release
+```
+
+This runs the lightweight `check:handoff` gate and creates a GitHub Release with a UTC tag such as
+`release-20260813-143012`. Publishing that release triggers the production Alchemy deploy workflow.
+The workflow deploys only when the tagged commit is reachable from `main`; a main push never deploys
+automatically. Configure the `production` environment with the ten secrets listed in
+`.github/workflows/production-release.yml` before using the workflow. The command expects a clean JJ
+working copy whose last committed revision is already pushed to `main`.
 
 ### Database migration workflow
 
@@ -480,6 +493,9 @@ mock browser tests. Rerun only a failed full stage with `pnpm release:check -- -
 Turbo Chrome tracing files. The full gate is `pnpm release:check`; it uses Turbo's local task cache
 and reuses the chat build for the mock browser suite. Tune resource use with
 `RELEASE_CONCURRENCY`, `VITEST_MAX_WORKERS`, and `PLAYWRIGHT_WORKERS`.
+Before creating a release, `pnpm check:handoff` runs the lightweight local handoff gate: static,
+non-coverage unit tests, parser verification, and schema checks. `pnpm release:check` remains the
+complete release evidence gate for CI and deliberate pre-release verification.
 
 ## Contributing
 

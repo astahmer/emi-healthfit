@@ -54,8 +54,13 @@ The HealthFit repository keeps Alchemy as a workspace dependency. Run `pnpm alch
 `pnpm exec alchemy login` only refreshes an existing profile and can report an OAuth refresh failure
 when its stored token has expired.
 
-Before a release, run the repository gate once after the final code change:
+Before creating a release, run the lightweight handoff gate after the final code change:
 
 ```sh
-pnpm release:check
+pnpm check:handoff
 ```
+
+The normal production flow is `pnpm release` from a clean revision already on `main`. It runs the
+handoff gate, creates a `release-YYYYMMDD-HHmmss` GitHub Release, and lets the published-release
+workflow deploy the `prod` Alchemy stage. The workflow does not run the full browser/generated
+release gate and never deploys a tag that is not reachable from `main`.

@@ -104,7 +104,7 @@ product pages/routes, and deployment/product auth policy.
 
 ## Final gate
 
-Run focused checks during work; immediately before handoff run `pnpm release:check` once on the
+Run focused checks during work; immediately before handoff run `pnpm check:handoff` once on the
 final worktree and report the exact result, including the generated-app acceptance
 (`verify:chat-app`) and both worker e2e modes. Report the final revision list. Do not mark
 complete unless the gate passes. If you hit friction, log it (papercuts) and if you fix a
