@@ -4,11 +4,13 @@ import * as Effect from "effect/Effect";
 
 import ApiLive, { Api, DB } from "./src/api.worker.ts";
 
+const state = process.env.ALCHEMY_LOCAL_STATE === "1" ? Alchemy.localState() : Cloudflare.state();
+
 export default Alchemy.Stack(
   "emi-healthfit",
   {
     providers: Cloudflare.providers(),
-    state: Cloudflare.state(),
+    state,
   },
   Effect.gen(function* () {
     const db = yield* DB;
