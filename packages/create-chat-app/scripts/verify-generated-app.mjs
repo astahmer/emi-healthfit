@@ -1,7 +1,9 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import { spawn } from "node:child_process";
 
 const run = ({ command, args, cwd, env }) =>
@@ -80,11 +82,25 @@ const stopServer = async (server) => {
 const packageDirectory = fileURLToPath(new URL("..", import.meta.url));
 const targetDirectory = await mkdtemp(join(tmpdir(), "create-chat-app-"));
 const alchemyStage = `generated-acceptance-${process.pid}`;
+const alchemyHome = join(targetDirectory, ".home");
+const workspaceEnvironmentPath = join(packageDirectory, "../../.env.prod");
+const workspaceEnvironment = existsSync(workspaceEnvironmentPath)
+  ? parseEnv(readFileSync(workspaceEnvironmentPath, "utf8"))
+  : {};
+const environmentValue = (name) => process.env[name] ?? workspaceEnvironment[name];
+const cloudflareAccountId = environmentValue("CLOUDFLARE_ACCOUNT_ID");
+const cloudflareApiToken = environmentValue("CLOUDFLARE_API_TOKEN");
 const workerEnvironment = {
   ALCHEMY_STAGE: alchemyStage,
+  ALCHEMY_LOCAL_STATE: "1",
+  ALCHEMY_PROFILE: `${alchemyStage}-ci`,
   AUTH_APP_NAME: "Acceptance Chat",
   BETTER_AUTH_SECRET: "generated-app-acceptance-secret-1234567890",
   BETTER_AUTH_URL: "http://127.0.0.1:3233",
+  CI: "1",
+  HOME: alchemyHome,
+  ...(cloudflareAccountId === undefined ? {} : { CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId }),
+  ...(cloudflareApiToken === undefined ? {} : { CLOUDFLARE_API_TOKEN: cloudflareApiToken }),
 };
 
 try {
@@ -115,6 +131,7 @@ try {
   await run({ command: "pnpm", args: ["--dir", "worker", "db:generate"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "worker", "db:check"], cwd: targetDirectory });
   await run({ command: "pnpm", args: ["--dir", "web", "build"], cwd: targetDirectory });
+  await mkdir(alchemyHome, { recursive: true });
   await run({
     command: "pnpm",
     args: ["--dir", "worker", "dry", "--stage", alchemyStage],

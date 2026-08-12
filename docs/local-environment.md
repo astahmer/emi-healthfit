@@ -79,6 +79,11 @@ token in the Cloudflare API Tokens page, or use `pnpm alchemy:login` and omit th
 does not need Wrangler API access. Keep them in `.env.prod` only when using the release verification
 or documented operational commands that load that file.
 
+The release and generated-app acceptance token must allow the account operations Alchemy performs:
+Workers Scripts, Workers Subdomain, D1, and R2 Storage writes. A token can be active while still
+failing an Alchemy apply with `Unauthorized`; replace the `.env.prod` token or configure a profile with
+the required account permissions.
+
 For a live Hevy smoke test, keep the Pro key out of `.env` and pass it for that command only:
 
 ```bash

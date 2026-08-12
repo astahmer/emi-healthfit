@@ -6,11 +6,13 @@ import { fileURLToPath } from "node:url";
 import { genericWorkerAppConfig } from "./src/app-config.ts";
 import GenericWorkerLive, { GenericWorker } from "./src/generic.worker.ts";
 
+const state = process.env.ALCHEMY_LOCAL_STATE === "1" ? Alchemy.localState() : Cloudflare.state();
+
 export default Alchemy.Stack(
   "emi-generic",
   {
     providers: Cloudflare.providers(),
-    state: Cloudflare.state(),
+    state,
   },
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.Database(genericWorkerAppConfig.databaseName, {
