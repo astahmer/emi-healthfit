@@ -3,12 +3,13 @@ import * as Schema from "effect/Schema";
 import * as Tool from "effect/unstable/ai/Tool";
 import { MemoryReader, MemorySummaryStore } from "./ports/memory-store.ts";
 import { scoreMemorySearch } from "./memory-search.ts";
+import { ToolSchema } from "./tool-schema.ts";
 
 const memorySearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
     description: "Concise keywords to find in the user's individual memory entries.",
   }),
-  limit: Schema.optional(
+  limit: ToolSchema.optional(
     Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).annotate({
       description: "Maximum number of source memory entries to return (default 10).",
     }),

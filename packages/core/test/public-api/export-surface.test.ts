@@ -17,6 +17,7 @@ import * as server from "@emi/core/server";
 import * as serverDatabase from "@emi/core/server/database";
 import * as serverEffect from "@emi/core/server/effect";
 import * as serverFetch from "@emi/core/server/fetch";
+import * as serverToolSchema from "@emi/core/server/tool-schema";
 import * as testing from "@emi/core/testing";
 import * as chat from "@emi/core/chat";
 import * as web from "@emi/core/web";
@@ -59,6 +60,7 @@ describe("@emi/core target export surface", () => {
       "MemoryTools",
       "MemoryToolsError",
     ]);
+    assert.deepEqual(sortedKeys(serverToolSchema), ["ToolSchema"]);
     assert.deepEqual(sortedKeys(serverDatabase), ["ServerDatabase"]);
     assert.deepEqual(sortedKeys(serverEffect), ["ChatServerEffect"]);
     assert.deepEqual(sortedKeys(serverFetch), ["ChatFetchHandlers"]);

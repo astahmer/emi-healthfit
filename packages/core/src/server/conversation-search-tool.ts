@@ -3,12 +3,13 @@ import * as Schema from "effect/Schema";
 import * as Tool from "effect/unstable/ai/Tool";
 import type { ConversationMessageSearchResult } from "./db/conversations.ts";
 import { ConversationReader } from "./ports/conversation-store.ts";
+import { ToolSchema } from "./tool-schema.ts";
 
 const ConversationSearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1)).annotate({
     description: "Specific words or a short phrase to search in previous conversation messages.",
   }),
-  limit: Schema.optional(
+  limit: ToolSchema.optional(
     Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).annotate({
       description: "Maximum number of matching messages to return (default 10).",
     }),

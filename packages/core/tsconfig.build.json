@@ -23,6 +23,7 @@
     "src/components.export.ts",
     "src/components-styled.export.ts",
     "src/server.export.ts",
+    "src/server-tool-schema.export.ts",
     "src/server-database.export.ts",
     "src/server-effect.export.ts",
     "src/server-fetch.export.ts",

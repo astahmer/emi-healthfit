@@ -66,6 +66,7 @@ describe("@emi/core entry isolation", () => {
       "react",
       "runtime",
       "server",
+      "server/tool-schema",
       "server/effect",
       "server/fetch",
       "testing",

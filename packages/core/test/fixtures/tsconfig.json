@@ -12,6 +12,7 @@
     "paths": {
       "@emi/core": ["./contracts/root.d.ts"],
       "@emi/core/server": ["./contracts/server.d.ts"],
+      "@emi/core/server/tool-schema": ["./contracts/server-tool-schema.d.ts"],
       "@emi/core/server/database": ["./contracts/server-database.d.ts"],
       "@emi/core/server/effect": ["./contracts/server-effect.d.ts"],
       "@emi/core/server/fetch": ["./contracts/server-fetch.d.ts"],

@@ -115,6 +115,11 @@
       "types": "./dist/types/server.export.d.ts",
       "import": "./dist/server.export.js",
       "require": "./dist/server.export.js"
+    },
+    "./server/tool-schema": {
+      "types": "./dist/types/server-tool-schema.export.d.ts",
+      "import": "./dist/server-tool-schema.export.js",
+      "require": "./dist/server-tool-schema.export.js"
     }
   },
   "publishConfig": {
@@ -260,6 +265,7 @@
         "./components/styled": "styled-components",
         "./styles.css": "styles",
         "./server": "server",
+        "./server/tool-schema": "server-tool-schema",
         "./server/database": "server-database",
         "./server/effect": "server-effect",
         "./server/fetch": "server-fetch",
@@ -284,6 +290,7 @@
         "./components/styled": "./src/components-styled.export.ts",
         "./styles.css": "./src/styles/styles.css",
         "./server": "./src/server.export.ts",
+        "./server/tool-schema": "./src/server-tool-schema.export.ts",
         "./server/database": "./src/server-database.export.ts",
         "./server/effect": "./src/server-effect.export.ts",
         "./server/fetch": "./src/server-fetch.export.ts",
@@ -419,6 +426,21 @@
           ]
         },
         "./server": {
+          "runtime": [
+            "effect"
+          ],
+          "peer": [],
+          "optional": [],
+          "forbidden": [
+            "react",
+            "xstate",
+            "ai",
+            "@ai-sdk/openai",
+            "drizzle-orm",
+            "@cloudflare/workers-types"
+          ]
+        },
+        "./server/tool-schema": {
           "runtime": [
             "effect"
           ],

@@ -66,7 +66,7 @@ describe("@emi/core packed consumer", () => {
 
       await writeFile(
         join(consumerDirectory, "index.mjs"),
-        `const names = ["@emi/core", "@emi/core/protocol", "@emi/core/api", "@emi/core/chat", "@emi/core/contract", "@emi/core/discord", "@emi/core/runtime", "@emi/core/react", "@emi/core/components", "@emi/core/components/styled", "@emi/core/server", "@emi/core/server/effect", "@emi/core/server/fetch", "@emi/core/adapters/ai-sdk", "@emi/core/adapters/cloudflare", "@emi/core/extensions", "@emi/core/testing", "@emi/core/advanced/xstate"];\nfor (const name of names) { const module = await import(name); if (Object.keys(module).length === 0) throw new Error(name); }\n`,
+        `const names = ["@emi/core", "@emi/core/protocol", "@emi/core/api", "@emi/core/chat", "@emi/core/contract", "@emi/core/discord", "@emi/core/runtime", "@emi/core/react", "@emi/core/components", "@emi/core/components/styled", "@emi/core/server", "@emi/core/server/tool-schema", "@emi/core/server/effect", "@emi/core/server/fetch", "@emi/core/adapters/ai-sdk", "@emi/core/adapters/cloudflare", "@emi/core/extensions", "@emi/core/testing", "@emi/core/advanced/xstate"];\nfor (const name of names) { const module = await import(name); if (Object.keys(module).length === 0) throw new Error(name); }\n`,
       );
       run("node", ["index.mjs"], consumerDirectory);
 
