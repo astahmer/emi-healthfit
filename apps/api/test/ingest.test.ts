@@ -31,6 +31,15 @@ describe("HealthExportKit parser", () => {
     assert.ok(firstSleep.end);
     assert.match(firstSleep.start, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     assert.match(firstSleep.end, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    assert.strictEqual(firstSleep.in_bed_min, 480);
+    assert.strictEqual(firstSleep.asleep_min, 445);
+    assert.strictEqual(firstSleep.awake_min, 35);
+
+    const secondSleep = result.sleep[1];
+    assert.ok(secondSleep);
+    assert.strictEqual(secondSleep.in_bed_min, null);
+    assert.strictEqual(secondSleep.asleep_min, null);
+    assert.strictEqual(secondSleep.awake_min, null);
   });
 
   it("parses exports without a sleep section", async () => {

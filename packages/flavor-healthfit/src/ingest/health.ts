@@ -123,6 +123,9 @@ const toDateTimeLocal = (date: Date): string => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
+const secondsToMinutes = (seconds: number | null): number | null =>
+  seconds === null ? null : Math.round(seconds / 60);
+
 const parseSessionEnd = (session: typeof SleepSession.Type, startDate: Date): Date => {
   const duration = Option.getOrNull(session.durationSec);
   if (duration !== null) {
@@ -208,10 +211,10 @@ export const parseHealthExport = (
         return sleepExport.sessions.map((session, index) => {
           const startDate = sleepDates[index];
           const endDate = parseSessionEnd(session, startDate);
-          const inBed = Option.getOrNull(session.inBedSec);
-          const asleep = Option.getOrNull(session.asleepSec);
-          const awake = Option.getOrNull(session.awakeSec);
-          const duration = Option.getOrNull(session.durationSec);
+          const inBed = secondsToMinutes(Option.getOrNull(session.inBedSec));
+          const asleep = secondsToMinutes(Option.getOrNull(session.asleepSec));
+          const awake = secondsToMinutes(Option.getOrNull(session.awakeSec));
+          const duration = secondsToMinutes(Option.getOrNull(session.durationSec));
 
           return {
             date: toIsoLocal(startDate),
