@@ -7,6 +7,9 @@ const bddTestDir = defineBddConfig({
   outputDir: "test/e2e/.features-gen",
 });
 
+const webOrigin = process.env.GENERIC_WEB_ORIGIN ?? "http://127.0.0.1:3233";
+const webPort = process.env.PORT ?? "3233";
+
 export default defineConfig({
   forbidOnly: true,
   fullyParallel: true,
@@ -17,7 +20,7 @@ export default defineConfig({
   timeout: 20_000,
   testDir: "./test/e2e",
   use: {
-    baseURL: "http://127.0.0.1:3233",
+    baseURL: webOrigin,
     ...devices["Desktop Chrome"],
     serviceWorkers: "block",
     trace: "retain-on-failure",
@@ -36,8 +39,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "VITE_WEBMCP_ENABLED=true vite --host 127.0.0.1 --port 3233",
+    command: `VITE_WEBMCP_ENABLED=true vite --host 127.0.0.1 --port ${webPort}`,
     reuseExistingServer: true,
-    url: "http://127.0.0.1:3233",
+    url: webOrigin,
   },
 });

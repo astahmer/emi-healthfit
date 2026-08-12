@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 
 const run = ({ command, args, cwd, env }) =>
   new Promise((resolve, reject) => {
@@ -24,6 +25,27 @@ const run = ({ command, args, cwd, env }) =>
   });
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const findAvailablePort = () =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (address === null || typeof address === "string") {
+        server.close();
+        reject(new Error("Could not determine an available local port."));
+        return;
+      }
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
 
 const startServer = ({ command, args, cwd, env }) => {
   const state = { error: undefined, stopping: false };
@@ -90,15 +112,20 @@ const workspaceEnvironment = existsSync(workspaceEnvironmentPath)
 const environmentValue = (name) => process.env[name] ?? workspaceEnvironment[name];
 const cloudflareAccountId = environmentValue("CLOUDFLARE_ACCOUNT_ID");
 const cloudflareApiToken = environmentValue("CLOUDFLARE_API_TOKEN");
+const workerPort = await findAvailablePort();
+const webPort = await findAvailablePort();
+const workerOrigin = `http://127.0.0.1:${workerPort}`;
+const webOrigin = `http://127.0.0.1:${webPort}`;
 const workerEnvironment = {
   ALCHEMY_STAGE: alchemyStage,
   ALCHEMY_LOCAL_STATE: "1",
   ALCHEMY_PROFILE: `${alchemyStage}-ci`,
   AUTH_APP_NAME: "Acceptance Chat",
   BETTER_AUTH_SECRET: "generated-app-acceptance-secret-1234567890",
-  BETTER_AUTH_URL: "http://127.0.0.1:3233",
+  BETTER_AUTH_URL: webOrigin,
   CI: "1",
   HOME: alchemyHome,
+  PORT: `${workerPort}`,
   ...(cloudflareAccountId === undefined ? {} : { CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId }),
   ...(cloudflareApiToken === undefined ? {} : { CLOUDFLARE_API_TOKEN: cloudflareApiToken }),
 };
@@ -150,22 +177,22 @@ try {
     });
     web = startServer({
       command: join(targetDirectory, "web/node_modules/.bin/vite"),
-      args: ["--port", "3233", "--host", "127.0.0.1"],
+      args: ["--port", `${webPort}`, "--host", "127.0.0.1"],
       cwd: join(targetDirectory, "web"),
       env: {
         VITE_WEBMCP_ENABLED: "true",
-        VITE_WORKER_ORIGIN: "http://127.0.0.1:8787",
+        VITE_WORKER_ORIGIN: workerOrigin,
       },
     });
-    await waitForUrl({ url: "http://127.0.0.1:8787/api/health", server: worker });
-    await waitForUrl({ url: "http://127.0.0.1:3233/api/health", server: web });
+    await waitForUrl({ url: `${workerOrigin}/api/health`, server: worker });
+    await waitForUrl({ url: `${webOrigin}/api/health`, server: web });
     await run({
       command: "pnpm",
       args: ["--dir", "web", "test:api"],
       cwd: targetDirectory,
       env: {
-        GENERIC_API_ORIGIN: "http://127.0.0.1:3233",
-        GENERIC_AUTH_ORIGIN: "http://127.0.0.1:3233",
+        GENERIC_API_ORIGIN: webOrigin,
+        GENERIC_AUTH_ORIGIN: webOrigin,
         GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
         GENERIC_EXPECTED_APP_VERSION: "0.1.0",
       },
@@ -175,8 +202,10 @@ try {
       args: ["--dir", "web", "test:e2e"],
       cwd: targetDirectory,
       env: {
+        GENERIC_WEB_ORIGIN: webOrigin,
         GENERIC_EXPECTED_APP_NAME: "Acceptance Chat",
         GENERIC_EXPECTED_APP_VERSION: "0.1.0",
+        PORT: `${webPort}`,
         GENERIC_REAL_WORKER: "1",
       },
     });
