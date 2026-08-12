@@ -1,0 +1,18 @@
+id: no-raw-tool-optional-schema
+valid:
+  - |
+    const parameters = Schema.Struct({
+      limit: ToolSchema.optional(Schema.Number),
+    });
+  - |
+    const output = Schema.Struct({
+      label: Schema.optional(Schema.String),
+    });
+invalid:
+  - |
+    const tool = Tool.make("get_workouts", {
+      parameters: Schema.Struct({
+        limit: Schema.optional(Schema.Number),
+      }),
+      success: Schema.Unknown,
+    });

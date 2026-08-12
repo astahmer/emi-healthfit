@@ -121,6 +121,37 @@ describe("conversation thread tools", () => {
     ]);
   });
 
+  it("accepts explicit null for omitted goal arguments from a model", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const toolsDb = narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(rawDb);
+
+    assert.deepStrictEqual(
+      await run(
+        HealthFit.tools.execute({
+          db: toolsDb,
+          userId: "null-goal-user",
+          name: "get_goal_progress",
+          args: {
+            days: null,
+            step_goal: null,
+            workouts_goal: null,
+            target_weight_kg: null,
+          },
+        }),
+      ),
+      {
+        period_days: 7,
+        average_steps: null,
+        step_goal: null,
+        workouts: 0,
+        workouts_goal: null,
+        latest_weight_kg: null,
+        target_weight_kg: null,
+        weight_remaining_kg: null,
+      },
+    );
+  });
+
   it("does not expose unscoped SQL", () => {
     assert.ok(!tools.some((tool) => tool.name === "query_database"));
   });

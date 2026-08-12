@@ -10,6 +10,7 @@ import type { JSONSchema7 } from "json-schema";
 import { ChatProtocol } from "@emi/core/protocol";
 import { ConversationSearchTool, MemoryTools } from "@emi/core/server";
 import { ServerDatabase } from "@emi/core/server/database";
+import { ToolSchema } from "@emi/core/server/tool-schema";
 import { buildChatContext } from "../chat/context.ts";
 import {
   getDataSummary,
@@ -78,7 +79,7 @@ const GetWorkoutHistory = Tool.make("get_workout_history", {
   description:
     "List recent strength workouts with date, title, volume, exercise count, and set count.",
   parameters: Schema.Struct({
-    limit: Schema.optional(
+    limit: ToolSchema.optional(
       Schema.Int.annotate({
         description: "Maximum number of workouts to return (default 10).",
       }),
@@ -107,7 +108,7 @@ const GetExerciseProgress = Tool.make("get_exercise_progress", {
     exercise_title: Schema.String.annotate({
       description: "Exact exercise name as it appears in Hevy.",
     }),
-    weeks: Schema.optional(
+    weeks: ToolSchema.optional(
       Schema.Int.annotate({
         description: "Number of weeks to look back (default 8).",
       }),
@@ -120,7 +121,7 @@ const GetExerciseProgress = Tool.make("get_exercise_progress", {
 const GetSleepTrend = Tool.make("get_sleep_trend", {
   description: "Get nightly sleep duration and averages over the last N days.",
   parameters: Schema.Struct({
-    days: Schema.optional(
+    days: ToolSchema.optional(
       Schema.Int.annotate({
         description: "Number of days to average (default 7).",
       }),
@@ -139,7 +140,7 @@ const GetWorkoutStreak = Tool.make("get_workout_streak", {
 const GetTrainingLoad = Tool.make("get_training_load", {
   description: "Get weekly strength-training volume, workouts, sets, and week-over-week change.",
   parameters: Schema.Struct({
-    weeks: Schema.optional(
+    weeks: ToolSchema.optional(
       Schema.Int.annotate({ description: "Number of weeks to look back (default 4)." }),
     ),
   }),
@@ -150,7 +151,7 @@ const GetTrainingLoad = Tool.make("get_training_load", {
 const GetRecoveryTimeline = Tool.make("get_recovery_timeline", {
   description: "Get a daily timeline of sleep and strength-training load for recovery context.",
   parameters: Schema.Struct({
-    days: Schema.optional(
+    days: ToolSchema.optional(
       Schema.Int.annotate({ description: "Number of days to look back (default 14)." }),
     ),
   }),
@@ -162,18 +163,18 @@ const GetGoalProgress = Tool.make("get_goal_progress", {
   description:
     "Get progress for supplied step, workout-frequency, and body-weight goals. Search memories first when a goal is not in the current chat.",
   parameters: Schema.Struct({
-    days: Schema.optional(
+    days: ToolSchema.optional(
       Schema.Int.annotate({ description: "Evaluation window in days (default 7)." }),
     ),
-    step_goal: Schema.optional(
+    step_goal: ToolSchema.optional(
       Schema.Number.annotate({ description: "Daily step target, when known." }),
     ),
-    workouts_goal: Schema.optional(
+    workouts_goal: ToolSchema.optional(
       Schema.Int.annotate({
         description: "Strength-workout target for the evaluation window, when known.",
       }),
     ),
-    target_weight_kg: Schema.optional(
+    target_weight_kg: ToolSchema.optional(
       Schema.Number.annotate({ description: "Body-weight target in kg, when known." }),
     ),
   }),
@@ -236,7 +237,7 @@ const CreateThread = Tool.make("create_thread", {
   description: "Create a side thread anchored at a message in the current conversation.",
   parameters: Schema.Struct({
     anchor_message_id: Schema.String,
-    title: Schema.optional(Schema.String),
+    title: ToolSchema.optional(Schema.String),
   }),
   success: Schema.Unknown,
   failure: Schema.Unknown,
@@ -253,7 +254,7 @@ const SummarizeToMessage = Tool.make("summarize_to_message", {
   description: "Summarize a side thread into a referenceable message at an optional target.",
   parameters: Schema.Struct({
     thread_id: Schema.String,
-    target_message_id: Schema.optional(Schema.String),
+    target_message_id: ToolSchema.optional(Schema.String),
   }),
   success: Schema.Unknown,
   failure: Schema.Unknown,

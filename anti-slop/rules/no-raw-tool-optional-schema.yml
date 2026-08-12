@@ -1,0 +1,17 @@
+id: no-raw-tool-optional-schema
+language: TypeScript
+files:
+  - packages/core/src/server/**/*.ts
+  - packages/core/src/server/**/*.tsx
+  - packages/flavor-healthfit/src/tools/**/*.ts
+  - packages/flavor-healthfit/src/tools/**/*.tsx
+message: Model-facing tool schemas must use ToolSchema.optional so explicit null arguments normalize to undefined.
+severity: error
+rule:
+  pattern: Schema.optional($$$ARGS)
+  inside:
+    kind: pair
+    has:
+      field: key
+      regex: "^parameters$"
+    stopBy: end
