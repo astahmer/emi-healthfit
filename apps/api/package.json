@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:baseline:prod": "node --experimental-strip-types scripts/capture-prod-baseline.ts",
     "db:migrate:prod": "node --experimental-strip-types scripts/apply-prod-migrations.ts",
+    "db:repair:sleep-units": "node --experimental-strip-types scripts/repair-sleep-units.ts",
     "db:verify:prod": "node --experimental-strip-types scripts/verify-prod-drift.ts",
     "db:ownership:review": "node --experimental-strip-types scripts/review-owner-migration.ts",
     "dry": "pnpm run alchemy deploy --dry-run --env-file ../../.env",
