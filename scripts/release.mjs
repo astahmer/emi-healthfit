@@ -126,7 +126,7 @@ const assertProductionMigrations = () => {
   }
 };
 
-runPnpm({ args: ["release:check"] });
+runPnpm({ args: ["check:handoff"] });
 assertProductionMigrations();
 run({
   command: "node",

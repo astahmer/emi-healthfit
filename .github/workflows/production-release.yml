@@ -1,0 +1,95 @@
+name: Production release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy production
+    if: startsWith(github.event.release.tag_name, 'release-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://emi-healthfit.astahmer.dev
+    env:
+      CI: "1"
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASED_AT: ${{ github.event.release.published_at }}
+      RELEASE_BODY: ${{ github.event.release.body }}
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Fetch main for release-target validation
+        run: git fetch origin main --no-tags
+
+      - name: Write production environment
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+          HEVY_CREDENTIAL_ENCRYPTION_KEY: ${{ secrets.HEVY_CREDENTIAL_ENCRYPTION_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DISCORD_INTERNAL_ASK_SECRET: ${{ secrets.DISCORD_INTERNAL_ASK_SECRET }}
+        run: |
+          set -eu
+          for variable in \
+            CLOUDFLARE_ACCOUNT_ID \
+            CLOUDFLARE_API_TOKEN \
+            BETTER_AUTH_SECRET \
+            BETTER_AUTH_URL \
+            GOOGLE_CLIENT_ID \
+            GOOGLE_CLIENT_SECRET \
+            ALLOWED_EMAILS \
+            HEVY_CREDENTIAL_ENCRYPTION_KEY \
+            OPENAI_API_KEY \
+            DISCORD_INTERNAL_ASK_SECRET; do
+            test -n "${!variable}" || { echo "Missing GitHub secret: ${variable}" >&2; exit 1; }
+          done
+          {
+            printf 'BETTER_AUTH_SECRET=%s\n' "$BETTER_AUTH_SECRET"
+            printf 'BETTER_AUTH_URL=%s\n' "$BETTER_AUTH_URL"
+            printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
+            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET"
+            printf 'ALLOWED_EMAILS=%s\n' "$ALLOWED_EMAILS"
+            printf 'HEVY_CREDENTIAL_ENCRYPTION_KEY=%s\n' "$HEVY_CREDENTIAL_ENCRYPTION_KEY"
+            printf 'OPENAI_API_KEY=%s\n' "$OPENAI_API_KEY"
+            printf 'DISCORD_INTERNAL_ASK_SECRET=%s\n' "$DISCORD_INTERNAL_ASK_SECRET"
+            printf 'CLOUDFLARE_ACCOUNT_ID=%s\n' "$CLOUDFLARE_ACCOUNT_ID"
+            printf 'CLOUDFLARE_API_TOKEN=%s\n' "$CLOUDFLARE_API_TOKEN"
+          } > .env.prod
+
+      - name: Deploy Alchemy production stage
+        run: pnpm release:deploy

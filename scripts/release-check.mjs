@@ -8,7 +8,8 @@ const rootDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const packageFilters = ["--filter=./apps/*", "--filter=./packages/*"];
 const fullStages = ["static", "tests", "verify", "schema", "generated", "e2e"];
-const listedStages = ["static", "unit", "smoke", ...fullStages.slice(1)];
+const handoffStages = ["static", "unit", "verify", "schema"];
+const listedStages = ["static", "unit", "handoff", "smoke", ...fullStages.slice(1)];
 const releaseEnvironment = {
   ...process.env,
   PLAYWRIGHT_WORKERS: process.env.PLAYWRIGHT_WORKERS ?? "4",
@@ -106,6 +107,7 @@ const parseOptions = () => {
     affected: false,
     fast: false,
     from: undefined,
+    handoff: false,
     list: false,
     profile: undefined,
     stage: undefined,
@@ -115,6 +117,10 @@ const parseOptions = () => {
     if (argument === "--") continue;
     if (argument === "--fast") {
       options.fast = true;
+      continue;
+    }
+    if (argument === "--handoff") {
+      options.handoff = true;
       continue;
     }
     if (argument === "--affected") {
@@ -143,23 +149,29 @@ const parseOptions = () => {
     if (argument === "--full") continue;
     throw new Error(`Unknown option: ${argument}`);
   }
-  if (options.fast && (options.stage !== undefined || options.from !== undefined)) {
-    throw new Error("--fast cannot be combined with --stage or --from.");
+  if (
+    (options.fast || options.handoff) &&
+    (options.stage !== undefined || options.from !== undefined)
+  ) {
+    throw new Error("--fast and --handoff cannot be combined with --stage or --from.");
   }
   if (
     options.affected &&
-    (options.fast || options.stage !== undefined || options.from !== undefined)
+    (options.fast || options.handoff || options.stage !== undefined || options.from !== undefined)
   ) {
-    throw new Error("--affected cannot be combined with --fast, --stage, or --from.");
+    throw new Error("--affected cannot be combined with --fast, --handoff, --stage, or --from.");
   }
+  if (options.fast && options.handoff) throw new Error("--fast cannot be combined with --handoff.");
   return options;
 };
 
 const selectedStages = (options) => {
   if (options.list) return [];
+  if (options.handoff) return handoffStages;
   if (options.fast) return ["static", "unit"];
   if (options.affected) return ["static", "unit"];
   if (options.stage !== undefined) {
+    if (options.stage === "handoff") return handoffStages;
     if (!(options.stage in stages)) throw new Error(`Unknown stage: ${options.stage}`);
     return [options.stage];
   }
