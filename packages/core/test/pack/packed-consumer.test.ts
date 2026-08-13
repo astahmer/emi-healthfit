@@ -62,7 +62,7 @@ describe("@emi/core packed consumer", () => {
         join(consumerDirectory, "package.json"),
         await readFile(join(temporaryDirectory, "consumer-package.json")),
       );
-      run("pnpm", ["install", "--offline", "--ignore-scripts"], consumerDirectory);
+      run("pnpm", ["install", "--prefer-offline", "--ignore-scripts"], consumerDirectory);
 
       await writeFile(
         join(consumerDirectory, "index.mjs"),
@@ -102,7 +102,7 @@ describe("@emi/core packed consumer", () => {
           dependencies: { "@emi/core": `file:${join(temporaryDirectory, tarball)}` },
         }),
       );
-      run("pnpm", ["install", "--offline", "--ignore-scripts"], noAdapterConsumerDirectory);
+      run("pnpm", ["install", "--prefer-offline", "--ignore-scripts"], noAdapterConsumerDirectory);
       await writeFile(
         join(noAdapterConsumerDirectory, "index.mjs"),
         'import "@emi/core"; import "@emi/core/protocol"; import "@emi/core/server";\n',
