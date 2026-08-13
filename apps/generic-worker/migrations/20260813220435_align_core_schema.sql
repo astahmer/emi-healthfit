@@ -1,0 +1,1 @@
+ALTER TABLE `memories` ADD `deleted_at` text;
