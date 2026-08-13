@@ -32,6 +32,7 @@ const createState = (): ChatState => ({
     conversationId: undefined,
     messages: [],
     isStreaming: false,
+    isSending: false,
   },
   composer: { text: "", attachments: [], canSend: false },
   conversations: { items: [conversation], search: "", loading: false, error: undefined },

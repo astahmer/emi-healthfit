@@ -221,4 +221,19 @@ describe("chatSessionMachine", () => {
     expect(actor.getSnapshot().context.conversationId).toBe("conversation-1");
     expect(actor.getSnapshot().context.threadId).toBe("thread-1");
   });
+
+  it("tracks a pending send until the stream starts or finishes", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({ type: "send-pending" });
+
+    expect(actor.getSnapshot().context.sendPending).toBe(true);
+    actor.send({
+      type: "stream-started",
+      messages: [message],
+    });
+
+    expect(actor.getSnapshot().context.sendPending).toBe(false);
+    expect(actor.getSnapshot().matches("streaming")).toBe(true);
+  });
 });

@@ -321,6 +321,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         failedStreamMessageId: undefined,
         streamOrigin: undefined,
         streamOutcome: undefined,
+        sendPending: false,
         draft: "",
         files: [],
         temporary: false,
@@ -432,6 +433,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         conversationId: session.conversationId,
         messages: activeThreadMessages,
         isStreaming,
+        isSending: session.sendPending,
       },
       composer: {
         text: session.draft,

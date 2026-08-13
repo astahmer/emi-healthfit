@@ -72,6 +72,7 @@ describe("Thread", () => {
       queuedFollowUps: [],
       editingQueuedId: null,
       isStreaming: false,
+      isSending: false,
       error: null,
       errorMessageId: undefined,
       attachmentError: null,

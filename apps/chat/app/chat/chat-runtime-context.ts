@@ -27,6 +27,7 @@ export interface ChatRuntimeValue {
   queuedFollowUps: QueuedFollowUp[];
   editingQueuedId: string | null;
   isStreaming: boolean;
+  isSending: boolean;
   error: Error | null;
   errorMessageId: string | undefined;
   attachmentError: string | null;

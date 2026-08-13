@@ -18,6 +18,7 @@ export const ThreadComposer = ({ composerControls }: { composerControls: Compose
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (runtime.isSending) return;
     void runtime.submit();
   };
 
@@ -68,6 +69,7 @@ export const ThreadComposer = ({ composerControls }: { composerControls: Compose
             }
             if (event.key === "Enter" && !event.shiftKey && !isMobile) {
               event.preventDefault();
+              if (runtime.isSending) return;
               void runtime.submit();
               return;
             }

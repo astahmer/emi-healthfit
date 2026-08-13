@@ -7,6 +7,7 @@ import {
   BrainIcon,
   GlobeIcon,
   GhostIcon,
+  LoaderCircleIcon,
   PaperclipIcon,
   SquareIcon,
   XIcon,
@@ -249,11 +250,13 @@ export const ComposerToolbar = ({
         tooltip={
           runtime.editingQueuedId !== null
             ? "Update queued message"
-            : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
-              ? "Stop generating"
-              : runtime.isStreaming
-                ? "Send after reply"
-                : "Send message"
+            : runtime.isSending
+              ? "Sending…"
+              : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                ? "Stop generating"
+                : runtime.isStreaming
+                  ? "Send after reply"
+                  : "Send message"
         }
         side="top"
         type={
@@ -266,6 +269,7 @@ export const ComposerToolbar = ({
         }
         variant="default"
         className="ms-auto size-9 shrink-0 rounded-full"
+        disabled={runtime.isSending}
         onClick={
           runtime.isStreaming &&
           runtime.draft.trim() === "" &&
@@ -277,14 +281,18 @@ export const ComposerToolbar = ({
         aria-label={
           runtime.editingQueuedId !== null
             ? "Update queued message"
-            : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
-              ? "Stop generating"
-              : runtime.isStreaming
-                ? "Send after reply"
-                : "Send message"
+            : runtime.isSending
+              ? "Sending…"
+              : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+                ? "Stop generating"
+                : runtime.isStreaming
+                  ? "Send after reply"
+                  : "Send message"
         }
       >
-        {runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (
+        {runtime.isSending ? (
+          <LoaderCircleIcon className="size-4 animate-spin" />
+        ) : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (
           <SquareIcon className="size-4" />
         ) : (
           <ArrowUpIcon className="size-4" />

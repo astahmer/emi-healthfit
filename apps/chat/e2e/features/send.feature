@@ -4,6 +4,12 @@ Feature: Send message
     When they send the message "First hello"
     Then the assistant reply "Hello back" should be displayed
 
+  Scenario: Lock the send button while the first send is still starting
+    Given a user is on a new chat page that creates conversations slowly
+    When they send the message "Hello twice"
+    Then the send button should be locked until the reply streams
+    And only one chat request should have been made
+
   Scenario: Send another message after an assistant reply
     Given a user is on session one that replies "Sleep more tonight" to the next message
     When they send the message "What about sleep?"

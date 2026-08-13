@@ -17,6 +17,7 @@ export interface ChatSession {
   failedStreamMessageId: string | undefined;
   streamOrigin: "send" | "resume" | undefined;
   streamOutcome: "completed" | "failed" | "cancelled" | undefined;
+  sendPending: boolean;
   draft: string;
   files: Attachment[];
   temporary: boolean;
@@ -59,6 +60,7 @@ export const initialChatSession: ChatSession = {
   failedStreamMessageId: undefined,
   streamOrigin: undefined,
   streamOutcome: undefined,
+  sendPending: false,
   draft: "",
   files: [],
   temporary: false,
@@ -138,6 +140,7 @@ export const chatSessionMachine = setup({
     identifyConversation: assign(({ event }) =>
       event.type === "conversation-identified" ? { conversationId: event.conversationId } : {},
     ),
+    markSendPending: assign({ sendPending: () => true }),
     startStream: assign(({ context, event }) =>
       event.type === "stream-started"
         ? {
@@ -150,6 +153,7 @@ export const chatSessionMachine = setup({
             failedStreamMessageId: undefined,
             streamOrigin: "send",
             streamOutcome: undefined,
+            sendPending: false,
             draft: "",
             files: [],
             error: undefined,
@@ -166,6 +170,7 @@ export const chatSessionMachine = setup({
         failedStreamMessageId: undefined,
         streamOrigin: "resume",
         streamOutcome: undefined,
+        sendPending: false,
       };
     }),
     updateStream: assign(({ context, event }) => {
@@ -181,15 +186,25 @@ export const chatSessionMachine = setup({
         failedStreamMessageId: undefined,
       };
     }),
-    completeStream: assign({ streamOutcome: () => "completed" as const }),
-    cancelStream: assign({ streamOutcome: () => "cancelled" as const }),
-    finishStream: assign({ resumeMessageId: () => undefined }),
+    completeStream: assign({
+      streamOutcome: () => "completed" as const,
+      sendPending: () => false,
+    }),
+    cancelStream: assign({
+      streamOutcome: () => "cancelled" as const,
+      sendPending: () => false,
+    }),
+    finishStream: assign({
+      resumeMessageId: () => undefined,
+      sendPending: () => false,
+    }),
     reportError: assign(({ context, event }) =>
       event.type === "error-reported"
         ? {
             error: event.error,
             errorMessageId: event.messageId,
             streamOutcome: "failed" as const,
+            sendPending: false,
             failedStreamMessageId:
               context.streamOutcome === undefined && context.streamOrigin === "send"
                 ? context.streamMessageId
@@ -204,6 +219,7 @@ export const chatSessionMachine = setup({
     queueFollowUp: assign(({ context, event }) =>
       event.type === "follow-up-queued"
         ? {
+            sendPending: false,
             draft: "",
             files: [],
             queuedFollowUps: [...context.queuedFollowUps, event.followUp],
@@ -249,6 +265,7 @@ export const chatSessionMachine = setup({
         "conversation-opened": { actions: "openConversation" },
         "thread-opened": { actions: "openThread" },
         "conversation-identified": { actions: "identifyConversation" },
+        "send-pending": { actions: "markSendPending" },
         "stream-started": { target: "streaming", actions: "startStream" },
         "stream-resumed": { target: "streaming", actions: "resumeStream" },
         "error-reported": { actions: "reportError" },
@@ -269,6 +286,7 @@ export const chatSessionMachine = setup({
         "conversation-opened": { target: "idle", actions: "openConversation" },
         "thread-opened": { target: "idle", actions: "openThread" },
         "conversation-identified": { actions: "identifyConversation" },
+        "send-pending": { actions: "markSendPending" },
         "stream-message": { actions: "updateStream" },
         "stream-completed": { actions: "completeStream" },
         "stream-cancelled": { actions: "cancelStream" },

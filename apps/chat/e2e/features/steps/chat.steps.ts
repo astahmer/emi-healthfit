@@ -294,6 +294,39 @@ Given("a user is on a new chat page that creates conversations", async ({ page }
   await mock.open(page, "/chat");
 });
 
+Given("a user is on a new chat page that creates conversations slowly", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      createConversationId: "fresh",
+      chat: { persist: true, replyText: "Hello back" },
+      snapshots: {
+        fresh: {
+          conversation: {
+            id: "fresh",
+            title: null,
+            status: "regular",
+            pinned: false,
+            created_at: "2026-07-20T00:00:00.000Z",
+            updated_at: "2026-07-20T00:00:00.000Z",
+          },
+          messages: [],
+          threads: [],
+        },
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat");
+  await page.route("**/api/conversations", async (route) => {
+    if (route.request().method() !== "POST") {
+      await fulfillMockApi({ route, app: mock.app });
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await fulfillMockApi({ route, app: mock.app });
+  });
+});
+
 Given("a user is on a new chat page with session one listed", async ({ page }) => {
   const mock = createChatMock({
     state: {
@@ -2572,6 +2605,16 @@ When("they click the send button without a message", async ({ page }) => {
 
 Then("no chat request should have been made", async ({ page }) => {
   expect(getPageMock(page).state.chat.calls).toBe(0);
+});
+
+Then("only one chat request should have been made", async ({ page }) => {
+  expect(getPageMock(page).state.chat.calls).toBe(1);
+});
+
+Then("the send button should be locked until the reply streams", async ({ page }) => {
+  await expect(page.getByLabel("Sending…")).toBeDisabled();
+  await expect(page.getByText("Hello back")).toBeVisible();
+  await expect(page.getByLabel("Send message")).toBeVisible();
 });
 
 Then("the last request should contain a file part without a text part", async ({ page }) => {
