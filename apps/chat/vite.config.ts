@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { serwist } from "@serwist/vite";
 import { defineConfig, loadEnv, type Plugin } from "vite";
+import { coreSourceAliases } from "../../scripts/vite-core-alias.mjs";
 import packageJson from "./package.json" with { type: "json" };
 
 const rootDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -77,9 +78,10 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     resolve: {
-      alias: {
-        "@": rootDirectory,
-      },
+      alias: [
+        { find: "@", replacement: rootDirectory },
+        ...(mode === "production" ? [] : coreSourceAliases()),
+      ],
     },
     server: {
       host: "127.0.0.1",

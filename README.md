@@ -153,7 +153,7 @@ pnpm chat:dev
 This starts a temporary API environment and the Vite UI together, with OAuth callbacks routed
 through `http://127.0.0.1:3232`. Stop any separately running `pnpm dev` process first. Use
 `pnpm --dir apps/chat dev` only when an API is already running and Google auth is not needed (the
-API command builds `@emi/core` first, so run it at least once before the UI-only command).
+UI dev server resolves `@emi/core` from source, so no core build is required).
 
 For a dedicated [Herdr](https://herdr.dev) workspace with API and chat in separate tabs:
 
