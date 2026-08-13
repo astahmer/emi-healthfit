@@ -228,7 +228,7 @@ const run = async () => {
     {
       label: "chat",
       command: "pnpm",
-      args: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1", "--port", "3232"],
+      args: ["--dir", "apps/chat", "dev"],
       environment: { API_BASE_URL: apiOrigin },
     },
   ];

@@ -89,7 +89,7 @@ const run = async () => {
     });
     await waitForApi();
     web = spawnProcess({
-      arguments: ["--dir", "apps/chat", "exec", "vite", "--host", "127.0.0.1"],
+      arguments: ["--dir", "apps/chat", "dev"],
       environment: { API_BASE_URL: apiOrigin },
     });
     const exitCode = await new Promise((resolve) => {
