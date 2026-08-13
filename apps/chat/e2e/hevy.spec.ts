@@ -60,6 +60,39 @@ test("syncs Hevy from Settings and shows stale/error status", async ({ page }) =
   await expect(page.getByText(/Up to date/)).toBeVisible();
 });
 
+test("does not show a workout answer when the latest Hevy refresh fails", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      hevy: {
+        status: connectedHevyStatus({
+          fresh: false,
+          lastErrorCode: "hevy_network",
+          lastErrorAt: "2026-07-20T11:00:00.000Z",
+        }),
+        workouts: [sampleHevyWorkout()],
+      },
+      chat: {
+        failStatus: 503,
+        failBody: JSON.stringify({
+          error:
+            "Hevy data could not be refreshed before answering. No answer was generated from stale workout data. Retry shortly or use Sync now in Settings.",
+          code: "HEVY_FRESHNESS_FAILED",
+        }),
+      },
+    },
+  });
+  await mock.open(page, "/chat/one");
+
+  await page.getByLabel("Message input").fill("What should I lift today?");
+  await page.getByLabel("Send message").click();
+
+  await expect(
+    page.getByText("Hevy data could not be refreshed before answering.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("Mock answer", { exact: true })).toBeHidden();
+  expect(mock.state.chat.calls).toBe(1);
+});
+
 test("disconnects Hevy after confirmation and keeps workouts available", async ({ page }) => {
   const mock = createChatMock({
     state: {

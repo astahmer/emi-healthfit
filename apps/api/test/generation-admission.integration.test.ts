@@ -4,9 +4,11 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
 import { ServerDatabase } from "@emi/core/server/database";
 import { handleAiSdkChat } from "../src/chat/generation-lifecycle.ts";
+import { ChatPreflightError } from "../src/chat/hooks.ts";
 import { makeFakeBucket } from "./fake-bucket.ts";
 import { narrowQueryDatabaseClient, type DatabaseSchema } from "../src/platform/db/client.ts";
 import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
@@ -112,6 +114,124 @@ const requestFor = ({
   );
 
 describe("chat generation admission", () => {
+  it("fails before provider calls when HealthFit freshness preflight fails", async () => {
+    const { db } = makeSqliteDatabase();
+    const conversationDatabase = await makeConversationDatabase(
+      narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db),
+    );
+    const conversationId = await run(
+      conversationDatabase.createConversation({ userId: user.id, title: "Freshness test" }),
+    );
+    const request = requestFor({
+      conversationId,
+      requestId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      message: "Use my latest Hevy data",
+    });
+    const previousFetch = globalThis.fetch;
+    let providerCalls = 0;
+    globalThis.fetch = async () => {
+      providerCalls += 1;
+      return providerResponse(new Request("https://provider.example"));
+    };
+
+    try {
+      const response = await Effect.runPromise(
+        handleAiSdkChat(
+          db,
+          request,
+          {},
+          {
+            beforeChat: () =>
+              Effect.fail(
+                new ChatPreflightError({
+                  code: "HEVY_FRESHNESS_FAILED",
+                  message: "Hevy data could not be refreshed.",
+                  status: 503,
+                }),
+              ),
+          },
+          makeFakeBucket().bucket,
+        ).pipe(
+          Effect.provide(RuntimeContext.phantom),
+          Effect.provideService(CoreCloudflare.user.CurrentUser, user),
+          Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {
+            waitUntil: () => undefined,
+          } as unknown as ExecutionContext),
+        ),
+      );
+
+      assert.equal(response.status, 503);
+      assert.deepEqual(await HttpServerResponse.toWeb(response).json(), {
+        error: "Hevy data could not be refreshed.",
+        code: "HEVY_FRESHNESS_FAILED",
+      });
+      assert.equal(providerCalls, 0);
+      assert.equal(
+        (
+          await run(
+            conversationDatabase.getConversationMessages({ userId: user.id, conversationId }),
+          )
+        ).filter((message) => message.role === "user").length,
+        0,
+      );
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("adds the fresh preflight context to the provider system prompt", async () => {
+    const { db } = makeSqliteDatabase();
+    const conversationDatabase = await makeConversationDatabase(
+      narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db),
+    );
+    const conversationId = await run(
+      conversationDatabase.createConversation({ userId: user.id, title: "Context test" }),
+    );
+    let providerBody = "";
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      providerBody = String(init?.body ?? "");
+      return providerResponse(input, init);
+    };
+
+    try {
+      const response = await Effect.runPromise(
+        handleAiSdkChat(
+          db,
+          requestFor({
+            conversationId,
+            requestId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            message: "Use current workout",
+          }),
+          {},
+          {
+            beforeChat: () =>
+              Effect.succeed({
+                systemPrompt: "Current Hevy session: hevy:today; last set: Bench 27.5 kg x 8",
+              }),
+          },
+          makeFakeBucket().bucket,
+        ).pipe(
+          Effect.provide(RuntimeContext.phantom),
+          Effect.provideService(CoreCloudflare.user.CurrentUser, user),
+          Effect.provideService(Cloudflare.Workers.WorkerExecutionContext, {
+            waitUntil: () => undefined,
+          } as unknown as ExecutionContext),
+        ),
+      );
+
+      await HttpServerResponse.toWeb(response).text();
+      const parsedBody = JSON.parse(providerBody) as {
+        messages?: Array<{ role: string; content: string }>;
+      };
+      const systemMessage = parsedBody.messages?.find((message) => message.role === "system");
+      assert.match(systemMessage?.content ?? "", /Current Hevy session: hevy:today/);
+      assert.match(systemMessage?.content ?? "", /Bench 27\.5 kg x 8/);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
   it("rejects a concurrent loser before it compacts or persists anything", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = rawDb;

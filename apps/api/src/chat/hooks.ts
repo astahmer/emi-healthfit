@@ -1,6 +1,20 @@
+import * as Schema from "effect/Schema";
 import type * as Effect from "effect/Effect";
 import type { JSONSchema7 } from "json-schema";
 import type { QueryDatabaseClient } from "../platform/db/client.ts";
+
+export class ChatPreflightError extends Schema.TaggedErrorClass<ChatPreflightError>()(
+  "ChatPreflightError",
+  {
+    code: Schema.String,
+    message: Schema.String,
+    status: Schema.Number,
+  },
+) {}
+
+export type ChatPreflightResult = {
+  systemPrompt?: string;
+};
 
 export type ChatToolDefinition = {
   name: string;
@@ -23,7 +37,7 @@ export type ChatLifecycleHooks = {
     db: QueryDatabaseClient;
     userId: string;
     environment: Record<string, unknown>;
-  }) => Effect.Effect<void, unknown>;
+  }) => Effect.Effect<ChatPreflightResult | undefined, unknown>;
   coachSystemPrompt?: string;
   tools?: ReadonlyArray<ChatToolDefinition>;
   executeTool?: ChatToolExecutor;

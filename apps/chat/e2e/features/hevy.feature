@@ -12,6 +12,11 @@ Feature: Hevy integration
     When they sync Hevy
     Then the Hevy up-to-date status should be visible
 
+  Scenario: Refuse chat answer when latest Hevy refresh fails
+    Given a user with a connected Hevy account is on the chat page
+    When the latest Hevy refresh fails before answering
+    Then the chat should show the stale Hevy refusal
+
   Scenario: Disconnect Hevy after confirmation and keep workouts available
     Given a user is on the settings page with a connected Hevy account
     When they disconnect Hevy after confirmation

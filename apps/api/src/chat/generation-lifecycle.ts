@@ -5,6 +5,7 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type { UIMessage } from "ai";
@@ -26,7 +27,7 @@ import { ChatStreamRequestSchema, getFirstUserText } from "./request-codec.ts";
 import { prepareChatHistory } from "./history.ts";
 import { createChatToolExecutor } from "./tool-execution.ts";
 import { decodeJsonOption } from "../platform/json-codec.ts";
-import type { ChatLifecycleHooks } from "./hooks.ts";
+import { ChatPreflightError, type ChatLifecycleHooks } from "./hooks.ts";
 
 type ChatGeneration = ServerDatabase.ChatGeneration;
 
@@ -384,6 +385,38 @@ export const handleAiSdkChat = (
       }
     }
 
+    let beforeChatContext: { systemPrompt?: string } | undefined;
+    if (hooks.beforeChat !== undefined) {
+      const beforeChatResult = yield* hooks
+        .beforeChat({ db, userId: user.id, environment })
+        .pipe(Effect.result);
+      if (Result.isFailure(beforeChatResult)) {
+        const error =
+          beforeChatResult.failure instanceof ChatPreflightError
+            ? beforeChatResult.failure
+            : new ChatPreflightError({
+                code: "CHAT_PREFLIGHT_FAILED",
+                message: "Chat preflight failed",
+                status: 500,
+              });
+        if (!isTemporary) {
+          yield* generationDatabase
+            .finishGeneration({
+              userId: user.id,
+              generationId,
+              status: "failed",
+              error: error.message,
+            })
+            .pipe(Effect.catch(() => Effect.void));
+        }
+        return yield* HttpServerResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status },
+        );
+      }
+      beforeChatContext = beforeChatResult.success;
+    }
+
     const preparedHistory = yield* prepareChatHistory({
       userId: user.id,
       chatRequest,
@@ -428,9 +461,6 @@ export const handleAiSdkChat = (
       : undefined;
 
     const budget = Chat.operations.createChatOperationBudget();
-    if (hooks.beforeChat !== undefined) {
-      yield* hooks.beforeChat({ db, userId: user.id, environment });
-    }
 
     const executeTool =
       hooks.executeTool ??
@@ -465,9 +495,14 @@ export const handleAiSdkChat = (
       request: {
         ...requestWithHistory,
         system: ServerDatabase.memoryContext.append({
-          system: requestWithHistory.coachMode
-            ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
-            : requestWithHistory.system,
+          system: [
+            requestWithHistory.coachMode
+              ? (hooks.coachSystemPrompt ?? requestWithHistory.system)
+              : requestWithHistory.system,
+            beforeChatContext?.systemPrompt,
+          ]
+            .filter((part): part is string => part !== undefined && part !== "")
+            .join("\n\n"),
           summary: memorySummary,
         }),
       },

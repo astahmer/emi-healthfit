@@ -1230,6 +1230,43 @@ Given("a user is on the settings page with a connected Hevy account", async ({ p
   await expect(page.getByRole("button", { name: "Sync now" })).toBeVisible();
 });
 
+Given("a user with a connected Hevy account is on the chat page", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      hevy: {
+        status: connectedHevyStatus({
+          fresh: false,
+          lastErrorCode: "hevy_network",
+          lastErrorAt: "2026-07-20T11:00:00.000Z",
+        }),
+        workouts: [sampleHevyWorkout()],
+      },
+      chat: {
+        failStatus: 503,
+        failBody: JSON.stringify({
+          error:
+            "Hevy data could not be refreshed before answering. No answer was generated from stale workout data. Retry shortly or use Sync now in Settings.",
+          code: "HEVY_FRESHNESS_FAILED",
+        }),
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+});
+
+When("the latest Hevy refresh fails before answering", async ({ page }) => {
+  await page.getByLabel("Message input").fill("What should I lift today?");
+  await page.getByLabel("Send message").click();
+});
+
+Then("the chat should show the stale Hevy refusal", async ({ page }) => {
+  await expect(
+    page.getByText("Hevy data could not be refreshed before answering.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByText("Mock answer", { exact: true })).toBeHidden();
+});
+
 Given(
   "a user is on the settings page with a linked Discord account {string}",
   async ({ page }, discordUserId: string) => {

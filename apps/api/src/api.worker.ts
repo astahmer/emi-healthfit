@@ -21,6 +21,7 @@ import {
   handleChatResume,
   handleConversationDiagnostics,
 } from "./chat/generation-lifecycle.ts";
+import { ChatPreflightError } from "./chat/hooks.ts";
 import {
   handleIngest,
   handleIngestedDataExport,
@@ -38,7 +39,8 @@ import {
 import { ServerDatabase } from "@emi/core/server/database";
 const { definition: healthFitAppDefinition } = HealthFit.app;
 const { execute: executeHealthfitTool } = HealthFit.tools;
-const { ensureFresh: ensureHevyFresh } = HealthFit.hevy;
+const { buildContext: buildHealthFitContext, renderSystemContext } = HealthFit.chat;
+const { requireFresh: requireHevyFresh } = HealthFit.hevy;
 const PRODUCTION_DOMAIN = "emi-healthfit.astahmer.dev";
 const chatAppDirectory = "../chat";
 
@@ -164,11 +166,22 @@ export default Api.make(
           env,
           {
             beforeChat: ({ db: chatDb, userId, environment }) =>
-              ensureHevyFresh({
-                db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(chatDb),
-                userId,
-                environment,
-              }),
+              Effect.gen(function* () {
+                const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(chatDb);
+                yield* requireHevyFresh({ db: healthfitDb, userId, environment });
+                const context = yield* buildHealthFitContext(healthfitDb, userId);
+                return { systemPrompt: renderSystemContext(context) };
+              }).pipe(
+                Effect.mapError(
+                  () =>
+                    new ChatPreflightError({
+                      code: "HEVY_FRESHNESS_FAILED",
+                      message:
+                        "Hevy data could not be refreshed before answering. No answer was generated from stale workout data. Retry shortly or use Sync now in Settings.",
+                      status: 503,
+                    }),
+                ),
+              ),
             coachSystemPrompt: ServerDatabase.app.composeSystemPrompt(
               healthFitAppDefinition.promptContributors,
             ),
