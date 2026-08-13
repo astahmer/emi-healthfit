@@ -41,6 +41,26 @@ describe("memories SQLite integration", () => {
     assert.deepStrictEqual(rows, []);
   });
 
+  it("searches notes with oversized queries without failing on pattern complexity", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
+    const memoryDatabase = await makeMemoryDatabase(db);
+    const userId = "user-notes-long-query";
+    await run(memoryDatabase.insertNote({ userId, content: "Keep recovery days" }));
+
+    const hugeTokenResults = await run(
+      memoryDatabase.searchNotes({ userId, query: `recovery ${"x".repeat(100_000)}` }),
+    );
+    assert.deepStrictEqual(
+      hugeTokenResults.map((note) => note.content),
+      ["Keep recovery days"],
+    );
+
+    const manyTokens = Array.from({ length: 100 }, (_, index) => `keyword${index}`).join(" ");
+    const manyTokenResults = await run(memoryDatabase.searchNotes({ userId, query: manyTokens }));
+    assert.deepStrictEqual(manyTokenResults, []);
+  });
+
   it("searches with oversized queries without failing on pattern complexity", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);

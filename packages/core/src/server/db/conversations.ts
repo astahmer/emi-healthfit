@@ -3,8 +3,10 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { ConversationRevision } from "./conversation-revision.ts";
+import { retryTokenSearch } from "./memories.ts";
 import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { ConversationDatabaseSchema } from "./schema.ts";
+import { maxSearchTokens, tokenize } from "../memory-search.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -178,43 +180,60 @@ const getConversations = <TEnvironment>(
     const kysely = yield* db.kysely;
     if (search !== undefined && search.trim() !== "") {
       const term = search.trim();
-      const result = yield* QueryDatabase.tryPromise(() =>
-        kysely
-          .selectFrom("conversations as c")
-          .leftJoin("messages as m", (join) =>
-            join.onRef("m.user_id", "=", "c.user_id").onRef("m.conversation_id", "=", "c.id"),
-          )
-          .selectAll("c")
-          .distinct()
-          .where("c.user_id", "=", userId)
-          .where("c.status", "in", ["regular", "archived"])
-          .where((expressionBuilder) =>
-            expressionBuilder.or([
-              expressionBuilder(
-                expressionBuilder.fn<number>("instr", [
-                  expressionBuilder.fn<string>("lower", ["c.title"]),
-                  expressionBuilder.val(term.toLocaleLowerCase()),
-                ]),
-                ">",
-                0,
+      const tokens = tokenize(term).slice(0, maxSearchTokens);
+      if (tokens.length === 0) return [];
+      const baseQuery = kysely
+        .selectFrom("conversations as c")
+        .leftJoin("messages as m", (join) =>
+          join.onRef("m.user_id", "=", "c.user_id").onRef("m.conversation_id", "=", "c.id"),
+        )
+        .selectAll("c")
+        .distinct()
+        .where("c.user_id", "=", userId)
+        .where("c.status", "in", ["regular", "archived"]);
+      const result = yield* retryTokenSearch(
+        (searchTokens) =>
+          searchTokens.length === 0
+            ? Effect.succeed([])
+            : QueryDatabase.tryPromise(() =>
+                baseQuery
+                  .where((expressionBuilder) =>
+                    expressionBuilder.or(
+                      searchTokens.flatMap((token) => [
+                        expressionBuilder(
+                          expressionBuilder.fn<number>("instr", [
+                            expressionBuilder.fn<string>("lower", ["c.title"]),
+                            expressionBuilder.val(token),
+                          ]),
+                          ">",
+                          0,
+                        ),
+                        expressionBuilder(
+                          expressionBuilder.fn<number>("instr", [
+                            expressionBuilder.fn<string>("lower", ["m.parts"]),
+                            expressionBuilder.val(token),
+                          ]),
+                          ">",
+                          0,
+                        ),
+                      ]),
+                    ),
+                  )
+                  .orderBy((expressionBuilder) =>
+                    expressionBuilder
+                      .case()
+                      .when("c.status", "=", "archived")
+                      .then(1)
+                      .else(0)
+                      .end(),
+                  )
+                  .orderBy("c.pinned", "desc")
+                  .orderBy("c.updated_at", "desc")
+                  .limit(100)
+                  .execute(),
               ),
-              expressionBuilder(
-                expressionBuilder.fn<number>("instr", [
-                  expressionBuilder.fn<string>("lower", ["m.parts"]),
-                  expressionBuilder.val(term.toLocaleLowerCase()),
-                ]),
-                ">",
-                0,
-              ),
-            ]),
-          )
-          .orderBy((expressionBuilder) =>
-            expressionBuilder.case().when("c.status", "=", "archived").then(1).else(0).end(),
-          )
-          .orderBy("c.pinned", "desc")
-          .orderBy("c.updated_at", "desc")
-          .limit(100)
-          .execute(),
+        tokens,
+        { userId, query: term },
       );
       return result.map(mapConversationRow);
     }
@@ -248,7 +267,8 @@ const searchConversationMessages = <TEnvironment>(
     if (normalizedQuery === "") return [];
 
     const kysely = yield* db.kysely;
-    const term = normalizedQuery.toLocaleLowerCase();
+    const tokens = tokenize(normalizedQuery).slice(0, maxSearchTokens);
+    if (tokens.length === 0) return [];
     const searchQuery = kysely
       .selectFrom("conversations as c")
       .innerJoin("messages as m", (join) =>
@@ -272,30 +292,41 @@ const searchConversationMessages = <TEnvironment>(
         "m.created_at as message_created_at",
       ])
       .where("c.user_id", "=", userId)
-      .where("c.status", "in", ["regular", "archived"])
-      .where((expressionBuilder) =>
-        expressionBuilder(
-          expressionBuilder.fn<number>("instr", [
-            expressionBuilder.fn<string>("lower", ["m.parts"]),
-            expressionBuilder.val(term),
-          ]),
-          ">",
-          0,
-        ),
-      );
+      .where("c.status", "in", ["regular", "archived"]);
     const scopedSearchQuery =
       excludeConversationId === undefined
         ? searchQuery
         : searchQuery.where("c.id", "<>", excludeConversationId);
-    const rows = yield* QueryDatabase.tryPromise(() =>
-      scopedSearchQuery
-        .orderBy((expressionBuilder) =>
-          expressionBuilder.case().when("c.status", "=", "archived").then(1).else(0).end(),
-        )
-        .orderBy("c.pinned", "desc")
-        .orderBy("m.created_at", "desc")
-        .limit(Math.min(Math.max(Math.trunc(limit), 1), 50))
-        .execute(),
+    const rows = yield* retryTokenSearch(
+      (searchTokens) =>
+        searchTokens.length === 0
+          ? Effect.succeed([])
+          : QueryDatabase.tryPromise(() =>
+              scopedSearchQuery
+                .where((expressionBuilder) =>
+                  expressionBuilder.or(
+                    searchTokens.map((token) =>
+                      expressionBuilder(
+                        expressionBuilder.fn<number>("instr", [
+                          expressionBuilder.fn<string>("lower", ["m.parts"]),
+                          expressionBuilder.val(token),
+                        ]),
+                        ">",
+                        0,
+                      ),
+                    ),
+                  ),
+                )
+                .orderBy((expressionBuilder) =>
+                  expressionBuilder.case().when("c.status", "=", "archived").then(1).else(0).end(),
+                )
+                .orderBy("c.pinned", "desc")
+                .orderBy("m.created_at", "desc")
+                .limit(Math.min(Math.max(Math.trunc(limit), 1), 50))
+                .execute(),
+            ),
+      tokens,
+      { userId, query: normalizedQuery },
     );
     return rows.map(
       (row) =>

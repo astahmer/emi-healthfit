@@ -1,5 +1,7 @@
 const tokenPattern = /[\p{L}\p{N}]+/gu;
 
+export const maxSearchTokens = 16;
+
 export const tokenize = (text: string): ReadonlyArray<string> =>
   (text.toLocaleLowerCase().match(tokenPattern) ?? []).filter((token) => token.length >= 2);
 

@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { DatabaseQueryError, QueryDatabase, type QueryDatabaseClient } from "./query-database.ts";
 import type { MemoryDatabaseSchema } from "./schema.ts";
-import { scoreMemorySearch, tokenize } from "../memory-search.ts";
+import { maxSearchTokens, scoreMemorySearch, tokenize } from "../memory-search.ts";
 
 type MemoriesDb<Environment = never> = QueryDatabaseClient<MemoryDatabaseSchema, Environment>;
 
@@ -13,8 +13,6 @@ const normalizeContent = (content: string): string => content.trim().replace(/\s
 
 const normalizeMemoryKey = (content: string): string =>
   normalizeContent(content).toLocaleLowerCase();
-
-const maxSearchTokens = 16;
 
 export interface MemoryInput {
   content: string;
@@ -500,22 +498,40 @@ const searchNotes = <Environment>(
     const term = query.trim();
     if (term === "") return yield* getNotes(db, userId, limit);
 
+    const tokens = tokenize(term).slice(0, maxSearchTokens);
+    if (tokens.length === 0) return [];
+
     const kysely = yield* db.kysely;
-    return yield* QueryDatabase.tryPromise(() =>
-      kysely
-        .selectFrom("notes")
-        .select(["id", "content", "created_at", "updated_at"])
-        .where("user_id", "=", userId)
-        .where((expressionBuilder) =>
-          expressionBuilder(
-            expressionBuilder.fn<string>("lower", ["content"]),
-            "like",
-            `%${term.toLowerCase()}%`,
-          ),
-        )
-        .orderBy("updated_at", "desc")
-        .limit(limit)
-        .execute(),
+    const baseQuery = kysely
+      .selectFrom("notes")
+      .select(["id", "content", "created_at", "updated_at"])
+      .where("user_id", "=", userId);
+    return yield* retryTokenSearch(
+      (searchTokens) =>
+        searchTokens.length === 0
+          ? Effect.succeed([])
+          : QueryDatabase.tryPromise(() =>
+              baseQuery
+                .where((expressionBuilder) =>
+                  expressionBuilder.or(
+                    searchTokens.map((token) =>
+                      expressionBuilder(
+                        expressionBuilder.fn<number>("instr", [
+                          expressionBuilder.fn<string>("lower", ["content"]),
+                          expressionBuilder.val(token),
+                        ]),
+                        ">",
+                        0,
+                      ),
+                    ),
+                  ),
+                )
+                .orderBy("updated_at", "desc")
+                .limit(limit)
+                .execute(),
+            ),
+      tokens,
+      { userId, query: term },
     );
   });
 

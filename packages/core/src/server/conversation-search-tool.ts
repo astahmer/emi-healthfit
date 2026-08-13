@@ -7,7 +7,8 @@ import { ToolSchema } from "./tool-schema.ts";
 
 const ConversationSearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1)).annotate({
-    description: "Specific words or a short phrase to search in previous conversation messages.",
+    description:
+      "Short distinctive keywords (1-4) to search in previous conversation messages. Keep the query concise; long or full-sentence queries are truncated and may silently fall back to fewer terms.",
   }),
   limit: ToolSchema.optional(
     Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).annotate({
@@ -46,7 +47,7 @@ const toToolResult = (result: ConversationMessageSearchResult) =>
 
 const conversationSearchTool = Tool.make("search_conversations", {
   description:
-    "Search message content in previous saved conversations. Use this when the user asks what they said, decided, or discussed in an earlier chat. Do not guess past details when this search can verify them.",
+    "Search message content in previous saved conversations. Use this when the user asks what they said, decided, or discussed in an earlier chat. Query with 1-4 distinctive keywords, never long sentences or pasted text. Do not guess past details when this search can verify them.",
   parameters: ConversationSearchInput,
   success: Schema.Unknown,
   failure: Schema.Unknown,

@@ -80,6 +80,40 @@ describe("conversations SQLite integration", () => {
     );
     assert.deepStrictEqual(
       oversizedResults.map(({ conversation }) => conversation.id),
+      [previousConversationId],
+    );
+
+    const oversizedConversations = await run(
+      conversationDatabase.getConversations({
+        userId,
+        search: `DELOAD ${"x".repeat(100_000)}`,
+      }),
+    );
+    assert.deepStrictEqual(
+      oversizedConversations
+        .map((conversation) => conversation.id)
+        .toSorted((a, b) => a.localeCompare(b)),
+      [currentConversationId, previousConversationId].toSorted((a, b) => a.localeCompare(b)),
+    );
+
+    const manyTokens = Array.from({ length: 100 }, (_, index) => `keyword${index}`).join(" ");
+    const manyTokenMessageResults = await run(
+      conversationDatabase.searchConversationMessages({
+        userId,
+        query: manyTokens,
+        excludeConversationId: currentConversationId,
+        limit: 10,
+      }),
+    );
+    assert.deepStrictEqual(
+      manyTokenMessageResults.map(({ conversation }) => conversation.id),
+      [],
+    );
+    const manyTokenConversationResults = await run(
+      conversationDatabase.getConversations({ userId, search: manyTokens }),
+    );
+    assert.deepStrictEqual(
+      manyTokenConversationResults.map((conversation) => conversation.id),
       [],
     );
   });
