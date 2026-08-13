@@ -262,6 +262,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   let drainScheduled = false;
   let autoDrainQueuedFollowUps = false;
   let drainQueuedFollowUp = () => undefined;
+  let lastRetryAt = 0;
 
   const invalidate = () => {
     const sessionSnapshot = actor.getSnapshot().children.session?.getSnapshot();
@@ -322,6 +323,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         streamOrigin: undefined,
         streamOutcome: undefined,
         sendPending: false,
+        sendGrace: false,
         draft: "",
         files: [],
         temporary: false,
@@ -434,6 +436,7 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
         messages: activeThreadMessages,
         isStreaming,
         isSending: session.sendPending,
+        isSendGraceActive: isStreaming && session.sendGrace,
       },
       composer: {
         text: session.draft,
@@ -612,6 +615,9 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   };
 
   const retryMessage = ({ messageId }: { messageId: string }) => {
+    const now = Date.parse(options.identity.now());
+    if (now - lastRetryAt < 750) return;
+    lastRetryAt = now;
     const session = currentSession();
     const targetIndex = session.messages.findIndex((message) => message.id === messageId);
     if (targetIndex === -1) {

@@ -18,6 +18,7 @@ export interface ChatSession {
   streamOrigin: "send" | "resume" | undefined;
   streamOutcome: "completed" | "failed" | "cancelled" | undefined;
   sendPending: boolean;
+  sendGrace: boolean;
   draft: string;
   files: Attachment[];
   temporary: boolean;
@@ -61,6 +62,7 @@ export const initialChatSession: ChatSession = {
   streamOrigin: undefined,
   streamOutcome: undefined,
   sendPending: false,
+  sendGrace: false,
   draft: "",
   files: [],
   temporary: false,
@@ -154,6 +156,7 @@ export const chatSessionMachine = setup({
             streamOrigin: "send",
             streamOutcome: undefined,
             sendPending: false,
+            sendGrace: true,
             draft: "",
             files: [],
             error: undefined,
@@ -171,6 +174,7 @@ export const chatSessionMachine = setup({
         streamOrigin: "resume",
         streamOutcome: undefined,
         sendPending: false,
+        sendGrace: false,
       };
     }),
     updateStream: assign(({ context, event }) => {
@@ -198,8 +202,11 @@ export const chatSessionMachine = setup({
       resumeMessageId: () => undefined,
       sendPending: () => false,
     }),
+    endSendGrace: assign({ sendGrace: () => false }),
     reportError: assign(({ context, event }) =>
-      event.type === "error-reported"
+      event.type === "error-reported" &&
+      context.streamOutcome !== "completed" &&
+      context.streamOutcome !== "cancelled"
         ? {
             error: event.error,
             errorMessageId: event.messageId,
@@ -277,6 +284,9 @@ export const chatSessionMachine = setup({
       },
     },
     streaming: {
+      after: {
+        600: { actions: "endSendGrace" },
+      },
       on: {
         "draft-changed": { actions: "changeDraft" },
         "files-changed": { actions: "changeFiles" },

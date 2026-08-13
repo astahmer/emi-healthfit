@@ -1,5 +1,5 @@
 import { createActor } from "xstate";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage } from "../../src/protocol.export.ts";
 import { chatSessionMachine, initialChatSession } from "../../src/web/chat-session-machine.ts";
@@ -70,6 +70,74 @@ describe("chatSessionMachine", () => {
     expect(actor.getSnapshot().context.draft).toBe("Send now");
     expect(actor.getSnapshot().context.queuedFollowUps).toEqual([]);
     expect(actor.getSnapshot().matches("idle")).toBe(true);
+  });
+
+  it("ignores a stale error after a newer stream completed", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message],
+    });
+    actor.send({ type: "stream-started", messages: [message] });
+    actor.send({ type: "stream-message", message: persistedAssistant });
+    actor.send({ type: "stream-completed" });
+    actor.send({ type: "stream-finished" });
+    actor.send({
+      type: "error-reported",
+      error: "Late error from a superseded generation",
+      messageId: message.id,
+    });
+
+    expect(actor.getSnapshot().context.error).toBeUndefined();
+    expect(actor.getSnapshot().context.errorMessageId).toBeUndefined();
+    expect(actor.getSnapshot().context.streamOutcome).toBe("completed");
+  });
+
+  it("reports an error when a stream failed before completion", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({
+      type: "conversation-opened",
+      conversationId: "conversation-1",
+      messages: [message],
+    });
+    actor.send({ type: "stream-started", messages: [message] });
+    actor.send({
+      type: "error-reported",
+      error: "Provider failed",
+      messageId: message.id,
+    });
+
+    expect(actor.getSnapshot().context.error).toBe("Provider failed");
+    expect(actor.getSnapshot().context.errorMessageId).toBe(message.id);
+    expect(actor.getSnapshot().context.streamOutcome).toBe("failed");
+  });
+
+  it("arms the stop button only after the post-send grace period", async () => {
+    vi.useFakeTimers();
+    try {
+      const actor = createActor(chatSessionMachine);
+      actor.start();
+      actor.send({ type: "stream-started", messages: [message] });
+
+      expect(actor.getSnapshot().context.sendGrace).toBe(true);
+      await vi.advanceTimersByTimeAsync(599);
+      expect(actor.getSnapshot().context.sendGrace).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(actor.getSnapshot().context.sendGrace).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not arm the stop grace for resumed streams", () => {
+    const actor = createActor(chatSessionMachine);
+    actor.start();
+    actor.send({ type: "stream-resumed" });
+
+    expect(actor.getSnapshot().context.sendGrace).toBe(false);
   });
 
   it("reconciles a resumed assistant when the stream uses a new message id", () => {

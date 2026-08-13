@@ -186,6 +186,7 @@ export interface ThreadViewState {
   readonly messages: ReadonlyArray<ChatMessage>;
   readonly isStreaming: boolean;
   readonly isSending: boolean;
+  readonly isSendGraceActive: boolean;
 }
 
 export interface ComposerState {

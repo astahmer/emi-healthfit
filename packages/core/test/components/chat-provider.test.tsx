@@ -7,7 +7,14 @@ import type { ChatRuntime } from "../../src/runtime/types.ts";
 
 const runtimeState = {
   activeConversation: undefined,
-  activeThread: { id: undefined, conversationId: undefined, messages: [], isStreaming: false },
+  activeThread: {
+    id: undefined,
+    conversationId: undefined,
+    messages: [],
+    isStreaming: false,
+    isSending: false,
+    isSendGraceActive: false,
+  },
   composer: { text: "", attachments: [], canSend: false },
   conversations: { items: [], search: "", loading: false, error: undefined },
   memories: { items: [], summary: undefined, search: "", loading: false, error: undefined },

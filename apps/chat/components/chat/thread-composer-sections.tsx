@@ -169,6 +169,12 @@ export const ComposerToolbar = ({
   const feedback = useActionFeedback();
   const [isKeepingTemporary, setIsKeepingTemporary] = useState(false);
   const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
+  const awaitingFirstChunk = runtime.isSendGraceActive;
+  const canStop =
+    !awaitingFirstChunk &&
+    runtime.isStreaming &&
+    runtime.draft.trim() === "" &&
+    runtime.files.length === 0;
   return (
     <div className="flex min-w-0 items-center gap-0.5 sm:flex-wrap sm:gap-1">
       <TooltipProvider>
@@ -247,52 +253,39 @@ export const ComposerToolbar = ({
         <span className="hidden sm:inline">{canKeepTemporary ? "Keep" : "Temporary"}</span>
       </Button>
       <TooltipIconButton
+        data-testid="composer-send"
         tooltip={
           runtime.editingQueuedId !== null
             ? "Update queued message"
-            : runtime.isSending
+            : runtime.isSending || awaitingFirstChunk
               ? "Sending…"
-              : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+              : canStop
                 ? "Stop generating"
                 : runtime.isStreaming
                   ? "Send after reply"
                   : "Send message"
         }
         side="top"
-        type={
-          runtime.isStreaming &&
-          runtime.draft.trim() === "" &&
-          runtime.files.length === 0 &&
-          runtime.editingQueuedId === null
-            ? "button"
-            : "submit"
-        }
+        type={canStop && runtime.editingQueuedId === null ? "button" : "submit"}
         variant="default"
         className="ms-auto size-9 shrink-0 rounded-full"
-        disabled={runtime.isSending}
-        onClick={
-          runtime.isStreaming &&
-          runtime.draft.trim() === "" &&
-          runtime.files.length === 0 &&
-          runtime.editingQueuedId === null
-            ? runtime.stop
-            : undefined
-        }
+        disabled={runtime.isSending || awaitingFirstChunk}
+        onClick={canStop && runtime.editingQueuedId === null ? runtime.stop : undefined}
         aria-label={
           runtime.editingQueuedId !== null
             ? "Update queued message"
-            : runtime.isSending
+            : runtime.isSending || awaitingFirstChunk
               ? "Sending…"
-              : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0
+              : canStop
                 ? "Stop generating"
                 : runtime.isStreaming
                   ? "Send after reply"
                   : "Send message"
         }
       >
-        {runtime.isSending ? (
+        {runtime.isSending || awaitingFirstChunk ? (
           <LoaderCircleIcon className="size-4 animate-spin" />
-        ) : runtime.isStreaming && runtime.draft.trim() === "" && runtime.files.length === 0 ? (
+        ) : canStop ? (
           <SquareIcon className="size-4" />
         ) : (
           <ArrowUpIcon className="size-4" />

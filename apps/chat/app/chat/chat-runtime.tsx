@@ -430,6 +430,7 @@ export const ChatRuntimeProvider = ({
       editingQueuedId: selectionMatches ? editingQueuedId : null,
       isStreaming: selectionMatches && state.activeThread.isStreaming,
       isSending: selectionMatches && state.activeThread.isSending,
+      isSendGraceActive: selectionMatches && state.activeThread.isSendGraceActive,
       error,
       errorMessageId: state.errorMessageId,
       attachmentError: attachmentState.context.error,

@@ -28,6 +28,7 @@ export interface ChatRuntimeValue {
   editingQueuedId: string | null;
   isStreaming: boolean;
   isSending: boolean;
+  isSendGraceActive: boolean;
   error: Error | null;
   errorMessageId: string | undefined;
   attachmentError: string | null;

@@ -73,6 +73,7 @@ describe("Thread", () => {
       editingQueuedId: null,
       isStreaming: false,
       isSending: false,
+      isSendGraceActive: false,
       error: null,
       errorMessageId: undefined,
       attachmentError: null,
@@ -470,6 +471,31 @@ describe("Thread", () => {
     renderThread([message]);
 
     expect(screen.getByLabelText("Send after reply")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Stop generating")).not.toBeInTheDocument();
+  });
+
+  it("keeps the send button disabled during the post-send stop grace", async () => {
+    const user = userEvent.setup();
+    const stop = vi.fn();
+    const message: MessageWithUsage = {
+      id: "user-1",
+      role: "user",
+      parts: [{ type: "text", text: "Question" }],
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+      isStreaming: true,
+      isSendGraceActive: true,
+      stop,
+    });
+
+    renderThread([message]);
+
+    const sending = screen.getByLabelText("Sending…");
+    expect(sending).toBeDisabled();
+    await user.click(sending).catch(() => undefined);
+    expect(stop).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Stop generating")).not.toBeInTheDocument();
   });
 
