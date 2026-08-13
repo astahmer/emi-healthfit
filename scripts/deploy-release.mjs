@@ -71,12 +71,11 @@ const assertReleaseTarget = ({ releaseTag, commitId }) => {
   if (tagCommit !== commitId)
     throw new Error("The checked-out commit does not match the release tag.");
   const mainCommit = run({ command: "git", args: ["rev-parse", "origin/main"] });
-  const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", commitId, mainCommit], {
-    cwd: rootDirectory,
-    stdio: "ignore",
-  });
-  if (ancestry.status !== 0)
-    throw new Error("Production release tags must point to a revision reachable from main.");
+  if (commitId !== mainCommit) {
+    throw new Error(
+      `Production release tag must point to the current origin/main head (${mainCommit.slice(0, 12)}).`,
+    );
+  }
 };
 
 const runDeployment = ({ environment }) => {

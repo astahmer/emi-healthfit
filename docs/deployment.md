@@ -63,4 +63,5 @@ pnpm check:handoff
 The normal production flow is `pnpm release` from a clean revision already on `main`. It runs the
 handoff gate, creates a `release-YYYYMMDD-HHmmss` GitHub Release, and lets the published-release
 workflow deploy the `prod` Alchemy stage. The workflow does not run the full browser/generated
-release gate and never deploys a tag that is not reachable from `main`.
+release gate and only deploys a tag pointing to the current `main` head. Configure the production
+environment with the application secrets and the Alchemy state-store URL/token used by CI.

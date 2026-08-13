@@ -259,8 +259,10 @@ pnpm release
 
 This runs the lightweight `check:handoff` gate and creates a GitHub Release with a UTC tag such as
 `release-20260813-143012`. Publishing that release triggers the production Alchemy deploy workflow.
-The workflow deploys only when the tagged commit is reachable from `main`; a main push never deploys
-automatically. Configure the `production` environment with the ten secrets listed in
+The workflow deploys only when the tagged commit is exactly the current `main` head; a main push
+never deploys automatically. Configure the `production` environment with the ten application
+secrets plus the two Alchemy state-store secrets (`ALCHEMY_STATE_STORE_URL` and
+`ALCHEMY_STATE_STORE_AUTH_TOKEN`) listed in
 `.github/workflows/production-release.yml` before using the workflow. The command expects a clean JJ
 working copy whose last committed revision is already pushed to `main`.
 

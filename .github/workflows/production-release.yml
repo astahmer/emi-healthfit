@@ -51,6 +51,17 @@ jobs:
       - name: Fetch main for release-target validation
         run: git fetch origin main --no-tags
 
+      - name: Configure Alchemy state store credentials
+        env:
+          ALCHEMY_STATE_STORE_URL: ${{ secrets.ALCHEMY_STATE_STORE_URL }}
+          ALCHEMY_STATE_STORE_AUTH_TOKEN: ${{ secrets.ALCHEMY_STATE_STORE_AUTH_TOKEN }}
+        run: |
+          set -eu
+          test -n "$ALCHEMY_STATE_STORE_URL" || { echo "Missing GitHub secret: ALCHEMY_STATE_STORE_URL" >&2; exit 1; }
+          test -n "$ALCHEMY_STATE_STORE_AUTH_TOKEN" || { echo "Missing GitHub secret: ALCHEMY_STATE_STORE_AUTH_TOKEN" >&2; exit 1; }
+          mkdir -p "$HOME/.alchemy/credentials/default"
+          printf '{"url":"%s","authToken":"%s"}\n' "$ALCHEMY_STATE_STORE_URL" "$ALCHEMY_STATE_STORE_AUTH_TOKEN" > "$HOME/.alchemy/credentials/default/cloudflare-state-store.json"
+
       - name: Write production environment
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

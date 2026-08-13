@@ -30,12 +30,10 @@ const releaseCommit = () => {
   });
   run({ command: "git", args: ["fetch", "origin", "main", "--no-tags"] });
   const mainCommit = run({ command: "git", args: ["rev-parse", "FETCH_HEAD"] });
-  const mainAncestry = spawnSync("git", ["merge-base", "--is-ancestor", commitId, mainCommit], {
-    cwd: rootDirectory,
-    stdio: "ignore",
-  });
-  if (mainAncestry.status !== 0) {
-    throw new Error("Release tags must point to a revision reachable from origin/main.");
+  if (commitId !== mainCommit) {
+    throw new Error(
+      `Release tags must point to the current origin/main head (${mainCommit.slice(0, 12)}).`,
+    );
   }
   return commitId;
 };
@@ -76,9 +74,8 @@ const result = spawnSync(
     tag,
     "--target",
     commitId,
-    "--generate-notes",
     "--notes",
-    `<!-- emi-jj-change-id: ${changeId} -->`,
+    `<!-- emi-jj-change-id: ${changeId} -->\n\nDeployed commit: ${commitId}\nJJ change: ${changeId}\n\nThis release deploys the current main revision.`,
     "--title",
     `HealthFit ${tag}`,
     "--latest",
