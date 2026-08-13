@@ -222,19 +222,20 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Bug fixes need a regression scenario that fails before the fix and passes after it.
 - Two e2e modes exist and both matter:
   - Mock mode (default, deterministic): `pnpm --dir apps/chat run test:e2e:run` — browser against
-    the in-repo mock API (`apps/chat/e2e/mock/`); this is the release gate.
+    the in-repo mock API (`apps/chat/e2e/mock/`); this is part of the full CI release-check gate.
   - Real Worker mode (full-stack): `pnpm --dir apps/chat run test:e2e:worker` — spawns the actual
     Worker via alchemy dev + the chat app, with only the OpenAI provider mocked by
     `apps/chat/e2e/mock/provider-server.mjs` (`e2e/features-worker/`). Run it for auth, D1
     persistence, tool execution, and delete flows.
-- Run the app e2e suite before handoff (`pnpm --dir apps/chat run test:e2e:run`, already part of
-  `pnpm release:check`); a red or missing e2e blocks completion.
+  - The lightweight local handoff gate intentionally omits browser E2E. Run the app suite during
+    focused debugging, or use `pnpm check:e2e` for deliberate local browser verification; CI's
+    full `pnpm release:check` matrix still runs the mock, generic-web, and real Worker suites.
 
 ## Release handoff
 
 - During implementation and debugging, run focused checks only. Do not run the full release suite repeatedly.
-- If you made any code change (not just markdown/docs/...); immediately before final handoff or marking a session complete, run `pnpm release:check` once on the final worktree.
-- Do not mark the session complete unless that final release check passes.
+- If you made any code change (not just markdown/docs/...); immediately before final handoff or marking a session complete, run `pnpm check:handoff` once on the final worktree. The full `pnpm release:check` gate runs in CI and is reserved locally for deliberate full-release verification.
+- Do not mark the session complete unless that final handoff gate passes.
 
 ## Unacceptable comments
 

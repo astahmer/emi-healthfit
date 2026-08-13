@@ -239,8 +239,9 @@ not database tables.
 
 ## Acceptance criteria
 
-- [x] The generic app and focused core/browser checks pass when WebMCP is absent; the full release
-      check remains the final handoff gate.
+- [x] The generic app and focused core/browser checks pass when WebMCP is absent; the lightweight
+      `check:handoff` is the local final handoff gate, while the full `release:check` remains CI
+      evidence and a deliberate full-release verification command.
 - [x] With a test `document.modelContext` harness, only the allowlisted tools register and every
       registration has a valid name, description, JSON input schema, and policy metadata.
 - [x] Tool inputs are runtime-decoded and malformed/missing-capability/stale-id requests return

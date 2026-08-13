@@ -9,7 +9,9 @@ starting point, not a fact.
 Continue splitting and moving the useful, reusable blocks that still live in `apps/chat` into
 `@emi/core`, following the boundaries and patterns already codified. Never regress existing
 behavior, public entrypoints, or test coverage, and never absorb unrelated changes. Finish by
-splitting the work into focused, described JJ revisions and running the full release gate once.
+splitting the work into focused, described JJ revisions and running `pnpm check:handoff` once on
+the final worktree. The full `pnpm release:check` gate runs in CI and is reserved locally for
+deliberate full-release verification.
 
 ## Read first (they are the source of truth)
 
@@ -80,9 +82,11 @@ product pages/routes, and deployment/product auth policy.
    app duplicate only after the core copy is covered. Keep coverage thresholds green: core and
    chat are 60% lines / 55% functions / 45% branches / 60% statements; generic-web is
    50/45/35/50.
-7. Front-facing changes ship with e2e. Mock-mode Playwright (release gate) plus real Worker mode
+7. Front-facing changes ship with e2e. Mock-mode Playwright plus real Worker mode
    (`test:e2e:worker`) where auth/persistence/tool/delete flows change; generic-web has its own
-   mock plus generated acceptance. Add coverage; do not replace existing tests.
+   mock plus generated acceptance. Add coverage; do not replace existing tests. The full CI release
+   matrix runs these browser layers; run `pnpm check:e2e` locally when the change needs direct
+   browser verification.
 8. Deterministic tests only. Use stable UUID request ids, role-based selectors, and bounded retry
    only for legitimate transient conflicts (for example generation terminalization). Never click
    by loose text when a labeled control exists.
@@ -105,7 +109,9 @@ product pages/routes, and deployment/product auth policy.
 ## Final gate
 
 Run focused checks during work; immediately before handoff run `pnpm check:handoff` once on the
-final worktree and report the exact result, including the generated-app acceptance
-(`verify:chat-app`) and both worker e2e modes. Report the final revision list. Do not mark
-complete unless the gate passes. If you hit friction, log it (papercuts) and if you fix a
-recurring anti-pattern, encode a deterministic check in the anti-slop scripts with tests.
+final worktree and report its exact result. For changes that affect generated apps or browser
+behavior, report the targeted `check:generated`/`check:e2e` result when run; the full CI release
+matrix remains responsible for generated acceptance and both Worker E2E modes. Report the final
+revision list. Do not mark complete unless the handoff gate passes. If you hit friction, log it
+(papercuts) and if you fix a recurring anti-pattern, encode a deterministic check in the anti-slop
+scripts with tests.
