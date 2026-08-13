@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
               response.writeHead(503, { "content-type": "application/json" });
               response.end(
                 JSON.stringify({
-                  error: `Generic Worker is unavailable at ${workerOrigin}. Start pnpm generic:dev.`,
+                  error: `Generic Worker is unavailable at ${workerOrigin}. Start pnpm --dir apps/generic-worker dev.`,
                 }),
               );
             });

@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3232",
-    "predev": "pnpm --dir ../../packages/core build",
     "build": "vite build",
     "build:assets": "node scripts/copy-assets.mjs",
     "typecheck": "tsc --noEmit",
