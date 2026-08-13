@@ -583,6 +583,76 @@ const getGenerationChunks = Effect.fn("chatGeneration.getChunks")(function* <TEn
   );
 });
 
+const getTerminalGenerationsWithoutFinishChunk = Effect.fn(
+  "chatGeneration.getTerminalMissingFinish",
+)(function* <TEnvironment>({
+  db,
+  userId,
+  limit = 50,
+}: {
+  db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>;
+  userId: string;
+  limit?: number;
+}) {
+  const kysely = yield* db.kysely;
+  return yield* QueryDatabase.tryPromise(() =>
+    kysely
+      .selectFrom("chat_generations")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("status", "in", ["completed", "failed", "timed_out", "cancelled"])
+      .where((expressionBuilder) =>
+        expressionBuilder.not(
+          expressionBuilder.exists(
+            expressionBuilder
+              .selectFrom("chat_generation_chunks")
+              .select("sequence")
+              .whereRef("chat_generation_chunks.user_id", "=", "chat_generations.user_id")
+              .whereRef("generation_id", "=", "chat_generations.id")
+              .where((chunkExpressionBuilder) =>
+                chunkExpressionBuilder(
+                  chunkExpressionBuilder.fn<string>("json_extract", [
+                    "chunk",
+                    chunkExpressionBuilder.val("$.type"),
+                  ]),
+                  "=",
+                  "finish",
+                ),
+              ),
+          ),
+        ),
+      )
+      .orderBy("started_at", "desc")
+      .limit(limit)
+      .execute(),
+  );
+});
+
+const hasChatEvent = Effect.fn("chatEvent.exists")(function* <TEnvironment>({
+  db,
+  userId,
+  generationId,
+  type,
+}: {
+  db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>;
+  userId: string;
+  generationId: string;
+  type: string;
+}) {
+  const kysely = yield* db.kysely;
+  const row = yield* QueryDatabase.tryPromise(() =>
+    kysely
+      .selectFrom("chat_events")
+      .select("id")
+      .where("user_id", "=", userId)
+      .where("generation_id", "=", generationId)
+      .where("type", "=", type)
+      .limit(1)
+      .executeTakeFirst(),
+  );
+  return row !== undefined;
+});
+
 export interface GenerationDatabaseShape {
   readonly appendGenerationChunk: (input: {
     readonly userId: string;
@@ -637,6 +707,15 @@ export interface GenerationDatabaseShape {
     readonly generationId: string;
     readonly afterSequence: number;
   }) => DatabaseEffect<ReadonlyArray<StoredGenerationChunk>, UiMessageChunkDecodeError>;
+  readonly getTerminalGenerationsWithoutFinishChunk: (input: {
+    readonly userId: string;
+    readonly limit?: number;
+  }) => DatabaseEffect<ReadonlyArray<ChatGeneration>>;
+  readonly hasChatEvent: (input: {
+    readonly userId: string;
+    readonly generationId: string;
+    readonly type: string;
+  }) => DatabaseEffect<boolean>;
   readonly getResumableGeneration: (input: {
     readonly userId: string;
     readonly conversationId: string;
@@ -729,6 +808,10 @@ export class GenerationDatabase extends Context.Service<
         getGenerationByRequestId({ db, userId, conversationId, requestId }),
       getGenerationChunks: ({ userId, generationId, afterSequence }) =>
         getGenerationChunks({ db, userId, generationId, afterSequence }),
+      getTerminalGenerationsWithoutFinishChunk: ({ userId, limit }) =>
+        getTerminalGenerationsWithoutFinishChunk({ db, userId, limit }),
+      hasChatEvent: ({ userId, generationId, type }) =>
+        hasChatEvent({ db, userId, generationId, type }),
       getResumableGeneration: ({ userId, conversationId }) =>
         getResumableGeneration({ db, userId, conversationId }),
       getRunningGeneration: ({ userId, conversationId }) =>

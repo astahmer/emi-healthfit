@@ -54,6 +54,8 @@ import type {
   StoredGenerationChunk as StoredGenerationChunkRecord,
 } from "./server/db/generations.ts";
 import { GenerationReplay } from "./server/generation-replay.ts";
+import { GenerationRepair } from "./server/generation-repair.ts";
+import { UiMessageChunkDecoder } from "./server/decode-ui-message-chunk.ts";
 import { GenerationStoreLive } from "./server/make-generation-store.ts";
 import {
   GenerationChunkReader,
@@ -131,6 +133,8 @@ export class ServerDatabase {
   static readonly memories = MemoryDatabase;
   static readonly query = QueryDatabase;
   static readonly replay = GenerationReplay;
+  static readonly repair = GenerationRepair;
+  static readonly uiMessageChunkDecoder = UiMessageChunkDecoder;
   static readonly generationReader = GenerationReader;
   static readonly generationWriter = GenerationWriter;
   static readonly generationChunkReader = GenerationChunkReader;

@@ -88,6 +88,7 @@ export class Chat {
   static readonly messages = {
     buildAssistantPartsEffect: MessageParts.ChatMessageParts.buildAssistantPartsEffect,
     buildAssistantParts: MessageParts.ChatMessageParts.buildAssistantParts,
+    buildAssistantPartsFromUiChunks: MessageParts.ChatMessageParts.buildAssistantPartsFromUiChunks,
     firstUserText: ChatRequest.firstUserText,
     getProviderMessages: OrphanTurn.getProviderMessages,
     collapseCompactedMessages: MessageCollapse.collapseCompactedMessages,

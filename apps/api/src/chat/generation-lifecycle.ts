@@ -732,10 +732,16 @@ export const handleChatResume = (
   return Effect.gen(function* () {
     const user = yield* CoreCloudflare.user.CurrentUser;
     const generationDatabase = yield* ServerDatabase.generations;
+    const conversationDatabase = yield* ServerDatabase.conversations;
     const reconciledGenerations = yield* generationDatabase.reconcileFinishedGenerations({
       userId: user.id,
     });
     const abandonedGenerations = yield* generationDatabase.expireStaleGenerations({
+      userId: user.id,
+    });
+    const repairedGenerations = yield* ServerDatabase.repair.repairOrphanedMessages({
+      generationDatabase,
+      conversationDatabase,
       userId: user.id,
     });
     yield* Effect.logInfo("chat.generation.reconnect").pipe(
@@ -744,6 +750,7 @@ export const handleChatResume = (
         reconnectCount: 1,
         reconciledGenerations,
         abandonedGenerations,
+        repairedGenerations,
       }),
     );
     const generation = yield* generationDatabase.getResumableGeneration({
@@ -762,7 +769,12 @@ export const handleChatResume = (
       request,
     });
   }).pipe(
-    Effect.provide(ServerDatabase.generations.layer({ db: conversationDb })),
+    Effect.provide(
+      Layer.mergeAll(
+        ServerDatabase.generations.layer({ db: conversationDb }),
+        ServerDatabase.conversations.layer({ db: conversationDb }),
+      ),
+    ),
     Effect.catch((error) =>
       HttpServerResponse.json(
         { error: String(error) },

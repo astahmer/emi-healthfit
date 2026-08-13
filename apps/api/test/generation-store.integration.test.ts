@@ -417,4 +417,160 @@ describe("generation store SQLite integration", () => {
       },
     );
   });
+
+  it("repairs terminal generations whose assistant reply was never persisted", async () => {
+    const { db: database } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
+    const generationDatabase = await makeGenerationDatabase(db);
+    const conversationDatabase = await makeConversationDatabase(db);
+    const userId = "user-repair";
+    const conversationId = await run(
+      conversationDatabase.createConversation({ userId, title: "Lost reply" }),
+    );
+    const [userMessageId] = await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "Charges de demain ?" }] }],
+      }),
+    );
+
+    await run(
+      generationDatabase.createGeneration({
+        userId,
+        generationId: "generation-lost",
+        conversationId,
+        requestId: "request-lost",
+        traceId: "trace-lost",
+        model: "gpt-5",
+      }),
+    );
+    await run(
+      generationDatabase.markGenerationStreaming({ userId, generationId: "generation-lost" }),
+    );
+    await run(
+      generationDatabase.appendGenerationChunks({
+        userId,
+        generationId: "generation-lost",
+        chunks: [
+          { sequence: 0, chunk: { type: "start" } },
+          { sequence: 1, chunk: { type: "text-start", id: "message-1" } },
+          { sequence: 2, chunk: { type: "text-delta", id: "message-1", delta: "Hello " } },
+          {
+            sequence: 3,
+            chunk: {
+              type: "tool-input-available",
+              toolCallId: "tool-1",
+              toolName: "get_goal_progress",
+              input: {},
+            },
+          },
+          { sequence: 4, chunk: { type: "text-delta", id: "message-1", delta: "world" } },
+          {
+            sequence: 5,
+            chunk: { type: "tool-output-available", toolCallId: "tool-1", output: { ok: true } },
+          },
+          { sequence: 6, chunk: { type: "text-end", id: "message-1" } },
+        ],
+      }),
+    );
+    await run(
+      generationDatabase.finishGeneration({
+        userId,
+        generationId: "generation-lost",
+        status: "completed",
+        finishReason: "stop",
+      }),
+    );
+
+    assert.strictEqual(
+      await run(
+        ServerDatabase.repair.repairOrphanedMessages({
+          generationDatabase,
+          conversationDatabase,
+          userId,
+        }),
+      ),
+      1,
+    );
+
+    const messages = await run(
+      conversationDatabase.getConversationMessages({ userId, conversationId }),
+    );
+    assert.strictEqual(messages.length, 2);
+    assert.strictEqual(messages[0].id, userMessageId);
+    assert.strictEqual(messages[1].role, "assistant");
+    assert.strictEqual(messages[1].parent_id, userMessageId);
+    assert.strictEqual(messages[1].model, "gpt-5");
+    assert.deepStrictEqual(JSON.parse(messages[1].parts), [
+      {
+        type: "tool-invocation",
+        toolName: "get_goal_progress",
+        toolCallId: "tool-1",
+        state: "output-available",
+        input: {},
+        output: { ok: true },
+      },
+      { type: "text", text: "Hello world" },
+    ]);
+
+    assert.strictEqual(
+      await run(
+        ServerDatabase.repair.repairOrphanedMessages({
+          generationDatabase,
+          conversationDatabase,
+          userId,
+        }),
+      ),
+      0,
+    );
+    assert.strictEqual(
+      (await run(conversationDatabase.getConversationMessages({ userId, conversationId }))).length,
+      2,
+    );
+
+    const otherUser = "user-other";
+    const otherConversationId = await run(
+      conversationDatabase.createConversation({ userId: otherUser, title: "Other lost reply" }),
+    );
+    await run(
+      generationDatabase.createGeneration({
+        userId: otherUser,
+        generationId: "generation-other-lost",
+        conversationId: otherConversationId,
+      }),
+    );
+    await run(
+      generationDatabase.appendGenerationChunks({
+        userId: otherUser,
+        generationId: "generation-other-lost",
+        chunks: [
+          { sequence: 0, chunk: { type: "text-start", id: "message-2" } },
+          { sequence: 1, chunk: { type: "text-delta", id: "message-2", delta: "private" } },
+        ],
+      }),
+    );
+    assert.strictEqual(
+      await run(
+        ServerDatabase.repair.repairOrphanedMessages({
+          generationDatabase,
+          conversationDatabase,
+          userId,
+        }),
+      ),
+      0,
+    );
+    assert.strictEqual(
+      (
+        await run(
+          conversationDatabase.getConversationMessages({
+            userId: otherUser,
+            conversationId: otherConversationId,
+          }),
+        )
+      ).length,
+      0,
+    );
+  });
 });

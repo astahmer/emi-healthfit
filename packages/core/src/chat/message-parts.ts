@@ -1,6 +1,7 @@
 import * as Option from "effect/Option";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import type { UIMessageChunk } from "ai";
 import type { MessagePart } from "../protocol/parts.ts";
 import { MessagePartSchema } from "../protocol/parts.ts";
 
@@ -98,6 +99,125 @@ export class ChatMessagePartsError extends Schema.TaggedErrorClass<ChatMessagePa
 ) {}
 
 export class ChatMessageParts {
+  static readonly buildAssistantPartsFromUiChunks: (
+    chunks: ReadonlyArray<UIMessageChunk>,
+  ) => ReadonlyArray<MessagePart> = (chunks) => {
+    interface PendingTool {
+      toolName: string;
+      input: Schema.Json;
+      output?: Schema.Json;
+      errorText?: string;
+      flushed: boolean;
+    }
+
+    const parts: MessagePart[] = [];
+    const textBuffers = new Map<string, string[]>();
+    const pendingTools = new Map<string, PendingTool>();
+    const order: Array<{ kind: "text" | "tool"; id: string }> = [];
+
+    const flushText = (id: string) => {
+      const buffer = textBuffers.get(id);
+      if (buffer === undefined) return;
+      const text = buffer.join("");
+      if (text.trim() !== "") parts.push({ type: "text", text });
+      textBuffers.delete(id);
+    };
+
+    const flushTool = (
+      toolCallId: string,
+      state: "output-available" | "output-error",
+      outcome?: { output?: Schema.Json; errorText?: string },
+    ) => {
+      const tool = pendingTools.get(toolCallId);
+      if (tool === undefined || tool.flushed) return;
+      tool.flushed = true;
+      parts.push({
+        type: "tool-invocation",
+        toolName: tool.toolName,
+        toolCallId,
+        state,
+        input: tool.input,
+        ...(state === "output-available" ? { output: outcome?.output ?? tool.output ?? null } : {}),
+        ...(state === "output-error" && (outcome?.errorText ?? tool.errorText) !== undefined
+          ? { errorText: outcome?.errorText ?? tool.errorText }
+          : {}),
+      });
+    };
+
+    for (const chunk of chunks) {
+      switch (chunk.type) {
+        case "text-start":
+          textBuffers.set(chunk.id, []);
+          order.push({ kind: "text", id: chunk.id });
+          break;
+        case "text-delta": {
+          const buffer = textBuffers.get(chunk.id);
+          if (buffer !== undefined) buffer.push(chunk.delta);
+          break;
+        }
+        case "text-end":
+          flushText(chunk.id);
+          break;
+        case "tool-input-available":
+        case "tool-input-start": {
+          if (!pendingTools.has(chunk.toolCallId)) {
+            pendingTools.set(chunk.toolCallId, {
+              toolName: chunk.toolName,
+              input: (chunk.type === "tool-input-available" ? chunk.input : {}) as Schema.Json,
+              flushed: false,
+            });
+            order.push({ kind: "tool", id: chunk.toolCallId });
+          }
+          break;
+        }
+        case "tool-input-error": {
+          const existing = pendingTools.get(chunk.toolCallId);
+          if (existing !== undefined) {
+            existing.toolName = chunk.toolName;
+            existing.input = chunk.input as Schema.Json;
+            existing.errorText = chunk.errorText;
+          } else {
+            pendingTools.set(chunk.toolCallId, {
+              toolName: chunk.toolName,
+              input: chunk.input as Schema.Json,
+              errorText: chunk.errorText,
+              flushed: false,
+            });
+            order.push({ kind: "tool", id: chunk.toolCallId });
+          }
+          break;
+        }
+        case "tool-output-available": {
+          const tool = pendingTools.get(chunk.toolCallId);
+          if (tool !== undefined) tool.output = chunk.output as Schema.Json;
+          flushTool(chunk.toolCallId, "output-available");
+          break;
+        }
+        case "tool-output-error": {
+          const tool = pendingTools.get(chunk.toolCallId);
+          if (tool !== undefined) tool.errorText = chunk.errorText;
+          flushTool(chunk.toolCallId, "output-error");
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    for (const { kind, id } of order) {
+      if (kind === "tool") {
+        const tool = pendingTools.get(id);
+        if (tool !== undefined && !tool.flushed) {
+          flushTool(id, tool.errorText !== undefined ? "output-error" : "output-available");
+        }
+      } else {
+        flushText(id);
+      }
+    }
+
+    return parts;
+  };
+
   static readonly buildAssistantPartsEffect: (
     messages: ReadonlyArray<unknown>,
   ) => Effect.Effect<ReadonlyArray<MessagePart>, ChatMessagePartsError> = Effect.fn(
