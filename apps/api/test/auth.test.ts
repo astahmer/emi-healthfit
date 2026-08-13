@@ -183,7 +183,7 @@ describe("authentication boundaries", () => {
     try {
       const database = await miniflare.getD1Database("DB");
       const authMigration = await readFile(
-        new URL("../migrations/20260802113108_add-auth-tables.sql", import.meta.url),
+        new URL("../migrations/0012_auth.sql", import.meta.url),
         "utf8",
       );
       const migrationStatements = authMigration
@@ -254,7 +254,7 @@ describe("authentication boundaries", () => {
     try {
       const database = await miniflare.getD1Database("DB");
       const authMigration = await readFile(
-        new URL("../migrations/20260802113108_add-auth-tables.sql", import.meta.url),
+        new URL("../migrations/0012_auth.sql", import.meta.url),
         "utf8",
       );
       const migrationStatements = authMigration
