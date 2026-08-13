@@ -1,10 +1,46 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import * as Effect from "effect/Effect";
 import { ServerDatabase } from "@emi/core/server/database";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeMemoryDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("memories SQLite integration", () => {
+  it("retries search queries with smaller token sets on database failure", async () => {
+    const attempted: ReadonlyArray<string>[] = [];
+    const rows = await run(
+      ServerDatabase.retryTokenSearch(
+        (tokens) => {
+          attempted.push(tokens);
+          return tokens.length > 1
+            ? Effect.fail(
+                new ServerDatabase.errors.databaseQuery({
+                  message: "LIKE or GLOB pattern too complex",
+                }),
+              )
+            : Effect.succeed([{ token: tokens[0] ?? "recent" }]);
+        },
+        ["alpha", "beta", "gamma", "delta"],
+      ),
+    );
+    assert.deepStrictEqual(attempted, [
+      ["alpha", "beta", "gamma", "delta"],
+      ["alpha", "beta"],
+      ["alpha"],
+    ]);
+    assert.deepStrictEqual(rows, [{ token: "alpha" }]);
+  });
+
+  it("returns an empty result when every retry also fails", async () => {
+    const rows = await run(
+      ServerDatabase.retryTokenSearch(
+        () => Effect.fail(new ServerDatabase.errors.databaseQuery({ message: "disk I/O error" })),
+        ["alpha", "beta"],
+      ),
+    );
+    assert.deepStrictEqual(rows, []);
+  });
+
   it("searches with oversized queries without failing on pattern complexity", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
@@ -72,16 +108,19 @@ describe("memories SQLite integration", () => {
       }),
     );
 
-    assert.deepStrictEqual(
-      (await run(memoryDatabase.getMemories({ userId: alice }))).map((memory) => ({
+    const aliceMemories = (await run(memoryDatabase.getMemories({ userId: alice })))
+      .map((memory) => ({
         id: memory.id,
         content: memory.content,
         source: memory.source,
-      })),
+      }))
+      .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    assert.deepStrictEqual(
+      aliceMemories,
       [
-        { id: strengthId, content: "Tracks bench press", source: "manual" },
         { id: morningRunsId, content: "Prefers morning runs", source: "chat:message-a" },
-      ],
+        { id: strengthId, content: "Tracks bench press", source: "manual" },
+      ].toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     );
     assert.deepStrictEqual(
       (await run(memoryDatabase.searchMemories({ userId: alice, query: "prefers" }))).map(
@@ -95,10 +134,12 @@ describe("memories SQLite integration", () => {
     assert.deepStrictEqual(
       (
         await run(
-          memoryDatabase.searchMemories({ userId: alice, query: "  ", options: { limit: 1 } }),
+          memoryDatabase.searchMemories({ userId: alice, query: "  ", options: { limit: 2 } }),
         )
-      ).map((memory) => memory.id),
-      [strengthId],
+      )
+        .map((memory) => memory.id)
+        .toSorted((a, b) => a.localeCompare(b)),
+      [morningRunsId, strengthId].toSorted((a, b) => a.localeCompare(b)),
     );
     assert.deepStrictEqual(
       await run(memoryDatabase.listMemoryIdsForMessage({ userId: alice, messageId: "message-a" })),

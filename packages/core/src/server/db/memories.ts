@@ -124,6 +124,51 @@ type MemorySearchRow = Omit<MemorySearchResult, "rank" | "deleted"> & {
   deleted_at: string | null;
 };
 
+export const retryTokenSearch = <Row, Environment = never>(
+  search: (
+    tokens: ReadonlyArray<string>,
+  ) => Effect.Effect<ReadonlyArray<Row>, DatabaseQueryError, Environment>,
+  tokens: ReadonlyArray<string>,
+  context?: { readonly userId: string; readonly query: string },
+): Effect.Effect<ReadonlyArray<Row>, never, Environment> =>
+  Effect.gen(function* () {
+    let remaining = tokens;
+    let rows: ReadonlyArray<Row> | null = null;
+    let lastError: string | null = null;
+    while (rows === null) {
+      const attempt = yield* search(remaining).pipe(
+        Effect.catchTag("DatabaseQueryError", (error) => {
+          lastError = error.message;
+          return Effect.succeed(null);
+        }),
+      );
+      if (attempt !== null) {
+        rows = attempt;
+        break;
+      }
+      if (remaining.length === 0) break;
+      yield* Effect.logDebug("memory.search-retry").pipe(
+        Effect.annotateLogs({
+          remainingTokens: remaining.length,
+          error: lastError ?? "unknown",
+          ...context,
+        }),
+      );
+      remaining = remaining.length === 1 ? [] : remaining.slice(0, Math.ceil(remaining.length / 2));
+    }
+    if (rows === null) {
+      yield* Effect.logWarning("memory.search-failed").pipe(
+        Effect.annotateLogs({
+          queryTokens: tokens.length,
+          error: lastError ?? "unknown",
+          ...context,
+        }),
+      );
+      return [];
+    }
+    return rows;
+  });
+
 const toMemorySearchResult = (row: MemorySearchRow): MemorySearchResult => ({
   id: row.id,
   content: row.content,
@@ -160,37 +205,35 @@ const searchMemories = <Environment>(
 
     const tokens = tokenize(term).slice(0, maxSearchTokens);
     if (tokens.length === 0) return [];
-    const result = yield* QueryDatabase.tryPromise(() =>
-      kysely
-        .selectFrom("memories")
-        .select(["id", "content", "source", "thread_id", "created_at", "deleted_at"])
-        .where("user_id", "=", userId)
-        .where("deleted_at", "is", null)
-        .where((expressionBuilder) =>
-          expressionBuilder.or(
-            tokens.map((token) =>
-              expressionBuilder(
-                expressionBuilder.fn<number>("instr", [
-                  expressionBuilder.fn<string>("lower", ["content"]),
-                  expressionBuilder.val(token),
-                ]),
-                ">",
-                0,
-              ),
-            ),
-          ),
-        )
-        .orderBy("created_at", "desc")
-        .execute(),
-    ).pipe(
-      Effect.catchTag("DatabaseQueryError", (error) =>
-        Effect.gen(function* () {
-          yield* Effect.logWarning("memory.search-failed").pipe(
-            Effect.annotateLogs({ userId, query: term, error: error.message }),
-          );
-          return [];
+    const baseQuery = kysely
+      .selectFrom("memories")
+      .select(["id", "content", "source", "thread_id", "created_at", "deleted_at"])
+      .where("user_id", "=", userId)
+      .where("deleted_at", "is", null);
+    const result = yield* retryTokenSearch(
+      (searchTokens) =>
+        QueryDatabase.tryPromise(() => {
+          const scopedQuery =
+            searchTokens.length === 0
+              ? baseQuery
+              : baseQuery.where((expressionBuilder) =>
+                  expressionBuilder.or(
+                    searchTokens.map((token) =>
+                      expressionBuilder(
+                        expressionBuilder.fn<number>("instr", [
+                          expressionBuilder.fn<string>("lower", ["content"]),
+                          expressionBuilder.val(token),
+                        ]),
+                        ">",
+                        0,
+                      ),
+                    ),
+                  ),
+                );
+          return scopedQuery.orderBy("created_at", "desc").execute();
         }),
-      ),
+      tokens,
+      { userId, query: term },
     );
     const scored = result
       .map((row) => ({

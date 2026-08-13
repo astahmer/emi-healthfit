@@ -77,7 +77,7 @@ import type {
   GenerationStoreError as GenerationStoreErrorRecord,
   GenerationWriterShape as GenerationWriterRecord,
 } from "./server/ports/generation-store.ts";
-import { MemoryDatabase } from "./server/db/memories.ts";
+import { MemoryDatabase, retryTokenSearch } from "./server/db/memories.ts";
 import type {
   MemoryInput as MemoryInputRecord,
   MemoryDatabaseShape as MemoryDatabaseShapeRecord,
@@ -150,6 +150,7 @@ export class ServerDatabase {
   static readonly memorySummaryStore = MemorySummaryStore;
   static readonly memoryStoreLive = MemoryStoreLive;
   static readonly memoryContext = MemoryContext;
+  static readonly retryTokenSearch = retryTokenSearch;
   static readonly errors = {
     databaseQuery: DatabaseQueryError,
     generationAlreadyActive: GenerationAlreadyActiveError,

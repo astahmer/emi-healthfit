@@ -7,7 +7,8 @@ import { ToolSchema } from "./tool-schema.ts";
 
 const memorySearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
-    description: "Concise keywords to find in the user's individual memory entries.",
+    description:
+      "Short distinctive keywords (1-4) to find in the user's individual memory entries. Keep the query concise; long or full-sentence queries are truncated and may silently fall back to fewer terms.",
   }),
   limit: ToolSchema.optional(
     Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).annotate({
@@ -18,13 +19,14 @@ const memorySearchInput = Schema.Struct({
 
 const memorySummarySearchInput = Schema.Struct({
   query: Schema.String.check(Schema.isMinLength(1), Schema.isPattern(/\S/)).annotate({
-    description: "Concise keywords to find in the merged memory summary.",
+    description:
+      "Short distinctive keywords (1-4) to find in the merged memory summary. Keep the query concise.",
   }),
 });
 
 const memorySearchTool = Tool.make("search_memories", {
   description:
-    "Search individual source memory entries after checking search_memory_summary. Use this when the merged summary is missing or does not contain enough detail.",
+    "Search individual source memory entries after checking search_memory_summary. Use this when the merged summary is missing or does not contain enough detail. Query with 1-4 distinctive keywords, never long sentences or pasted text.",
   parameters: memorySearchInput,
   success: Schema.Unknown,
   failure: Schema.Unknown,
@@ -32,7 +34,7 @@ const memorySearchTool = Tool.make("search_memories", {
 
 const memorySummarySearchTool = Tool.make("search_memory_summary", {
   description:
-    "Search the compact merged memory summary first for earlier user preferences, goals, or constraints. If it is missing or insufficient, call search_memories for the source entries.",
+    "Search the compact merged memory summary first for earlier user preferences, goals, or constraints. Query with 1-4 distinctive keywords. If it is missing or insufficient, call search_memories for the source entries.",
   parameters: memorySummarySearchInput,
   success: Schema.Unknown,
   failure: Schema.Unknown,
