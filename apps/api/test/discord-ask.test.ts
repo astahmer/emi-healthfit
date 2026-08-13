@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 import * as Effect from "effect/Effect";
 import { fromWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { ServerDatabase } from "@emi/core/server/database";
+import { HealthFit, type HealthfitDatabaseSchema } from "@emi/flavor-healthfit";
 import { handleDiscordAsk } from "../src/discord/http/discord-ask.ts";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeConversationDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
@@ -13,6 +14,12 @@ const environment = {
   DISCORD_INTERNAL_ASK_SECRET: SECRET,
   OPENAI_API_KEY: "test-openai-key",
 };
+const originalFetch = globalThis.fetch;
+const { encryptApiKey: encryptHevyApiKey, upsertConnection: upsertHevyConnection } = HealthFit.hevy;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
 
 const makeAskRequest = ({ secret, body }: { secret?: string | null; body: unknown }) =>
   fromWeb(
@@ -121,5 +128,48 @@ describe("handleDiscordAsk", () => {
       }),
     );
     assert.equal(messages.length >= 2, true);
+  });
+
+  it("does not answer from stale Hevy data when the provider refresh fails", async () => {
+    const { db } = makeSqliteDatabase();
+    const keyBytes = new Uint8Array(32).fill(0x11);
+    const askEnvironment = {
+      ...environment,
+      HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
+    };
+    const envelope = await Effect.runPromise(
+      encryptHevyApiKey({ apiKey: "hevy-test-key", userId: "user-1", keyBytes }),
+    );
+    await run(
+      upsertHevyConnection({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        providerUserId: "hevy-user-1",
+        envelope,
+        status: "connected",
+      }),
+    );
+    globalThis.fetch = async () => new Response("Hevy unavailable", { status: 503 });
+    let generated = false;
+
+    await assert.rejects(
+      () =>
+        run(
+          handleDiscordAsk({
+            db,
+            environment: askEnvironment,
+            request: makeAskRequest({
+              body: { userId: "user-1", question: "What should I do today?" },
+            }),
+            generateAnswer: () =>
+              Effect.sync(() => {
+                generated = true;
+                return "stale answer";
+              }),
+          }),
+        ),
+      /status 503/,
+    );
+    assert.equal(generated, false);
   });
 });

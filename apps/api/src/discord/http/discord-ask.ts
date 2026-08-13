@@ -30,6 +30,7 @@ class DiscordAskError extends Schema.TaggedErrorClass<DiscordAskError>()("Discor
 }) {}
 
 const { buildContext: buildChatContext, renderContextPrompt } = HealthFit.chat;
+const { requireFresh: requireHevyFresh } = HealthFit.hevy;
 const { definition: healthFitAppDefinition } = HealthFit.app;
 
 type DiscordAskInput = {
@@ -113,6 +114,11 @@ const handleDiscordAskEffect = Effect.fn("http.discord.ask")(function* ({
   );
 
   const healthfitDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+  yield* requireHevyFresh({
+    db: healthfitDb,
+    userId: body.userId,
+    environment,
+  });
   const conversations = yield* conversationDatabase.getConversations({ userId: body.userId });
   const existing = conversations.find((conversation) => conversation.title === DISCORD_ASK_TITLE);
   const conversationId =

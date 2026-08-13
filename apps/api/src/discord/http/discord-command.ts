@@ -45,6 +45,7 @@ class DiscordCommandError extends Schema.TaggedErrorClass<DiscordCommandError>()
 ) {}
 
 const { buildContext: buildChatContext } = HealthFit.chat;
+const { requireFresh: requireHevyFresh } = HealthFit.hevy;
 const { getDataSummary, getWorkoutHistory } = HealthFit.data;
 
 type DiscordCommandInput = {
@@ -141,14 +142,17 @@ const handleDiscordCommandEffect = Effect.fn("http.discord.command")(function* (
         }),
       });
     case "summary":
+      yield* requireHevyFresh({ db: healthfitDb, userId: body.userId, environment });
       return yield* HttpServerResponse.json({
         content: yield* formatSummary(healthfitDb, body.userId),
       });
     case "last-workout":
+      yield* requireHevyFresh({ db: healthfitDb, userId: body.userId, environment });
       return yield* HttpServerResponse.json({
         content: yield* formatLastWorkout(healthfitDb, body.userId),
       });
     case "recovery": {
+      yield* requireHevyFresh({ db: healthfitDb, userId: body.userId, environment });
       const context = yield* buildChatContext(healthfitDb, body.userId);
       return yield* HttpServerResponse.json({
         content: `Recovery: ${context.recoveryLabel}\n${context.recoveryExplanation}`,
