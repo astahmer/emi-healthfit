@@ -194,6 +194,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
   ({ input, receive }) => {
     let abortController: AbortController | undefined;
     let operation = 0;
+    let activeSend: { readonly operation: number; started: boolean } | undefined;
 
     const supersede = () => {
       operation += 1;
@@ -250,6 +251,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         createdAt: input.now(),
       };
       const messages = [...resolvedRequest.messages, message];
+      if (activeSend?.operation === activeOperation) activeSend.started = true;
       input.sendSession({ type: "stream-started", messages });
       const encodedMessages =
         input.messageEncoder?.({ messages, request: resolvedRequest }) ?? messages;
@@ -358,15 +360,27 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
         });
       } finally {
         if (abortController === controller) abortController = undefined;
+        if (activeSend?.operation === activeOperation) activeSend = undefined;
         if (activeOperation === operation) input.sendSession({ type: "stream-finished" });
       }
     };
 
-    const send = (request: ChatTransportRequest) => {
+    const beginSend = (request: ChatTransportRequest) => {
       const controller = new AbortController();
-      const activeOperation = supersede();
+      const activeOperation = operation + 1;
+      operation = activeOperation;
       abortController = controller;
+      activeSend = { operation: activeOperation, started: false };
+      input.sendSession({ type: "send-pending" });
       void run({ request, activeOperation, controller });
+    };
+
+    const send = (request: ChatTransportRequest) => {
+      if (activeSend !== undefined) {
+        if (request.replaceMessageId === undefined) return;
+        supersede();
+      }
+      beginSend(request);
     };
 
     const resume = (conversationId: string) => {
@@ -439,7 +453,7 @@ export const chatTransportActor = fromCallback<ChatTransportActorEvent, ChatTran
       if (event.type === "queued-follow-up-force-requested") {
         supersede();
         input.sendSession({ type: "queued-follow-up-forced", id: event.followUp.id });
-        send({ ...event.request, ...event.followUp });
+        beginSend({ ...event.request, ...event.followUp });
       }
     });
 

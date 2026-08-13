@@ -35,6 +35,7 @@ export type ChatSessionEvent =
   | { type: "thread-opened"; threadId: string; messages: ChatMessage[] }
   | { type: "conversation-identified"; conversationId: string }
   | { type: "conversation-compacted"; conversationId: string }
+  | { type: "send-pending" }
   | { type: "stream-started"; messages: ChatMessage[] }
   | { type: "stream-resumed" }
   | { type: "stream-message"; message: ChatMessage }

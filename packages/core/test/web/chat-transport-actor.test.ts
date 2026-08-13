@@ -297,14 +297,13 @@ describe("chatTransportActor", () => {
     actor.stop();
   });
 
-  it("drops chunks from a superseded stream operation", async () => {
+  it("ignores a duplicate plain send while the first stream is in flight", async () => {
     const first = pendingResponse();
     let requests = 0;
     const { input, sessionEvents } = createInput({
       fetch: async () => {
         requests += 1;
-        if (requests === 1) return first.response;
-        return streamResponse({ chunks: assistantChunks({ text: "Current answer" }) });
+        return first.response;
       },
     });
     const actor = createActor(chatTransportActor, { input }).start();
@@ -312,31 +311,33 @@ describe("chatTransportActor", () => {
     actor.send({ type: "stream-send-requested", request });
     await vi.waitFor(() => expect(requests).toBe(1));
     actor.send({ type: "stream-send-requested", request: { ...request, text: "New question" } });
-    await vi.waitFor(() => {
-      expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
-        expect.objectContaining({ type: "text", text: "Current answer" }),
-      );
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    for (const chunk of assistantChunks({ text: "Stale answer" })) {
+    expect(requests).toBe(1);
+    for (const chunk of assistantChunks({ text: "First answer" })) {
       first.controller()?.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
     }
     first.controller()?.close();
     await vi.waitFor(() => {
-      expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
-        expect.objectContaining({ type: "text", text: "Current answer" }),
-      );
-      expect(sessionEvents.filter((event) => event.type === "stream-completed")).toHaveLength(1);
+      expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
     });
+    expect(sessionEvents.filter((event) => event.type === "stream-started")).toHaveLength(1);
+    expect(sessionEvents.filter((event) => event.type === "stream-completed")).toHaveLength(1);
+    expect(sessionEvents).toContainEqual({ type: "send-pending" });
+    expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
+      expect.objectContaining({ type: "text", text: "First answer" }),
+    );
     actor.stop();
   });
 
-  it("does not start a stale request after conversation creation is superseded", async () => {
+  it("keeps the first send when a duplicate arrives during conversation creation", async () => {
     let resolveConversation: ((conversationId: string) => void) | undefined;
     let requestCount = 0;
+    let conversationCreations = 0;
     const { input, sessionEvents } = createInput({
       createConversation: () =>
         new Promise((resolve) => {
+          conversationCreations += 1;
           resolveConversation = resolve;
         }),
       fetch: async () => {
@@ -352,13 +353,59 @@ describe("chatTransportActor", () => {
       type: "stream-send-requested",
       request: { ...request, conversationId: "conversation-2" },
     });
-    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
-
-    resolveConversation?.("conversation-1");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    resolveConversation?.("conversation-1");
+    await vi.waitFor(() => expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" }));
+
+    expect(conversationCreations).toBe(1);
     expect(requestCount).toBe(1);
     expect(sessionEvents.filter((event) => event.type === "stream-started")).toHaveLength(1);
+    expect(sessionEvents).toContainEqual({ type: "send-pending" });
+    expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
+      expect.objectContaining({ type: "text", text: "Current answer" }),
+    );
+    actor.stop();
+  });
+
+  it("supersedes an in-flight stream for an explicit revision and drops stale chunks", async () => {
+    const first = pendingResponse();
+    let requests = 0;
+    const { input, sessionEvents } = createInput({
+      fetch: async () => {
+        requests += 1;
+        if (requests === 1) return first.response;
+        return streamResponse({ chunks: assistantChunks({ text: "Revised answer" }) });
+      },
+    });
+    const actor = createActor(chatTransportActor, { input }).start();
+
+    actor.send({ type: "stream-send-requested", request });
+    await vi.waitFor(() => expect(requests).toBe(1));
+    actor.send({
+      type: "stream-send-requested",
+      request: { ...request, text: "Revised", replaceMessageId: "user-message" },
+    });
+    await vi.waitFor(() => {
+      expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
+        expect.objectContaining({ type: "text", text: "Revised answer" }),
+      );
+    });
+
+    for (const chunk of assistantChunks({ text: "Stale answer" })) {
+      first.controller()?.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+    }
+    first.controller()?.close();
+    await vi.waitFor(() => {
+      expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
+    });
+
+    expect(sessionEvents.filter((event) => event.type === "stream-started")).toHaveLength(2);
+    expect(sessionEvents.filter((event) => event.type === "stream-completed")).toHaveLength(1);
+    expect(sessionEvents).not.toContainEqual(expect.objectContaining({ type: "error-reported" }));
+    expect(lastStreamMessage({ events: sessionEvents })?.parts).toContainEqual(
+      expect.objectContaining({ type: "text", text: "Revised answer" }),
+    );
     actor.stop();
   });
 
@@ -477,8 +524,9 @@ describe("chatTransportActor", () => {
     await vi.waitFor(() => {
       expect(sessionEvents.at(-1)).toEqual({ type: "stream-finished" });
     });
-    expect(sessionEvents.slice(0, 2)).toEqual([
+    expect(sessionEvents.slice(0, 3)).toEqual([
       { type: "queued-follow-up-forced", id: "queued-1" },
+      { type: "send-pending" },
       {
         type: "stream-started",
         messages: [
