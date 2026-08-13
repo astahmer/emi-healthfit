@@ -21,7 +21,7 @@ describe("chat operation budget", () => {
       reservedOperations: 2,
       usedOperations: 5,
       remainingOperations: 1,
-      maximumToolCalls: 6,
+      maximumToolCalls: 60,
       toolCalls: 0,
       skippedPersistenceOperations: 1,
       skippedTelemetryOperations: 1,

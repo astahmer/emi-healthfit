@@ -15,7 +15,7 @@ export interface ChatOperationBudgetSnapshot {
 export const createChatOperationBudget = ({
   maximumOperations = 40,
   reservedOperations = 4,
-  maximumToolCalls = 6,
+  maximumToolCalls = 60,
 }: {
   maximumOperations?: number;
   reservedOperations?: number;
