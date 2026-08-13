@@ -146,6 +146,7 @@ describe("conversation thread tools", () => {
         workouts: 0,
         workouts_goal: null,
         latest_weight_kg: null,
+        latest_weight_date: null,
         target_weight_kg: null,
         weight_remaining_kg: null,
       },

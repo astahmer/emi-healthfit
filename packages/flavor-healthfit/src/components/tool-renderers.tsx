@@ -107,6 +107,7 @@ interface GoalProgress {
   readonly workouts: number;
   readonly workouts_goal: number | null;
   readonly latest_weight_kg: number | null;
+  readonly latest_weight_date: string | null;
   readonly target_weight_kg: number | null;
   readonly weight_remaining_kg: number | null;
 }
@@ -217,6 +218,7 @@ const GoalProgressSchema = Schema.Struct({
   workouts: Schema.Number,
   workouts_goal: Schema.NullOr(Schema.Number),
   latest_weight_kg: Schema.NullOr(Schema.Number),
+  latest_weight_date: Schema.NullOr(Schema.String),
   target_weight_kg: Schema.NullOr(Schema.Number),
   weight_remaining_kg: Schema.NullOr(Schema.Number),
 });
@@ -783,6 +785,9 @@ export const GoalProgressCard: FC<{ data: GoalProgress }> = ({ data }) => {
         <p className="text-lg font-semibold">
           {data.latest_weight_kg === null ? "No data" : `${data.latest_weight_kg.toFixed(1)} kg`}
         </p>
+        {data.latest_weight_date !== null && (
+          <p className="text-xs text-muted-foreground">Recorded {data.latest_weight_date}</p>
+        )}
         <p className="text-xs text-muted-foreground">
           {data.target_weight_kg === null
             ? "No target set"

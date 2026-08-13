@@ -316,6 +316,7 @@ describe("ToolResultContent", () => {
             workouts: 3,
             workouts_goal: 3,
             latest_weight_kg: 78.5,
+            latest_weight_date: null,
             target_weight_kg: 75,
             weight_remaining_kg: -3.5,
           }}

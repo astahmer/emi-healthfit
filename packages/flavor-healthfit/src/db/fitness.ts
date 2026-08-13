@@ -507,9 +507,12 @@ interface GoalProgress {
   workouts: number;
   workouts_goal: number | null;
   latest_weight_kg: number | null;
+  latest_weight_date: string | null;
   target_weight_kg: number | null;
   weight_remaining_kg: number | null;
 }
+
+const latestWeightRecencyDays = 120;
 
 export const getGoalProgress = (
   db: FitnessDb,
@@ -544,8 +547,9 @@ export const getGoalProgress = (
       Effect.promise(() =>
         kysely
           .selectFrom("body_metrics")
-          .select("weight_kg")
+          .select(["weight_kg", "date"])
           .where("user_id", "=", userId)
+          .where("date", ">=", isoDateDaysAgo(latestWeightRecencyDays - 1))
           .orderBy("date", "desc")
           .executeTakeFirst(),
       ),
@@ -558,6 +562,7 @@ export const getGoalProgress = (
       workouts: workouts.length,
       workouts_goal: workoutsGoal ?? null,
       latest_weight_kg: latestWeight,
+      latest_weight_date: latestBodyMetric?.date ?? null,
       target_weight_kg: targetWeightKg ?? null,
       weight_remaining_kg:
         latestWeight === null || targetWeightKg === undefined

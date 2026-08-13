@@ -161,7 +161,7 @@ const GetRecoveryTimeline = Tool.make("get_recovery_timeline", {
 
 const GetGoalProgress = Tool.make("get_goal_progress", {
   description:
-    "Get progress for supplied step, workout-frequency, and body-weight goals. Search memories first when a goal is not in the current chat.",
+    "Get progress for supplied step, workout-frequency, and body-weight goals. The latest weight includes the date it was recorded. Search memories first when a goal is not in the current chat.",
   parameters: Schema.Struct({
     days: ToolSchema.optional(
       Schema.Int.annotate({ description: "Evaluation window in days (default 7)." }),
@@ -390,6 +390,7 @@ const componentSchemas = new Map<string, Schema.ConstraintDecoder<unknown>>([
       workouts: Schema.Number,
       workouts_goal: Schema.NullOr(Schema.Number),
       latest_weight_kg: Schema.NullOr(Schema.Number),
+      latest_weight_date: Schema.NullOr(Schema.String),
       target_weight_kg: Schema.NullOr(Schema.Number),
       weight_remaining_kg: Schema.NullOr(Schema.Number),
     }),

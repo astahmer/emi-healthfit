@@ -106,6 +106,7 @@ const goalProgressSchema = z.object({
   workouts: z.number(),
   workouts_goal: z.number().nullable(),
   latest_weight_kg: z.number().nullable(),
+  latest_weight_date: z.string().nullable(),
   target_weight_kg: z.number().nullable(),
   weight_remaining_kg: z.number().nullable(),
 });

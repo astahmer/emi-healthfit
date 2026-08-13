@@ -29,6 +29,8 @@ interface SleepContext {
 export interface ChatContext {
   today: string;
   hevyLastSyncedAt: string | null;
+  latestWeightKg: number | null;
+  latestWeightDate: string | null;
   recoveryLabel: string;
   recoveryExplanation: string;
   lastWorkout: WorkoutContext;
@@ -107,6 +109,16 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
         .execute(),
     );
 
+    const latestWeight = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("body_metrics")
+        .select(["weight_kg", "date"])
+        .where("user_id", "=", userId)
+        .where("date", ">=", daysAgo(120))
+        .orderBy("date", "desc")
+        .executeTakeFirst(),
+    );
+
     const recentVolume = recentSets.reduce((sum: number, set: HevySetRow) => {
       if (set.weight_kg !== null && set.reps !== null) {
         return sum + set.weight_kg * set.reps;
@@ -151,6 +163,8 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
     return {
       today,
       hevyLastSyncedAt: syncState?.last_success_at ?? null,
+      latestWeightKg: latestWeight?.weight_kg ?? null,
+      latestWeightDate: latestWeight?.date ?? null,
       recoveryLabel: label,
       recoveryExplanation: explanation,
       lastWorkout: {
@@ -210,6 +224,11 @@ This data snapshot was read from the user's HealthFit database immediately after
 
 Today: ${ctx.today}
 Hevy last successful sync: ${ctx.hevyLastSyncedAt ?? "not connected or never synced"}
+Latest recorded weight: ${
+    ctx.latestWeightKg === null
+      ? "none in the last 120 days"
+      : `${ctx.latestWeightKg} kg on ${ctx.latestWeightDate}`
+  }
 Recovery: ${ctx.recoveryLabel} — ${ctx.recoveryExplanation}
 Last workout: ${ctx.lastWorkout.lastSessionSummary}
 Last 7 days: ${ctx.sleep.sevenDayAverage !== null ? minutesToHours(ctx.sleep.sevenDayAverage) : "unknown"} sleep avg, ${ctx.recentWorkoutCount} workouts, ${Math.round(ctx.lastWorkout.recentVolume)} kg·reps volume

@@ -347,6 +347,39 @@ describe("fitness SQLite integration", () => {
         workouts: 2,
         workouts_goal: 2,
         latest_weight_kg: 79,
+        latest_weight_date: "2026-07-19",
+        target_weight_kg: 78,
+        weight_remaining_kg: -1,
+      },
+    );
+    await run(
+      upsertBodyMetrics(fitnessDb, userId, [
+        {
+          date: "2025-12-15",
+          weight_kg: 60,
+          body_fat_pct: null,
+          lean_mass_kg: null,
+          source: "apple_health",
+        },
+      ]),
+    );
+    assert.deepStrictEqual(
+      await run(
+        getGoalProgress(fitnessDb, userId, {
+          days: 7,
+          stepGoal: 2_500,
+          workoutsGoal: 2,
+          targetWeightKg: 78,
+        }),
+      ),
+      {
+        period_days: 7,
+        average_steps: 2_000,
+        step_goal: 2_500,
+        workouts: 2,
+        workouts_goal: 2,
+        latest_weight_kg: 79,
+        latest_weight_date: "2026-07-19",
         target_weight_kg: 78,
         weight_remaining_kg: -1,
       },
@@ -372,18 +405,18 @@ describe("fitness SQLite integration", () => {
         sets: exported.hevy.sets.length,
         cursors: exported.syncCursors.length,
       },
-      { daily: 2, health: 1, sleep: 2, body: 2, sessions: 2, sets: 3, cursors: 2 },
+      { daily: 2, health: 1, sleep: 2, body: 3, sessions: 2, sets: 3, cursors: 2 },
     );
     assert.deepStrictEqual(await run(getIngestedDataExportSummary({ db: fitnessDb, userId })), {
       sources: {
         dailyActivity: { count: 2, first: "2026-07-18", last: "2026-07-19" },
         healthWorkouts: { count: 1, first: "2026-07-18", last: "2026-07-18" },
         sleepSessions: { count: 2, first: "2026-07-18", last: "2026-07-19" },
-        bodyMetrics: { count: 2, first: "2026-07-18", last: "2026-07-19" },
+        bodyMetrics: { count: 3, first: "2025-12-15", last: "2026-07-19" },
         hevySessions: { count: 2, first: "2026-07-18T10:00:00Z", last: "2026-07-19T10:00:00Z" },
         hevySets: { count: 3, first: null, last: null },
       },
-      totalRecords: 12,
+      totalRecords: 13,
       healthRange: { first: "2026-07-18", last: "2026-07-19" },
       hevyRange: { first: "2026-07-18T10:00:00Z", last: "2026-07-19T10:00:00Z" },
     });
