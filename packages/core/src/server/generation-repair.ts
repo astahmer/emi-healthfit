@@ -74,7 +74,7 @@ export class GenerationRepair {
 
         const previousMessage =
           messages
-            .filter((message) => message.created_at < generation.started_at)
+            .filter((message) => message.created_at <= generation.started_at)
             .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0] ?? null;
         const messageIds = yield* conversationDatabase.saveConversationMessages({
           userId,
