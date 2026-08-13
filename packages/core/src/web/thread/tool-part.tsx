@@ -30,6 +30,10 @@ const ToolErrorOutput = Schema.Union([
   Schema.Struct({ type: Schema.Literal("error-text"), value: Schema.String }),
   Schema.Struct({ error: Schema.String }),
 ]);
+const ToolWarningOutput = Schema.Struct({
+  type: Schema.Literal("warning-text"),
+  value: Schema.String,
+});
 
 export const ToolPart = ({
   part,
@@ -63,6 +67,7 @@ export const ToolPart = ({
   const state = toolPart.value.state;
   const outcome = toolPart.value.outcome;
   const errorOutput = Option.isSome(Schema.decodeUnknownOption(ToolErrorOutput)(output));
+  const warningOutput = Option.isSome(Schema.decodeUnknownOption(ToolWarningOutput)(output));
   const isFailed = state === "output-error" || outcome === "error" || errorOutput;
   const result =
     output !== undefined
@@ -75,7 +80,11 @@ export const ToolPart = ({
   const shouldRenderInput = input !== undefined && toolName !== "render_component";
   const isRunning = isStreaming && !hasOutput;
   const opensByDefault =
-    isRunning || isFailed || registeredRenderer !== undefined || toolName === "render_component";
+    isRunning ||
+    isFailed ||
+    warningOutput ||
+    registeredRenderer !== undefined ||
+    toolName === "render_component";
 
   return (
     <details className="group/tool rounded-lg border bg-muted/15" open={opensByDefault}>
@@ -92,7 +101,7 @@ export const ToolPart = ({
         )}
         <span>{toolName.replaceAll("_", " ")}</span>
         <span className="ms-auto font-normal opacity-70">
-          {isRunning ? "Running" : isFailed ? "Failed" : "Completed"}
+          {isRunning ? "Running" : isFailed ? "Failed" : warningOutput ? "Warning" : "Completed"}
         </span>
       </summary>
       <div className="border-t px-3 py-2">

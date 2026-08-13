@@ -8,6 +8,14 @@ Feature: Tool results
     And the tool name "get workout history" should be visible
     And the assistant reply "Mixed tools done" should be displayed
 
+  Scenario: Render exhausted tool budget as a warning
+    Given a user is on session one with a tool budget warning
+    When they send the message "Continue with context"
+    Then the tool name "get workout details" should be visible
+    And the tool warning "Tool-call budget exhausted. Continue with available context." should be visible
+    And the tool status should be "Warning"
+    And the assistant reply "I used the available context." should be displayed
+
   Scenario: Render reasoning parts and message reference links
     Given a user is on session one with reasoning and a message reference
     When they open the reasoning section

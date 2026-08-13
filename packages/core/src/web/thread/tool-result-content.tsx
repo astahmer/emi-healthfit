@@ -30,6 +30,10 @@ const ErrorText = Schema.Struct({
   type: Schema.Literal("error-text"),
   value: Schema.optional(Schema.Unknown),
 });
+const WarningText = Schema.Struct({
+  type: Schema.Literal("warning-text"),
+  value: Schema.optional(Schema.Unknown),
+});
 const JsonResult = Schema.fromJsonString(Schema.Unknown);
 
 const parseResult = (result: unknown): unknown =>
@@ -99,10 +103,18 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({
   const registeredRenderer = useToolRenderer(toolName);
   const parsed = parseResult(result);
   const errorText = Schema.decodeUnknownOption(ErrorText)(parsed);
+  const warningText = Schema.decodeUnknownOption(WarningText)(parsed);
   if (Option.isSome(errorText)) {
     return (
       <p className={cn("text-sm text-destructive", className)}>
         {String(errorText.value.value ?? "Tool failed")}
+      </p>
+    );
+  }
+  if (Option.isSome(warningText)) {
+    return (
+      <p className={cn("text-sm text-amber-400", className)}>
+        {String(warningText.value.value ?? "Tool warning")}
       </p>
     );
   }

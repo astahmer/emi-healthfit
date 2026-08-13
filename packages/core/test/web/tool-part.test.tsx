@@ -37,4 +37,24 @@ describe("ToolPart", () => {
     expect(screen.getByText("Failed")).toBeVisible();
     expect(screen.getByText("Only one SELECT query is allowed.")).toBeVisible();
   });
+
+  it("renders budget exhaustion as a warning", () => {
+    renderToolPart({
+      type: "tool-invocation",
+      toolName: "get_workout_details",
+      toolCallId: "call-2",
+      state: "output-available",
+      input: {},
+      output: {
+        type: "warning-text",
+        value: "Tool-call budget exhausted. Continue with available context.",
+      },
+    });
+
+    expect(screen.getByText("Warning")).toBeVisible();
+    expect(
+      screen.getByText("Tool-call budget exhausted. Continue with available context."),
+    ).toBeVisible();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+  });
 });

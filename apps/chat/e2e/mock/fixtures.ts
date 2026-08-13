@@ -82,6 +82,21 @@ export const multiToolStream = ({ messageId }: { messageId: string }) =>
     "",
   ].join("\n\n");
 
+export const warningToolStream = ({ messageId, text }: { messageId: string; text: string }) =>
+  [
+    `data: {"type":"start","messageId":"${messageId}"}`,
+    'data: {"type":"start-step"}',
+    `data: {"type":"tool-input-available","toolCallId":"budget-warning-call","toolName":"get_workout_details","input":{"sessionId":"workout-1"}}`,
+    'data: {"type":"tool-output-available","toolCallId":"budget-warning-call","output":{"type":"warning-text","value":"Tool-call budget exhausted. Continue with available context."}}',
+    'data: {"type":"finish-step"}',
+    `data: {"type":"text-start","id":"${messageId}-text"}`,
+    `data: {"type":"text-delta","id":"${messageId}-text","delta":"${text}"}`,
+    `data: {"type":"text-end","id":"${messageId}-text"}`,
+    'data: {"type":"finish"}',
+    "data: [DONE]",
+    "",
+  ].join("\n\n");
+
 export const authSessionBody = {
   session: {
     id: "test-session",

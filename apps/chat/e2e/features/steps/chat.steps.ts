@@ -8,7 +8,12 @@ import {
   type MockApi,
   type MockMessage,
 } from "../../mock/app.ts";
-import { assistantStream, conversations, multiToolStream } from "../../mock/fixtures.ts";
+import {
+  assistantStream,
+  conversations,
+  multiToolStream,
+  warningToolStream,
+} from "../../mock/fixtures.ts";
 import { createChatMock, fulfillMockApi, installMockApi } from "../../mock/install.ts";
 import {
   openSessionOne,
@@ -482,6 +487,48 @@ Given("a user is on session one with a tool-answering generation", async ({ page
             errorText: "Only one SELECT query is allowed.",
           },
           { type: "text", text: "Mixed tools done" },
+        ],
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
+
+Given("a user is on session one with a tool budget warning", async ({ page }) => {
+  const base = sessionOneSnapshot();
+  const textOnly = {
+    ...base,
+    messages: base.messages.map((message) =>
+      message.role === "assistant"
+        ? { ...message, parts: [{ type: "text", text: "one message answer" }] }
+        : message,
+    ),
+  };
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: textOnly },
+      chat: {
+        persist: true,
+        replyText: "I used the available context.",
+        streamBody: warningToolStream({
+          messageId: "budget-warning-assistant",
+          text: "I used the available context.",
+        }),
+        persistAssistantParts: [
+          {
+            type: "tool-invocation",
+            toolName: "get_workout_details",
+            toolCallId: "budget-warning-call",
+            state: "output-available",
+            input: { sessionId: "workout-1" },
+            output: {
+              type: "warning-text",
+              value: "Tool-call budget exhausted. Continue with available context.",
+            },
+          },
+          { type: "text", text: "I used the available context." },
         ],
       },
     },
@@ -1800,8 +1847,16 @@ Then("the tool error {string} should be visible", async ({ page }, text: string)
   await expect(page.getByText(text)).toBeVisible();
 });
 
+Then("the tool warning {string} should be visible", async ({ page }, text: string) => {
+  await expect(page.getByText(text)).toBeVisible();
+});
+
 Then("the tool name {string} should be visible", async ({ page }, text: string) => {
   await expect(page.getByText(text)).toBeVisible();
+});
+
+Then("the tool status should be {string}", async ({ page }, status: string) => {
+  await expect(page.getByText(status, { exact: true })).toBeVisible();
 });
 
 Then("the {string} button should be visible", async ({ page }, label: string) => {
