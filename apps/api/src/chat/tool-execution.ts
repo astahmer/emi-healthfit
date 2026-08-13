@@ -91,6 +91,7 @@ export const createChatToolExecutor = ({
     if (!budget.tryStartToolCall()) {
       return Effect.runPromise(
         recordEvent("tool.warning", { tool: name, args, code: "TOOL_BUDGET_EXHAUSTED" }).pipe(
+          Effect.catch(() => Effect.void),
           Effect.as(toolBudgetWarning),
         ),
       );

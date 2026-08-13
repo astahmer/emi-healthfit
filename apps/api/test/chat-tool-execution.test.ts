@@ -9,19 +9,28 @@ class ToolFailureError extends Schema.TaggedErrorClass<ToolFailureError>()("Tool
   message: Schema.String,
 }) {}
 
+class ToolEventError extends Schema.TaggedErrorClass<ToolEventError>()("ToolEventError", {
+  message: Schema.String,
+}) {}
+
 const createExecutor = ({
   budget,
   executeTool,
   recordEvent,
+  recordEventFailure = false,
 }: {
   budget: ReturnType<typeof Chat.operations.createChatOperationBudget>;
   executeTool: Parameters<typeof createChatToolExecutor>[0]["executeTool"];
   recordEvent?: (type: string, payload: Record<string, unknown>) => void;
+  recordEventFailure?: boolean;
 }) =>
   createChatToolExecutor({
     db: {} as never,
     generationDatabase: {
       recordChatEvent: ({ type, payload }: { type: string; payload?: Record<string, unknown> }) => {
+        if (recordEventFailure) {
+          return Effect.fail(new ToolEventError({ message: "event persistence unavailable" }));
+        }
         recordEvent?.(type, payload ?? {});
         return Effect.void;
       },
@@ -74,6 +83,22 @@ describe("chat tool execution", () => {
     await executor.executeToolWithServices("get_workout_details", {});
 
     assert.deepStrictEqual(events, ["tool.warning"]);
+  });
+
+  it("keeps the warning non-blocking when warning telemetry fails", async () => {
+    const executor = createExecutor({
+      budget: Chat.operations.createChatOperationBudget({ maximumToolCalls: 0 }),
+      executeTool: () => Effect.succeed({ unexpected: true }),
+      recordEventFailure: true,
+    });
+
+    await assert.doesNotReject(async () => {
+      assert.deepStrictEqual(await executor.executeToolWithServices("get_workout_details", {}), {
+        type: "warning-text",
+        value:
+          "Tool-call budget exhausted. This call was skipped; continue with available context without retrying it.",
+      });
+    });
   });
 
   it("keeps repeated failed calls blocked", async () => {
