@@ -1,7 +1,7 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Command from "alchemy/Command";
 import * as Output from "alchemy/Output";
-import { RuntimeContext } from "alchemy";
+import { ALCHEMY_DEV, RuntimeContext } from "alchemy";
 import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -78,29 +78,42 @@ export default Api.make(
       EMI_RELEASE_HISTORY: process.env.EMI_RELEASE_HISTORY ?? "",
       EMI_RELEASE_VERSION: process.env.EMI_RELEASE_VERSION ?? "",
     };
-    const chatAssets = yield* Command.Build("ChatAssets", {
-      command: "pnpm exec vite build",
-      cwd: chatAppDirectory,
-      outdir: "dist",
-      env: {
-        ...releaseEnvironment,
-        NODE_ENV: "production",
-      },
-      memo: {
-        include: [
-          "app/**",
-          "components/**",
-          "hooks/**",
-          "lib/**",
-          "public/**",
-          "index.html",
-          "package.json",
-          "tsconfig.json",
-          "vite.config.ts",
-          "vite-env.d.ts",
-        ],
-      },
-    });
+    const isDev = yield* ALCHEMY_DEV;
+    const chatAssets = isDev
+      ? undefined
+      : yield* Command.Build("ChatAssets", {
+          command: "pnpm exec vite build",
+          cwd: chatAppDirectory,
+          outdir: "dist",
+          env: {
+            ...releaseEnvironment,
+            NODE_ENV: "production",
+          },
+          memo: {
+            include: [
+              "app/**",
+              "components/**",
+              "hooks/**",
+              "lib/**",
+              "public/**",
+              "index.html",
+              "package.json",
+              "tsconfig.json",
+              "vite.config.ts",
+              "vite-env.d.ts",
+            ],
+          },
+        });
+    const assets =
+      chatAssets === undefined
+        ? undefined
+        : {
+            directory: chatAssets.outdir,
+            hash: chatAssets.hash.pipe(Output.map((hash) => hash.output ?? buildId)),
+            notFoundHandling: "single-page-application" as const,
+            // SPA fallback must not swallow /api/* (esp. Better Auth Google callback).
+            runWorkerFirst: ["/api/*", "/ingest"],
+          };
 
     return {
       main: import.meta.url,
@@ -109,13 +122,7 @@ export default Api.make(
         port: Number(process.env.EMI_API_DEV_PORT ?? "1337"),
         strictPort: true,
       },
-      assets: {
-        directory: chatAssets.outdir,
-        hash: chatAssets.hash.pipe(Output.map((hash) => hash.output ?? buildId)),
-        notFoundHandling: "single-page-application" as const,
-        // SPA fallback must not swallow /api/* (esp. Better Auth Google callback).
-        runWorkerFirst: ["/api/*", "/ingest"],
-      },
+      assets,
       compatibility: { flags: ["nodejs_compat"] },
       env: {
         BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
