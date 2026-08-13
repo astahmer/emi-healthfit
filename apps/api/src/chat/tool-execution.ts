@@ -8,10 +8,16 @@ import type { ChatToolExecutor } from "./hooks.ts";
 class ChatToolBlockedError extends Schema.TaggedErrorClass<ChatToolBlockedError>()(
   "ChatToolBlockedError",
   {
-    reason: Schema.Literals(["repeated-failure", "budget-exhausted"]),
+    reason: Schema.Literal("repeated-failure"),
     message: Schema.String,
   },
 ) {}
+
+const toolBudgetWarning = {
+  type: "warning-text",
+  value:
+    "Tool-call budget exhausted. This call was skipped; continue with available context without retrying it.",
+};
 
 export const createChatToolExecutor = ({
   db,
@@ -84,16 +90,8 @@ export const createChatToolExecutor = ({
     }
     if (!budget.tryStartToolCall()) {
       return Effect.runPromise(
-        recordEvent("tool.blocked", { tool: name, args, code: "TOOL_BUDGET_EXHAUSTED" }).pipe(
-          Effect.andThen(
-            Effect.fail(
-              new ChatToolBlockedError({
-                reason: "budget-exhausted",
-                message:
-                  "Tool-call budget exhausted. Answer from available context or ask the user to retry.",
-              }),
-            ),
-          ),
+        recordEvent("tool.warning", { tool: name, args, code: "TOOL_BUDGET_EXHAUSTED" }).pipe(
+          Effect.as(toolBudgetWarning),
         ),
       );
     }
