@@ -28,7 +28,7 @@ type QueryRow = Record<string, unknown>;
 
 const runWranglerJson = (args: string[]): QueryRow[] => {
   const output = decodeJson(
-    execFileSync(pnpm, ["exec", "wrangler", ...args], {
+    execFileSync(pnpm, ["exec", "--", "wrangler", ...args], {
       cwd: packageRoot,
       encoding: "utf8",
     }),

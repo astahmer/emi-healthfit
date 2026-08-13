@@ -27,7 +27,7 @@ const Journal = Schema.Struct({ entries: Schema.Array(Schema.Struct({ tag: Schem
 
 const runWrangler = (args: string[]): unknown =>
   decodeJson(
-    execFileSync(pnpm, ["exec", "wrangler", ...args], {
+    execFileSync(pnpm, ["exec", "--", "wrangler", ...args], {
       cwd: packageRoot,
       encoding: "utf8",
     }),

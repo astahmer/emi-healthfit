@@ -20,7 +20,7 @@ const ExecuteCommands = Schema.Array(
 
 const runWranglerJson = (args: string[]): Array<Record<string, unknown>> => {
   const output = decodeJson(
-    execFileSync(pnpm, ["exec", "wrangler", ...args], {
+    execFileSync(pnpm, ["exec", "--", "wrangler", ...args], {
       cwd: packageRoot,
       encoding: "utf8",
     }),
