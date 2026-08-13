@@ -47,6 +47,28 @@ describe("chat settings persistence", () => {
     expect(migrated).toMatchObject({ settings: { tokenBudget: DEFAULT_TOKEN_BUDGET } });
   });
 
+  it("migrates the previous default token budget", async () => {
+    const migrate = useSettings.persist.getOptions().migrate;
+    if (migrate === undefined) throw new Error("Settings migration is not configured");
+
+    const migrated = await migrate(
+      {
+        settings: {
+          provider: "openai",
+          baseUrl: "",
+          apiKey: "",
+          model: "gpt-4o-mini",
+          systemPrompt: "test",
+          coachMode: true,
+          tokenBudget: 100_000,
+        },
+      },
+      2,
+    );
+
+    expect(migrated).toMatchObject({ settings: { tokenBudget: DEFAULT_TOKEN_BUDGET } });
+  });
+
   it("persists a custom default token budget", () => {
     useSettings.getState().update({ tokenBudget: 250_000 });
     const persisted = JSON.parse(localStorage.getItem("emi-chat-settings") ?? "{}");

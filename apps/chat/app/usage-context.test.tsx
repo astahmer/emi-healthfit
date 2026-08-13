@@ -58,7 +58,7 @@ describe("usage compositions", () => {
     );
 
     fireEvent.click(screen.getByText(/140 tokens/));
-    expect(screen.getByLabelText("Token budget")).toHaveValue(100000);
+    expect(screen.getByLabelText("Token budget")).toHaveValue(10000000);
   });
 
   it("hides the progress bar when the budget is disabled", () => {

@@ -4,7 +4,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { defaultModel } from "./models";
 
-export const DEFAULT_TOKEN_BUDGET = 100_000;
+export const DEFAULT_TOKEN_BUDGET = 10_000_000;
+const LEGACY_DEFAULT_TOKEN_BUDGET = 100_000;
 
 interface ChatSettings {
   provider: "openai";
@@ -59,15 +60,32 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: "emi-chat-settings",
-      version: 2,
+      version: 3,
       partialize: (state): PersistedChatSettings => ({ settings: state.settings }),
       migrate: (persistedState, version): PersistedChatSettings => {
         try {
           const decoded = decodePersistedChatSettings(persistedState);
           if (version < 1 && decoded.settings.model === "gpt-5.2-chat-latest") {
-            return { settings: { ...decoded.settings, model: defaultModel.id } };
+            return {
+              settings: {
+                ...decoded.settings,
+                model: defaultModel.id,
+                tokenBudget:
+                  version < 3 && decoded.settings.tokenBudget === LEGACY_DEFAULT_TOKEN_BUDGET
+                    ? DEFAULT_TOKEN_BUDGET
+                    : decoded.settings.tokenBudget,
+              },
+            };
           }
-          return decoded;
+          return {
+            settings: {
+              ...decoded.settings,
+              tokenBudget:
+                version < 3 && decoded.settings.tokenBudget === LEGACY_DEFAULT_TOKEN_BUDGET
+                  ? DEFAULT_TOKEN_BUDGET
+                  : decoded.settings.tokenBudget,
+            },
+          };
         } catch {
           return { settings: defaultSettings };
         }
