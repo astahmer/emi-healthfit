@@ -1,6 +1,7 @@
 import type { FileUIPart } from "ai";
 import { assign, fromPromise, setup } from "xstate";
 import { prepareAttachmentParts } from "./attachments.ts";
+import { readableErrorMessage } from "../../chat/error-message.ts";
 
 export interface AttachmentPreparationInput {
   readonly onPrepared?: (parts: ReadonlyArray<FileUIPart>) => void;
@@ -63,7 +64,7 @@ export const attachmentPreparationMachine = setup({
           target: "idle",
           actions: assign({
             error: ({ event }) =>
-              event.error instanceof Error ? event.error.message : String(event.error),
+              readableErrorMessage(event.error, "Attachment preparation failed."),
           }),
         },
       },

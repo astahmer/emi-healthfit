@@ -1,6 +1,7 @@
 import { uiMessageChunkSchema, type UIMessageChunk } from "ai";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import { readableErrorMessage } from "../chat/error-message.ts";
 
 export class UiMessageChunkDecodeError extends Schema.TaggedErrorClass<UiMessageChunkDecodeError>()(
   "UiMessageChunkDecodeError",
@@ -23,11 +24,15 @@ export class UiMessageChunkDecoder {
       try: () => Promise.resolve(validate(value)),
       catch: (cause) =>
         new UiMessageChunkDecodeError({
-          message: cause instanceof Error ? cause.message : String(cause),
+          message: readableErrorMessage(cause, "UI message chunk could not be validated."),
         }),
     });
     if (!result.success) {
-      return yield* Effect.fail(new UiMessageChunkDecodeError({ message: String(result.error) }));
+      return yield* Effect.fail(
+        new UiMessageChunkDecodeError({
+          message: readableErrorMessage(result.error, "UI message chunk could not be validated."),
+        }),
+      );
     }
     return result.value;
   });

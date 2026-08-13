@@ -69,7 +69,7 @@ export const persistGenerationStream = Effect.fn("chatStream.persist")(function*
     evaluate: () => stream,
     onError: (cause) =>
       new ChatStreamPersistenceError({
-        message: cause instanceof Error ? cause.message : String(cause),
+        message: Chat.errors.readableErrorMessage(cause, "Chat stream persistence failed."),
       }),
     releaseLockOnEnd: true,
   }).pipe(

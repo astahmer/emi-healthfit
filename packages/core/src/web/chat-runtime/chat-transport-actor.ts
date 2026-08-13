@@ -7,6 +7,7 @@ import { fromCallback } from "xstate";
 import type { ChatMessage } from "../../protocol/messages.ts";
 import type { MessagePart } from "../../protocol/parts.ts";
 import { ChatModelConfigurationSchema } from "../../chat/request.ts";
+import { readableErrorMessage } from "../../chat/error-message.ts";
 import type { ChatSessionEvent } from "../chat-session-machine.ts";
 import type {
   ChatStreamDecoder,
@@ -42,7 +43,7 @@ class ChatTransportRequestError extends Error {
 }
 
 const errorMessage = ({ cause, fallback }: { cause: unknown; fallback: string }): string =>
-  cause instanceof Error ? cause.message : fallback;
+  readableErrorMessage(cause, fallback);
 
 const readWireChunk = (data: string): Option.Option<WireChunk> =>
   Schema.decodeUnknownOption(Schema.fromJsonString(WireChunk))(data);
@@ -104,7 +105,7 @@ const consumeStreamEffect = Effect.fn("chat.transport.consumeStream")(function* 
     evaluate: () => body.pipeThrough(new TextDecoderStream()),
     onError: (cause) =>
       new ChatTransportStreamError({
-        message: cause instanceof Error ? cause.message : String(cause),
+        message: readableErrorMessage(cause, "Chat response stream failed."),
       }),
     releaseLockOnEnd: true,
   }).pipe(

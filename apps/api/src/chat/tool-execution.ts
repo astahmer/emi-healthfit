@@ -139,7 +139,7 @@ export const createChatToolExecutor = ({
         ),
         Effect.tapError((error) => {
           toolCircuitBreaker.recordFailure({ name, args });
-          const message = error instanceof Error ? error.message : String(error);
+          const message = Chat.errors.readableErrorMessage(error, "Tool execution failed.");
           return Effect.all(
             [
               recordEvent("tool.failed", {

@@ -17,6 +17,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import type { JSONSchema7 } from "json-schema";
+import { readableErrorMessage } from "../../chat/error-message.ts";
 
 const Json = Schema.String.pipe(
   Schema.decodeTo(Schema.Unknown, SchemaTransformation.fromJsonString),
@@ -83,7 +84,7 @@ export class OpenAiChatError extends Schema.TaggedErrorClass<OpenAiChatError>()(
 const toOpenAiChatError = (cause: unknown): OpenAiChatError =>
   new OpenAiChatError({
     code: "provider-error",
-    message: cause instanceof Error ? cause.message : String(cause),
+    message: readableErrorMessage(cause, "Provider request failed."),
     retryable: true,
   });
 
@@ -170,7 +171,7 @@ const toUiMessageStream = ({ result }: { readonly result: ChatStreamResult }) =>
   result.toUIMessageStream({
     generateMessageId: () => crypto.randomUUID(),
     sendReasoning: true,
-    onError: (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    onError: (error: unknown) => readableErrorMessage(error, "The provider failed to respond."),
   });
 
 const openaiChatModel = ({ configuration }: { configuration: GenerateTextConfiguration }) => {
@@ -235,7 +236,7 @@ export class OpenAiChat {
           abortSignal: request.signal,
           stopWhen: [isLoopFinished(), stepCountIs(8)],
           onChunk,
-          onError,
+          onError: ({ error }) => onError?.(error),
           onFinish: (event) =>
             onFinish?.({
               text: event.text,
@@ -252,7 +253,7 @@ export class OpenAiChat {
               sendReasoning: options.sendReasoning ?? true,
               onError:
                 options.onError ??
-                ((error) => (error instanceof Error ? error.message : String(error))),
+                ((error) => readableErrorMessage(error, "The provider failed to respond.")),
             }),
         } satisfies ChatStreamResult;
       },

@@ -1,4 +1,5 @@
 import { BadRequest, InternalServerError, NotFound } from "@emi/core/contract";
+import { Chat } from "@emi/core/chat";
 import * as Effect from "effect/Effect";
 
 export const withInternalError = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -11,7 +12,7 @@ export const withInternalError = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       )
         return error;
       return new InternalServerError({
-        message: error instanceof Error ? error.message : String(error),
+        message: Chat.errors.readableErrorMessage(error, "Internal server error."),
       });
     }),
   );

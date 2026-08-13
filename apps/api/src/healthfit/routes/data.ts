@@ -6,6 +6,7 @@ import { HealthFit, type DataSummary, type HealthfitDatabaseSchema } from "@emi/
 import { HttpServerRequest, toWeb as requestToWeb } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Cloudflare as CoreCloudflare } from "@emi/core/cloudflare";
+import { Chat } from "@emi/core/chat";
 import { TtlCache } from "../cache.ts";
 import { narrowQueryDatabaseClient, type QueryDatabaseClient } from "../../platform/db/client.ts";
 import { decodeJsonOption } from "../../platform/json-codec.ts";
@@ -213,7 +214,7 @@ export const handleRecovery = (db: QueryDatabaseClient, environment: Record<stri
   }).pipe(
     Effect.catch((error) =>
       HttpServerResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: Chat.errors.readableErrorMessage(error, "Health data request failed.") },
         { status: 500 },
       ),
     ),

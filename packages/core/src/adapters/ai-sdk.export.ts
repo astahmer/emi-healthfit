@@ -25,6 +25,7 @@ import type { ChatMessage } from "../protocol/messages.ts";
 import type { GenerationEvent, ModelGenerationInput, ModelProvider } from "../protocol/model.ts";
 import type { MessagePart } from "../protocol/parts.ts";
 import { ChatUiMessages } from "../chat/ui-messages.ts";
+import { readableErrorMessage } from "../chat/error-message.ts";
 import type { ChatStreamDecoder } from "../web/chat-runtime/transport-types.ts";
 
 export interface AiSdkModelConfiguration {
@@ -365,7 +366,7 @@ export const aiSdkChatStreamDecoder: ChatStreamDecoder = ({
       evaluate: () => stream,
       onError: (cause) =>
         new AiSdkChatStreamError({
-          message: cause instanceof Error ? cause.message : String(cause),
+          message: readableErrorMessage(cause, "Chat response stream failed."),
         }),
       releaseLockOnEnd: true,
     }).pipe(
@@ -393,7 +394,7 @@ export const aiSdkChatStreamDecoder: ChatStreamDecoder = ({
           },
           catch: (cause) =>
             new AiSdkChatStreamError({
-              message: cause instanceof Error ? cause.message : String(cause),
+              message: readableErrorMessage(cause, "Chat response could not be decoded."),
             }),
         }).pipe(
           Effect.tap((message) =>

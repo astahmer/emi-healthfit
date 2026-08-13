@@ -17,6 +17,7 @@ import * as MessageCollapse from "./chat/message-collapse.ts";
 import * as StreamResponse from "./chat/stream-response.ts";
 import * as ToolCircuitBreaker from "./chat/tool-circuit-breaker.ts";
 import * as UiMessages from "./chat/ui-messages.ts";
+import { readableErrorMessage } from "./chat/error-message.ts";
 import type {
   ChatOperationBudgetSnapshot as ChatOperationBudgetSnapshotType,
   ChatOperationCategory as ChatOperationCategoryType,
@@ -111,6 +112,10 @@ export class Chat {
       maxAttachmentBytes: ChatRequest.maxAttachmentBytes,
       maxTotalAttachmentBytesPerMessage: ChatRequest.maxTotalAttachmentBytesPerMessage,
     },
+  } as const;
+
+  static readonly errors = {
+    readableErrorMessage,
   } as const;
 }
 

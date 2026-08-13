@@ -534,7 +534,7 @@ export const handleAiSdkChat = (
         if (isTemporary) return;
         await Effect.runPromise(
           recordEvent("provider.failed", {
-            error: error instanceof Error ? error.message : String(error),
+            error: Chat.errors.readableErrorMessage(error, "Provider request failed."),
           }),
         );
       },
@@ -783,7 +783,7 @@ export const handleChatResume = (
     ),
     Effect.catch((error) =>
       HttpServerResponse.json(
-        { error: String(error) },
+        { error: Chat.errors.readableErrorMessage(error, "Chat resume failed.") },
         { status: 500, headers: corsHeaders(request) },
       ),
     ),

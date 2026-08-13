@@ -132,11 +132,11 @@ describe("chat request", () => {
   });
 
   it("rejects attachments that exceed the total per-message byte cap", () => {
-    const photo = `data:image/jpeg;base64,${"A".repeat(Math.ceil((26 * 1024 * 1024 * 4) / 3))}`;
+    const photo = `data:image/jpeg;base64,${"A".repeat(Math.ceil((18 * 1024 * 1024 * 4) / 3))}`;
     assert.match(
       validateChatAttachments([
         {
-          parts: Array.from({ length: 2 }, () => ({
+          parts: Array.from({ length: 3 }, () => ({
             type: "file",
             url: photo,
             mediaType: "image/jpeg",
