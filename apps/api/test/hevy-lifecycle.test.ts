@@ -13,6 +13,7 @@ const {
   getConnection: getHevyConnection,
   getIntegrationStatus: getHevyIntegrationStatus,
   getSyncState: getHevySyncState,
+  requireFresh: requireHevyFresh,
   sync: syncHevy,
   upsertConnection: upsertHevyConnection,
 } = HealthFit.hevy;
@@ -354,5 +355,73 @@ describe("Hevy lifecycle", () => {
     );
     assert.equal(workouts.length, 1);
     assert.equal(workouts[0]?.title, "Cached");
+  });
+
+  it("requireHevyFresh fails instead of allowing stale D1 workouts", async () => {
+    const { db } = makeSqliteDatabase();
+    const keyBytes = new Uint8Array(32).fill(0xaa);
+    const environment = {
+      HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
+    };
+    await seedConnectedUser({ db, userId: "user-1", keyBytes });
+
+    globalThis.fetch = async () => new Response("down", { status: 503 });
+
+    await assert.rejects(
+      () =>
+        run(
+          requireHevyFresh({
+            db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+            userId: "user-1",
+            environment,
+          }),
+        ),
+      /status 503/,
+    );
+  });
+
+  it("requireHevyFresh checks Hevy even when the cache timestamp is recent", async () => {
+    const { db } = makeSqliteDatabase();
+    const keyBytes = new Uint8Array(32).fill(0xab);
+    const environment = {
+      HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
+    };
+    await seedConnectedUser({ db, userId: "user-1", keyBytes });
+
+    const kysely = await run(db.kysely);
+    const now = new Date().toISOString();
+    await kysely
+      .insertInto("hevy_sync_state")
+      .values({
+        user_id: "user-1",
+        event_watermark: "2026-07-01T00:00:00.000Z",
+        last_checked_at: now,
+        last_success_at: now,
+        last_data_change_at: now,
+        lease_until: null,
+        last_error_code: null,
+        last_error_at: null,
+      })
+      .execute();
+
+    let eventCalls = 0;
+    globalThis.fetch = async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/v1/workouts/events")) {
+        eventCalls += 1;
+        return Response.json({ page: 1, page_count: 1, events: [] });
+      }
+      return new Response("not found", { status: 404 });
+    };
+
+    const result = await run(
+      requireHevyFresh({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+      }),
+    );
+    assert.equal(result?.mode, "incremental");
+    assert.equal(eventCalls, 1);
   });
 });

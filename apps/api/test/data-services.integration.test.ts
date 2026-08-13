@@ -5,7 +5,7 @@ import { HealthFit, type IngestedDataExport } from "@emi/flavor-healthfit";
 import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeSqliteDatabase, run } from "./sqlite.ts";
 
-const { buildContext: buildChatContext } = HealthFit.chat;
+const { buildContext: buildChatContext, renderSystemContext } = HealthFit.chat;
 const { getDataSummary } = HealthFit.data;
 const { importIngestedData, previewIngestedDataImport } = HealthFit.ingest;
 
@@ -161,5 +161,9 @@ describe("data service SQLite integration", () => {
     );
     assert.strictEqual(typeof context.recoveryLabel, "string");
     assert.strictEqual(typeof context.recoveryExplanation, "string");
+    const systemContext = renderSystemContext(context);
+    assert.match(systemContext, /Current HealthFit data/);
+    assert.match(systemContext, /session-a/);
+    assert.match(systemContext, /Goblet squat: 50 kg x 8 reps/);
   });
 });

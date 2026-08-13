@@ -11,6 +11,8 @@ finish in that budget.
 1. Connect → validate key → initial full workout import
 2. Manual **Sync now** from Settings
 3. Stale-on-demand (`ensureHevyFresh`, 15 minutes) on Hevy-dependent reads
+4. Chat always performs a fresh incremental provider check before answering;
+   it never treats the 15-minute cache as sufficient for a chat response
 
 No Cron Trigger is registered for Hevy.
 

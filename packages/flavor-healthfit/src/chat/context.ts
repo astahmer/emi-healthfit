@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import type { ServerDatabase } from "@emi/core/server/database";
 import { estimateRecovery } from "./recovery-estimate.ts";
 import type { HealthfitDatabaseSchema, HevySetRow, SleepSessionRow } from "../db/schema.ts";
+import { getHevySyncState } from "../integrations/hevy/hevy-store.ts";
 
 type ChatContextDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
@@ -10,6 +11,12 @@ interface WorkoutContext {
   lastSessionSummary: string;
   recentVolume: number;
   recentWorkoutCount: number;
+  recentSessions: Array<{
+    sessionId: string;
+    title: string | null;
+    startTime: string;
+    totalVolumeKg: number | null;
+  }>;
   recentSets: Array<HevySetRow & { session_start: string }>;
 }
 
@@ -21,6 +28,7 @@ interface SleepContext {
 
 export interface ChatContext {
   today: string;
+  hevyLastSyncedAt: string | null;
   recoveryLabel: string;
   recoveryExplanation: string;
   lastWorkout: WorkoutContext;
@@ -52,6 +60,7 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
     const twoDaysAgo = daysAgo(2);
 
     const kysely = yield* db.kysely;
+    const syncState = yield* getHevySyncState({ db, userId });
     const lastSets = yield* Effect.promise(() =>
       kysely
         .selectFrom("hevy_sets as s")
@@ -141,6 +150,7 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
 
     return {
       today,
+      hevyLastSyncedAt: syncState?.last_success_at ?? null,
       recoveryLabel: label,
       recoveryExplanation: explanation,
       lastWorkout: {
@@ -148,6 +158,12 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
         lastSessionSummary,
         recentVolume,
         recentWorkoutCount,
+        recentSessions: lastSessions.map((session) => ({
+          sessionId: session.session_id,
+          title: session.title,
+          startTime: session.start_time,
+          totalVolumeKg: session.total_volume_kg,
+        })),
         recentSets: lastSets,
       },
       sleep: {
@@ -159,7 +175,7 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
     };
   });
 
-export const renderContextPrompt = (ctx: ChatContext, userMessage: string): string => {
+export const renderSystemContext = (ctx: ChatContext): string => {
   const recentExercises =
     ctx.lastWorkout.recentSets.length > 0
       ? Array.from(new Set(ctx.lastWorkout.recentSets.map((s) => s.exercise_title)))
@@ -167,13 +183,46 @@ export const renderContextPrompt = (ctx: ChatContext, userMessage: string): stri
           .join(", ")
       : "none";
 
-  return `You are the user's personal gym assistant with access to their Apple Health and Hevy workout data.
+  const recentWorkouts =
+    ctx.lastWorkout.recentSessions.length > 0
+      ? ctx.lastWorkout.recentSessions
+          .map(
+            (session) =>
+              `- ${session.sessionId}: ${session.title ?? "Untitled workout"} on ${session.startTime.slice(0, 10)} (${session.totalVolumeKg ?? 0} kg volume)`,
+          )
+          .join("\n")
+      : "- none";
+
+  const recentSets =
+    ctx.lastWorkout.recentSets.length > 0
+      ? ctx.lastWorkout.recentSets
+          .map((set) => {
+            const load = set.weight_kg === null ? "bodyweight" : `${set.weight_kg} kg`;
+            const reps = set.reps === null ? "duration-only" : `${set.reps} reps`;
+            return `- ${set.session_id} / ${set.exercise_title}: ${load} x ${reps}`;
+          })
+          .join("\n")
+      : "- none";
+
+  return `## Current HealthFit data
+
+This data snapshot was read from the user's HealthFit database immediately after the Hevy freshness check. Treat it as the current source of truth. Older conversation messages and older tool results are historical context, not current workout data.
 
 Today: ${ctx.today}
+Hevy last successful sync: ${ctx.hevyLastSyncedAt ?? "not connected or never synced"}
 Recovery: ${ctx.recoveryLabel} — ${ctx.recoveryExplanation}
 Last workout: ${ctx.lastWorkout.lastSessionSummary}
 Last 7 days: ${ctx.sleep.sevenDayAverage !== null ? minutesToHours(ctx.sleep.sevenDayAverage) : "unknown"} sleep avg, ${ctx.recentWorkoutCount} workouts, ${Math.round(ctx.lastWorkout.recentVolume)} kg·reps volume
 Recent exercises: ${recentExercises}
 
-${userMessage}`;
+Recent Hevy workouts:
+${recentWorkouts}
+
+Recent Hevy sets:
+${recentSets}
+
+When a question needs an exercise or set breakdown not present above, call get_workout_history and then get_workout_details using these current session IDs before answering. Do not answer from an older workout result in the conversation.`;
 };
+
+export const renderContextPrompt = (ctx: ChatContext, userMessage: string): string =>
+  `${renderSystemContext(ctx)}\n\n${userMessage}`;

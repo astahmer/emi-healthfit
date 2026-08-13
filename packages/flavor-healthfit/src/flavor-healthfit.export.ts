@@ -1,6 +1,6 @@
 import { healthFitAppDefinition } from "./app-definition.ts";
 import { healthFitExtension } from "./core-extension.ts";
-import { buildChatContext, renderContextPrompt } from "./chat/context.ts";
+import { buildChatContext, renderContextPrompt, renderSystemContext } from "./chat/context.ts";
 import type { ChatContext } from "./chat/context.ts";
 import { estimateRecovery } from "./chat/recovery-estimate.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
@@ -109,6 +109,7 @@ import {
   connectHevy,
   disconnectHevy,
   ensureHevyFresh,
+  requireHevyFresh,
   getHevyIntegrationStatus,
   isExpectedHevyFreshFailure,
   syncHevy,
@@ -135,6 +136,7 @@ export class HealthFit {
     estimateRecovery,
     fitnessCoachV1,
     renderContextPrompt,
+    renderSystemContext,
   } as const;
 
   static readonly data = {
@@ -199,6 +201,7 @@ export class HealthFit {
     disconnect: disconnectHevy,
     encryptApiKey: encryptHevyApiKey,
     ensureFresh: ensureHevyFresh,
+    requireFresh: requireHevyFresh,
     findUnlinkedSessionForReconciliation,
     getConnection: getHevyConnection,
     getIntegrationStatus: getHevyIntegrationStatus,

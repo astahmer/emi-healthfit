@@ -160,6 +160,47 @@ describe("Hevy sync edge cases", () => {
     assert.equal(fetchCalls, 0);
   });
 
+  it("does not treat a fresh timestamp as usable while a lease is active", async () => {
+    const { db } = makeSqliteDatabase();
+    const keyBytes = new Uint8Array(32).fill(0xbc);
+    const environment = {
+      HEVY_CREDENTIAL_ENCRYPTION_KEY: Buffer.from(keyBytes).toString("hex"),
+    };
+    await seedConnectedUser({ db, userId: "user-1", keyBytes });
+
+    const kysely = await run(db.kysely);
+    const now = new Date().toISOString();
+    await kysely
+      .insertInto("hevy_sync_state")
+      .values({
+        user_id: "user-1",
+        event_watermark: "2026-07-01T00:00:00.000Z",
+        last_checked_at: now,
+        last_success_at: now,
+        last_data_change_at: now,
+        lease_until: new Date(Date.now() + 60_000).toISOString(),
+        last_error_code: null,
+        last_error_at: null,
+      })
+      .execute();
+
+    let fetchCalls = 0;
+    globalThis.fetch = async () => {
+      fetchCalls += 1;
+      return new Response("should not fetch", { status: 500 });
+    };
+
+    const summary = await run(
+      syncHevy({
+        db: narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db),
+        userId: "user-1",
+        environment,
+      }),
+    );
+    assert.equal(summary.mode, "skipped_busy");
+    assert.equal(fetchCalls, 0);
+  });
+
   it("does not advance watermark when a later page fails", async () => {
     const { db } = makeSqliteDatabase();
     const keyBytes = new Uint8Array(32).fill(0xcc);

@@ -31,6 +31,14 @@ export const HEVY_FRESHNESS_MS = 15 * 60 * 1000;
 const SYNC_LEASE_MS = 2 * 60 * 1000;
 const EVENT_OVERLAP_MS = 60 * 1000;
 const WORKOUT_PAGE_SIZE = 10;
+const CHAT_BUSY_RETRY_COUNT = 20;
+const CHAT_BUSY_RETRY_DELAY = "250 millis";
+
+const hasActiveLease = (leaseUntil: string | null | undefined): boolean => {
+  if (leaseUntil === undefined || leaseUntil === null) return false;
+  const leaseUntilMs = Date.parse(leaseUntil);
+  return Number.isFinite(leaseUntilMs) && leaseUntilMs > Date.now();
+};
 
 export class HevySyncBusyError extends Schema.TaggedErrorClass<HevySyncBusyError>()(
   "HevySyncBusyError",
@@ -383,7 +391,12 @@ export const syncHevy = Effect.fn("hevy.sync")(function* ({
   const startedAt = new Date().toISOString();
   const state = yield* getHevySyncState({ db, userId });
 
-  if (!force && state?.last_success_at !== undefined && state.last_success_at !== null) {
+  if (
+    !force &&
+    !hasActiveLease(state?.lease_until) &&
+    state?.last_success_at !== undefined &&
+    state.last_success_at !== null
+  ) {
     const age = Date.now() - Date.parse(state.last_success_at);
     if (Number.isFinite(age) && age < HEVY_FRESHNESS_MS) {
       return {
@@ -499,6 +512,30 @@ export const ensureHevyFresh = Effect.fn("hevy.ensureFresh")(function* ({
       ),
     ),
   );
+});
+
+export const requireHevyFresh = Effect.fn("hevy.requireFresh")(function* ({
+  db,
+  userId,
+  environment,
+}: {
+  db: HevyDb;
+  userId: string;
+  environment: Record<string, unknown>;
+}) {
+  const connection = yield* getHevyConnection({ db, userId });
+  if (connection === undefined) return null;
+
+  for (let attempt = 0; attempt <= CHAT_BUSY_RETRY_COUNT; attempt += 1) {
+    const summary = yield* syncHevy({ db, userId, environment, force: true });
+    if (summary.mode !== "skipped_busy") return summary;
+    if (attempt === CHAT_BUSY_RETRY_COUNT) break;
+    yield* Effect.sleep(CHAT_BUSY_RETRY_DELAY);
+  }
+
+  return yield* new HevySyncBusyError({
+    message: "Hevy sync is still running; refusing to answer from stale workout data",
+  });
 });
 
 export const disconnectHevy = Effect.fn("hevy.disconnect")(function* ({
