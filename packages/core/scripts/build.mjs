@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,37 +24,50 @@ const run = (args) => {
   execFileSync("pnpm", args, { cwd: packageRoot, stdio: "inherit" });
 };
 
+const runAsync = (args) =>
+  new Promise((resolvePromise, rejectPromise) => {
+    execFile("pnpm", args, { cwd: packageRoot, stdio: "inherit" }, (error) => {
+      if (error !== null) rejectPromise(error);
+      else resolvePromise();
+    });
+  });
+
 const sourceEntries = (packageJson) =>
   Object.keys(packageJson.exports).map((entrypoint) => ({
     entrypoint,
     sourcePath: sourcePathFor(packageJson, entrypoint),
   }));
 
-const buildJavaScript = (entries) => {
-  for (const entry of entries) {
-    if (entry.sourcePath.endsWith(".css")) continue;
-    const outputPath = join(distDirectory, outputPathFor(entry.sourcePath));
-    const externalSharedModules =
-      entry.entrypoint === "./react"
-        ? ["./react-hooks.ts"]
-        : entry.entrypoint === "./components"
-          ? ["../react-hooks.ts"]
-          : entry.entrypoint === "./components/styled"
-            ? ["../../react-hooks.ts"]
-            : [];
-    run([
-      "exec",
-      "esbuild",
-      entry.sourcePath,
-      "--bundle",
-      "--format=esm",
-      "--platform=neutral",
-      "--packages=external",
-      ...externalSharedModules.map((module) => `--external:${module}`),
-      `--outfile=${outputPath}`,
-      "--log-level=warning",
-    ]);
-  }
+const buildJavaScript = async (entries) => {
+  const tasks = entries.filter((entry) => !entry.sourcePath.endsWith(".css"));
+  let nextTaskIndex = 0;
+  const buildEntry = async () => {
+    while (nextTaskIndex < tasks.length) {
+      const entry = tasks[nextTaskIndex++];
+      const outputPath = join(distDirectory, outputPathFor(entry.sourcePath));
+      const externalSharedModules =
+        entry.entrypoint === "./react"
+          ? ["./react-hooks.ts"]
+          : entry.entrypoint === "./components"
+            ? ["../react-hooks.ts"]
+            : entry.entrypoint === "./components/styled"
+              ? ["../../react-hooks.ts"]
+              : [];
+      await runAsync([
+        "exec",
+        "esbuild",
+        entry.sourcePath,
+        "--bundle",
+        "--format=esm",
+        "--platform=neutral",
+        "--packages=external",
+        ...externalSharedModules.map((module) => `--external:${module}`),
+        `--outfile=${outputPath}`,
+        "--log-level=warning",
+      ]);
+    }
+  };
+  await Promise.all(Array.from({ length: 4 }, buildEntry));
 };
 
 const buildSharedReactModule = () => {
@@ -125,7 +138,7 @@ const main = async () => {
   const entries = sourceEntries(packageJson);
   await rm(distDirectory, { recursive: true, force: true });
   await mkdir(distDirectory, { recursive: true });
-  buildJavaScript(entries);
+  await buildJavaScript(entries);
   buildSharedReactModule();
   await copyStyles(entries);
   await rewriteJavaScriptImports(distDirectory);
