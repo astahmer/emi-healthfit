@@ -12,6 +12,9 @@ import {
   assistantStream,
   conversations,
   multiToolStream,
+  providerErrorStream,
+  slowStartErrorStream,
+  slowStartStream,
   warningToolStream,
 } from "../../mock/fixtures.ts";
 import { createChatMock, fulfillMockApi, installMockApi } from "../../mock/install.ts";
@@ -417,6 +420,56 @@ Given(
     await expect(page.getByText("one message answer")).toBeVisible();
   },
 );
+
+Given(
+  "a user is on session one whose provider replies with the stream error {string}",
+  async ({ page }, errorText: string) => {
+    const mock = createChatMock({
+      state: {
+        snapshots: { one: sessionOneSnapshot() },
+        chat: {
+          stream: ({ messageId }) => providerErrorStream({ messageId, errorText }),
+        },
+      },
+    });
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
+Given(
+  "a user is on session one with a delayed stream error {string}",
+  async ({ page }, errorText: string) => {
+    const mock = createChatMock({
+      state: {
+        snapshots: { one: sessionOneSnapshot() },
+      },
+    });
+    mock.state.chat.stream = ({ messageId, text }) =>
+      mock.state.chat.calls === 1
+        ? slowStartErrorStream({ messageId, errorText })
+        : assistantStream({ messageId, text });
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
+Given("a user is on session one whose replies start slowly", async ({ page }) => {
+  const mock = createChatMock({
+    state: {
+      snapshots: { one: sessionOneSnapshot() },
+      chat: {
+        replyText: "Slow answer",
+        stream: ({ messageId, text }) => slowStartStream({ messageId, text }),
+      },
+    },
+  });
+  registerPageMock(page, mock);
+  await mock.open(page, "/chat/one");
+  await expect(page.getByText("one message answer")).toBeVisible();
+});
 
 Given("a user is on session one with a persisted orphaned turn", async ({ page }) => {
   const base = sessionOneSnapshot();
@@ -911,6 +964,7 @@ Given("a user is on session one with rich component tool results", async ({ page
         workouts: 3,
         workouts_goal: 3,
         latest_weight_kg: 78.5,
+        latest_weight_date: null,
         target_weight_kg: 75,
         weight_remaining_kg: -3.5,
       },
@@ -1731,6 +1785,33 @@ When("they retry the coach response", async ({ page }) => {
 When("they retry the failed request", async ({ page }) => {
   await page.getByRole("button", { name: "Retry this request" }).click();
 });
+
+When("they spam-click the send button", async ({ page }) => {
+  await page.getByLabel("Message input").fill("Double click");
+  const send = page.getByTestId("composer-send");
+  await send.click();
+  await send.click({ force: true, noWaitAfter: true });
+});
+
+When("they spam the retry button", async ({ page }) => {
+  const retry = page.getByRole("button", { name: /Retry/ }).first();
+  await retry.click();
+  await retry.click({ force: true, noWaitAfter: true, timeout: 500 }).catch(() => undefined);
+  await retry.click({ force: true, noWaitAfter: true, timeout: 500 }).catch(() => undefined);
+  await expect(page.getByText("Mock answer")).toBeVisible({ timeout: 10_000 });
+});
+
+const expectChatRequestCount = async (page: Page, expected: number) => {
+  expect(getPageMock(page).state.chat.calls).toBe(expected);
+};
+
+Then("only {int} chat request should have been sent", ({ page }, expected: number) =>
+  expectChatRequestCount(page, expected),
+);
+
+Then("only {int} chat requests should have been sent", ({ page }, expected: number) =>
+  expectChatRequestCount(page, expected),
+);
 
 When("they stop the generation", async ({ page }) => {
   await page.getByLabel("Stop generating").click();

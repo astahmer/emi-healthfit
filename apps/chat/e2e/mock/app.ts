@@ -80,7 +80,13 @@ export type MockChatBody = {
   }>;
 };
 
-type ChatStreamFactory = ({ messageId, text }: { messageId: string; text: string }) => string;
+type ChatStreamFactory = ({
+  messageId,
+  text,
+}: {
+  messageId: string;
+  text: string;
+}) => string | ReadableStream<Uint8Array>;
 
 export type MockHevyStatus = {
   connected: boolean;
@@ -266,7 +272,15 @@ const json = (context: Context, body: unknown, status = 200) => context.json(bod
 
 const sse = (
   context: Context,
-  { body, threadId, headers }: { body: string; threadId: string; headers?: Record<string, string> },
+  {
+    body,
+    threadId,
+    headers,
+  }: {
+    body: string | ReadableStream<Uint8Array>;
+    threadId: string;
+    headers?: Record<string, string>;
+  },
 ) =>
   context.newResponse(body, {
     status: 200,

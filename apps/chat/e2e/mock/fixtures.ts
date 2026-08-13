@@ -65,6 +65,84 @@ export const assistantStream = ({ messageId, text }: { messageId: string; text: 
     "",
   ].join("\n\n");
 
+export const providerErrorStream = ({
+  messageId,
+  errorText,
+}: {
+  messageId: string;
+  errorText: string;
+}) =>
+  [
+    `data: {"type":"start","messageId":"${messageId}"}`,
+    'data: {"type":"start-step"}',
+    `data: {"type":"error","errorText":${JSON.stringify(errorText)}}`,
+    'data: {"type":"finish-step"}',
+    'data: {"type":"finish"}',
+    "data: [DONE]",
+    "",
+  ].join("\n\n");
+
+const encodeSseEvents = (events: string[]) => {
+  const encoder = new TextEncoder();
+  return encoder.encode(events.join("\n\n") + "\n\n");
+};
+
+export const slowStartStream = ({
+  messageId,
+  text,
+  delayMilliseconds = 600,
+}: {
+  messageId: string;
+  text: string;
+  delayMilliseconds?: number;
+}): ReadableStream<Uint8Array> =>
+  new ReadableStream({
+    start(controller) {
+      setTimeout(() => {
+        controller.enqueue(
+          encodeSseEvents([
+            `data: {"type":"start","messageId":"${messageId}"}`,
+            'data: {"type":"start-step"}',
+            `data: {"type":"text-start","id":"${messageId}-text"}`,
+            `data: {"type":"text-delta","id":"${messageId}-text","delta":"${text}"}`,
+            `data: {"type":"text-end","id":"${messageId}-text"}`,
+            'data: {"type":"finish-step"}',
+            'data: {"type":"finish"}',
+            "data: [DONE]",
+          ]),
+        );
+        controller.close();
+      }, delayMilliseconds);
+    },
+  });
+
+export const slowStartErrorStream = ({
+  messageId,
+  errorText,
+  delayMilliseconds = 400,
+}: {
+  messageId: string;
+  errorText: string;
+  delayMilliseconds?: number;
+}): ReadableStream<Uint8Array> =>
+  new ReadableStream({
+    start(controller) {
+      setTimeout(() => {
+        controller.enqueue(
+          encodeSseEvents([
+            `data: {"type":"start","messageId":"${messageId}"}`,
+            'data: {"type":"start-step"}',
+            `data: {"type":"error","errorText":${JSON.stringify(errorText)}}`,
+            'data: {"type":"finish-step"}',
+            'data: {"type":"finish"}',
+            "data: [DONE]",
+          ]),
+        );
+        controller.close();
+      }, delayMilliseconds);
+    },
+  });
+
 export const multiToolStream = ({ messageId }: { messageId: string }) =>
   [
     `data: {"type":"start","messageId":"${messageId}"}`,

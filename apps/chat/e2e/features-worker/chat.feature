@@ -5,6 +5,12 @@ Feature: Real Worker chat
     Then the assistant reply "Real worker reply" should be displayed
     And the real worker conversation should be listed in the sidebar
 
+  Scenario: A provider mid-stream error is surfaced with its real message
+    Given a real worker guest is on the chat page
+    When they send the message "fail with error event" through the real worker
+    Then the message "Model overloaded" should be displayed
+    And the message "[object Object]" should not be displayed
+
   Scenario: Reload the chat and keep the persisted conversation
     Given a real worker guest is on the chat page with a conversation
     When they reload the chat page

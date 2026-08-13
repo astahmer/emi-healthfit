@@ -50,6 +50,8 @@ const shouldCallStreak = (body) =>
   lastUserText(body).includes("Show my streak") &&
   (body.messages ?? []).every((message) => message.role !== "tool");
 
+const shouldEmitErrorEvent = (body) => lastUserText(body).includes("fail with error event");
+
 const server = createServer((request, response) => {
   if (request.method === "GET" && request.url === "/health") {
     response.writeHead(200);
@@ -74,6 +76,23 @@ const server = createServer((request, response) => {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
       });
+      if (shouldEmitErrorEvent(body)) {
+        response.write(
+          sseChunk(
+            chunk([
+              {
+                index: 0,
+                delta: { role: "assistant", content: "Partial reply" },
+                finish_reason: null,
+              },
+            ]),
+          ),
+        );
+        response.write(sseChunk({ error: { message: "Model overloaded", type: "server_error" } }));
+        response.write("data: [DONE]\n\n");
+        response.end();
+        return;
+      }
       if (toolCalls !== undefined) {
         response.write(
           sseChunk(
