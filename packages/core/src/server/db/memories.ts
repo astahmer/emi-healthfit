@@ -14,6 +14,8 @@ const normalizeContent = (content: string): string => content.trim().replace(/\s
 const normalizeMemoryKey = (content: string): string =>
   normalizeContent(content).toLocaleLowerCase();
 
+const maxSearchTokens = 16;
+
 export interface MemoryInput {
   content: string;
   source?: string;
@@ -156,7 +158,7 @@ const searchMemories = <Environment>(
       return result.map(toMemorySearchResult);
     }
 
-    const tokens = tokenize(term);
+    const tokens = tokenize(term).slice(0, maxSearchTokens);
     if (tokens.length === 0) return [];
     const result = yield* QueryDatabase.tryPromise(() =>
       kysely
@@ -168,15 +170,27 @@ const searchMemories = <Environment>(
           expressionBuilder.or(
             tokens.map((token) =>
               expressionBuilder(
-                expressionBuilder.fn<string>("lower", ["content"]),
-                "like",
-                `%${token}%`,
+                expressionBuilder.fn<number>("instr", [
+                  expressionBuilder.fn<string>("lower", ["content"]),
+                  expressionBuilder.val(token),
+                ]),
+                ">",
+                0,
               ),
             ),
           ),
         )
         .orderBy("created_at", "desc")
         .execute(),
+    ).pipe(
+      Effect.catchTag("DatabaseQueryError", (error) =>
+        Effect.gen(function* () {
+          yield* Effect.logWarning("memory.search-failed").pipe(
+            Effect.annotateLogs({ userId, query: term, error: error.message }),
+          );
+          return [];
+        }),
+      ),
     );
     const scored = result
       .map((row) => ({

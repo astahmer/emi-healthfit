@@ -69,6 +69,19 @@ describe("conversations SQLite integration", () => {
         },
       ],
     );
+
+    const oversizedResults = await run(
+      conversationDatabase.searchConversationMessages({
+        userId,
+        query: `DELOAD ${"x".repeat(100_000)}`,
+        excludeConversationId: currentConversationId,
+        limit: 10,
+      }),
+    );
+    assert.deepStrictEqual(
+      oversizedResults.map(({ conversation }) => conversation.id),
+      [],
+    );
   });
 
   it("persists conversation, branch, summary, suggestion, and revision lifecycle", async () => {

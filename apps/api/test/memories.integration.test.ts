@@ -5,6 +5,37 @@ import { narrowQueryDatabaseClient } from "../src/platform/db/client.ts";
 import { makeMemoryDatabase, makeSqliteDatabase, run } from "./sqlite.ts";
 
 describe("memories SQLite integration", () => {
+  it("searches with oversized queries without failing on pattern complexity", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);
+    const memoryDatabase = await makeMemoryDatabase(db);
+    const userId = "user-long-query";
+    const id = await run(
+      memoryDatabase.insertMemory({
+        userId,
+        content: "Prefers keyword7 keyword42 morning runs",
+        source: "manual",
+      }),
+    );
+    assert.ok(id);
+
+    const manyTokens = Array.from({ length: 100 }, (_, index) => `keyword${index}`).join(" ");
+    const manyTokenResults = await run(
+      memoryDatabase.searchMemories({ userId, query: manyTokens }),
+    );
+    assert.deepStrictEqual(
+      manyTokenResults.map((memory) => memory.content),
+      ["Prefers keyword7 keyword42 morning runs"],
+    );
+
+    const hugeToken = `morning ${"x".repeat(100_000)}`;
+    const hugeTokenResults = await run(memoryDatabase.searchMemories({ userId, query: hugeToken }));
+    assert.deepStrictEqual(
+      hugeTokenResults.map((memory) => memory.content),
+      ["Prefers keyword7 keyword42 morning runs"],
+    );
+  });
+
   it("normalizes, searches, and deletes memories without crossing owners", async () => {
     const { db: rawDb } = makeSqliteDatabase();
     const db = narrowQueryDatabaseClient<ServerDatabase.MemoryDatabaseSchema>(rawDb);

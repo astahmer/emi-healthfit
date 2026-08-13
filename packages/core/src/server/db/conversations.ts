@@ -177,7 +177,7 @@ const getConversations = <TEnvironment>(
   Effect.gen(function* () {
     const kysely = yield* db.kysely;
     if (search !== undefined && search.trim() !== "") {
-      const term = `%${search.trim()}%`;
+      const term = search.trim();
       const result = yield* QueryDatabase.tryPromise(() =>
         kysely
           .selectFrom("conversations as c")
@@ -190,8 +190,22 @@ const getConversations = <TEnvironment>(
           .where("c.status", "in", ["regular", "archived"])
           .where((expressionBuilder) =>
             expressionBuilder.or([
-              expressionBuilder("c.title", "like", term),
-              expressionBuilder("m.parts", "like", term),
+              expressionBuilder(
+                expressionBuilder.fn<number>("instr", [
+                  expressionBuilder.fn<string>("lower", ["c.title"]),
+                  expressionBuilder.val(term.toLocaleLowerCase()),
+                ]),
+                ">",
+                0,
+              ),
+              expressionBuilder(
+                expressionBuilder.fn<number>("instr", [
+                  expressionBuilder.fn<string>("lower", ["m.parts"]),
+                  expressionBuilder.val(term.toLocaleLowerCase()),
+                ]),
+                ">",
+                0,
+              ),
             ]),
           )
           .orderBy((expressionBuilder) =>
@@ -234,7 +248,7 @@ const searchConversationMessages = <TEnvironment>(
     if (normalizedQuery === "") return [];
 
     const kysely = yield* db.kysely;
-    const term = `%${normalizedQuery}%`;
+    const term = normalizedQuery.toLocaleLowerCase();
     const searchQuery = kysely
       .selectFrom("conversations as c")
       .innerJoin("messages as m", (join) =>
@@ -259,7 +273,16 @@ const searchConversationMessages = <TEnvironment>(
       ])
       .where("c.user_id", "=", userId)
       .where("c.status", "in", ["regular", "archived"])
-      .where("m.parts", "like", term);
+      .where((expressionBuilder) =>
+        expressionBuilder(
+          expressionBuilder.fn<number>("instr", [
+            expressionBuilder.fn<string>("lower", ["m.parts"]),
+            expressionBuilder.val(term),
+          ]),
+          ">",
+          0,
+        ),
+      );
     const scopedSearchQuery =
       excludeConversationId === undefined
         ? searchQuery
