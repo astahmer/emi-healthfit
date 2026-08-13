@@ -744,6 +744,11 @@ export const handleChatResume = (
       conversationDatabase,
       userId: user.id,
     });
+    const emptyConversationCutoff = new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString();
+    const deletedEmptyConversations = yield* conversationDatabase.deleteEmptyConversations({
+      userId: user.id,
+      olderThan: emptyConversationCutoff,
+    });
     yield* Effect.logInfo("chat.generation.reconnect").pipe(
       Effect.annotateLogs({
         conversationId,
@@ -751,6 +756,7 @@ export const handleChatResume = (
         reconciledGenerations,
         abandonedGenerations,
         repairedGenerations,
+        deletedEmptyConversations,
       }),
     );
     const generation = yield* generationDatabase.getResumableGeneration({

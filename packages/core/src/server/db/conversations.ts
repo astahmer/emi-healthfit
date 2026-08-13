@@ -360,6 +360,35 @@ const deleteConversation = <TEnvironment>(
     );
   });
 
+const deleteEmptyConversations = <TEnvironment>(
+  db: QueryDatabaseClient<ConversationDatabaseSchema, TEnvironment>,
+  userId: string,
+  olderThan: string,
+) =>
+  Effect.gen(function* () {
+    const kysely = yield* db.kysely;
+    const result = yield* QueryDatabase.tryPromise(() =>
+      kysely
+        .deleteFrom("conversations")
+        .where("user_id", "=", userId)
+        .where("updated_at", "<", olderThan)
+        .where("pinned", "=", false)
+        .where((expressionBuilder) =>
+          expressionBuilder.not(
+            expressionBuilder.exists(
+              expressionBuilder
+                .selectFrom("messages")
+                .select("id")
+                .whereRef("messages.user_id", "=", "conversations.user_id")
+                .whereRef("conversation_id", "=", "conversations.id"),
+            ),
+          ),
+        )
+        .executeTakeFirst(),
+    );
+    return Number(result.numDeletedRows);
+  });
+
 const updateConversationState = Effect.fn("conversation.updateState")(function* <TEnvironment>({
   db,
   userId,
@@ -1051,6 +1080,10 @@ export interface ConversationDatabaseShape {
     readonly userId: string;
     readonly conversationId: string;
   }) => DatabaseEffect<void>;
+  readonly deleteEmptyConversations: (input: {
+    readonly userId: string;
+    readonly olderThan: string;
+  }) => DatabaseEffect<number>;
   readonly discardThread: (input: {
     readonly userId: string;
     readonly threadId: string;
@@ -1179,6 +1212,8 @@ export class ConversationDatabase extends Context.Service<
         createThread(db, userId, conversationId, anchorMessageId, title),
       deleteConversation: ({ userId, conversationId }) =>
         deleteConversation(db, userId, conversationId),
+      deleteEmptyConversations: ({ userId, olderThan }) =>
+        deleteEmptyConversations(db, userId, olderThan),
       discardThread: ({ userId, threadId }) => discardThread(db, userId, threadId),
       getConversation: ({ userId, conversationId }) => getConversation(db, userId, conversationId),
       getConversationMessages: ({ userId, conversationId }) =>

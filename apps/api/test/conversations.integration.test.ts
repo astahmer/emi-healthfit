@@ -391,4 +391,63 @@ describe("conversations SQLite integration", () => {
       await run(conversationDatabase.getConversation({ userId: alice, conversationId: cloned.id })),
     );
   });
+
+  it("deletes old empty conversations but keeps ones with messages, pinned, or recent", async () => {
+    const { db: database, sqlite } = makeSqliteDatabase();
+    const db = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(database);
+    const conversationDatabase = await makeConversationDatabase(db);
+    const userId = "user-a";
+    const emptyOldId = await run(
+      conversationDatabase.createConversation({ userId, title: "Empty old" }),
+    );
+    const withMessageId = await run(
+      conversationDatabase.createConversation({ userId, title: "With message" }),
+    );
+    const pinnedEmptyId = await run(
+      conversationDatabase.createConversation({ userId, title: "Pinned empty" }),
+    );
+    const emptyRecentId = await run(
+      conversationDatabase.createConversation({ userId, title: "Empty recent" }),
+    );
+    await run(
+      conversationDatabase.saveConversationMessages({
+        userId,
+        conversationId: withMessageId,
+        parentId: null,
+        messages: [{ role: "user", parts: [{ type: "text", text: "Keep me" }] }],
+      }),
+    );
+    sqlite
+      .prepare("UPDATE conversations SET updated_at = ? WHERE id = ?")
+      .run("2000-01-01T00:00:00.000Z", emptyOldId);
+    sqlite
+      .prepare("UPDATE conversations SET updated_at = ? WHERE id = ?")
+      .run("2000-01-01T00:00:00.000Z", withMessageId);
+    sqlite
+      .prepare("UPDATE conversations SET updated_at = ?, pinned = 1 WHERE id = ?")
+      .run("2000-01-01T00:00:00.000Z", pinnedEmptyId);
+
+    assert.strictEqual(
+      await run(
+        conversationDatabase.deleteEmptyConversations({
+          userId,
+          olderThan: "2001-01-01T00:00:00.000Z",
+        }),
+      ),
+      1,
+    );
+    assert.strictEqual(
+      await run(conversationDatabase.getConversation({ userId, conversationId: emptyOldId })),
+      null,
+    );
+    assert.ok(
+      await run(conversationDatabase.getConversation({ userId, conversationId: withMessageId })),
+    );
+    assert.ok(
+      await run(conversationDatabase.getConversation({ userId, conversationId: pinnedEmptyId })),
+    );
+    assert.ok(
+      await run(conversationDatabase.getConversation({ userId, conversationId: emptyRecentId })),
+    );
+  });
 });
