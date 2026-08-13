@@ -86,7 +86,7 @@ next retry; run `worker:down` when finished. Normal `test:e2e:worker` stays self
 cleans up automatically for release checks.
 
 The generic-web real-Worker smoke is `test/e2e/worker-smoke.spec.ts`, skipped unless
-`GENERIC_REAL_WORKER=1`. Start the Worker (e.g. `pnpm generic:dev`) and run
+`GENERIC_REAL_WORKER=1`. Start the Worker (`pnpm --dir apps/generic-worker dev`) and run
 `GENERIC_REAL_WORKER=1 pnpm --dir apps/generic-web test:e2e`; it asserts `/api/health`,
 `/api/settings`, `/api/releases`, and guest auth boot through the Vite proxy.
 

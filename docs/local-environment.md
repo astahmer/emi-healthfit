@@ -10,12 +10,11 @@ the checked-in examples contain names and safe placeholders only.
 | `.env`                     | HealthFit API local dev and dry runs                  | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `HEVY_CREDENTIAL_ENCRYPTION_KEY`, `OPENAI_API_KEY`, `DISCORD_INTERNAL_ASK_SECRET`; optional local-only `AGENT_AUTH_SECRET` and `AGENT_AUTH_EMAIL` |
 | `.env.prod`                | Production deploy/release verification                | The eight API values above plus `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`                                                                                                                                                                       |
 | `apps/discord-bot/.env`    | Discord Worker dev/deploy and command registration    | `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN`, optional `DISCORD_GUILD_ID`, `EMI_API_BASE_URL`, `DISCORD_INTERNAL_ASK_SECRET`                                                                                                      |
-| `apps/generic-worker/.env` | Optional standalone generic Worker dev                | Copy `apps/generic-worker/.env.example`; `pnpm generic:dev` creates a temporary file from only `BETTER_AUTH_SECRET` instead                                                                                                                              |
+| `apps/generic-worker/.env` | Standalone generic Worker dev                        | Copy `apps/generic-worker/.env.example` and set `BETTER_AUTH_SECRET`                                                                                    |
 
 Do not copy the HealthFit `.env` into an app directory. API package scripts explicitly load the root
-file, and the generic launcher filters its temporary file so unrelated HealthFit secrets do not reach
-the generic Worker. `HEVY_API_KEY`, `D1_DATABASE_ID`, and Cloudflare credentials for one-off commands
-are not normal local runtime values.
+file, and the generic Worker keeps only its own app-local `.env`. `HEVY_API_KEY`, `D1_DATABASE_ID`,
+and Cloudflare credentials for one-off commands are not normal local runtime values.
 
 `BETTER_AUTH_URL` is the public browser origin for the mode being run. The API-only and built-SPA
 commands use the value from `.env`; `pnpm chat:dev` creates a temporary API environment with the
@@ -102,5 +101,9 @@ development stays on fixed ports:
 - `pnpm dev:apps` runs the same stack in a dedicated [Herdr](https://herdr.dev) workspace
   (`emi-healthfit`, or `emi-healthfit-<checkout>` for jj worktrees), with API and chat in separate
   tabs; attach with `herdr`. It builds `@emi/core` once and skips the per-process rebuilds.
+- `pnpm --dir apps/generic-worker dev` runs the generic Worker at `http://127.0.0.1:8787`; it reads
+  the app-local `apps/generic-worker/.env` (copy from `.env.example`).
+- `pnpm --dir apps/generic-web dev` runs the generic web app at `http://localhost:3233`, proxying
+  `/api` to the Worker on `8787`.
 
 Fixed ports are the deterministic choice for Playwright and generated-app acceptance.

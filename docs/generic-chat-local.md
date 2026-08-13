@@ -2,24 +2,22 @@
 
 The canonical generic fixture runs its web app on port `3233` and its Alchemy Worker on the local Worker port `8787`.
 
-The recommended command starts both processes, waits for the Worker health route, and uses the
-existing root `.env` while overriding only the generic web origin:
+Run the Worker and the web app in two terminals:
 
 ```sh
-pnpm generic:dev
+cp apps/generic-worker/.env.example apps/generic-worker/.env
+# set BETTER_AUTH_SECRET to at least 32 random characters
+pnpm --dir apps/generic-worker dev
 ```
-
-For separate terminals, the Worker needs the web origin as its public auth origin because Vite
-proxies the browser's same-origin `/api` requests:
 
 ```sh
-BETTER_AUTH_URL=http://127.0.0.1:3233 pnpm generic:worker:dev
-pnpm generic:web:dev
+pnpm --dir apps/generic-web dev
 ```
 
-If the repository root has a `.env`, use an explicit env file with the generic command instead of
-changing the main app's `BETTER_AUTH_URL`. Alchemy gives an explicit dotenv file precedence over
-the process environment; a different value causes anonymous sign-in to return `Invalid origin`.
+The Worker reads `apps/generic-worker/.env`; keep HealthFit secrets in the root `.env` and never
+copy that file into the generic app. `BETTER_AUTH_URL` is the web origin the browser uses
+(`http://localhost:3233`), because Vite proxies the browser's same-origin `/api` requests to the
+Worker. A mismatched value causes anonymous sign-in to return `Invalid origin`.
 
 Vite proxies `/api/*` from `http://127.0.0.1:3233` to `http://127.0.0.1:8787`. The browser therefore uses the same-origin API path in development and never treats the Vite SPA fallback as an API response. Set `VITE_WORKER_ORIGIN` when the Worker is running on another local origin.
 
@@ -34,7 +32,8 @@ the staging build; leave it unset for a normal build. The app still feature-dete
 For real Chrome local discovery, start the local stack:
 
 ```sh
-VITE_WEBMCP_ENABLED=true pnpm generic:dev
+pnpm --dir apps/generic-worker dev
+VITE_WEBMCP_ENABLED=true pnpm --dir apps/generic-web dev
 ```
 
 Loopback origins count as secure contexts, so register WebMCP for the exact origin
@@ -63,5 +62,5 @@ The generic fixture keeps these checks distinct:
 See `docs/testing/runtime-test-matrix.md` for what each browser E2E mode mocks and what it leaves
 real (app, Worker, D1, auth, tools, provider).
 
-The `generic:dev` startup wait is only a narrow readiness check for the Worker health route. It
-does not replace the API integration or browser E2E suites.
+The `alchemy dev` startup wait for the Worker health route is a narrow readiness check; it does not
+replace the API integration or browser E2E suites.

@@ -152,7 +152,8 @@ pnpm chat:dev
 
 This starts a temporary API environment and the Vite UI together, with OAuth callbacks routed
 through `http://127.0.0.1:3232`. Stop any separately running `pnpm dev` process first. Use
-`pnpm chat:dev:ui` only when an API is already running and Google auth is not needed.
+`pnpm --dir apps/chat dev` only when an API is already running and Google auth is not needed (the
+API command builds `@emi/core` first, so run it at least once before the UI-only command).
 
 For a dedicated [Herdr](https://herdr.dev) workspace with API and chat in separate tabs:
 
@@ -162,7 +163,8 @@ pnpm dev:apps
 
 Each service gets its own tab (overview tab lists the URLs); attach with `herdr`. The workspace
 label is `emi-healthfit` or `emi-healthfit-<checkout>` when run from a jj worktree, so parallel
-checkouts stay separated. Falls back to `pnpm chat:dev` if Herdr is not installed.
+checkouts stay separated. If Herdr is not installed, the command prints a hint to use
+`pnpm chat:dev` instead.
 
 To type-check the whole monorepo:
 

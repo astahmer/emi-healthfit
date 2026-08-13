@@ -15,9 +15,9 @@ pnpm --dir apps/generic-web test:api
 pnpm --dir apps/generic-web test:e2e
 ```
 
-For a live local Worker and Vite proxy, use `pnpm generic:dev`. The fixed ports are web `3233` and
-Worker `8787`. API responses must remain JSON and the Worker must trust the web origin in
-`BETTER_AUTH_URL`.
+For a live local Worker and Vite proxy, run `pnpm --dir apps/generic-worker dev` and
+`pnpm --dir apps/generic-web dev`. The fixed ports are web `3233` and Worker `8787`. API responses
+must remain JSON and the Worker must trust the web origin in `BETTER_AUTH_URL`.
 
 ## Generated owned app
 
