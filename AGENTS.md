@@ -233,7 +233,22 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 
 ## Release handoff
 
-- During implementation and debugging, run focused checks only. Do not run the full release suite repeatedly.
+- During implementation and debugging, run focused checks only. Do not run the
+  full release suite repeatedly.
+- Match the checks to what you touched — `pnpm check:handoff` runs every stage
+  (static, tests, verify, schema, generated, e2e) and belongs in CI or a
+  deliberate full release:
+  - Backend/API code → `pnpm --dir apps/api test:file <file>` plus the touched
+    package's `typecheck`/`lint` (`pnpm --dir <app> run typecheck`,
+    `pnpm --filter <pkg> run lint`).
+  - DB schema or migrations → `pnpm check:schema` (`pnpm --filter @emi/api
+    db:check`).
+  - Chat or generic-web UI → `pnpm check:smoke` (build + focused e2e specs), a
+    single spec via `pnpm --dir apps/chat test:e2e:run -- <spec>`, or the full
+    `pnpm check:e2e` for broad UI work.
+  - Core package → `pnpm --filter @emi/core build` plus its typecheck/tests.
+  - Turbo-tracked work → `pnpm check:affected` runs only the affected packages.
+  - Markdown, docs, AGENTS.md, or skills only → no code checks required.
 - If you made any code change (not just markdown/docs/...); immediately before final handoff or marking a session complete, run `pnpm check:handoff` once on the final worktree. The full `pnpm release:check` gate runs in CI and is reserved locally for deliberate full-release verification.
 - Do not mark the session complete unless that final handoff gate passes.
 
