@@ -473,4 +473,125 @@ describe("fitness SQLite integration", () => {
       last_workout_date: today,
     });
   });
+
+  it("resolves the most recent session template by focus", async () => {
+    const { db } = makeSqliteDatabase();
+    const fitnessDb = narrowQueryDatabaseClient<HealthfitDatabaseSchema>(db);
+    const userId = "user-b";
+
+    await run(
+      upsertHevySessions(fitnessDb, userId, [
+        {
+          session_id: "lower-old",
+          provider_workout_id: null,
+          source_updated_at: null,
+          title: "Week-end - Lower",
+          start_time: "2026-08-02T15:00:00Z",
+          end_time: "2026-08-02T16:00:00Z",
+          duration_sec: 3_600,
+          total_volume_kg: 4_000,
+        },
+        {
+          session_id: "upper-recent",
+          provider_workout_id: null,
+          source_updated_at: null,
+          title: "Jeudi - Upper",
+          start_time: "2026-08-13T06:30:00Z",
+          end_time: "2026-08-13T07:30:00Z",
+          duration_sec: 3_600,
+          total_volume_kg: 3_000,
+        },
+        {
+          session_id: "lower-recent",
+          provider_workout_id: null,
+          source_updated_at: null,
+          title: "Week-end - Lower",
+          start_time: "2026-08-08T15:00:00Z",
+          end_time: "2026-08-08T17:00:00Z",
+          duration_sec: 7_200,
+          total_volume_kg: 5_039,
+        },
+      ]),
+    );
+    await run(
+      upsertHevySets(fitnessDb, userId, [
+        {
+          session_id: "upper-recent",
+          exercise_template_id: null,
+          exercise_index: 0,
+          exercise_title: "Bench press",
+          set_index: 0,
+          set_type: "normal",
+          weight_kg: 27.5,
+          reps: 8,
+          rpe: null,
+          distance_km: null,
+          duration_seconds: null,
+          exercise_notes: null,
+        },
+        {
+          session_id: "lower-recent",
+          exercise_template_id: null,
+          exercise_index: 0,
+          exercise_title: "Hip Abduction (Machine)",
+          set_index: 0,
+          set_type: "normal",
+          weight_kg: 40,
+          reps: 13,
+          rpe: null,
+          distance_km: null,
+          duration_seconds: null,
+          exercise_notes: null,
+        },
+        {
+          session_id: "lower-recent",
+          exercise_template_id: null,
+          exercise_index: 1,
+          exercise_title: "Hip Thrust (Machine)",
+          set_index: 0,
+          set_type: "normal",
+          weight_kg: 20,
+          reps: 10,
+          rpe: null,
+          distance_km: null,
+          duration_seconds: null,
+          exercise_notes: null,
+        },
+      ]),
+    );
+
+    const lower = await run(
+      HealthFit.data.resolveSessionTemplate({
+        db: fitnessDb,
+        userId,
+        focus: "lower",
+      }),
+    );
+    assert.strictEqual(lower.matched, true);
+    assert.strictEqual(lower.sessions[0]?.sessionId, "lower-recent");
+    assert.deepStrictEqual(
+      lower.sessions[0]?.exercises.map((exercise) => exercise.title),
+      ["Hip Abduction (Machine)", "Hip Thrust (Machine)"],
+    );
+
+    const upper = await run(
+      HealthFit.data.resolveSessionTemplate({
+        db: fitnessDb,
+        userId,
+        focus: "upper",
+      }),
+    );
+    assert.strictEqual(upper.sessions[0]?.sessionId, "upper-recent");
+    assert.strictEqual(upper.matched, true);
+
+    const noMatch = await run(
+      HealthFit.data.resolveSessionTemplate({
+        db: fitnessDb,
+        userId,
+        focus: "full_body",
+      }),
+    );
+    assert.strictEqual(noMatch.matched, false);
+    assert.strictEqual(noMatch.sessions[0]?.sessionId, "upper-recent");
+  });
 });

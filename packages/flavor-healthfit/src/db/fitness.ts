@@ -136,6 +136,56 @@ export const getWorkoutDetails = Effect.fn("workout.details")(function* ({
   };
 });
 
+export type SessionFocus = "upper" | "lower" | "full_body" | "unknown";
+
+const focusKeywords: Record<Exclude<SessionFocus, "unknown">, ReadonlyArray<string>> = {
+  upper: ["upper", "haut", "push", "tirage"],
+  lower: ["lower", "jambe", "leg", "squat", "hip"],
+  full_body: ["full", "full body", "complet", "total"],
+};
+
+export const classifySessionFocus = (title: string | null): SessionFocus => {
+  const normalized = title?.toLowerCase() ?? "";
+  for (const [focus, keywords] of Object.entries(focusKeywords) as Array<
+    [Exclude<SessionFocus, "unknown">, ReadonlyArray<string>]
+  >) {
+    if (keywords.some((keyword) => normalized.includes(keyword))) return focus;
+  }
+  return "unknown";
+};
+
+export const resolveSessionTemplate = Effect.fn("workout.resolveTemplate")(function* ({
+  db,
+  userId,
+  focus,
+  limit = 5,
+}: {
+  db: FitnessDb;
+  userId: string;
+  focus: SessionFocus;
+  limit?: number;
+}) {
+  const history = yield* getWorkoutHistory(db, userId, Math.max(limit, 10));
+  const matching = history.filter((session) => classifySessionFocus(session.title) === focus);
+  const sessions = matching.length > 0 ? matching : history;
+  const details = yield* Effect.forEach(
+    sessions.slice(0, limit),
+    (session) =>
+      getWorkoutDetails({ db, userId, sessionId: session.session_id }).pipe(
+        Effect.map((detail) => (detail === null ? undefined : detail)),
+      ),
+    { concurrency: 4 },
+  );
+  return {
+    focus,
+    requestedFocus: focus,
+    matched: matching.length > 0,
+    sessions: details.filter(
+      (detail): detail is NonNullable<typeof detail> => detail !== undefined,
+    ),
+  };
+});
+
 export interface ExerciseProgressSet {
   session_id: string;
   title: string | null;

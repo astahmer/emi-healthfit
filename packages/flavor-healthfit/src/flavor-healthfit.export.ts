@@ -5,6 +5,7 @@ import type { ChatContext } from "./chat/context.ts";
 import { estimateRecovery } from "./chat/recovery-estimate.ts";
 import { fitnessCoachV1 } from "./chat/prompts/fitness-coach-v1.ts";
 import {
+  classifySessionFocus,
   getAnalyticsOverview,
   getDataSummary,
   getExerciseProgress,
@@ -19,6 +20,7 @@ import {
   getWorkoutHistory,
   getWorkoutStreak,
   getWorkouts,
+  resolveSessionTemplate,
 } from "./db/fitness.ts";
 import type {
   DataSummary,
@@ -140,6 +142,7 @@ export class HealthFit {
   } as const;
 
   static readonly data = {
+    classifySessionFocus,
     getAnalyticsOverview,
     getDataSummary,
     getExerciseProgress,
@@ -155,6 +158,7 @@ export class HealthFit {
     getWorkoutHistory,
     getWorkoutStreak,
     getWorkouts,
+    resolveSessionTemplate,
   } as const;
 
   static readonly ingest = {

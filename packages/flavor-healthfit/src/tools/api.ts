@@ -23,6 +23,8 @@ import {
   getWorkoutHistory,
   getWorkoutDetails,
   getWorkoutStreak,
+  resolveSessionTemplate,
+  type SessionFocus,
 } from "../db/fitness.ts";
 import type { HealthfitDatabaseSchema } from "../db/schema.ts";
 
@@ -96,6 +98,23 @@ const GetWorkoutDetails = Tool.make("get_workout_details", {
     sessionId: Schema.String.annotate({
       description: "Stable session_id returned by get_workout_history.",
     }),
+  }),
+  success: Schema.Unknown,
+  failure: Schema.Unknown,
+});
+
+const GetSessionTemplate = Tool.make("get_session_template", {
+  description:
+    "Resolve the user's habitual workout session by focus (upper, lower, full_body) and return the most recent matching sessions with full exercise, set, rep, and weight detail. Use this BEFORE quoting weights or exercises for the user's own session — never derive a session's exercise list from raw set rows. Falls back to the most recent sessions when no title matches.",
+  parameters: Schema.Struct({
+    focus: Schema.Literals(["upper", "lower", "full_body"]).annotate({
+      description: "Session focus to resolve: upper, lower, or full_body.",
+    }),
+    limit: ToolSchema.optional(
+      Schema.Int.annotate({
+        description: "Maximum number of matching sessions to return (default 3).",
+      }),
+    ),
   }),
   success: Schema.Unknown,
   failure: Schema.Unknown,
@@ -430,6 +449,7 @@ const FitnessToolkit = Toolkit.make(
   GetRecovery,
   GetWorkoutHistory,
   GetWorkoutDetails,
+  GetSessionTemplate,
   GetExerciseProgress,
   GetSleepTrend,
   GetWorkoutStreak,
@@ -581,6 +601,24 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
         });
       }
       return details;
+    }),
+    get_session_template: Effect.fn("FitnessToolkit.getSessionTemplate")(function* ({
+      focus,
+      limit,
+    }) {
+      const template = yield* resolveSessionTemplate({
+        db: narrow<HealthfitDatabaseSchema>(db),
+        userId,
+        focus: focus as SessionFocus,
+        limit: limit ?? 3,
+      });
+      if (template.sessions.length === 0) {
+        return yield* toolError({
+          tool: "get_session_template",
+          message: "No workout sessions found.",
+        });
+      }
+      return template;
     }),
     get_exercise_progress: Effect.fn("FitnessToolkit.getExerciseProgress")(
       ({ exercise_title, weeks }) =>
