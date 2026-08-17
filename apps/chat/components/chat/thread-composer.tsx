@@ -3,7 +3,7 @@
 import { useIsMobile } from "@emi/core/web";
 import { type FormEvent } from "react";
 import { useChatRuntime } from "@/app/chat/chat-runtime-context";
-import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@/app/chat/follow-up-queue";
+import { resolveQueueEditTarget, shouldHandleQueueArrowKey } from "@emi/core/web";
 import type { ComposerControls } from "./thread-types";
 import {
   ComposerAttachments,

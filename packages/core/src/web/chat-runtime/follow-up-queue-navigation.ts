@@ -1,14 +1,16 @@
-import type { QueuedFollowUp } from "./chat-runtime-context";
+export interface QueueEditNavigationState {
+  readonly editingQueuedId: string | null;
+}
 
 export const resolveQueueEditTarget = ({
   queuedFollowUps,
   editingQueuedId,
   direction,
 }: {
-  queuedFollowUps: QueuedFollowUp[];
+  queuedFollowUps: ReadonlyArray<{ readonly id: string }>;
   editingQueuedId: string | null;
   direction: "up" | "down";
-}): QueuedFollowUp | null => {
+}): { readonly id: string } | null => {
   if (queuedFollowUps.length === 0) return null;
   const currentIndex =
     editingQueuedId === null

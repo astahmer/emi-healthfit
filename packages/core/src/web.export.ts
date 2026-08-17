@@ -97,6 +97,11 @@ import {
   stripHeavyQueueAttachments,
   writeStoredFollowUpQueue,
 } from "./web/chat-runtime/browser-queue-sync.ts";
+import {
+  resolveQueueEditTarget,
+  shouldHandleQueueArrowKey,
+} from "./web/chat-runtime/follow-up-queue-navigation.ts";
+import type { QueueEditNavigationState } from "./web/chat-runtime/follow-up-queue-navigation.ts";
 import type {
   ComposerControls,
   ComposerModelOption,
@@ -171,9 +176,12 @@ export {
   serializeFollowUpQueue,
   stripHeavyQueueAttachments,
   writeStoredFollowUpQueue,
+  resolveQueueEditTarget,
+  shouldHandleQueueArrowKey,
 };
 
 export type {
+  QueueEditNavigationState,
   ComposerControls,
   ComponentRendererContribution,
   ComposerModelOption,
