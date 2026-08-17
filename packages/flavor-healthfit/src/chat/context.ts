@@ -2,12 +2,25 @@ import * as Effect from "effect/Effect";
 import type { ServerDatabase } from "@emi/core/server/database";
 import { estimateRecovery } from "./recovery-estimate.ts";
 import type { HealthfitDatabaseSchema, HevySetRow, SleepSessionRow } from "../db/schema.ts";
+import { classifySessionFocus, type SessionFocus } from "../db/fitness.ts";
 import { getHevySyncState } from "../integrations/hevy/hevy-store.ts";
 
 type ChatContextDb = ServerDatabase.QueryDatabaseClient<HealthfitDatabaseSchema>;
 
+export interface WeeklyPlan {
+  /** Most common focus logged on each weekday (0=Sunday .. 6=Saturday) over the lookback window. */
+  byWeekday: Array<{ weekday: number; focus: SessionFocus; occurrences: number; titles: string[] }>;
+  /** Focus most commonly logged on today's weekday, when one is established. */
+  todayFocus: SessionFocus;
+  /** Focus most commonly logged on the next weekday with an established session. */
+  nextFocus: SessionFocus;
+  /** Whether a stable pattern was found (at least 2 occurrences for the relevant day). */
+  stable: boolean;
+}
+
 interface WorkoutContext {
   lastSessionDate: string | null;
+  lastSessionFocus: SessionFocus;
   lastSessionSummary: string;
   recentVolume: number;
   recentWorkoutCount: number;
@@ -16,6 +29,7 @@ interface WorkoutContext {
     title: string | null;
     startTime: string;
     totalVolumeKg: number | null;
+    focus: "upper" | "lower" | "full_body" | "unknown";
   }>;
   recentSets: Array<HevySetRow & { session_start: string }>;
 }
@@ -28,6 +42,8 @@ interface SleepContext {
 
 export interface ChatContext {
   today: string;
+  weekday: string;
+  weeklyPlan: WeeklyPlan;
   hevyLastSyncedAt: string | null;
   latestWeightKg: number | null;
   latestWeightDate: string | null;
@@ -53,6 +69,79 @@ const minutesToHours = (minutes: number | null): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return `${hours}h ${mins}m`;
+};
+
+const weekdayNames = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+const weekdayName = (date: Date): string => weekdayNames[date.getDay()];
+
+const focusLabel = (focus: SessionFocus): string => {
+  switch (focus) {
+    case "upper":
+      return "upper";
+    case "lower":
+      return "lower";
+    case "full_body":
+      return "full body";
+    case "unknown":
+      return "unknown";
+  }
+};
+
+const deriveWeeklyPlan = ({
+  sessions,
+  today,
+}: {
+  sessions: Array<{ title: string | null; startTime: string }>;
+  today: Date;
+}): WeeklyPlan => {
+  const byWeekday = new Map<number, Map<SessionFocus, { occurrences: number; titles: string[] }>>();
+  for (const session of sessions) {
+    const weekday = new Date(`${session.startTime.slice(0, 10)}T00:00:00Z`).getUTCDay();
+    const focus = classifySessionFocus(session.title);
+    const weekdayFocuses = byWeekday.get(weekday) ?? new Map();
+    const entry = weekdayFocuses.get(focus) ?? { occurrences: 0, titles: [] };
+    entry.occurrences += 1;
+    if (session.title !== null && !entry.titles.includes(session.title)) {
+      entry.titles.push(session.title);
+    }
+    weekdayFocuses.set(focus, entry);
+    byWeekday.set(weekday, weekdayFocuses);
+  }
+
+  const ordered: WeeklyPlan["byWeekday"] = [];
+  for (let weekday = 0; weekday <= 6; weekday += 1) {
+    const focuses = byWeekday.get(weekday);
+    if (focuses === undefined || focuses.size === 0) continue;
+    const [focus, entry] = [...focuses.entries()].toSorted(
+      (left, right) => right[1].occurrences - left[1].occurrences,
+    )[0];
+    if (focus === undefined || entry === undefined) continue;
+    ordered.push({ weekday, focus, occurrences: entry.occurrences, titles: entry.titles });
+  }
+  ordered.sort((left, right) => left.weekday - right.weekday);
+
+  const todayWeekday = today.getDay();
+  const todayEntry = ordered.find((entry) => entry.weekday === todayWeekday);
+  const todayFocus: SessionFocus = todayEntry?.focus ?? "unknown";
+
+  const nextDays = [1, 2, 3, 4, 5, 6, 7].map((offset) => (todayWeekday + offset) % 7);
+  const nextEntry = nextDays
+    .map((weekday) => ordered.find((entry) => entry.weekday === weekday))
+    .find((entry) => entry !== undefined);
+  const nextFocus: SessionFocus = nextEntry?.focus ?? "unknown";
+
+  const stable = todayEntry !== undefined ? todayEntry.occurrences >= 2 : nextEntry !== undefined;
+
+  return { byWeekday: ordered, todayFocus, nextFocus, stable };
 };
 
 export const buildChatContext = (db: ChatContextDb, userId: string) =>
@@ -83,7 +172,16 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
         .select(["session_id", "title", "start_time", "total_volume_kg"])
         .where("user_id", "=", userId)
         .orderBy("start_time", "desc")
-        .limit(3)
+        .limit(5)
+        .execute(),
+    );
+
+    const scheduleSessions = yield* Effect.promise(() =>
+      kysely
+        .selectFrom("hevy_sessions")
+        .select(["title", "start_time"])
+        .where("user_id", "=", userId)
+        .where("start_time", ">=", daysAgo(42))
         .execute(),
     );
 
@@ -160,8 +258,18 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
       strain48Hours: strain48h,
     });
 
+    const weeklyPlan = deriveWeeklyPlan({
+      sessions: scheduleSessions.map((session) => ({
+        title: session.title,
+        startTime: session.start_time,
+      })),
+      today: now(),
+    });
+
     return {
       today,
+      weekday: weekdayName(now()),
+      weeklyPlan,
       hevyLastSyncedAt: syncState?.last_success_at ?? null,
       latestWeightKg: latestWeight?.weight_kg ?? null,
       latestWeightDate: latestWeight?.date ?? null,
@@ -169,6 +277,7 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
       recoveryExplanation: explanation,
       lastWorkout: {
         lastSessionDate,
+        lastSessionFocus: classifySessionFocus(lastSessions[0]?.title ?? null),
         lastSessionSummary,
         recentVolume,
         recentWorkoutCount,
@@ -177,6 +286,7 @@ export const buildChatContext = (db: ChatContextDb, userId: string) =>
           title: session.title,
           startTime: session.start_time,
           totalVolumeKg: session.total_volume_kg,
+          focus: classifySessionFocus(session.title),
         })),
         recentSets: lastSets,
       },
@@ -202,27 +312,64 @@ export const renderSystemContext = (ctx: ChatContext): string => {
       ? ctx.lastWorkout.recentSessions
           .map(
             (session) =>
-              `- ${session.sessionId}: ${session.title ?? "Untitled workout"} on ${session.startTime.slice(0, 10)} (${session.totalVolumeKg ?? 0} kg volume)`,
+              `- ${session.sessionId} [${session.focus}]: ${session.title ?? "Untitled workout"} on ${session.startTime.slice(0, 10)} (${session.totalVolumeKg ?? 0} kg volume)`,
           )
           .join("\n")
       : "- none";
 
-  const recentSets =
-    ctx.lastWorkout.recentSets.length > 0
-      ? ctx.lastWorkout.recentSets
-          .map((set) => {
-            const load = set.weight_kg === null ? "bodyweight" : `${set.weight_kg} kg`;
-            const reps = set.reps === null ? "duration-only" : `${set.reps} reps`;
-            return `- ${set.session_id} / ${set.exercise_title}: ${load} x ${reps}`;
-          })
+  const setsBySession = new Map<string, Array<(typeof ctx.lastWorkout.recentSets)[number]>>();
+  for (const set of ctx.lastWorkout.recentSets) {
+    const list = setsBySession.get(set.session_id);
+    if (list === undefined) {
+      setsBySession.set(set.session_id, [set]);
+    } else {
+      list.push(set);
+    }
+  }
+  const sessionTitleById = new Map(
+    ctx.lastWorkout.recentSessions.map((session) => [session.sessionId, session.title]),
+  );
+  const recentSets = [...setsBySession.entries()]
+    .map(([sessionId, sets]) => {
+      const title = sessionTitleById.get(sessionId) ?? sessionId;
+      const lines = sets
+        .map((set) => {
+          const load = set.weight_kg === null ? "bodyweight" : `${set.weight_kg} kg`;
+          const reps = set.reps === null ? "duration-only" : `${set.reps} reps`;
+          return `  - ${set.exercise_title}: ${load} x ${reps}`;
+        })
+        .join("\n");
+      return `- ${sessionId} (${title}):\n${lines}`;
+    })
+    .join("\n");
+
+  const weeklyPlanLines =
+    ctx.weeklyPlan.byWeekday.length > 0
+      ? ctx.weeklyPlan.byWeekday
+          .map(
+            (entry) =>
+              `- ${weekdayNames[entry.weekday]}: ${focusLabel(entry.focus)} (${entry.occurrences}x, e.g. ${entry.titles.slice(0, 2).join(", ") || "untitled"})`,
+          )
           .join("\n")
-      : "- none";
+      : "- no stable pattern in the last 6 weeks";
+
+  const todayExpected =
+    ctx.weeklyPlan.todayFocus === "unknown"
+      ? "no established session for this weekday in the last 6 weeks"
+      : `${focusLabel(ctx.weeklyPlan.todayFocus)} (${ctx.weeklyPlan.todayFocus === ctx.lastWorkout.lastSessionFocus ? "same as last logged session" : "per weekly pattern"})`;
+
+  const nextExpected =
+    ctx.weeklyPlan.nextFocus === "unknown"
+      ? "none established"
+      : focusLabel(ctx.weeklyPlan.nextFocus);
 
   return `## Current HealthFit data
 
 This data snapshot was read from the user's HealthFit database immediately after the Hevy freshness check. Treat it as the current source of truth. Older conversation messages and older tool results are historical context, not current workout data.
 
-Today: ${ctx.today}
+Today: ${ctx.today} (${ctx.weekday})
+Expected session today (from logged history): ${todayExpected}
+Next scheduled session: ${nextExpected}
 Hevy last successful sync: ${ctx.hevyLastSyncedAt ?? "not connected or never synced"}
 Latest recorded weight: ${
     ctx.latestWeightKg === null
@@ -234,13 +381,16 @@ Last workout: ${ctx.lastWorkout.lastSessionSummary}
 Last 7 days: ${ctx.sleep.sevenDayAverage !== null ? minutesToHours(ctx.sleep.sevenDayAverage) : "unknown"} sleep avg, ${ctx.recentWorkoutCount} workouts, ${Math.round(ctx.lastWorkout.recentVolume)} kg·reps volume
 Recent exercises: ${recentExercises}
 
+Weekly schedule derived from the last 6 weeks of logged sessions:
+${weeklyPlanLines}
+
 Recent Hevy workouts:
 ${recentWorkouts}
 
 Recent Hevy sets:
 ${recentSets}
 
-When a question needs an exercise or set breakdown not present above, call get_workout_history and then get_workout_details using these current session IDs before answering. Do not answer from an older workout result in the conversation.`;
+When a question needs an exercise or set breakdown not present above, call get_session_template (or get_workout_history then get_workout_details using these current session IDs) before answering. Do not answer from an older workout result in the conversation, and never derive a session's exercise list from the Recent Hevy sets block above.`;
 };
 
 export const renderContextPrompt = (ctx: ChatContext, userMessage: string): string =>
