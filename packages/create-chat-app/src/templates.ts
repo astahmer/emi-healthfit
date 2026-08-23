@@ -93,6 +93,7 @@ export const workspaceConfig = (): string =>
     '  better-auth: "1.6.26"',
     '  class-variance-authority: "0.7.1"',
     '  clsx: "2.1.1"',
+    '  dexie: "4.4.4"',
     '  drizzle-kit: "0.31.10"',
     '  drizzle-orm: "0.45.2"',
     '  esbuild: "0.28.1"',
