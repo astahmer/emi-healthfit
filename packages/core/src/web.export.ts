@@ -124,6 +124,10 @@ import {
   toThreadMessageValue,
 } from "./web/thread/chat-message-adapter.ts";
 import {
+  ComposerError,
+  ComposerQueue,
+} from "./web/thread/composer-sections.tsx";
+import {
   messageEditorMachine,
   type MessageEditorContext,
   type MessageEditorEvent,
@@ -260,6 +264,8 @@ export {
   hasVisibleChatContent,
   toThreadMessageValue,
   messageEditorMachine,
+  ComposerError,
+  ComposerQueue,
 };
 
 export type {

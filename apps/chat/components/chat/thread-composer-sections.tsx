@@ -22,6 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ComposerError as CoreComposerError,
+  ComposerQueue as CoreComposerQueue,
+} from "@emi/core/web";
 import type { ChatRuntimeValue } from "@/app/chat/chat-runtime-context";
 import { useActionFeedback } from "@/app/action-feedback";
 import type { ComposerControls } from "./thread-types";
@@ -59,105 +63,33 @@ export const ComposerAttachments = ({ runtime }: { runtime: ChatRuntimeValue }) 
   </>
 );
 
-export const ComposerQueue = ({ runtime }: { runtime: ChatRuntimeValue }) => {
-  if (runtime.queuedFollowUps.length === 0) return null;
-  return (
-    <div className="mx-2 mb-2 space-y-1.5" aria-label="Queued follow-ups">
-      {runtime.queuedFollowUps.map((item, index) => (
-        <div
-          key={item.id}
-          className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs ${
-            runtime.editingQueuedId === item.id
-              ? "bg-primary/10 text-foreground"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          <span className="min-w-0 flex-1 truncate">
-            {index + 1}.{" "}
-            {item.text.trim() === ""
-              ? `${item.files.length} attachment${item.files.length === 1 ? "" : "s"}`
-              : item.text}
-            {runtime.editingQueuedId === item.id ? " (editing)" : ""}
-          </span>
-          <button
-            type="button"
-            className="shrink-0 font-medium underline"
-            aria-label={`Edit queued message ${index + 1}`}
-            onClick={() => runtime.beginEditingQueuedFollowUp(item.id)}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className="shrink-0 font-medium underline"
-            aria-label={`Send queued message ${index + 1} now`}
-            onClick={() => void runtime.forceSendQueued(item.id)}
-          >
-            Send now
-          </button>
-          <button
-            type="button"
-            className="shrink-0 font-medium underline"
-            aria-label={`Cancel queued message ${index + 1}`}
-            onClick={() => runtime.removeQueuedFollowUp(item.id)}
-          >
-            Cancel
-          </button>
-        </div>
-      ))}
-      <div className="flex justify-end px-1">
-        <button
-          type="button"
-          className="text-xs font-medium text-muted-foreground underline"
-          onClick={runtime.clearQueuedFollowUps}
-        >
-          Clear queue
-        </button>
-      </div>
-    </div>
-  );
-};
+export const ComposerQueue = ({ runtime }: { runtime: ChatRuntimeValue }) => (
+  <CoreComposerQueue
+    queuedFollowUps={runtime.queuedFollowUps}
+    editingQueuedId={runtime.editingQueuedId}
+    beginEditingQueuedFollowUp={runtime.beginEditingQueuedFollowUp}
+    forceSendQueued={runtime.forceSendQueued}
+    removeQueuedFollowUp={runtime.removeQueuedFollowUp}
+    clearQueuedFollowUps={runtime.clearQueuedFollowUps}
+  />
+);
 
-export const ComposerError = ({ runtime }: { runtime: ChatRuntimeValue }) => {
-  if (runtime.error === null || runtime.errorMessageId !== undefined) return null;
-  const hasUserMessages = runtime.messages.some((message) => message.role === "user");
-  return (
-    <div className="mx-2 mb-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      <span>{runtime.error.message}</span>
-      {runtime.orphanMessageId !== undefined ? (
-        <button
-          type="button"
-          className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={runtime.isRetrying || runtime.isStreaming}
-          onClick={() => void runtime.retryOrphan()}
-        >
-          {runtime.isRetrying ? "Retrying…" : "Retry previous request"}
-        </button>
-      ) : (
-        hasUserMessages && (
-          <button
-            type="button"
-            className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={runtime.isRetrying || runtime.isStreaming}
-            onClick={() => {
-              const lastMessage = runtime.messages.at(-1);
-              if (lastMessage !== undefined) void runtime.revise({ messageId: lastMessage.id });
-            }}
-          >
-            {runtime.isRetrying ? "Retrying…" : "Retry last turn"}
-          </button>
-        )
-      )}
-      <button
-        type="button"
-        className={hasUserMessages || runtime.orphanMessageId !== undefined ? "" : "ms-auto"}
-        onClick={runtime.clearError}
-      >
-        Dismiss
-      </button>
-    </div>
-  );
-};
+export const ComposerError = ({ runtime }: { runtime: ChatRuntimeValue }) => (
+  <CoreComposerError
+    error={runtime.error}
+    errorMessageId={runtime.errorMessageId}
+    orphanMessageId={runtime.orphanMessageId}
+    hasUserMessages={runtime.messages.some((message) => message.role === "user")}
+    isRetrying={runtime.isRetrying}
+    isStreaming={runtime.isStreaming}
+    retryOrphan={() => runtime.retryOrphan()}
+    reviseLastTurn={() => {
+      const lastMessage = runtime.messages.at(-1);
+      if (lastMessage !== undefined) void runtime.revise({ messageId: lastMessage.id });
+    }}
+    clearError={runtime.clearError}
+  />
+);
 
 export const ComposerToolbar = ({
   composerControls,
