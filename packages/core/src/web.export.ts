@@ -117,6 +117,7 @@ import {
   decodeConversationSnapshot,
   decodeThreadRow,
 } from "./web/conversation-snapshot.ts";
+import { FallbackResult } from "./web/thread/tool-result-content.tsx";
 import type {
   ChatConversation,
   ChatMessageNode,
@@ -244,6 +245,7 @@ export {
   decodeConversationRow,
   decodeThreadRow,
   conversationMachine,
+  FallbackResult,
 };
 
 export type {
