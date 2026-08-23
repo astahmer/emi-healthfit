@@ -97,7 +97,7 @@ describe("sidebarItemMachine", () => {
   it("keeps the editing state with the failure message when rename fails", async () => {
     const machine = sidebarItemMachine.provide({
       actors: {
-        rename: fromPromise(async () => {
+        rename: fromPromise(async (): Promise<void> => {
           throw new Error("network down");
         }),
       },

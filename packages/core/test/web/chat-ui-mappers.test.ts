@@ -13,6 +13,7 @@ describe("chat ui mappers", () => {
       id: "message-1",
       role: "user",
       parts: [{ type: "text", text: "hello" }],
+      createdAt: "2026-07-14T10:00:00.000Z",
     };
 
     const uiMessage = toUiMessage(message);

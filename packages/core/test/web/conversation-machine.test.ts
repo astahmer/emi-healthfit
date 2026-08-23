@@ -1,6 +1,7 @@
 import { createActor, fromPromise } from "xstate";
 import { describe, expect, it, vi } from "vitest";
 import { conversationMachine } from "../../src/web/conversation/conversation-machine.ts";
+import type { ConversationLoadOutput } from "../../src/web/conversation/conversation-machine.ts";
 import type {
   ChatConversation,
   ChatMessageNode,
@@ -65,10 +66,17 @@ describe("conversationMachine policy", () => {
   });
 
   it("loads a conversation and flags a network refresh after a cached load", async () => {
-    const refreshImpl = vi.fn(async () => snapshot);
+    const refreshImpl = vi.fn(
+      async (_: {
+        input: { conversationId: string | undefined; enabled: boolean };
+      }): Promise<Omit<ConversationLoadOutput, "source"> | undefined> => snapshot,
+    );
     const machine = conversationMachine.provide({
       actors: {
-        loadConversation: fromPromise(async () => ({ ...snapshot, source: "cache" as const })),
+        loadConversation: fromPromise(async (): Promise<ConversationLoadOutput> => ({
+          ...snapshot,
+          source: "cache",
+        })),
         refreshConversation: fromPromise(refreshImpl),
       },
     });
@@ -116,7 +124,10 @@ describe("conversationMachine policy", () => {
   it("filters messages through search queries and restores on clear", async () => {
     const machine = conversationMachine.provide({
       actors: {
-        loadConversation: fromPromise(async () => ({ ...snapshot, source: "network" as const })),
+        loadConversation: fromPromise(async (): Promise<ConversationLoadOutput> => ({
+          ...snapshot,
+          source: "network",
+        })),
       },
     });
     const actor = createActor(machine, { input: { conversationId: "conv-1" } });
@@ -133,7 +144,10 @@ describe("conversationMachine policy", () => {
   it("switches view modes", async () => {
     const machine = conversationMachine.provide({
       actors: {
-        loadConversation: fromPromise(async () => ({ ...snapshot, source: "network" as const })),
+        loadConversation: fromPromise(async (): Promise<ConversationLoadOutput> => ({
+          ...snapshot,
+          source: "network",
+        })),
       },
     });
     const actor = createActor(machine, { input: { conversationId: "conv-1" } });
@@ -147,7 +161,10 @@ describe("conversationMachine policy", () => {
   it("clears persisted data when temporary mode turns on mid-conversation", async () => {
     const machine = conversationMachine.provide({
       actors: {
-        loadConversation: fromPromise(async () => ({ ...snapshot, source: "network" as const })),
+        loadConversation: fromPromise(async (): Promise<ConversationLoadOutput> => ({
+          ...snapshot,
+          source: "network",
+        })),
       },
     });
     const actor = createActor(machine, { input: { conversationId: "conv-1" } });
@@ -164,10 +181,10 @@ describe("conversationMachine policy", () => {
     let attempt = 0;
     const machine = conversationMachine.provide({
       actors: {
-        loadConversation: fromPromise(async () => {
+        loadConversation: fromPromise(async (): Promise<ConversationLoadOutput> => {
           attempt += 1;
           if (attempt === 1) throw new Error("offline");
-          return { ...snapshot, source: "network" as const };
+          return { ...snapshot, source: "network" };
         }),
       },
     });
@@ -199,7 +216,10 @@ describe("conversationMachine policy", () => {
     const created: ChatThreadView = { ...thread, id: "thread-2", messageIds: ["message-2"] };
     const machine = conversationMachine.provide({
       actors: {
-        loadConversation: fromPromise(async () => ({ ...snapshot, source: "network" as const })),
+        loadConversation: fromPromise(async (): Promise<ConversationLoadOutput> => ({
+          ...snapshot,
+          source: "network",
+        })),
         forkThread: fromPromise(async () => created),
       },
     });

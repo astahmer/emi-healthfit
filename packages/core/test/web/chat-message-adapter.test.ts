@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChatUiMessage } from "../../src/web/thread/chat-message-adapter.ts";
+import type { ChatUiMessage } from "../../src/chat/ui-messages.ts";
 import {
   chatMessageText,
   hasVisibleChatContent,
