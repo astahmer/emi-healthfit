@@ -13,10 +13,8 @@ import {
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createChatRuntime } from "@emi/core";
 import { aiSdkChatStreamDecoder } from "@emi/core/adapters/ai-sdk";
-import { Chat } from "@emi/core/chat";
-import type { ChatUiMessage } from "@emi/core/chat";
+import type { Attachment } from "@emi/core/protocol";
 import { ChatProvider } from "@emi/core/react";
-import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
 import {
   attachmentPreparationMachine,
@@ -298,7 +296,6 @@ export const ChatRuntimeProvider = ({
       runtime,
       selectionMatches,
       state.composer,
-      state.queuedFollowUps,
     ],
   );
 

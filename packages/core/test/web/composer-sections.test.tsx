@@ -43,7 +43,7 @@ describe("ComposerQueue", () => {
 
   it("numbers rows and describes attachment-only entries", () => {
     renderQueue(undefined, [
-      baseItem({ text: "" , files: ["a.png", "b.png"] }),
+      baseItem({ text: "", files: ["a.png", "b.png"] }),
       baseItem({ id: "queue-2", text: "second" }),
     ]);
 

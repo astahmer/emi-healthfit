@@ -109,9 +109,7 @@ describe("sidebarItemMachine", () => {
     actor.send({ type: "rename.change", value: "Renamed Session" });
     actor.send({ type: "rename.submit" });
 
-    await vi.waitFor(() =>
-      expect(actor.getSnapshot().context.error).toBe("network down"),
-    );
+    await vi.waitFor(() => expect(actor.getSnapshot().context.error).toBe("network down"));
     expect(actor.getSnapshot().matches("renaming")).toBe(true);
   });
 

@@ -76,7 +76,10 @@ const WebSearchCitations: FC<{ citations: ReadonlyArray<Citation> }> = ({ citati
   </div>
 );
 
-export const FallbackResult: FC<{ value: unknown; className?: string }> = ({ value, className }) => (
+export const FallbackResult: FC<{ value: unknown; className?: string }> = ({
+  value,
+  className,
+}) => (
   <pre
     className={cn(
       "bg-muted/50 text-foreground/90 mt-1 rounded-md p-2.5 text-xs whitespace-pre-wrap",

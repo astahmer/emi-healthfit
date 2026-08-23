@@ -110,9 +110,7 @@ describe("conversationMachine policy", () => {
     expect(actor.getSnapshot().context.conversation).toBeNull();
 
     resolvers[1]?.({ ...snapshot, conversation: { ...conversation, id: "conv-2" } });
-    await vi.waitFor(() =>
-      expect(actor.getSnapshot().context.conversation?.id).toBe("conv-2"),
-    );
+    await vi.waitFor(() => expect(actor.getSnapshot().context.conversation?.id).toBe("conv-2"));
   });
 
   it("filters messages through search queries and restores on clear", async () => {
@@ -126,9 +124,7 @@ describe("conversationMachine policy", () => {
     await vi.waitFor(() => expect(actor.getSnapshot().matches("ready")).toBe(true));
 
     actor.send({ type: "search.query", query: "squats" });
-    expect(actor.getSnapshot().context.searchResults.map((item) => item.id)).toEqual([
-      "message-1",
-    ]);
+    expect(actor.getSnapshot().context.searchResults.map((item) => item.id)).toEqual(["message-1"]);
 
     actor.send({ type: "search.query", query: "" });
     expect(actor.getSnapshot().context.searchResults).toHaveLength(0);

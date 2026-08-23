@@ -37,12 +37,9 @@ describe("session cache", () => {
   });
 
   it("filters cached threads by search term", async () => {
-    await setCachedThreads([
-      thread,
-      { ...thread, id: "conversation-2", title: "Sleep notes" },
-    ]);
+    await setCachedThreads([thread, { ...thread, id: "conversation-2", title: "Sleep notes" }]);
     expect((await getCachedThreads("sleep")).map((item) => item.id)).toEqual(["conversation-2"]);
-    expect((await getCachedThreads("  "))).toHaveLength(2);
+    expect(await getCachedThreads("  ")).toHaveLength(2);
   });
 
   it("stores full validated conversation payloads and removes them with the conversation", async () => {

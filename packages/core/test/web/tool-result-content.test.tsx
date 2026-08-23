@@ -67,9 +67,7 @@ describe("ToolResultContent", () => {
   });
 
   it("falls back to serialized JSON when a render_component spec is invalid", () => {
-    render(
-      <ToolResultContent toolName="render_component" result={{ spec: { broken: true } }} />,
-    );
+    render(<ToolResultContent toolName="render_component" result={{ spec: { broken: true } }} />);
 
     expect(screen.getByText(/dynamic-component-fallback/)).toBeInTheDocument();
     expect(screen.getByText(/invalid-spec/)).toBeInTheDocument();

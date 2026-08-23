@@ -223,8 +223,10 @@ export const createWindowFollowUpQueueSyncAdapter = ({
     createChannel:
       BroadcastChannel === undefined ? undefined : (name) => new BroadcastChannel(name),
     subscribeStorage: (listener) => {
-      const onStorage = (event: { readonly key: string | null; readonly newValue: string | null }) =>
-        listener(event);
+      const onStorage = (event: {
+        readonly key: string | null;
+        readonly newValue: string | null;
+      }) => listener(event);
       target.addEventListener("storage", onStorage);
       return () => target.removeEventListener("storage", onStorage);
     },

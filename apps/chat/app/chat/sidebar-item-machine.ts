@@ -1,8 +1,5 @@
 import { fromPromise } from "xstate";
-import {
-  sidebarItemMachine as baseSidebarItemMachine,
-  type SessionThread,
-} from "@emi/core/web";
+import { sidebarItemMachine as baseSidebarItemMachine, type SessionThread } from "@emi/core/web";
 import {
   cloneConversation,
   deleteConversation,

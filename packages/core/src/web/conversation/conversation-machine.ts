@@ -175,14 +175,12 @@ export const conversationMachine = setup({
       }): Promise<{ conversationId: string; title: string }> => missing("renameConversation")(),
     ),
     renameThread: fromPromise(
-      async (_: {
-        input: RenameThreadActorInput;
-      }): Promise<{ threadId: string; title: string }> => missing("renameThread")(),
+      async (_: { input: RenameThreadActorInput }): Promise<{ threadId: string; title: string }> =>
+        missing("renameThread")(),
     ),
     pinThread: fromPromise(
-      async (_: {
-        input: PinThreadActorInput;
-      }): Promise<{ threadId: string; pinned: boolean }> => missing("pinThread")(),
+      async (_: { input: PinThreadActorInput }): Promise<{ threadId: string; pinned: boolean }> =>
+        missing("pinThread")(),
     ),
     discardThread: fromPromise(
       async (_: { input: ThreadIdActorInput }): Promise<{ threadId: string }> =>

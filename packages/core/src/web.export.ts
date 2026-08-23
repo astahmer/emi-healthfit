@@ -107,11 +107,7 @@ import {
   parseChatConflictError,
 } from "./web/chat-conflict-errors.ts";
 import type { QueueEditNavigationState } from "./web/chat-runtime/follow-up-queue-navigation.ts";
-import type {
-  SessionMessage,
-  SessionMessageUsage,
-  SessionThread,
-} from "./web/session-cache.ts";
+import type { SessionMessage, SessionMessageUsage, SessionThread } from "./web/session-cache.ts";
 import {
   decodeConversationRow,
   decodeConversationSnapshot,
@@ -123,10 +119,7 @@ import {
   hasVisibleChatContent,
   toThreadMessageValue,
 } from "./web/thread/chat-message-adapter.ts";
-import {
-  ComposerError,
-  ComposerQueue,
-} from "./web/thread/composer-sections.tsx";
+import { ComposerError, ComposerQueue } from "./web/thread/composer-sections.tsx";
 import {
   messageEditorMachine,
   type MessageEditorContext,
@@ -154,16 +147,9 @@ import type {
   SidebarItemInput,
 } from "./web/sidebar/sidebar-item-machine.ts";
 import { createBrowserChatDefaults } from "./web/chat-runtime/browser-defaults.ts";
-import {
-  createWindowFollowUpQueueSyncAdapter,
-} from "./web/chat-runtime/browser-queue-sync.ts";
+import { createWindowFollowUpQueueSyncAdapter } from "./web/chat-runtime/browser-queue-sync.ts";
 import { createDefaultChatErrorDecoder } from "./web/chat-runtime/default-error-decoder.ts";
-import {
-  toAttachment,
-  toFilePart,
-  toUiMessage,
-  toUiMessages,
-} from "./web/chat-ui-mappers.ts";
+import { toAttachment, toFilePart, toUiMessage, toUiMessages } from "./web/chat-ui-mappers.ts";
 import {
   clearSessionCache,
   deleteCachedThread,

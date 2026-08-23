@@ -13,7 +13,9 @@ const fakeStorage = () => {
 
 describe("createWindowFollowUpQueueSyncAdapter", () => {
   it("binds storage events and broadcast channels from the injected window", async () => {
-    const storageListeners = new Set<(event: { key: string | null; newValue: string | null }) => void>();
+    const storageListeners = new Set<
+      (event: { key: string | null; newValue: string | null }) => void
+    >();
     const windowLike = {
       localStorage: fakeStorage(),
       addEventListener: (
@@ -22,7 +24,10 @@ describe("createWindowFollowUpQueueSyncAdapter", () => {
       ) => {
         if (type === "storage") storageListeners.add(listener);
       },
-      removeEventListener: (type: "storage", listener: (event: { key: string | null; newValue: string | null }) => void) => {
+      removeEventListener: (
+        type: "storage",
+        listener: (event: { key: string | null; newValue: string | null }) => void,
+      ) => {
         storageListeners.delete(listener);
       },
     };

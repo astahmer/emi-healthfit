@@ -10,7 +10,9 @@ describe("resolveQueueEditTarget", () => {
   const queue = [item("a"), item("b"), item("c")];
 
   it("returns null for an empty queue", () => {
-    expect(resolveQueueEditTarget({ queuedFollowUps: [], editingQueuedId: null, direction: "up" })).toBeNull();
+    expect(
+      resolveQueueEditTarget({ queuedFollowUps: [], editingQueuedId: null, direction: "up" }),
+    ).toBeNull();
   });
 
   it("starts editing from the newest queued item on ArrowUp", () => {

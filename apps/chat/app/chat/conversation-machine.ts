@@ -30,11 +30,7 @@ export const conversationMachine = baseConversationMachine.provide({
       },
     ),
     refreshConversation: fromPromise(
-      async ({
-        input,
-      }: {
-        input: { conversationId: string | undefined; enabled: boolean };
-      }) => {
+      async ({ input }: { input: { conversationId: string | undefined; enabled: boolean } }) => {
         if (!input.enabled || input.conversationId === undefined) return undefined;
         return fetchConversationMessages(input.conversationId);
       },
@@ -50,13 +46,11 @@ export const conversationMachine = baseConversationMachine.provide({
       async ({ input }: { input: { conversationId: string; title: string } }) =>
         renameConversationApi(input.conversationId, input.title),
     ),
-    renameThread: fromPromise(
-      async ({ input }: { input: { threadId: string; title: string } }) =>
-        renameThreadApi(input.threadId, input.title),
+    renameThread: fromPromise(async ({ input }: { input: { threadId: string; title: string } }) =>
+      renameThreadApi(input.threadId, input.title),
     ),
-    pinThread: fromPromise(
-      async ({ input }: { input: { threadId: string; pinned: boolean } }) =>
-        pinThreadApi(input.threadId, input.pinned),
+    pinThread: fromPromise(async ({ input }: { input: { threadId: string; pinned: boolean } }) =>
+      pinThreadApi(input.threadId, input.pinned),
     ),
     discardThread: fromPromise(async ({ input }: { input: { threadId: string } }) =>
       discardThreadApi(input.threadId),

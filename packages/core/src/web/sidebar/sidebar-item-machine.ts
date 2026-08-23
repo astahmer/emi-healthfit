@@ -59,8 +59,8 @@ const requiredRename = fromPromise(async (_: { input: RenameActorInput }): Promi
 const requiredRemove = fromPromise(async (_: { input: ThreadIdActorInput }): Promise<void> =>
   missing("remove")(),
 );
-const requiredCopyMarkdown = fromPromise(
-  async (_: { input: ThreadIdActorInput }): Promise<void> => missing("copyMarkdown")(),
+const requiredCopyMarkdown = fromPromise(async (_: { input: ThreadIdActorInput }): Promise<void> =>
+  missing("copyMarkdown")(),
 );
 const requiredShare = fromPromise(async (_: { input: TitleActorInput }): Promise<void> =>
   missing("share")(),

@@ -56,13 +56,14 @@ describe("hasVisibleChatContent", () => {
   });
 
   it("keeps non-text parts visible regardless of text content", () => {
-    expect(hasVisibleChatContent(message({ parts: [{ type: "file", url: "x" }] } as ChatUiMessage)))
-      .toBe(true);
+    expect(
+      hasVisibleChatContent(message({ parts: [{ type: "file", url: "x" }] } as ChatUiMessage)),
+    ).toBe(true);
   });
 
   it("keeps whitespace-prefixed text visible", () => {
-    expect(
-      hasVisibleChatContent(message({ parts: [{ type: "text", text: " words " }] })),
-    ).toBe(true);
+    expect(hasVisibleChatContent(message({ parts: [{ type: "text", text: " words " }] }))).toBe(
+      true,
+    );
   });
 });

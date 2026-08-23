@@ -133,9 +133,7 @@ export const ComposerError: FC<ComposerErrorProps> = ({
       )}
       <button
         type="button"
-        className={
-          hasUserMessages || orphanMessageId !== undefined ? "" : "ms-auto"
-        }
+        className={hasUserMessages || orphanMessageId !== undefined ? "" : "ms-auto"}
         onClick={clearError}
       >
         Dismiss
