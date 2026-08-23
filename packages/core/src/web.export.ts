@@ -108,6 +108,23 @@ import {
 } from "./web/chat-conflict-errors.ts";
 import type { QueueEditNavigationState } from "./web/chat-runtime/follow-up-queue-navigation.ts";
 import type {
+  SessionMessage,
+  SessionMessageUsage,
+  SessionThread,
+} from "./web/session-cache.ts";
+import {
+  clearSessionCache,
+  deleteCachedThread,
+  getCachedConversationSnapshot,
+  getCachedMessages,
+  getCachedThreads,
+  mergeCachedThreads,
+  setCachedConversation,
+  setCachedConversationSnapshot,
+  setCachedThreads,
+  updateCachedThread,
+} from "./web/session-cache.ts";
+import type {
   ComposerControls,
   ComposerModelOption,
   ThreadViewportProps,
@@ -186,10 +203,23 @@ export {
   GenerationAlreadyRunningError,
   OrphanTurnError,
   parseChatConflictError,
+  clearSessionCache,
+  deleteCachedThread,
+  getCachedConversationSnapshot,
+  getCachedMessages,
+  getCachedThreads,
+  mergeCachedThreads,
+  setCachedConversation,
+  setCachedConversationSnapshot,
+  setCachedThreads,
+  updateCachedThread,
 };
 
 export type {
   QueueEditNavigationState,
+  SessionMessage,
+  SessionMessageUsage,
+  SessionThread,
   ComposerControls,
   ComponentRendererContribution,
   ComposerModelOption,

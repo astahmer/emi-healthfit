@@ -142,6 +142,7 @@
     "lint:fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
+    "dexie": "catalog:",
     "effect": "catalog:",
     "heic2any": "^0.0.4",
     "xstate": "catalog:"
@@ -165,6 +166,7 @@
     "clsx": "catalog:",
     "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
+    "fake-indexeddb": "6.2.5",
     "jsdom": "catalog:",
     "kysely": "catalog:",
     "kysely-d1": "catalog:",

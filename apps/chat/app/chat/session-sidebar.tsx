@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncConversations, type Thread } from "../sessions";
 import { subscribeToConversationChanges } from "../conversation-events";
 import { queryKeys } from "../query-cache";
-import { getCachedThreads } from "../session-cache";
+import { getCachedThreads } from "@emi/core/web";
 import { fetchConversationMessages as fetchConversationSnapshot } from "../conversations";
 import {
   AlertDialog,

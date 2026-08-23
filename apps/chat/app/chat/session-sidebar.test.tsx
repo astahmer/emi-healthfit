@@ -8,13 +8,15 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionSidebar } from "./session-sidebar";
 
-vi.mock("@/app/session-cache", () => ({
+vi.mock("@emi/core/web", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   getCachedThreads: vi.fn().mockResolvedValue([]),
   setCachedThreads: vi.fn().mockResolvedValue(undefined),
+  mergeCachedThreads: vi.fn().mockResolvedValue(undefined),
   updateCachedThread: vi.fn().mockResolvedValue(undefined),
   deleteCachedThread: vi.fn().mockResolvedValue(undefined),
   getCachedMessages: vi.fn().mockResolvedValue([]),
-  setCachedMessages: vi.fn().mockResolvedValue(undefined),
+  setCachedConversation: vi.fn().mockResolvedValue(undefined),
 }));
 
 const locationState = vi.hoisted(() => {

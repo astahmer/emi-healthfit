@@ -1,7 +1,5 @@
 import { safeValidateUIMessages, type UIMessage } from "ai";
 import { Chat } from "@emi/core/chat";
-import { runApi } from "./api-client";
-import { notifyConversationsChanged } from "./conversation-events";
 import {
   deleteCachedThread,
   getCachedMessages,
@@ -10,22 +8,13 @@ import {
   setCachedConversation,
   setCachedThreads,
   updateCachedThread,
-} from "./session-cache";
+} from "@emi/core/web";
+import type { SessionMessageUsage, SessionThread } from "@emi/core/web";
+import { runApi } from "./api-client";
+import { notifyConversationsChanged } from "./conversation-events";
 
-export interface Thread {
-  id: string;
-  title: string | null;
-  status: "regular" | "archived";
-  pinned: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MessageUsage {
-  promptTokens: number | null;
-  completionTokens: number | null;
-  totalTokens: number | null;
-}
+export type Thread = SessionThread;
+export type MessageUsage = SessionMessageUsage;
 
 export interface MessageWithUsage extends UIMessage {
   usage?: MessageUsage;

@@ -11,7 +11,10 @@ const cache = vi.hoisted(() => ({
   updateCachedThread: vi.fn(),
 }));
 
-vi.mock("./session-cache", () => cache);
+vi.mock("@emi/core/web", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...cache,
+}));
 
 import {
   createConversationWithMessages,

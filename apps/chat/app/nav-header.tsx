@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "./auth-client";
 import { isAnonymousAccountEmail } from "./anonymous-auth";
-import { clearSessionCache } from "./session-cache";
+import { clearSessionCache } from "@emi/core/web";
 
 export const NavHeader: FC = () => {
   const pathname = useLocation({ select: (location) => location.pathname });

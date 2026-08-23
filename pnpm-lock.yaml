@@ -12,6 +12,27 @@ catalogs:
     '@cloudflare/workers-types':
       specifier: 5.20260804.1
       version: 5.20260804.1
+    '@effect/platform-node':
+      specifier: 4.0.0-beta.88
+      version: 4.0.0-beta.88
+    '@effect/tsgo':
+      specifier: 0.31.0
+      version: 0.31.0
+    '@playwright/test':
+      specifier: 1.62.1
+      version: 1.62.1
+    '@serwist/vite':
+      specifier: 9.5.12
+      version: 9.5.12
+    '@tailwindcss/postcss':
+      specifier: 4.3.3
+      version: 4.3.3
+    '@tanstack/react-query':
+      specifier: 5.101.4
+      version: 5.101.4
+    '@tanstack/react-router':
+      specifier: 1.170.19
+      version: 1.170.19
     '@testing-library/jest-dom':
       specifier: 7.0.0
       version: 7.0.0
@@ -33,12 +54,18 @@ catalogs:
     '@types/react-dom':
       specifier: 19.2.4
       version: 19.2.4
+    '@typescript/native-preview':
+      specifier: 7.0.0-dev.20260707.2
+      version: 7.0.0-dev.20260707.2
     '@vitejs/plugin-react':
       specifier: 6.0.5
       version: 6.0.5
     '@vitest/coverage-v8':
       specifier: 4.1.10
       version: 4.1.10
+    '@xstate/react':
+      specifier: 6.1.0
+      version: 6.1.0
     ai:
       specifier: 7.0.52
       version: 7.0.52
@@ -54,6 +81,9 @@ catalogs:
     clsx:
       specifier: 2.1.1
       version: 2.1.1
+    dexie:
+      specifier: 4.4.4
+      version: 4.4.4
     drizzle-kit:
       specifier: 0.31.10
       version: 0.31.10
@@ -63,9 +93,18 @@ catalogs:
     effect:
       specifier: 4.0.0-beta.88
       version: 4.0.0-beta.88
+    esbuild:
+      specifier: 0.28.1
+      version: 0.28.1
+    hono:
+      specifier: 4.13.0
+      version: 4.13.0
     jsdom:
       specifier: 30.0.1
       version: 30.0.1
+    knip:
+      specifier: 6.31.0
+      version: 6.31.0
     kysely:
       specifier: 0.29.4
       version: 0.29.4
@@ -75,12 +114,21 @@ catalogs:
     lucide-react:
       specifier: 1.28.0
       version: 1.28.0
+    miniflare:
+      specifier: 4.20260730.0
+      version: 4.20260730.0
     oxfmt:
       specifier: 0.62.0
       version: 0.62.0
     oxlint:
       specifier: 1.77.0
       version: 1.77.0
+    oxlint-tsgolint:
+      specifier: 7.0.2001
+      version: 7.0.2001
+    playwright-bdd:
+      specifier: 9.2.0
+      version: 9.2.0
     radix-ui:
       specifier: 1.6.7
       version: 1.6.7
@@ -93,9 +141,15 @@ catalogs:
     react-markdown:
       specifier: 10.1.0
       version: 10.1.0
+    recharts:
+      specifier: 3.10.1
+      version: 3.10.1
     remark-gfm:
       specifier: 4.0.1
       version: 4.0.1
+    serwist:
+      specifier: 9.5.12
+      version: 9.5.12
     tailwind-merge:
       specifier: 3.6.0
       version: 3.6.0
@@ -105,15 +159,30 @@ catalogs:
     tw-animate-css:
       specifier: 1.4.0
       version: 1.4.0
+    typed-openapi:
+      specifier: 3.2.1
+      version: 3.2.1
     typescript:
       specifier: 7.0.2
       version: 7.0.2
+    vite:
+      specifier: 8.2.0
+      version: 8.2.0
     vitest:
       specifier: 4.1.10
       version: 4.1.10
+    wrangler:
+      specifier: 4.118.0
+      version: 4.118.0
     xstate:
       specifier: 5.32.5
       version: 5.32.5
+    zod:
+      specifier: 4.4.3
+      version: 4.4.3
+    zustand:
+      specifier: 5.0.14
+      version: 5.0.14
 
 overrides:
   better-auth>next: '-'
@@ -530,6 +599,9 @@ importers:
 
   packages/core:
     dependencies:
+      dexie:
+        specifier: 'catalog:'
+        version: 4.4.4
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.88
@@ -594,6 +666,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@cloudflare/workers-types@5.20260804.1)(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(kysely@0.29.4)(mysql2@3.23.2(@types/node@26.1.2))(pg@8.22.0)
+      fake-indexeddb:
+        specifier: 6.2.5
+        version: 6.2.5
       jsdom:
         specifier: 'catalog:'
         version: 30.0.1(@noble/hashes@2.2.0)

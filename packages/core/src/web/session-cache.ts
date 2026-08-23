@@ -1,14 +1,34 @@
 import Dexie from "dexie";
 import type { UIMessage } from "ai";
-import type { MessageUsage, Thread } from "./sessions";
 
-interface CachedThread extends Thread {
+export interface SessionThread {
+  id: string;
+  title: string | null;
+  status: "regular" | "archived";
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionMessageUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface SessionMessage extends UIMessage {
+  usage?: SessionMessageUsage;
+  model?: string;
+  createdAt?: string;
+}
+
+interface CachedThread extends SessionThread {
   syncedAt: number;
 }
 
 interface CachedMessage extends UIMessage {
   threadId: string;
-  usage?: MessageUsage;
+  usage?: SessionMessageUsage;
   syncedAt: number;
 }
 
@@ -63,25 +83,26 @@ const safeDb = async <T>(run: (database: SessionCacheDatabase) => Promise<T>): P
   }
 };
 
-const toCachedThread = (thread: Thread, syncedAt: number): CachedThread => ({
+const toCachedThread = (thread: SessionThread, syncedAt: number): CachedThread => ({
   ...thread,
   syncedAt,
 });
 
-const fromCachedThread = ({ syncedAt: _syncedAt, ...thread }: CachedThread): Thread => thread;
+const fromCachedThread = ({ syncedAt: _syncedAt, ...thread }: CachedThread): SessionThread =>
+  thread;
 
 const fromCachedMessage = ({
   threadId: _threadId,
   syncedAt: _syncedAt,
   ...message
-}: CachedMessage): UIMessage & { usage?: MessageUsage } => message;
+}: CachedMessage): SessionMessage => message;
 
 const toCachedMessage = ({
   message,
   threadId,
   syncedAt,
 }: {
-  message: UIMessage & { usage?: MessageUsage };
+  message: SessionMessage;
   threadId: string;
   syncedAt: number;
 }): CachedMessage => ({
@@ -90,7 +111,7 @@ const toCachedMessage = ({
   syncedAt,
 });
 
-export const getCachedThreads = async (search?: string): Promise<Thread[]> =>
+export const getCachedThreads = async (search?: string): Promise<SessionThread[]> =>
   safeDb(async (database) => {
     const all = (await database.threads.orderBy("updated_at").reverse().toArray()).map(
       fromCachedThread,
@@ -100,7 +121,7 @@ export const getCachedThreads = async (search?: string): Promise<Thread[]> =>
     return all.filter((thread) => thread.title?.toLowerCase().includes(term));
   });
 
-export const setCachedThreads = async (threads: Thread[]): Promise<void> =>
+export const setCachedThreads = async (threads: SessionThread[]): Promise<void> =>
   safeDb(async (database) => {
     const now = Date.now();
     await database.transaction("rw", database.threads, async () => {
@@ -109,13 +130,13 @@ export const setCachedThreads = async (threads: Thread[]): Promise<void> =>
     });
   });
 
-export const mergeCachedThreads = async (threads: Thread[]): Promise<void> =>
+export const mergeCachedThreads = async (threads: SessionThread[]): Promise<void> =>
   safeDb(async (database) => {
     const now = Date.now();
     await database.threads.bulkPut(threads.map((thread) => toCachedThread(thread, now)));
   });
 
-export const updateCachedThread = async (thread: Thread): Promise<void> =>
+export const updateCachedThread = async (thread: SessionThread): Promise<void> =>
   safeDb(async (database) => {
     await database.threads.put({ ...thread, syncedAt: Date.now() });
   });
@@ -147,9 +168,7 @@ export const setCachedConversationSnapshot = async ({
     });
   });
 
-export const getCachedMessages = async (
-  threadId: string,
-): Promise<Array<UIMessage & { usage?: MessageUsage }>> =>
+export const getCachedMessages = async (threadId: string): Promise<SessionMessage[]> =>
   safeDb(async (database) => {
     return (await database.messages.where("threadId").equals(threadId).sortBy("created_at")).map(
       fromCachedMessage,
@@ -160,8 +179,8 @@ export const setCachedConversation = async ({
   thread,
   messages,
 }: {
-  thread: Thread;
-  messages: Array<UIMessage & { usage?: MessageUsage }>;
+  thread: SessionThread;
+  messages: SessionMessage[];
 }): Promise<void> =>
   safeDb(async (database) => {
     const now = Date.now();

@@ -1,5 +1,5 @@
 import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
-import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "./session-cache";
+import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "@emi/core/web";
 import { Chat } from "@emi/core/chat";
 import * as Schema from "effect/Schema";
 import { runApi } from "./api-client";
