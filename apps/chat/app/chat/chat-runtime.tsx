@@ -18,7 +18,15 @@ import type { ChatUiMessage } from "@emi/core/chat";
 import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
-import { attachmentPreparationMachine, createBrowserFollowUpQueueSyncAdapter } from "@emi/core/web";
+import {
+  attachmentPreparationMachine,
+  createBrowserFollowUpQueueSyncAdapter,
+  toAttachment as coreToAttachment,
+  toFilePart as coreToFilePart,
+  toUiMessage as coreToUiMessage,
+  toUiMessages as coreToUiMessages,
+  createDefaultChatErrorDecoder,
+} from "@emi/core/web";
 import { buildNotesContext } from "../notes";
 import { useSettings } from "../settings-store";
 import { effectiveTokenBudget } from "../usage-context";
@@ -29,34 +37,12 @@ import {
   createHealthFitConversationClient,
   extractHealthFitAssistantMemories,
 } from "./healthfit-chat-adapter";
-import { createDefaultChatErrorDecoder } from "@emi/core/web";
 import {
   ChatRuntimeContext,
   type ChatRuntimeConfig,
   type ChatRuntimeValue,
   type QueuedFollowUp,
 } from "./chat-runtime-context";
-
-const toUiMessage = (message: ChatMessage): ChatUiMessage =>
-  Chat.messages.fromProtocolMessage({
-    id: message.id,
-    role: message.role,
-    parts: message.parts,
-  });
-
-const toAttachment = (file: FileUIPart): Attachment => ({
-  id: `attachment:${file.url}`,
-  name: file.filename ?? "Attachment",
-  mediaType: file.mediaType,
-  url: file.url,
-});
-
-const toFilePart = (file: Attachment): FileUIPart => ({
-  type: "file",
-  filename: file.name,
-  mediaType: file.mediaType,
-  url: file.url,
-});
 
 const toQueuedFollowUp = ({
   id,
@@ -69,11 +55,8 @@ const toQueuedFollowUp = ({
 }): QueuedFollowUp => ({
   id,
   text,
-  files: attachments.map(toFilePart),
+  files: attachments.map(coreToFilePart),
 });
-
-const toUiMessages = ({ messages }: { messages: ReadonlyArray<ChatMessage> }) =>
-  messages.map(toUiMessage);
 
 const decodeTransportError = createDefaultChatErrorDecoder();
 
@@ -101,7 +84,7 @@ const createHealthFitChatRuntime = ({
       createConversation,
       streamDecoder: aiSdkChatStreamDecoder,
       errorDecoder: decodeTransportError,
-      messageEncoder: ({ messages }) => toUiMessages({ messages: messages.slice(-1) }),
+      messageEncoder: ({ messages }) => coreToUiMessages({ messages: messages.slice(-1) }),
       requestBody: ({ settings: coreSettings, conversationId }) => {
         const currentSettings = useSettings.getState().settings;
         const currentConfig = configRef.current;
@@ -254,7 +237,7 @@ export const ChatRuntimeProvider = ({
         runtime.actions.addAttachments({
           attachments: parts
             .filter((part): part is FileUIPart => part.type === "file")
-            .map(toAttachment),
+            .map(coreToAttachment),
         }),
     },
   });
@@ -297,7 +280,7 @@ export const ChatRuntimeProvider = ({
     ? state.temporary
     : state.activeThread.conversationId === config.sessionId;
   const messages = selectionMatches
-    ? state.activeThread.messages.map(toUiMessage)
+    ? state.activeThread.messages.map(coreToUiMessage)
     : config.initialMessages;
   const sessionId = selectionMatches ? state.activeThread.conversationId : config.sessionId;
 
@@ -402,7 +385,7 @@ export const ChatRuntimeProvider = ({
       messages,
       sessionId,
       draft: selectionMatches ? state.composer.text : "",
-      files: selectionMatches ? state.composer.attachments.map(toFilePart) : [],
+      files: selectionMatches ? state.composer.attachments.map(coreToFilePart) : [],
       queuedFollowUps: selectionMatches ? queuedFollowUps : [],
       editingQueuedId: selectionMatches ? editingQueuedId : null,
       isStreaming: selectionMatches && state.activeThread.isStreaming,

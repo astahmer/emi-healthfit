@@ -155,6 +155,12 @@ import type {
 } from "./web/sidebar/sidebar-item-machine.ts";
 import { createDefaultChatErrorDecoder } from "./web/chat-runtime/default-error-decoder.ts";
 import {
+  toAttachment,
+  toFilePart,
+  toUiMessage,
+  toUiMessages,
+} from "./web/chat-ui-mappers.ts";
+import {
   clearSessionCache,
   deleteCachedThread,
   getCachedConversationSnapshot,
@@ -246,6 +252,10 @@ export {
   OrphanTurnError,
   parseChatConflictError,
   createDefaultChatErrorDecoder,
+  toAttachment,
+  toFilePart,
+  toUiMessage,
+  toUiMessages,
   clearSessionCache,
   deleteCachedThread,
   getCachedConversationSnapshot,
