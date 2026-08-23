@@ -317,6 +317,13 @@ export interface ChatActions {
   replaceQueuedFollowUps(input: { readonly items: ReadonlyArray<QueuedFollowUpState> }): void;
   removeQueuedFollowUp(input: { readonly id: string }): void;
   beginEditingQueuedFollowUp(input: { readonly id: string }): void;
+  beginQueuedFollowUpEditWithDraft(input: { readonly id: string }): void;
+  commitQueuedFollowUpEdit(input: {
+    readonly id: string;
+    readonly text: string;
+    readonly attachments: ReadonlyArray<Attachment>;
+  }): void;
+  discardQueuedFollowUpEdit(): void;
   clearQueuedFollowUpEdit(): void;
   setConversationSearch(input: { readonly search: string }): void;
   setMemorySearch(input: { readonly search: string }): void;

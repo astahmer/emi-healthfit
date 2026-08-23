@@ -810,6 +810,31 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
     beginEditingQueuedFollowUp: ({ id }) =>
       sendChatUi({ type: "queued-follow-up-edit-started", id }),
     clearQueuedFollowUpEdit: () => sendChatUi({ type: "queued-follow-up-edit-cleared" }),
+    beginQueuedFollowUpEditWithDraft: ({ id }) => {
+      const followUp = currentSession().queuedFollowUps.find((item) => item.id === id);
+      if (followUp === undefined) return;
+      sendSession({
+        type: "files-changed",
+        files: [],
+      });
+      sendChatUi({ type: "queued-follow-up-edit-started", id });
+      sendSession({ type: "draft-changed", draft: followUp.text });
+      sendSession({ type: "files-added", files: [...followUp.files] });
+    },
+    commitQueuedFollowUpEdit: ({ id, text, attachments }) => {
+      const session = currentSession();
+      if (session.queuedFollowUps.some((item) => item.id === id)) {
+        sendSession({ type: "queued-follow-up-updated", id, text, files: [...attachments] });
+      }
+      if (session.files.length > 0) sendSession({ type: "files-changed", files: [] });
+      sendChatUi({ type: "queued-follow-up-edit-cleared" });
+      sendSession({ type: "draft-changed", draft: "" });
+    },
+    discardQueuedFollowUpEdit: () => {
+      if (currentSession().files.length > 0) sendSession({ type: "files-changed", files: [] });
+      sendChatUi({ type: "queued-follow-up-edit-cleared" });
+      sendSession({ type: "draft-changed", draft: "" });
+    },
     setConversationSearch: ({ search }) => {
       sendChatUi({ type: "conversation-search-changed", search });
       sendConversationStore({ type: "conversations-load-requested", search });

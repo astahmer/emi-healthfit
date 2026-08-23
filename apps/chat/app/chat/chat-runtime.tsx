@@ -267,27 +267,17 @@ export const ChatRuntimeProvider = ({
     : config.initialMessages;
   const sessionId = selectionMatches ? state.activeThread.conversationId : config.sessionId;
 
-  const clearAttachments = useCallback(() => {
-    for (const attachment of state.composer.attachments)
-      runtime.actions.removeAttachment({ attachmentId: `attachment:${attachment.url}` });
-  }, [runtime, state.composer.attachments]);
   const editingQueuedId = selectionMatches ? (state.ui.editingQueuedFollowUpId ?? null) : null;
 
   const submit = useCallback(
     async (text?: string, options?: { interrupt?: boolean }) => {
       const nextText = text ?? state.composer.text;
       if (editingQueuedId !== null) {
-        const queuedFollowUp = state.queuedFollowUps.find((item) => item.id === editingQueuedId);
-        if (queuedFollowUp !== undefined) {
-          runtime.actions.updateQueuedFollowUp({
-            id: editingQueuedId,
-            text: nextText,
-            attachments: state.composer.attachments,
-          });
-        }
-        runtime.actions.clearQueuedFollowUpEdit();
-        runtime.actions.setDraft({ text: "" });
-        clearAttachments();
+        runtime.actions.commitQueuedFollowUpEdit({
+          id: editingQueuedId,
+          text: nextText,
+          attachments: state.composer.attachments,
+        });
         return;
       }
       if (!selectionMatches) {
@@ -302,7 +292,6 @@ export const ChatRuntimeProvider = ({
       });
     },
     [
-      clearAttachments,
       config.sessionId,
       config.temporary,
       editingQueuedId,
@@ -333,22 +322,14 @@ export const ChatRuntimeProvider = ({
   );
 
   const beginEditingQueuedFollowUp = useCallback(
-    (id: string) => {
-      const item = state.queuedFollowUps.find((candidate) => candidate.id === id);
-      if (item === undefined) return;
-      clearAttachments();
-      runtime.actions.beginEditingQueuedFollowUp({ id });
-      runtime.actions.setDraft({ text: item.text });
-      runtime.actions.addAttachments({ attachments: item.attachments });
-    },
-    [clearAttachments, runtime, state.queuedFollowUps],
+    (id: string) => runtime.actions.beginQueuedFollowUpEditWithDraft({ id }),
+    [runtime],
   );
 
-  const clearQueuedFollowUpEdit = useCallback(() => {
-    runtime.actions.clearQueuedFollowUpEdit();
-    runtime.actions.setDraft({ text: "" });
-    clearAttachments();
-  }, [clearAttachments, runtime]);
+  const clearQueuedFollowUpEdit = useCallback(
+    () => runtime.actions.discardQueuedFollowUpEdit(),
+    [runtime],
+  );
 
   const error = useMemo(() => {
     if (state.error === undefined || state.error === "") return null;
