@@ -101,6 +101,11 @@ import {
   resolveQueueEditTarget,
   shouldHandleQueueArrowKey,
 } from "./web/chat-runtime/follow-up-queue-navigation.ts";
+import {
+  GenerationAlreadyRunningError,
+  OrphanTurnError,
+  parseChatConflictError,
+} from "./web/chat-conflict-errors.ts";
 import type { QueueEditNavigationState } from "./web/chat-runtime/follow-up-queue-navigation.ts";
 import type {
   ComposerControls,
@@ -178,6 +183,9 @@ export {
   writeStoredFollowUpQueue,
   resolveQueueEditTarget,
   shouldHandleQueueArrowKey,
+  GenerationAlreadyRunningError,
+  OrphanTurnError,
+  parseChatConflictError,
 };
 
 export type {

@@ -35,7 +35,7 @@ import {
   GenerationAlreadyRunningError,
   OrphanTurnError,
   parseChatConflictError,
-} from "./orphan-turn-error";
+} from "@emi/core/web";
 import {
   ChatRuntimeContext,
   type ChatRuntimeConfig,

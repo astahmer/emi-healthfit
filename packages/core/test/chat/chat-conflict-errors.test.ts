@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
 import {
   GenerationAlreadyRunningError,
   OrphanTurnError,
   parseChatConflictError,
-} from "./orphan-turn-error";
+} from "../../src/web/chat-conflict-errors.ts";
 
 describe("parseChatConflictError", () => {
   it("parses orphan user turn conflicts", async () => {
@@ -14,8 +16,8 @@ describe("parseChatConflictError", () => {
 
     const error = await parseChatConflictError(response);
 
-    expect(error).toBeInstanceOf(OrphanTurnError);
-    expect(error).toMatchObject({ orphanMessageId });
+    assert.ok(error instanceof OrphanTurnError);
+    assert.equal(error.orphanMessageId, orphanMessageId);
   });
 
   it("parses generation-already-running conflicts", async () => {
@@ -29,12 +31,22 @@ describe("parseChatConflictError", () => {
 
     const error = await parseChatConflictError(response);
 
-    expect(error).toBeInstanceOf(GenerationAlreadyRunningError);
-    expect(error?.message).toContain("already in progress");
+    assert.ok(error instanceof GenerationAlreadyRunningError);
+    assert.match(error.message, /already in progress/);
   });
 
   it("ignores non-conflict statuses", async () => {
     const response = new Response(JSON.stringify({ error: "nope" }), { status: 500 });
-    expect(await parseChatConflictError(response)).toBeUndefined();
+    assert.equal(await parseChatConflictError(response), undefined);
+  });
+
+  it("ignores conflict bodies that match neither schema", async () => {
+    const response = new Response(JSON.stringify({ error: "different" }), { status: 409 });
+    assert.equal(await parseChatConflictError(response), undefined);
+  });
+
+  it("ignores malformed JSON bodies", async () => {
+    const response = new Response("{not json", { status: 409 });
+    assert.equal(await parseChatConflictError(response), undefined);
   });
 });
