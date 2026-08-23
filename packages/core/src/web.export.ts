@@ -112,6 +112,12 @@ import type {
   SessionMessageUsage,
   SessionThread,
 } from "./web/session-cache.ts";
+import { sidebarItemMachine } from "./web/sidebar/sidebar-item-machine.ts";
+import type {
+  SidebarItemContext,
+  SidebarItemEvent,
+  SidebarItemInput,
+} from "./web/sidebar/sidebar-item-machine.ts";
 import {
   clearSessionCache,
   deleteCachedThread,
@@ -213,10 +219,14 @@ export {
   setCachedConversationSnapshot,
   setCachedThreads,
   updateCachedThread,
+  sidebarItemMachine,
 };
 
 export type {
   QueueEditNavigationState,
+  SidebarItemContext,
+  SidebarItemEvent,
+  SidebarItemInput,
   SessionMessage,
   SessionMessageUsage,
   SessionThread,
