@@ -20,6 +20,7 @@ import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
 import {
   attachmentPreparationMachine,
+  createBrowserChatDefaults,
   createBrowserFollowUpQueueSyncAdapter,
   toAttachment as coreToAttachment,
   toFilePart as coreToFilePart,
@@ -76,8 +77,15 @@ const createHealthFitChatRuntime = ({
   persistence: ReturnType<typeof createHealthFitConversationClient>;
   queryClient: QueryClient;
   queueSyncAdapter: ReturnType<typeof createBrowserFollowUpQueueSyncAdapter>;
-}) =>
-  createChatRuntime({
+}) => {
+  const browserDefaults = createBrowserChatDefaults({
+    draftsStorage: window.localStorage,
+    navigator: window.navigator,
+    eventTarget: window,
+    createId: () => crypto.randomUUID(),
+    now: () => new Date().toISOString(),
+  });
+  return createChatRuntime({
     transport: {
       baseUrl: "/api",
       fetch: window.fetch.bind(window),
@@ -137,28 +145,10 @@ const createHealthFitChatRuntime = ({
         set: () => undefined,
         remove: () => undefined,
       },
-      drafts: {
-        get: (key) => window.localStorage.getItem(key),
-        set: (key, value) => window.localStorage.setItem(key, value),
-        remove: (key) => window.localStorage.removeItem(key),
-      },
+      drafts: browserDefaults.storage.drafts,
     },
-    browser: {
-      online: navigator.onLine,
-      subscribeOnline: (listener) => {
-        const update = () => listener(navigator.onLine);
-        window.addEventListener("online", update);
-        window.addEventListener("offline", update);
-        return () => {
-          window.removeEventListener("online", update);
-          window.removeEventListener("offline", update);
-        };
-      },
-    },
-    identity: {
-      createId: () => crypto.randomUUID(),
-      now: () => new Date().toISOString(),
-    },
+    browser: browserDefaults.browser,
+    identity: browserDefaults.identity,
     settings: {
       defaults: {
         provider: useSettings.getState().settings.provider,
@@ -182,6 +172,7 @@ const createHealthFitChatRuntime = ({
       webSearch: true,
     },
   });
+};
 
 export const ChatRuntimeProvider = ({
   config,

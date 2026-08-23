@@ -153,6 +153,7 @@ import type {
   SidebarItemEvent,
   SidebarItemInput,
 } from "./web/sidebar/sidebar-item-machine.ts";
+import { createBrowserChatDefaults } from "./web/chat-runtime/browser-defaults.ts";
 import { createDefaultChatErrorDecoder } from "./web/chat-runtime/default-error-decoder.ts";
 import {
   toAttachment,
@@ -256,6 +257,7 @@ export {
   toFilePart,
   toUiMessage,
   toUiMessages,
+  createBrowserChatDefaults,
   clearSessionCache,
   deleteCachedThread,
   getCachedConversationSnapshot,
