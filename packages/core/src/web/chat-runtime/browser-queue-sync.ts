@@ -193,3 +193,39 @@ export const createBrowserFollowUpQueueSyncAdapter = ({
     },
   };
 };
+
+export interface WindowFollowUpQueueSyncOptions {
+  readonly target: {
+    readonly localStorage: BrowserStorageLike;
+    readonly addEventListener: (
+      type: "storage",
+      listener: (event: { readonly key: string | null; readonly newValue: string | null }) => void,
+    ) => void;
+    readonly removeEventListener: (
+      type: "storage",
+      listener: (event: { readonly key: string | null; readonly newValue: string | null }) => void,
+    ) => void;
+  };
+  readonly BroadcastChannel?: {
+    new (name: string): BrowserQueueChannelLike;
+  };
+  readonly createTabId: () => string;
+}
+
+export const createWindowFollowUpQueueSyncAdapter = ({
+  target,
+  BroadcastChannel,
+  createTabId,
+}: WindowFollowUpQueueSyncOptions): ChatQueueSyncAdapter =>
+  createBrowserFollowUpQueueSyncAdapter({
+    storage: target.localStorage,
+    createId: createTabId,
+    createChannel:
+      BroadcastChannel === undefined ? undefined : (name) => new BroadcastChannel(name),
+    subscribeStorage: (listener) => {
+      const onStorage = (event: { readonly key: string | null; readonly newValue: string | null }) =>
+        listener(event);
+      target.addEventListener("storage", onStorage);
+      return () => target.removeEventListener("storage", onStorage);
+    },
+  });

@@ -154,6 +154,9 @@ import type {
   SidebarItemInput,
 } from "./web/sidebar/sidebar-item-machine.ts";
 import { createBrowserChatDefaults } from "./web/chat-runtime/browser-defaults.ts";
+import {
+  createWindowFollowUpQueueSyncAdapter,
+} from "./web/chat-runtime/browser-queue-sync.ts";
 import { createDefaultChatErrorDecoder } from "./web/chat-runtime/default-error-decoder.ts";
 import {
   toAttachment,
@@ -258,6 +261,7 @@ export {
   toUiMessage,
   toUiMessages,
   createBrowserChatDefaults,
+  createWindowFollowUpQueueSyncAdapter,
   clearSessionCache,
   deleteCachedThread,
   getCachedConversationSnapshot,

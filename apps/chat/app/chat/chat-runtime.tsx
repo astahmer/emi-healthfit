@@ -21,7 +21,7 @@ import type { Note } from "@emi/core/contract";
 import {
   attachmentPreparationMachine,
   createBrowserChatDefaults,
-  createBrowserFollowUpQueueSyncAdapter,
+  createWindowFollowUpQueueSyncAdapter,
   toAttachment as coreToAttachment,
   toFilePart as coreToFilePart,
   toUiMessage as coreToUiMessage,
@@ -76,7 +76,7 @@ const createHealthFitChatRuntime = ({
   onHistoryChangedRef: MutableRef<((snapshot: ConversationSnapshot) => void) | undefined>;
   persistence: ReturnType<typeof createHealthFitConversationClient>;
   queryClient: QueryClient;
-  queueSyncAdapter: ReturnType<typeof createBrowserFollowUpQueueSyncAdapter>;
+  queueSyncAdapter: ReturnType<typeof createWindowFollowUpQueueSyncAdapter>;
 }) => {
   const browserDefaults = createBrowserChatDefaults({
     draftsStorage: window.localStorage,
@@ -194,18 +194,10 @@ export const ChatRuntimeProvider = ({
   const persistence = useMemo(() => createHealthFitConversationClient(), []);
   const queueSyncAdapter = useMemo(
     () =>
-      createBrowserFollowUpQueueSyncAdapter({
-        storage: window.localStorage,
-        createId: () => crypto.randomUUID(),
-        createChannel:
-          typeof BroadcastChannel === "undefined"
-            ? undefined
-            : (name) => new BroadcastChannel(name),
-        subscribeStorage: (listener) => {
-          const onStorage = (event: StorageEvent) => listener(event);
-          window.addEventListener("storage", onStorage);
-          return () => window.removeEventListener("storage", onStorage);
-        },
+      createWindowFollowUpQueueSyncAdapter({
+        target: window,
+        BroadcastChannel: typeof BroadcastChannel === "undefined" ? undefined : BroadcastChannel,
+        createTabId: () => crypto.randomUUID(),
       }),
     [],
   );
