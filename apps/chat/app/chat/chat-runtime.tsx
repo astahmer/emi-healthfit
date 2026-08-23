@@ -18,8 +18,6 @@ import type { ChatUiMessage } from "@emi/core/chat";
 import { ChatProvider } from "@emi/core/react";
 import type { Attachment, ChatMessage } from "@emi/core/protocol";
 import type { Note } from "@emi/core/contract";
-import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
 import { attachmentPreparationMachine, createBrowserFollowUpQueueSyncAdapter } from "@emi/core/web";
 import { buildNotesContext } from "../notes";
 import { useSettings } from "../settings-store";
@@ -31,11 +29,7 @@ import {
   createHealthFitConversationClient,
   extractHealthFitAssistantMemories,
 } from "./healthfit-chat-adapter";
-import {
-  GenerationAlreadyRunningError,
-  OrphanTurnError,
-  parseChatConflictError,
-} from "@emi/core/web";
+import { createDefaultChatErrorDecoder } from "@emi/core/web";
 import {
   ChatRuntimeContext,
   type ChatRuntimeConfig,
@@ -81,24 +75,7 @@ const toQueuedFollowUp = ({
 const toUiMessages = ({ messages }: { messages: ReadonlyArray<ChatMessage> }) =>
   messages.map(toUiMessage);
 
-const decodeTransportError = async ({
-  response,
-}: {
-  response: Response;
-}): Promise<{ message: string; messageId?: string } | undefined> => {
-  const error = await parseChatConflictError(response);
-  if (error instanceof OrphanTurnError) {
-    return { message: error.message, messageId: error.orphanMessageId };
-  }
-  if (error instanceof GenerationAlreadyRunningError) return { message: error.message };
-  const body: unknown = await response
-    .clone()
-    .json()
-    .catch(() => undefined);
-  const decoded = Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String }))(body);
-  if (Option.isSome(decoded)) return { message: decoded.value.error };
-  return undefined;
-};
+const decodeTransportError = createDefaultChatErrorDecoder();
 
 type MutableRef<Value> = { current: Value };
 

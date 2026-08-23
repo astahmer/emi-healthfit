@@ -153,6 +153,7 @@ import type {
   SidebarItemEvent,
   SidebarItemInput,
 } from "./web/sidebar/sidebar-item-machine.ts";
+import { createDefaultChatErrorDecoder } from "./web/chat-runtime/default-error-decoder.ts";
 import {
   clearSessionCache,
   deleteCachedThread,
@@ -244,6 +245,7 @@ export {
   GenerationAlreadyRunningError,
   OrphanTurnError,
   parseChatConflictError,
+  createDefaultChatErrorDecoder,
   clearSessionCache,
   deleteCachedThread,
   getCachedConversationSnapshot,
