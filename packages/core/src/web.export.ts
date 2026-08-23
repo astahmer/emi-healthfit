@@ -118,6 +118,16 @@ import {
   decodeThreadRow,
 } from "./web/conversation-snapshot.ts";
 import { FallbackResult } from "./web/thread/tool-result-content.tsx";
+import {
+  chatMessageText,
+  hasVisibleChatContent,
+  toThreadMessageValue,
+} from "./web/thread/chat-message-adapter.ts";
+import {
+  messageEditorMachine,
+  type MessageEditorContext,
+  type MessageEditorEvent,
+} from "./web/thread/message-editor-machine.ts";
 import type {
   ChatConversation,
   ChatMessageNode,
@@ -246,9 +256,15 @@ export {
   decodeThreadRow,
   conversationMachine,
   FallbackResult,
+  chatMessageText,
+  hasVisibleChatContent,
+  toThreadMessageValue,
+  messageEditorMachine,
 };
 
 export type {
+  MessageEditorContext,
+  MessageEditorEvent,
   CompactConversationConfig,
   ConversationContext,
   ConversationEvent,

@@ -5,14 +5,16 @@ import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import type { ChatUiMessage } from "@emi/core/chat";
 import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-import { assign, setup } from "xstate";
 import {
   ChatThreadScroll,
   MessageRail,
   SuggestionChips,
   ThreadMessage,
+  chatMessageText as getText,
+  hasVisibleChatContent as hasVisibleContent,
+  messageEditorMachine,
+  toThreadMessageValue as toThreadMessage,
   useThreadViewportScroll,
-  type ThreadMessageValue,
 } from "@emi/core/web";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -35,58 +37,6 @@ const suggestions = [
   "What's my current workout streak?",
   "Show my progress on bench press over the last 8 weeks.",
 ];
-
-const messageEditorMachine = setup({
-  types: {
-    context: {} as { messageId: string | null; draft: string },
-    events: {} as
-      | { type: "edit.start"; messageId: string; draft: string }
-      | { type: "edit.change"; draft: string }
-      | { type: "edit.cancel" },
-  },
-}).createMachine({
-  initial: "idle",
-  context: { messageId: null, draft: "" },
-  states: {
-    idle: {
-      on: {
-        "edit.start": {
-          target: "editing",
-          actions: assign(({ event }) => ({ messageId: event.messageId, draft: event.draft })),
-        },
-      },
-    },
-    editing: {
-      on: {
-        "edit.change": { actions: assign(({ event }) => ({ draft: event.draft })) },
-        "edit.cancel": {
-          target: "idle",
-          actions: assign({ messageId: () => null, draft: () => "" }),
-        },
-      },
-    },
-  },
-});
-
-const getText = (message: ChatUiMessage | undefined): string =>
-  message?.parts.reduce(
-    (text, part) => (part.type === "text" ? `${text}${text === "" ? "" : "\n"}${part.text}` : text),
-    "",
-  ) ?? "";
-
-const toThreadMessage = (message: ChatUiMessage): ThreadMessageValue => ({
-  id: message.id,
-  role: message.role,
-  parts: message.parts,
-});
-
-const hasVisibleContent = (message: ChatUiMessage): boolean =>
-  message.parts.some((part) => {
-    if (part.type === "text" || part.type === "reasoning") {
-      return typeof part.text === "string" && part.text.trim() !== "";
-    }
-    return true;
-  });
 
 const StreamingIndicator = () => (
   <span
