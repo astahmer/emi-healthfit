@@ -1,6 +1,7 @@
 import { useActor } from "@xstate/react";
 import { useEffect } from "react";
-import { conversationMachine, type ConversationMachineInput } from "./conversation-machine";
+import type { ConversationMachineInput } from "@emi/core/web";
+import { conversationMachine } from "./conversation-machine";
 
 export const useConversationMachine = (
   conversationId: string | undefined,

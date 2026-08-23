@@ -123,6 +123,15 @@ import type {
   ChatThreadView,
   ConversationSnapshotData,
 } from "./web/conversation-snapshot.ts";
+import { conversationMachine } from "./web/conversation/conversation-machine.ts";
+import type {
+  CompactConversationConfig,
+  ConversationContext,
+  ConversationEvent,
+  ConversationLoadOutput,
+  ConversationMachineInput,
+  ViewMode,
+} from "./web/conversation/conversation-machine.ts";
 import { sidebarItemMachine } from "./web/sidebar/sidebar-item-machine.ts";
 import type {
   SidebarItemContext,
@@ -234,9 +243,16 @@ export {
   decodeConversationSnapshot,
   decodeConversationRow,
   decodeThreadRow,
+  conversationMachine,
 };
 
 export type {
+  CompactConversationConfig,
+  ConversationContext,
+  ConversationEvent,
+  ConversationLoadOutput,
+  ConversationMachineInput,
+  ViewMode,
   QueueEditNavigationState,
   ChatConversation,
   ChatMessageNode,
