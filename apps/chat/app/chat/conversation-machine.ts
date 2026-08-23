@@ -1,6 +1,4 @@
 import { assign, fromPromise, setup } from "xstate";
-import type { UIMessage } from "ai";
-import type { MessageUsage } from "../sessions";
 import {
   discardThread as discardThreadApi,
   fetchConversationMessages,
@@ -14,39 +12,19 @@ import {
 } from "../conversations";
 import { searchMessages } from "@emi/core/web";
 import { conversationMarkdown } from "@emi/core/web";
+import type { SessionMessageUsage } from "@emi/core/web";
 
 type ViewMode = "inline" | "sidebar" | "columns";
 
-export interface Conversation {
-  id: string;
-  title: string | null;
-  status: "regular" | "archived";
-  createdAt: string;
-  updatedAt: string;
-}
+import type {
+  ChatConversation,
+  ChatMessageNode,
+  ChatThreadView,
+} from "@emi/core/web";
 
-export interface MessageNode {
-  id: string;
-  conversationId: string;
-  parentId: string | null;
-  role: "user" | "assistant" | "system" | "summary";
-  parts: UIMessage["parts"];
-  usage?: MessageUsage;
-  model?: string;
-  createdAt: string;
-}
-
-export interface ThreadView {
-  id: string;
-  conversationId: string;
-  anchorMessageId: string;
-  title: string | null;
-  status: "regular" | "discarded" | "merged";
-  pinned: boolean;
-  messageIds: string[];
-  createdAt: string;
-  updatedAt: string;
-}
+type Conversation = ChatConversation;
+type MessageNode = ChatMessageNode;
+type ThreadView = ChatThreadView;
 
 export interface CompactConversationConfig {
   apiKey: string;

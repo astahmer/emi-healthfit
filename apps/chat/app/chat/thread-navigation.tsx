@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
-import type { MessageNode, ThreadView } from "./conversation-machine";
+import type { ChatMessageNode as MessageNode, ChatThreadView as ThreadView } from "@emi/core/web";
 import { getMessageText } from "@emi/core/web";
 
 interface ThreadNavigationProps {

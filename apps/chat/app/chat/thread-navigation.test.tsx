@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ThreadNavigation } from "./thread-navigation";
-import type { MessageNode, ThreadView } from "./conversation-machine";
+import type { ChatMessageNode as MessageNode, ChatThreadView as ThreadView } from "@emi/core/web";
 
 const message: MessageNode = {
   id: "message-1",

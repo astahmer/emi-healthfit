@@ -1,12 +1,12 @@
 import { createActor, fromPromise, setup, waitFor } from "xstate";
 import { getShortestPaths } from "xstate/graph";
 import { describe, expect, it } from "vitest";
-import {
-  conversationMachine,
-  type Conversation,
-  type MessageNode,
-  type ThreadView,
-} from "./conversation-machine.ts";
+import type {
+  ChatConversation as Conversation,
+  ChatMessageNode as MessageNode,
+  ChatThreadView as ThreadView,
+} from "@emi/core/web";
+import { conversationMachine } from "./conversation-machine.ts";
 
 const conversation: Conversation = {
   id: "one",

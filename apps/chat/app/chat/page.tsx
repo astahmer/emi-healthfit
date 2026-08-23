@@ -15,7 +15,7 @@ import { chatModels } from "../models";
 import type { ChatSearch } from "../router";
 import { createConversationWithMessages } from "../sessions";
 import { composerConfigMachine } from "./composer-config-machine";
-import type { MessageNode } from "./conversation-machine";
+import type { ChatMessageNode as MessageNode } from "@emi/core/web";
 import { conversationMarkdown } from "@emi/core/web";
 import { getConversationViewMessages } from "@emi/core/web";
 import { ChatPageContent } from "./chat-page-content";

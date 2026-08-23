@@ -1,115 +1,24 @@
-import type { Conversation, MessageNode, ThreadView } from "./chat/conversation-machine";
-import { getCachedConversationSnapshot, setCachedConversationSnapshot } from "@emi/core/web";
-import { Chat } from "@emi/core/chat";
-import * as Schema from "effect/Schema";
+import {
+  decodeConversationRow,
+  decodeConversationSnapshot,
+  decodeThreadRow,
+  getCachedConversationSnapshot,
+  setCachedConversationSnapshot,
+  type ChatConversation,
+  type ChatMessageNode,
+  type ChatThreadView,
+  type ConversationSnapshotData,
+} from "@emi/core/web";
 import { runApi } from "./api-client";
 import { notifyConversationsChanged } from "./conversation-events";
-import { ChatProtocol } from "@emi/core/protocol";
 
-const conversationSchema = Schema.Struct({
-  id: Schema.String,
-  title: Schema.NullOr(Schema.String),
-  status: Schema.Literals(["regular", "archived"]),
-  created_at: Schema.String,
-  updated_at: Schema.String,
-});
+export type Conversation = ChatConversation;
+export type MessageNode = ChatMessageNode;
+export type ThreadView = ChatThreadView;
 
-const messageSchema = Schema.Struct({
-  id: Schema.String,
-  conversationId: Schema.optional(Schema.String),
-  parentId: Schema.optional(Schema.NullOr(Schema.String)),
-  role: Schema.Literals(["user", "assistant", "system", "summary"]),
-  parts: Schema.Array(ChatProtocol.schemas.messagePart),
-  usage: Schema.optional(
-    Schema.Struct({
-      promptTokens: Schema.NullOr(Schema.Number),
-      completionTokens: Schema.NullOr(Schema.Number),
-      totalTokens: Schema.NullOr(Schema.Number),
-    }),
-  ),
-  model: Schema.optional(Schema.String),
-  createdAt: Schema.String,
-});
-
-const threadSchema = Schema.Struct({
-  id: Schema.String,
-  conversation_id: Schema.String,
-  anchor_message_id: Schema.String,
-  title: Schema.NullOr(Schema.String),
-  status: Schema.Literals(["regular", "discarded", "merged"]),
-  pinned: Schema.Boolean,
-  message_ids: Schema.Array(Schema.String),
-  created_at: Schema.String,
-  updated_at: Schema.String,
-});
-
-const conversationPayloadSchema = Schema.Struct({
-  conversation: conversationSchema,
-  messages: Schema.Array(messageSchema),
-  threads: Schema.Array(threadSchema),
-});
-
-export type ConversationSnapshot = {
-  conversation: Conversation;
-  messages: MessageNode[];
-  threads: ThreadView[];
-};
+export type ConversationSnapshot = ConversationSnapshotData;
 
 const memorySnapshots = new Map<string, ConversationSnapshot>();
-
-const toConversation = (raw: typeof conversationSchema.Type): Conversation => ({
-  id: raw.id,
-  title: raw.title,
-  status: raw.status,
-  createdAt: raw.created_at,
-  updatedAt: raw.updated_at,
-});
-
-const toThread = (raw: typeof threadSchema.Type): ThreadView => ({
-  id: raw.id,
-  conversationId: raw.conversation_id,
-  anchorMessageId: raw.anchor_message_id,
-  title: raw.title,
-  status: raw.status,
-  pinned: raw.pinned,
-  messageIds: [...raw.message_ids],
-  createdAt: raw.created_at,
-  updatedAt: raw.updated_at,
-});
-
-const toMessage = ({
-  raw,
-  conversationId,
-}: {
-  raw: typeof messageSchema.Type;
-  conversationId: string;
-}): MessageNode => ({
-  ...raw,
-  parts: Chat.messages.fromProtocolMessage({
-    id: raw.id,
-    role: raw.role === "summary" ? "assistant" : raw.role,
-    parts: raw.parts,
-  }).parts,
-  conversationId: raw.conversationId ?? conversationId,
-  parentId: raw.parentId ?? null,
-});
-
-const decodeConversationSnapshot = ({
-  data,
-  conversationId,
-}: {
-  data: unknown;
-  conversationId: string;
-}): ConversationSnapshot => {
-  const raw = Schema.decodeUnknownSync(conversationPayloadSchema)(data);
-  return {
-    conversation: toConversation(raw.conversation),
-    messages: Chat.messages
-      .collapseCompactedMessages(raw.messages)
-      .map((message) => toMessage({ raw: message, conversationId })),
-    threads: raw.threads.map(toThread),
-  };
-};
 
 const getCachedConversationMessages = async (
   conversationId: string,
@@ -157,7 +66,7 @@ export const forkThread = async (
       payload: { anchorMessageId, title },
     }),
   );
-  const created = toThread(Schema.decodeUnknownSync(threadSchema)(thread));
+  const created = decodeThreadRow(thread);
   notifyConversationsChanged();
   return created;
 };
@@ -172,9 +81,7 @@ export const compactConversation = async ({
   const data = await runApi((client) =>
     client.conversations.compact({ params: { id: conversationId }, payload: config }),
   );
-  const conversation = toConversation(
-    Schema.decodeUnknownSync(conversationSchema)(data.conversation),
-  );
+  const conversation = decodeConversationRow(data.conversation);
   notifyConversationsChanged();
   return conversation;
 };

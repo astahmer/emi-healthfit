@@ -11,7 +11,7 @@ import { ConversationUsage } from "../usage-context";
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import type { Conversation, MessageNode, ThreadView } from "./conversation-machine";
+import type { ChatConversation as Conversation, ChatMessageNode as MessageNode, ChatThreadView as ThreadView } from "@emi/core/web";
 import { ThreadNavigation } from "./thread-navigation";
 
 export const ChatPageHeader = ({

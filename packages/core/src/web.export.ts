@@ -112,6 +112,17 @@ import type {
   SessionMessageUsage,
   SessionThread,
 } from "./web/session-cache.ts";
+import {
+  decodeConversationRow,
+  decodeConversationSnapshot,
+  decodeThreadRow,
+} from "./web/conversation-snapshot.ts";
+import type {
+  ChatConversation,
+  ChatMessageNode,
+  ChatThreadView,
+  ConversationSnapshotData,
+} from "./web/conversation-snapshot.ts";
 import { sidebarItemMachine } from "./web/sidebar/sidebar-item-machine.ts";
 import type {
   SidebarItemContext,
@@ -220,10 +231,17 @@ export {
   setCachedThreads,
   updateCachedThread,
   sidebarItemMachine,
+  decodeConversationSnapshot,
+  decodeConversationRow,
+  decodeThreadRow,
 };
 
 export type {
   QueueEditNavigationState,
+  ChatConversation,
+  ChatMessageNode,
+  ChatThreadView,
+  ConversationSnapshotData,
   SidebarItemContext,
   SidebarItemEvent,
   SidebarItemInput,
