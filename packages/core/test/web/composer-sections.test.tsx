@@ -27,6 +27,21 @@ describe("ComposerQueue", () => {
     return props;
   };
 
+  it("labels the queue purpose and shows the pending count", () => {
+    renderQueue(undefined, [baseItem(), baseItem({ id: "queue-2", text: "second" })]);
+
+    const panel = screen.getByLabelText("Queued follow-ups");
+    expect(panel).toHaveTextContent("Queued — sends after the current reply");
+    expect(panel).toHaveTextContent("2 messages");
+  });
+
+  it("uses the singular count label for a single queued message", () => {
+    renderQueue();
+
+    const panel = screen.getByLabelText("Queued follow-ups");
+    expect(panel).toHaveTextContent("1 message");
+  });
+
   it("renders nothing when the queue is empty", () => {
     const { container } = render(
       <ComposerQueue

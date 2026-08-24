@@ -28,6 +28,13 @@ export const ComposerQueue: FC<ComposerQueueProps> = ({
   if (queuedFollowUps.length === 0) return null;
   return (
     <div className="mx-2 mb-2 space-y-1.5" aria-label="Queued follow-ups">
+      <div className="flex items-center justify-between px-1 text-xs font-medium text-muted-foreground">
+        <span>Queued — sends after the current reply</span>
+        <span>
+          {queuedFollowUps.length}
+          {queuedFollowUps.length === 1 ? " message" : " messages"}
+        </span>
+      </div>
       {queuedFollowUps.map((item, index) => (
         <div
           key={item.id}
