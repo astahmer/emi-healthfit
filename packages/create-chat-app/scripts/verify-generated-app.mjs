@@ -186,8 +186,12 @@ try {
     // Warm the auth handler and D1 binding: the first signed request pays a
     // multi-second cold-start that otherwise eats into test timeouts.
     await Promise.all([
-      fetch(`${workerOrigin}/api/auth/get-session`).then((r) => r.text()).catch(() => undefined),
-      fetch(`${webOrigin}/api/auth/get-session`).then((r) => r.text()).catch(() => undefined),
+      fetch(`${workerOrigin}/api/auth/get-session`)
+        .then((r) => r.text())
+        .catch(() => undefined),
+      fetch(`${webOrigin}/api/auth/get-session`)
+        .then((r) => r.text())
+        .catch(() => undefined),
     ]);
     await run({
       command: "pnpm",

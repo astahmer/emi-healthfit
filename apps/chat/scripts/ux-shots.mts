@@ -99,16 +99,13 @@ await shoot("02-new-chat");
 }
 
 // 5 error banner
-({
-  page,
-} = await newPage({
+({ page } = await newPage({
   transform: (state) => {
     state.chat.stream = ({ messageId }) =>
       fixtures.providerErrorStream({ messageId, errorText: "Model overloaded, retry later." });
   },
 }));
 {
-  const { providerErrorStream } = await import("../e2e/mock/fixtures.ts");
   await page.goto(`http://localhost:${PORT}/chat`);
   await page.waitForTimeout(1200);
   await page.getByLabel("Message input").fill("Trigger failure");
@@ -163,7 +160,6 @@ if ((await toggle.count()) > 0) {
 await page.goto(`http://localhost:${PORT}/chat`);
 await page.waitForTimeout(1500);
 await shoot("16-mobile-new-chat-dark");
-
 
 writeFileSync(`${OUT}/index.json`, JSON.stringify(shots, null, 2));
 await closePage();
