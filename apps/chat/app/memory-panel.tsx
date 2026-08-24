@@ -16,6 +16,24 @@ const memorySource = (source: string | null | undefined): string => {
   return "Saved";
 };
 
+const QueryErrorCard = ({
+  title,
+  onRetry,
+}: {
+  title: string;
+  onRetry: () => void;
+}) => (
+  <div
+    role="alert"
+    className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"
+  >
+    <span className="text-destructive">{title}</span>
+    <Button variant="outline" size="sm" onClick={onRetry}>
+      Retry
+    </Button>
+  </div>
+);
+
 export function MemoryPanel() {
   const feedback = useActionFeedback();
   const queryClient = useQueryClient();
@@ -26,6 +44,7 @@ export function MemoryPanel() {
     data: memories = [],
     isLoading,
     error,
+    refetch: refetchMemories,
   } = useQuery({
     queryKey: queryKeys.memories.list({ search }),
     queryFn: () => MemoryDomain.list({ search: search || undefined }),
@@ -40,6 +59,7 @@ export function MemoryPanel() {
     data: summary,
     isLoading: summaryLoading,
     error: summaryError,
+    refetch: refetchSummary,
   } = useQuery({
     queryKey: queryKeys.memories.summary,
     queryFn: () => MemoryDomain.summary(),
@@ -138,7 +158,7 @@ export function MemoryPanel() {
         />
         <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-muted-foreground text-xs">
-            {summary === undefined
+            {summary == null
               ? "No summary has been saved yet."
               : `${summary.memory_count} source ${summary.memory_count === 1 ? "memory" : "memories"} · updated ${new Date(summary.updated_at).toLocaleString()}`}
           </p>
@@ -150,7 +170,12 @@ export function MemoryPanel() {
           </Button>
         </div>
         {summaryError !== null && (
-          <p className="text-destructive mt-2 text-sm">{summaryError.message}</p>
+          <div className="mt-2">
+            <QueryErrorCard
+              title="Couldn't load the memory summary."
+              onRetry={() => void refetchSummary()}
+            />
+          </div>
         )}
       </section>
 
@@ -176,7 +201,9 @@ export function MemoryPanel() {
       />
 
       {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
-      {error !== null && <p className="text-destructive text-sm">{error.message}</p>}
+      {error !== null && (
+        <QueryErrorCard title="Couldn't load memories." onRetry={() => void refetchMemories()} />
+      )}
 
       <ul aria-label="Active memories" className="space-y-2">
         {memories.map((memory) => {
