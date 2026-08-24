@@ -26,6 +26,7 @@ import { WorkoutsPanel } from "./web/workouts-panel.tsx";
 const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   {
     id: "chat",
+    section: "product",
     label: "Chat",
     href: "/chat",
     order: 0,
@@ -34,6 +35,7 @@ const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   },
   {
     id: "upload",
+    section: "product",
     label: "Upload",
     href: "/upload",
     order: 1,
@@ -42,6 +44,7 @@ const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   },
   {
     id: "workouts",
+    section: "product",
     label: "Workouts",
     href: "/workouts",
     order: 2,
@@ -50,6 +53,7 @@ const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   },
   {
     id: "summary",
+    section: "product",
     label: "Trends",
     href: "/summary",
     order: 3,
@@ -58,6 +62,7 @@ const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   },
   {
     id: "notes",
+    section: "data",
     label: "Notes",
     href: "/notes",
     order: 4,
@@ -66,6 +71,7 @@ const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   },
   {
     id: "memory",
+    section: "data",
     label: "Memory",
     href: "/memory",
     order: 5,
@@ -74,6 +80,7 @@ const healthFitNav: NonNullable<CoreWebContributions["nav"]> = [
   },
   {
     id: "settings",
+    section: "system",
     label: "Settings",
     href: "/settings",
     order: 7,

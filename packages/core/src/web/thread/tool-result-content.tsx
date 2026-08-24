@@ -93,6 +93,8 @@ export const FallbackResult: FC<{ value: unknown; className?: string }> = ({
 
 export interface ToolResultContentProps {
   toolName: string;
+  /** Set when an ancestor already renders the tool name header. */
+  hideHeader?: boolean;
   result?: unknown;
   className?: string;
   renderComponent?: (spec: unknown) => ReactNode;
@@ -100,6 +102,7 @@ export interface ToolResultContentProps {
 
 const ToolResultContentImpl: FC<ToolResultContentProps> = ({
   toolName,
+  hideHeader = false,
   result,
   className,
   renderComponent,
@@ -149,10 +152,12 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({
       data-testid="tool-result-card"
       className="overflow-hidden rounded-xl border bg-muted/30"
     >
-      <div className="flex items-center gap-1.5 border-b bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-        <WrenchIcon className="size-3" />
-        {toolName}
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center gap-1.5 border-b bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+          <WrenchIcon className="size-3" />
+          {toolName}
+        </div>
+      )}
       <FallbackResult value={parsed} className="mt-0 rounded-none border-0 bg-transparent" />
     </div>
   );

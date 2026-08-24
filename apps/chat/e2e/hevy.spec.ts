@@ -157,6 +157,6 @@ test("removes Hevy cached data after confirmation", async ({ page }) => {
 
   await page.getByRole("link", { name: "Workouts" }).click();
   await expect(
-    page.getByText("No workouts found. Upload a Hevy export to get started."),
+    page.getByText("No workouts yet"),
   ).toBeVisible();
 });

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { ReactNode } from "react";
 import { useCoreWebContributions, type NavContribution } from "./contributions";
 
@@ -29,7 +30,22 @@ export const ChatShell = ({
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         {title !== undefined && <div className="font-semibold">{title}</div>}
         <nav aria-label="Primary" className="flex items-center gap-2">
-          {nav.map((item) => renderItem(item, item.href === activePath))}
+          {nav.map((item, index) => {
+            const previous = index > 0 ? nav[index - 1] : undefined;
+            const sectionChanged =
+              previous !== undefined &&
+              item.section !== undefined &&
+              previous.section !== undefined &&
+              previous.section !== item.section;
+            return (
+              <Fragment key={item.id}>
+                {sectionChanged && (
+                  <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
+                )}
+                {renderItem(item, item.href === activePath)}
+              </Fragment>
+            );
+          })}
         </nav>
         {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
       </header>

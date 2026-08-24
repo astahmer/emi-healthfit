@@ -234,9 +234,8 @@ test("navigates production-built data pages and renders empty states", async ({ 
 
   await expect(page.getByRole("heading", { name: "Upload data" })).toBeVisible();
   await page.getByRole("link", { name: "Workouts" }).click();
-  await expect(
-    page.getByText("No workouts found. Upload a Hevy export to get started."),
-  ).toBeVisible();
+  await expect(page.getByText("No workouts yet")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Upload a Hevy export" })).toBeVisible();
   await page.getByRole("link", { name: "Trends" }).click();
   await expect(page.getByRole("heading", { name: "Health overview" })).toBeVisible();
   await page.getByRole("link", { name: "Notes" }).click();

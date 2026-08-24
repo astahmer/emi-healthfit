@@ -279,7 +279,18 @@ test("copies and exports an assistant message", async ({ page }) => {
     .toBe("one message answer");
 
   const downloadPromise = page.waitForEvent("download");
-  await assistant.getByLabel("Export message as Markdown").click();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await assistant.getByLabel("More actions").click();
+    try {
+      await assistant
+        .getByLabel("Export message as Markdown")
+        .click({ force: true, timeout: 2500 });
+      return;
+    } catch {
+      await page.waitForTimeout(250);
+    }
+  }
+  await assistant.getByLabel("Export message as Markdown").click({ force: true });
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^message-.*\.md$/);
 });

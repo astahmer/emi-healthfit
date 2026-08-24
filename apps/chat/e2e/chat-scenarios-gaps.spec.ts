@@ -31,12 +31,21 @@ test("saves and removes an assistant message memory", async ({ page }) => {
   await mock.open(page, "/chat/one");
 
   const assistant = page.locator("#message-one-assistant");
+
+  const openMoreActions = async () => {
+    await assistant.getByLabel("More actions").click();
+    await assistant.locator("div.absolute.bottom-full").waitFor({ state: "visible" });
+  };
+
+  await openMoreActions();
   await assistant.getByLabel("Save message to memory").click();
   await expect(page.getByText("Saved 1 memory.")).toBeVisible();
-  await expect(assistant.getByLabel("Remove message memories")).toBeVisible();
 
+  await openMoreActions();
   await assistant.getByLabel("Remove message memories").click();
   await expect(page.getByText("Removed message memories.")).toBeVisible();
+
+  await openMoreActions();
   await expect(assistant.getByLabel("Save message to memory")).toBeVisible();
 });
 

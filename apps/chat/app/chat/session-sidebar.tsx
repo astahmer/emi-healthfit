@@ -407,7 +407,7 @@ export const SessionSidebar = () => {
         <SidebarContent className="overscroll-contain pb-2">
           <div className="px-2 pt-2">
             <SidebarInput
-              placeholder="Search by title or message…"
+              placeholder="Search sessions"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search sessions"

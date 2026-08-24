@@ -46,7 +46,7 @@ test("uploads health and hevy files through the flavor upload panel", async ({ p
     mimeType: "text/csv",
     buffer: Buffer.from("a,b\n1,2\n"),
   });
-  await page.getByRole("button", { name: "Upload" }).click();
+  await page.getByRole("button", { name: "Import data" }).click();
 
   await expect(page.getByText(/Uploaded!/)).toBeVisible();
   await expect(page.getByText(/Health: 1 daily/)).toBeVisible();

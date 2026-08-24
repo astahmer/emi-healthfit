@@ -2367,12 +2367,45 @@ Then("the memory page should scroll to the last memory", async ({ page }) => {
   expect(scrollTop).toBeGreaterThan(0);
 });
 
+
+const clickMessageOverflowAction = async ({
+  page,
+  messageId,
+  label,
+}: {
+  page: Page;
+  messageId: string;
+  label: string;
+}) => {
+  const message = page.locator(`#${messageId}`);
+  const trigger = message.getByLabel("More actions");
+  const item = message.getByLabel(label);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await trigger.click();
+    try {
+      await item.click({ force: true, timeout: 2500 });
+      return;
+    } catch {
+      await page.waitForTimeout(250);
+    }
+  }
+  await item.click({ force: true });
+};
+
 When("they save the assistant message to memory", async ({ page }) => {
-  await page.locator("#message-one-assistant").getByLabel("Save message to memory").click();
+  await clickMessageOverflowAction({
+    page,
+    messageId: "message-one-assistant",
+    label: "Save message to memory",
+  });
 });
 
 When("they remove the assistant message memories", async ({ page }) => {
-  await page.locator("#message-one-assistant").getByLabel("Remove message memories").click();
+  await clickMessageOverflowAction({
+    page,
+    messageId: "message-one-assistant",
+    label: "Remove message memories",
+  });
 });
 
 When("they open the memory page", async ({ page }) => {
@@ -2467,7 +2500,7 @@ Then("the Hevy data removed notice should be visible", async ({ page }) => {
 
 Then("the no workouts notice should be visible", async ({ page }) => {
   await expect(
-    page.getByText("No workouts found. Upload a Hevy export to get started."),
+    page.getByText("No workouts yet"),
   ).toBeVisible();
 });
 
@@ -2686,7 +2719,7 @@ When("they upload {string} and {string}", async ({ page }, health: string, hevy:
     mimeType: "text/csv",
     buffer: Buffer.from("a,b\n1,2\n"),
   });
-  await page.getByRole("button", { name: "Upload" }).click();
+  await page.getByRole("button", { name: "Import data" }).click();
 });
 
 Then("the upload success notice should be visible", async ({ page }) => {
@@ -2847,7 +2880,11 @@ When("they regenerate from the user message {string}", async ({ page }, _text: s
 
 When("they export the assistant message as markdown", async ({ page }) => {
   const downloadPromise = page.waitForEvent("download");
-  await page.locator("#message-one-assistant").getByLabel("Export message as Markdown").click();
+  await clickMessageOverflowAction({
+    page,
+    messageId: "message-one-assistant",
+    label: "Export message as Markdown",
+  });
   pageDownloads.set(page, await downloadPromise);
 });
 

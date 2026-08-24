@@ -8,6 +8,8 @@ export interface NavContribution {
   order?: number;
   icon?: ComponentType<{ className?: string }>;
   description?: string;
+  /** Logical grouping; a divider renders between consecutive different groups. */
+  section?: "product" | "data" | "system";
 }
 
 export interface PageContribution {

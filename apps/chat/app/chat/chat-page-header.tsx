@@ -19,6 +19,7 @@ import type {
 import { ThreadNavigation } from "./thread-navigation";
 
 export const ChatPageHeader = ({
+  isNewChatRoute,
   activeConversationId,
   conversation,
   isRenaming,
@@ -61,6 +62,7 @@ export const ChatPageHeader = ({
   onRenameSubmit: () => void;
   onRenameCancel: () => void;
   onNewChat: () => void;
+  isNewChatRoute?: boolean;
   onCopyConversation: () => void;
   onExportConversation: () => void;
   onCompactConversation: () => void;
@@ -132,20 +134,23 @@ export const ChatPageHeader = ({
           {activeConversationId !== undefined && (
             <ConversationUsage conversationId={activeConversationId} />
           )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 rounded-full"
-            aria-label="New chat"
-            onClick={onNewChat}
-          >
-            <PlusIcon className="size-4" />
-            <span className="hidden md:inline">New chat</span>
-          </Button>
+          {!isNewChatRoute && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 rounded-full"
+              aria-label="New chat"
+              onClick={onNewChat}
+            >
+              <PlusIcon className="size-4" />
+              <span className="hidden md:inline">New chat</span>
+            </Button>
+          )}
           {activeConversationId !== undefined && (
             <>
               <TooltipIconButton
+                className="hidden sm:inline-flex"
                 tooltip="Copy conversation as Markdown"
                 side="bottom"
                 type="button"
@@ -164,8 +169,7 @@ export const ChatPageHeader = ({
               >
                 <DownloadIcon className="size-4" />
               </TooltipIconButton>
-              <TooltipIconButton
-                tooltip="Compact conversation and start fresh"
+              <TooltipIconButton className="hidden sm:inline-flex"                 tooltip="Compact conversation and start fresh"
                 side="bottom"
                 type="button"
                 variant="ghost"

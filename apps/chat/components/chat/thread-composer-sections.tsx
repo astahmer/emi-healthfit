@@ -145,7 +145,9 @@ export const ComposerToolbar = ({
         type="button"
         size="sm"
         variant={composerControls.coachMode ? "secondary" : "ghost"}
-        className="shrink-0 px-2 sm:px-3"
+        aria-pressed={composerControls.coachMode}
+        className="shrink-0 px-2 sm:px-3 data-[pressed=true]:ring-1 data-[pressed=true]:ring-primary/40"
+        data-pressed={composerControls.coachMode}
         onClick={composerControls.onCoachModeChange}
       >
         <BrainIcon className="size-4" /> <span className="hidden sm:inline">Coach</span>
@@ -154,7 +156,9 @@ export const ComposerToolbar = ({
         type="button"
         size="sm"
         variant={composerControls.webSearch ? "secondary" : "ghost"}
-        className="hidden shrink-0 sm:inline-flex"
+        aria-pressed={composerControls.webSearch}
+        data-pressed={composerControls.webSearch}
+        className="hidden shrink-0 sm:inline-flex data-[pressed=true]:ring-1 data-[pressed=true]:ring-primary/40"
         disabled={!composerControls.canWebSearch}
         onClick={() => composerControls.onWebSearchChange(!composerControls.webSearch)}
       >
@@ -164,7 +168,9 @@ export const ComposerToolbar = ({
         type="button"
         size="sm"
         variant={composerControls.temporary ? "secondary" : "ghost"}
-        className="shrink-0 px-2 sm:px-3"
+        aria-pressed={composerControls.temporary}
+        data-pressed={composerControls.temporary}
+        className="shrink-0 px-2 sm:px-3 data-[pressed=true]:ring-1 data-[pressed=true]:ring-primary/40"
         disabled={runtime.isStreaming || isKeepingTemporary}
         onClick={() => {
           if (canKeepTemporary) {

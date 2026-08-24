@@ -110,7 +110,6 @@ export const ThreadMessage = ({
   onCopyResult,
   renderToolResult,
 }: ThreadMessageProps): ReactNode => {
-  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   if (message.role === "summary") {
     const summaryText = messageText(message).replace(
       /^Use this compacted summary of the previous conversation as context:\s*/i,
@@ -314,13 +313,7 @@ export const ThreadMessage = ({
             </Button>
           )}
           {(canRemember || (!isUser && !isStreaming && text.trim() !== "")) && (
-            <details
-              open={moreActionsOpen}
-              onToggle={(event) =>
-                setMoreActionsOpen((event.target as HTMLDetailsElement).open)
-              }
-              className="relative"
-            >
+            <details className="relative">
               <summary
                 title="More actions"
                 aria-label="More actions"
@@ -334,8 +327,8 @@ export const ThreadMessage = ({
                     type="button"
                     aria-label={isRemembered ? "Remove message memories" : "Save message to memory"}
                     className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent disabled:opacity-50"
-                    onClick={() => {
-                      setMoreActionsOpen(false);
+                    onClick={(event) => {
+                      event.currentTarget.closest("details")?.removeAttribute("open");
                       void onRemember(message);
                     }}
                     disabled={isRemembering}
@@ -353,8 +346,8 @@ export const ThreadMessage = ({
                     type="button"
                     aria-label="Export message as Markdown"
                     className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent"
-                    onClick={() => {
-                      setMoreActionsOpen(false);
+                    onClick={(event) => {
+                      event.currentTarget.closest("details")?.removeAttribute("open");
                       exportMessage(message);
                     }}
                   >

@@ -117,7 +117,7 @@ export const ToolPart = ({
           (renderToolResult !== undefined ? (
             renderToolResult({ toolName, result })
           ) : (
-            <ToolResultContent toolName={toolName} result={result} className="mt-2" />
+            <ToolResultContent toolName={toolName} result={result} className="mt-2" hideHeader />
           ))}
       </div>
     </details>

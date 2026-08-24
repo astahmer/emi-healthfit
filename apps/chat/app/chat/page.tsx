@@ -246,6 +246,7 @@ export const ChatPage = ({
           >
             <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
               <ChatPageHeader
+                isNewChatRoute={sessionId === undefined}
                 activeConversationId={activeConversationId}
                 conversation={conversation}
                 isRenaming={isRenaming}
