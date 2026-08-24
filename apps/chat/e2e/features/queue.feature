@@ -36,3 +36,11 @@ Feature: Follow-up queue
     Given a user is on session one with a held generation
     When they type "Typed while streaming" while the reply is held
     Then the draft "Typed while streaming" should be preserved after the reply finishes
+
+  Scenario: Send now delivers a queued follow-up left behind by a failed generation
+    Given a user is on session one whose first reply fails after 1500 ms with "Model overloaded"
+    When they send "First question" and queue "Stuck question" before the failure
+    Then the queued panel should still show "Stuck question" once the failure surfaces
+    When they force-send queued message 1
+    Then the assistant reply "Mock answer" should be displayed
+    And the queued panel should disappear

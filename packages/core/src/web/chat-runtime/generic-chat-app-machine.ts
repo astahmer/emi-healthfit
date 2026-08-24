@@ -78,8 +78,8 @@ export type GenericChatAppEvent =
   | { type: "lifecycle-conversation-store-command"; event: ConversationStoreActorEvent }
   | { type: "lifecycle-chat-ui-command"; event: ChatUiActorEvent }
   | { type: "route-sync-requested"; route: ChatRouteInput }
-  | { type: "queue-force-send-requested"; id: string }
-  | { type: "queue-session-command"; event: ChatSessionEvent };
+  | { type: "queue-session-command"; event: ChatSessionEvent }
+  | { type: "queue-force-send-requested"; id: string };
 
 export const genericChatAppMachine = setup({
   types: {
@@ -101,6 +101,11 @@ export const genericChatAppMachine = setup({
   actions: {
     forwardSessionEvent: sendTo("session", ({ event }) => {
       if (event.type === "session-event") return event.event;
+      return invalidForwardingEvent();
+    }),
+    forwardQueueForceSend: sendTo("followUpQueue", ({ event }) => {
+      if (event.type === "queue-force-send-requested")
+        return { type: "force-send-requested", id: event.id };
       return invalidForwardingEvent();
     }),
     forwardSessionToBrowserState: sendTo("browserState", ({ event }) => {
@@ -193,11 +198,6 @@ export const genericChatAppMachine = setup({
     }),
     forwardQueueSessionCommand: sendTo("session", ({ event }) => {
       if (event.type === "queue-session-command") return event.event;
-      return invalidForwardingEvent();
-    }),
-    forwardQueueForceSend: sendTo("followUpQueue", ({ event }) => {
-      if (event.type === "queue-force-send-requested")
-        return { type: "force-send-requested", id: event.id };
       return invalidForwardingEvent();
     }),
     forwardChildSessionEvent: sendTo("session", ({ event }) => {
@@ -332,7 +332,7 @@ export const genericChatAppMachine = setup({
     "route-sync-requested": {
       actions: ["forwardRouteToLifecycle", "forwardRouteToBrowserState", "forwardRouteToQueue"],
     },
-    "queue-force-send-requested": { actions: "forwardQueueForceSend" },
     "queue-session-command": { actions: "forwardQueueSessionCommand" },
+    "queue-force-send-requested": { actions: "forwardQueueForceSend" },
   },
 });

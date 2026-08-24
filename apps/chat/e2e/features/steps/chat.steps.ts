@@ -439,6 +439,24 @@ Given(
 );
 
 Given(
+  "a user is on session one whose first reply fails after {int} ms with {string}",
+  async ({ page }, delayMilliseconds: number, errorText: string) => {
+    const mock = createChatMock({
+      state: {
+        snapshots: { one: sessionOneSnapshot() },
+      },
+    });
+    mock.state.chat.stream = ({ messageId, text }) =>
+      mock.state.chat.calls === 1
+        ? slowStartErrorStream({ messageId, errorText, delayMilliseconds })
+        : assistantStream({ messageId, text });
+    registerPageMock(page, mock);
+    await mock.open(page, "/chat/one");
+    await expect(page.getByText("one message answer")).toBeVisible();
+  },
+);
+
+Given(
   "a user is on session one with a delayed stream error {string}",
   async ({ page }, errorText: string) => {
     const mock = createChatMock({
@@ -2932,4 +2950,29 @@ Then("the session should be archived", async ({ page }) => {
 
 Then("they should see the status {string}", async ({ page }, text: string) => {
   await expect(page.getByText(text)).toBeVisible();
+});
+
+When(
+  "they send {string} and queue {string} before the failure",
+  async ({ page }, message: string, queuedMessage: string) => {
+    await page.getByLabel("Message input").fill(message);
+    await page.getByLabel("Send message").click();
+    await expect(page.getByLabel("Stop generating")).toBeVisible();
+    await page.getByLabel("Message input").fill(queuedMessage);
+    await page.getByLabel("Send after reply").click();
+    await expect(page.getByLabel("Queued follow-ups")).toContainText(queuedMessage);
+    await expect(page.getByLabel("Stop generating")).toBeHidden({ timeout: 10_000 });
+  },
+);
+
+Then(
+  "the queued panel should still show {string} once the failure surfaces",
+  async ({ page }, text: string) => {
+    await expect(page.getByLabel("Queued follow-ups")).toBeVisible();
+    await expect(page.getByLabel("Queued follow-ups")).toContainText(text);
+  },
+);
+
+Then("the queued panel should disappear", async ({ page }) => {
+  await expect(page.getByLabel("Queued follow-ups")).toHaveCount(0);
 });

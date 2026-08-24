@@ -785,7 +785,12 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
       actor.send({ type: "route-sync-requested", route });
     },
     forceSendQueuedFollowUp: ({ id }) => {
-      if (options.queueSync === undefined) {
+      const session = currentSession();
+      const syncEligible =
+        options.queueSync !== undefined &&
+        !session.temporary &&
+        session.conversationId !== undefined;
+      if (!syncEligible) {
         forceSendQueuedFollowUpNow({ id });
         return;
       }

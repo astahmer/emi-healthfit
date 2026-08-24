@@ -68,6 +68,13 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
     let unsubscribe: (() => void) | undefined;
     let isStreaming = false;
     let appliedRouteKey: string | undefined;
+    let pendingLocalForceSend: { id: string; timer: ReturnType<typeof setTimeout> } | undefined;
+
+    const cancelPendingLocalForceSend = (): void => {
+      if (pendingLocalForceSend === undefined) return;
+      clearTimeout(pendingLocalForceSend.timer);
+      pendingLocalForceSend = undefined;
+    };
 
     const activeSessionId = () =>
       route.historyReady && !route.temporary ? route.sessionId : undefined;
@@ -117,8 +124,26 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
       if (sessionId === undefined || adapter === undefined || message.tabId === adapter.tabId)
         return;
       if (message.sessionId !== sessionId) return;
+      if (message.type === "queue.force-send-claim") {
+        if (
+          pendingLocalForceSend !== undefined &&
+          pendingLocalForceSend.id === message.itemId &&
+          message.tabId !== adapter?.tabId
+        ) {
+          cancelPendingLocalForceSend();
+        }
+        return;
+      }
       if (message.type === "queue.force-send") {
-        if (isStreaming) input.onForceSend?.({ id: message.itemId });
+        if (isStreaming) {
+          input.onForceSend?.({ id: message.itemId });
+          adapter.broadcast({
+            type: "queue.force-send-claim",
+            sessionId: message.sessionId,
+            tabId: adapter.tabId,
+            itemId: message.itemId,
+          });
+        }
         return;
       }
       if (message.revision < revision) return;
@@ -138,8 +163,7 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
     const handleForceSendRequest = ({ id }: { readonly id: string }) => {
       const sessionId = activeSessionId();
       const adapter = input.adapter;
-      if (sessionId === undefined || adapter === undefined || !queue.some((item) => item.id === id))
-        return;
+      if (sessionId === undefined || adapter === undefined) return;
       if (isStreaming) {
         input.onForceSend?.({ id });
         return;
@@ -150,10 +174,21 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
         tabId: adapter.tabId,
         itemId: id,
       });
+      cancelPendingLocalForceSend();
+      pendingLocalForceSend = {
+        id,
+        timer: setTimeout(() => {
+          const fallbackId = pendingLocalForceSend?.id;
+          pendingLocalForceSend = undefined;
+          if (fallbackId === undefined || isStreaming) return;
+          input.onForceSend?.({ id: fallbackId });
+        }, 250),
+      };
     };
 
     const hydrate = () => {
       clearSubscription();
+      cancelPendingLocalForceSend();
       queue = [];
       revision = 0;
       hydrated = false;
@@ -240,7 +275,10 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
       if (event.type === "session-event") handleSessionEvent(event.event);
     });
 
-    return clearSubscription;
+    return () => {
+      cancelPendingLocalForceSend();
+      clearSubscription();
+    };
   },
 );
 

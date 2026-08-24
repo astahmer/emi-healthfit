@@ -34,9 +34,17 @@ const QueueForceSendPayloadSchema = Schema.Struct({
   itemId: Schema.String,
 });
 
+const QueueForceSendClaimPayloadSchema = Schema.Struct({
+  type: Schema.Literal("queue.force-send-claim"),
+  sessionId: Schema.String,
+  tabId: Schema.String,
+  itemId: Schema.String,
+});
+
 const QueueChannelMessageSchema = Schema.Union([
   QueueSyncPayloadSchema,
   QueueForceSendPayloadSchema,
+  QueueForceSendClaimPayloadSchema,
 ]);
 
 const QueueSyncJsonSchema = Schema.fromJsonString(QueueSyncPayloadSchema);

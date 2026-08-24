@@ -40,7 +40,17 @@ export interface ChatQueueForceSendPayload {
   readonly itemId: string;
 }
 
-export type ChatQueueSyncMessage = ChatQueueSyncPayload | ChatQueueForceSendPayload;
+export interface ChatQueueForceSendClaimPayload {
+  readonly type: "queue.force-send-claim";
+  readonly sessionId: string;
+  readonly tabId: string;
+  readonly itemId: string;
+}
+
+export type ChatQueueSyncMessage =
+  | ChatQueueSyncPayload
+  | ChatQueueForceSendPayload
+  | ChatQueueForceSendClaimPayload;
 
 export interface ChatQueueSyncAdapter {
   readonly tabId: string;

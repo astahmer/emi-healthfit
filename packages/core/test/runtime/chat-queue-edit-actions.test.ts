@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createChatRuntime } from "../../src/runtime.export.ts";
+import type { ChatQueueSyncAdapter } from "../../src/runtime.export.ts";
 import type { Attachment } from "../../src/protocol/parts.ts";
 
 const attachment: Attachment = {
@@ -114,6 +115,270 @@ describe("queued follow-up edit actions", () => {
     expect(state.composer.attachments).toEqual([]);
 
     runtime.stop();
+    runtime.dispose();
+  });
+});
+
+describe("queued follow-up send lifecycle regressions", () => {
+  const streamResponse = (text: string) => {
+    const encoder = new TextEncoder();
+    const messageId = `assistant-${Math.random().toString(36).slice(2, 8)}`;
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          for (const chunk of [
+            { type: "start", messageId },
+            { type: "text-start", id: "text-1" },
+            { type: "text-delta", id: "text-1", delta: text },
+            { type: "text-end", id: "text-1" },
+            { type: "finish" },
+          ])
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          controller.close();
+        },
+      }),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+
+  const createStreamingOptions = () => {
+    const base = createOptions();
+    const settingsStore = (base.storage.settings as {
+      get: (key: string) => Promise<string | null>;
+    }) satisfies { get: (key: string) => Promise<string | null> };
+    void settingsStore;
+    const settingsBacking = new Map<string, string>();
+    settingsBacking.set(
+      "emi-core-chat-settings",
+      JSON.stringify({
+        provider: "openai",
+        apiKey: "test-key",
+        baseUrl: "",
+        model: "test-model",
+        systemPrompt: "",
+        titleModel: "test-model",
+        titlePrompt: "",
+        memoryEnabled: false,
+        memoryModel: "test-model",
+        webSearch: false,
+        theme: "light",
+      }),
+    );
+    const wrappedSettings = {
+      get: (key: string) => settingsBacking.get(key) ?? null,
+      set: (key: string, value: string) => {
+        settingsBacking.set(key, value);
+      },
+      remove: (key: string) => {
+        settingsBacking.delete(key);
+      },
+    };
+    const chatRequests: string[] = [];
+    let gate: Promise<void> | undefined;
+    let release: (() => void) | undefined;
+    let callCount = 0;
+    const holdFirstStream = () => {
+      gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    };
+    const transportFetch = async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/api/chat") && init?.method === "POST") {
+        callCount += 1;
+        if (callCount === 1 && gate !== undefined) {
+          await gate;
+          return streamResponse("first reply");
+        }
+        chatRequests.push(url);
+        return streamResponse("queued reply");
+      }
+      if (url.endsWith("/stream")) return new Response(null, { status: 204 });
+      throw new Error(`Unexpected request in streaming fixture: ${url}`);
+    };
+    return {
+      transport: { ...base.transport, fetch: transportFetch },
+      storage: { settings: wrappedSettings, drafts: base.storage.drafts },
+      browser: base.browser,
+      identity: base.identity,
+      chatRequests,
+      releaseFirstStream: () => release?.(),
+    };
+  };
+
+  it("sends immediately without queueing when the runtime is idle", async () => {
+    const fixture = createStreamingOptions();
+    const runtime = createChatRuntime(fixture);
+    runtime.start();
+
+    runtime.actions.sendMessage({ text: "Straight through" });
+
+    await vi.waitFor(() => {
+      expect(runtime.getState().activeThread.messages.length).toBe(2);
+    });
+    expect(runtime.getState().queuedFollowUps).toHaveLength(0);
+    runtime.dispose();
+  });
+
+  it("auto-drains a follow-up queued during an active stream once it completes", async () => {
+    const fixture = createStreamingOptions();
+    const gate = new Promise<void>((resolve) => {
+      fixture.releaseFirstStream = resolve;
+    });
+    const baseFetch = fixture.transport.fetch;
+    let firstHeld = true;
+    fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await baseFetch(input, init);
+      void firstHeld;
+      return response;
+    };
+    // hold the first stream open until released
+    let releaseHeld!: () => void;
+    const held = new Promise<Response>((resolve) => {
+      releaseHeld = resolve;
+    });
+    let callCount = 0;
+    fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (init?.method === "POST") {
+        callCount += 1;
+        if (callCount === 1) {
+          await held;
+          return streamResponse("first reply");
+        }
+        return streamResponse("queued reply");
+      }
+      return baseFetch(input, init);
+    };
+    void gate;
+
+    const runtime = createChatRuntime(fixture);
+    runtime.start();
+
+    runtime.actions.sendMessage({ text: "First" });
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(true));
+
+    runtime.actions.sendMessage({ text: "Queued while streaming" });
+    expect(runtime.getState().queuedFollowUps).toHaveLength(1);
+
+    releaseHeld();
+    await vi.waitFor(() => {
+      expect(runtime.getState().queuedFollowUps).toHaveLength(0);
+    });
+    runtime.dispose();
+  });
+
+  it("Send now on a queued item sends it even when nothing is streaming", async () => {
+    const adapter: ChatQueueSyncAdapter = {
+      tabId: "tab-main",
+      read: () => null,
+      write: () => undefined,
+      subscribe: (_sessionId, listener) => {
+        void listener;
+        return () => undefined;
+      },
+      broadcast: () => undefined,
+    };
+    const fixture = createStreamingOptions();
+    let chatPosts = 0;
+    const baseFetch = fixture.transport.fetch;
+    fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (init?.method === "POST") {
+        chatPosts += 1;
+        return streamResponse("queued reply");
+      }
+      return baseFetch(input, init);
+    };
+
+    const runtime = createChatRuntime({ ...fixture, queueSync: { adapter } });
+    runtime.start();
+
+    runtime.actions.replaceQueuedFollowUps({
+      items: [{ id: "queued-1", text: "Stuck message", attachments: [] }],
+    });
+    expect(runtime.getState().queuedFollowUps).toHaveLength(1);
+
+    runtime.actions.forceSendQueuedFollowUp({ id: "queued-1" });
+
+    await vi.waitFor(() => {
+      expect(runtime.getState().queuedFollowUps).toHaveLength(0);
+    });
+    await vi.waitFor(() => {
+      expect(chatPosts).toBe(1);
+    });
+    await vi.waitFor(() => {
+      const serialized = JSON.stringify(runtime.getState().activeThread.messages);
+      expect(serialized).toContain("queued reply");
+    });
+    runtime.dispose();
+  });
+
+  it("Cancel removes a queued item and it stays removed after the queue re-syncs", async () => {
+    const store = new Map<
+      string,
+      { revision: number; items: Array<{ id: string; text: string }> }
+    >();
+    const adapter: ChatQueueSyncAdapter = {
+      tabId: "tab-main",
+      read: (sessionId) => store.get(sessionId) ?? null,
+      write: (payload) => {
+        store.set(payload.sessionId, {
+          revision: payload.revision,
+          items: payload.items as Array<{ id: string; text: string }>,
+        });
+      },
+      subscribe: (_sessionId, listener) => {
+        void listener;
+        return () => undefined;
+      },
+      broadcast: () => undefined,
+    };
+    const fixture = createStreamingOptions();
+    let releaseHeld!: () => void;
+    const held = new Promise<Response>((resolve) => {
+      releaseHeld = resolve;
+    });
+    let callCount = 0;
+    const baseFetch = fixture.transport.fetch;
+    fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (init?.method === "POST") {
+        callCount += 1;
+        if (callCount === 1) {
+          await held;
+          return streamResponse("first reply");
+        }
+        return streamResponse("queued reply");
+      }
+      return baseFetch(input, init);
+    };
+
+    const runtime = createChatRuntime({ ...fixture, queueSync: { adapter } });
+    runtime.start();
+
+    runtime.actions.sendMessage({ text: "First" });
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(true));
+    runtime.actions.sendMessage({ text: "Cancel me" });
+    const queuedId = runtime.getState().queuedFollowUps[0]?.id ?? "";
+    expect(queuedId).not.toBe("");
+
+    runtime.actions.removeQueuedFollowUp({ id: queuedId });
+    expect(runtime.getState().queuedFollowUps).toHaveLength(0);
+
+    releaseHeld();
+    await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
+
+    runtime.actions.syncRoute({
+      route: { historyReady: true, sessionId: undefined, threadId: undefined, temporary: false },
+    });
+
+    expect(
+      runtime.getState().queuedFollowUps.some((item) => item.id === queuedId),
+    ).toBe(false);
     runtime.dispose();
   });
 });
