@@ -173,6 +173,7 @@ describe("queued follow-up send lifecycle regressions", () => {
       },
     };
     const chatRequests: string[] = [];
+    let releaseFirstPost: ((value: Response) => void) | undefined;
     let callCount = 0;
     const transportFetch = async (
       input: RequestInfo | URL,
@@ -209,9 +210,6 @@ describe("queued follow-up send lifecycle regressions", () => {
 
   it("auto-drains a follow-up queued during an active stream once it completes", async () => {
     const fixture = createStreamingOptions();
-    const gate = new Promise<void>((resolve) => {
-      fixture.releaseFirstStream = resolve;
-    });
     const baseFetch = fixture.transport.fetch;
     let firstHeld = true;
     fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -236,7 +234,6 @@ describe("queued follow-up send lifecycle regressions", () => {
       }
       return baseFetch(input, init);
     };
-    void gate;
 
     const runtime = createChatRuntime(fixture);
     runtime.start();
