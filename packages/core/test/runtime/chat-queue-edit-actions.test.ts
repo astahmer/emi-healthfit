@@ -121,7 +121,6 @@ describe("queued follow-up edit actions", () => {
     runtime.dispose();
   });
 });
-
 describe("queued follow-up send lifecycle regressions", () => {
   const streamResponse = (text: string) => {
     const encoder = new TextEncoder();
