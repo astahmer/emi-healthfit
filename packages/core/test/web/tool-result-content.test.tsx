@@ -99,3 +99,14 @@ describe("ToolResultContent", () => {
     expect(screen.getByText(/"fallback": true/)).toBeInTheDocument();
   });
 });
+
+describe("tool result card distinction", () => {
+  it("wraps fallback output in a bordered card with a tool-name header", () => {
+    render(<ToolResultContent toolName="get_recovery" result={{ status: "Ready" }} />);
+
+    const card = screen.getByTestId("tool-result-card");
+    expect(card.className).toContain("border");
+    expect(card.className).toContain("rounded-xl");
+    expect(screen.getByText("get_recovery")).toBeTruthy();
+  });
+});

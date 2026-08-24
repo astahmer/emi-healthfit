@@ -1,5 +1,6 @@
 "use client";
 
+import { WrenchIcon } from "lucide-react";
 import { memo, type FC, type ReactNode } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -143,7 +144,18 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({
     return <DynamicComponentRenderer className={className} value={dynamicComponent} />;
   }
 
-  return <FallbackResult value={parsed} className={className} />;
+  return (
+    <div
+      data-testid="tool-result-card"
+      className="overflow-hidden rounded-xl border bg-muted/30"
+    >
+      <div className="flex items-center gap-1.5 border-b bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        <WrenchIcon className="size-3" />
+        {toolName}
+      </div>
+      <FallbackResult value={parsed} className="mt-0 rounded-none border-0 bg-transparent" />
+    </div>
+  );
 };
 
 export const ToolResultContent = memo(ToolResultContentImpl);

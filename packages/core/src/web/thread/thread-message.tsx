@@ -5,12 +5,13 @@ import {
   ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
+  EllipsisVerticalIcon,
   GitBranchIcon,
   LoaderIcon,
   PencilIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Bubble, BubbleContent } from "../../components/styled/internal/ui/bubble.tsx";
 import { Button } from "../../components/styled/internal/ui/button.tsx";
 import {
@@ -86,6 +87,7 @@ const copyMessage = async (message: ThreadMessageValue): Promise<void> => {
 
 export const ThreadMessage = ({
   message,
+
   isStreaming,
   metadata,
   assistantLabel = "Assistant",
@@ -108,6 +110,7 @@ export const ThreadMessage = ({
   onCopyResult,
   renderToolResult,
 }: ThreadMessageProps): ReactNode => {
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   if (message.role === "summary") {
     const summaryText = messageText(message).replace(
       /^Use this compacted summary of the previous conversation as context:\s*/i,
@@ -175,13 +178,11 @@ export const ThreadMessage = ({
               {isStreaming && (
                 <span
                   aria-label="Assistant is working"
-                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                  className="inline-flex animate-pulse items-center gap-1.5 text-sm font-medium text-foreground/80"
                   role="status"
                 >
                   <span>Thinking</span>
-                  <span className="animate-bounce">·</span>
-                  <span className="animate-bounce [animation-delay:120ms]">·</span>
-                  <span className="animate-bounce [animation-delay:240ms]">·</span>
+                  <span aria-hidden="true">···</span>
                 </span>
               )}
               {canRegenerate && regenerateText !== undefined && (
@@ -245,7 +246,8 @@ export const ThreadMessage = ({
           <span className="me-1 font-medium text-foreground/70">
             {isUser ? "You" : assistantLabel}
           </span>
-          {metadata?.modelLabel !== undefined && <span>{metadata.modelLabel}</span>}
+          {metadata?.modelLabel !== undefined &&
+            (isUser ? <span>{metadata.modelLabel}</span> : <span>Replied with {metadata.modelLabel}</span>)}
           {typeof metadata?.totalTokens === "number" && metadata.totalTokens > 0 && (
             <span>{metadata.totalTokens.toLocaleString()} tokens</span>
           )}
@@ -266,6 +268,7 @@ export const ThreadMessage = ({
             aria-label="Copy message"
             size="xs"
             variant="ghost"
+            className="size-10"
             onClick={() => void handleCopy()}
           >
             <CopyIcon className="size-3.5" />
@@ -277,6 +280,7 @@ export const ThreadMessage = ({
               aria-label="Edit message"
               size="xs"
               variant="ghost"
+              className="size-10"
               onClick={() => onEditStart(message)}
             >
               <PencilIcon className="size-3.5" />
@@ -289,6 +293,7 @@ export const ThreadMessage = ({
               aria-label={regenerateLabel}
               size="xs"
               variant="ghost"
+              className="size-10"
               disabled={retryDisabled}
               onClick={() => onRegenerate(message.id)}
             >
@@ -302,39 +307,63 @@ export const ThreadMessage = ({
               aria-label="Fork from message"
               size="xs"
               variant="ghost"
+              className="size-10"
               onClick={() => onFork(message.id)}
             >
               <GitBranchIcon className="size-3.5" />
             </Button>
           )}
-          {canRemember && (
-            <Button
-              title={isRemembered ? "Remove from memories" : "Save to memory"}
-              type="button"
-              aria-label={isRemembered ? "Remove message memories" : "Save message to memory"}
-              size="xs"
-              variant="ghost"
-              onClick={() => void onRemember(message)}
-              disabled={isRemembering}
+          {(canRemember || (!isUser && !isStreaming && text.trim() !== "")) && (
+            <details
+              open={moreActionsOpen}
+              onToggle={(event) =>
+                setMoreActionsOpen((event.target as HTMLDetailsElement).open)
+              }
+              className="relative"
             >
-              {isRemembering ? (
-                <LoaderIcon className="size-3.5 animate-spin" />
-              ) : (
-                <BookmarkIcon className={cn("size-3.5", isRemembered && "fill-current")} />
-              )}
-            </Button>
-          )}
-          {!isUser && !isStreaming && text.trim() !== "" && (
-            <Button
-              title="Export as Markdown"
-              type="button"
-              aria-label="Export message as Markdown"
-              size="xs"
-              variant="ghost"
-              onClick={() => exportMessage(message)}
-            >
-              <DownloadIcon className="size-3.5" />
-            </Button>
+              <summary
+                title="More actions"
+                aria-label="More actions"
+                className="flex size-10 cursor-pointer list-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground [&::-webkit-details-marker]:hidden"
+              >
+                <EllipsisVerticalIcon className="size-3.5" />
+              </summary>
+              <div className="absolute bottom-full z-50 mb-1 w-52 rounded-lg border bg-popover p-1 text-popover-foreground shadow-xl">
+                {canRemember && (
+                  <button
+                    type="button"
+                    aria-label={isRemembered ? "Remove message memories" : "Save message to memory"}
+                    className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent disabled:opacity-50"
+                    onClick={() => {
+                      setMoreActionsOpen(false);
+                      void onRemember(message);
+                    }}
+                    disabled={isRemembering}
+                  >
+                    {isRemembering ? (
+                      <LoaderIcon className="size-3.5 animate-spin" />
+                    ) : (
+                      <BookmarkIcon className={cn("size-3.5", isRemembered && "fill-current")} />
+                    )}
+                    {isRemembered ? "Remove from memories" : "Save to memory"}
+                  </button>
+                )}
+                {!isUser && !isStreaming && text.trim() !== "" && (
+                  <button
+                    type="button"
+                    aria-label="Export message as Markdown"
+                    className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent"
+                    onClick={() => {
+                      setMoreActionsOpen(false);
+                      exportMessage(message);
+                    }}
+                  >
+                    <DownloadIcon className="size-3.5" />
+                    Export as Markdown
+                  </button>
+                )}
+              </div>
+            </details>
           )}
         </MessageFooter>
       </MessageContent>

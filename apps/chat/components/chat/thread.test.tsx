@@ -158,6 +158,7 @@ describe("Thread", () => {
 
     renderThread([userMessage, message]);
 
+    expect(screen.getByTestId("incomplete-turn-notice")).toBeInTheDocument();
     expect(screen.getByText("Coach did not finish this reply.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry coach response" }));
     expect(revise).toHaveBeenCalledWith({ messageId: userMessage.id });
@@ -282,7 +283,7 @@ describe("Thread", () => {
 
     const view = renderThread([message]);
 
-    expect(screen.getAllByText("GPT-5.6 Terra").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Replied with GPT-5.6 Terra").length).toBeGreaterThan(0);
     expect(screen.getByText("30 tokens")).toBeInTheDocument();
     expect(view.container.querySelector("time")).toHaveAttribute("datetime", message.createdAt);
   });
@@ -307,7 +308,7 @@ describe("Thread", () => {
     renderThread([message]);
 
     expect(screen.queryByText("30 tokens")).not.toBeInTheDocument();
-    expect(screen.getAllByText("GPT-5.6 Terra").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Replied with GPT-5.6 Terra").length).toBeGreaterThan(0);
   });
 
   it("previews image attachments before submission", () => {

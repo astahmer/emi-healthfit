@@ -103,8 +103,7 @@ export const ComposerToolbar = ({
   const canKeepTemporary = composerControls.temporary && runtime.messages.length > 0;
   const awaitingFirstChunk = runtime.isSendGraceActive;
   const canStop =
-    !awaitingFirstChunk &&
-    runtime.isStreaming &&
+    (runtime.isStreaming || runtime.isSending) &&
     runtime.draft.trim() === "" &&
     runtime.files.length === 0;
   return (

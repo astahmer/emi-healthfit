@@ -34,3 +34,74 @@ describe("ThreadMessage summary rendering", () => {
     expect(block).not.toHaveAttribute("open");
   });
 });
+
+describe("ThreadMessage action wall and model identity", () => {
+  const assistantMessage = {
+    id: "assistant-1",
+    role: "assistant" as const,
+    parts: [{ type: "text" as const, text: "Here is your answer." }],
+  };
+
+  it("labels the historical model with Replied-with wording", () => {
+    render(
+      <ThreadMessage
+        message={assistantMessage}
+        isStreaming={false}
+        metadata={{ modelLabel: "GPT-5.6 Terra" }}
+      />,
+    );
+
+    expect(screen.getByText("Replied with GPT-5.6 Terra")).toBeTruthy();
+    expect(screen.queryByText("GPT-5.6 Terra")).toBeNull();
+  });
+
+  it("moves save-to-memory and export into the More actions menu", async () => {
+    const user = userEvent.setup();
+    const onRemember = vi.fn();
+    render(
+      <ThreadMessage
+        message={assistantMessage}
+        isStreaming={false}
+        onRemember={onRemember}
+      />,
+    );
+
+    const menu = screen.getByLabelText("More actions").closest("details");
+    expect(menu).not.toHaveAttribute("open");
+
+    await user.click(screen.getByLabelText("More actions"));
+    expect(menu).toHaveAttribute("open");
+
+    const save = screen.getByRole("button", { name: "Save message to memory" });
+    expect(save.className).toContain("min-h-10");
+    await user.click(save);
+    expect(onRemember).toHaveBeenCalledTimes(1);
+    expect(menu).not.toHaveAttribute("open");
+
+    await user.click(screen.getByLabelText("More actions"));
+    expect(
+      screen.getByRole("button", { name: "Export message as Markdown" }),
+    ).toBeTruthy();
+  });
+
+  it("gives footer action buttons 40px touch hit areas", () => {
+    render(
+      <ThreadMessage
+        message={assistantMessage}
+        isStreaming={false}
+        onCopyResult={() => undefined}
+      />,
+    );
+
+    const copy = screen.getByLabelText("Copy message");
+    expect(copy.className).toContain("size-10");
+  });
+
+  it("raises the thinking indicator above muted contrast with a pulse", () => {
+    render(<ThreadMessage message={assistantMessage} isStreaming />);
+
+    const status = screen.getByRole("status", { name: "Assistant is working" });
+    expect(status.className).toContain("animate-pulse");
+    expect(status.className).toContain("text-foreground/80");
+  });
+});
