@@ -175,8 +175,8 @@ describe("SessionSidebar", () => {
     act(() => locationState.setPathname("/chat/thread-1"));
 
     await user.click(screen.getByLabelText("Session actions"));
-    await user.click(await screen.findByRole("menuitem", { name: "Supprimer" }));
-    await user.click(await screen.findByRole("button", { name: "Supprimer" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith({

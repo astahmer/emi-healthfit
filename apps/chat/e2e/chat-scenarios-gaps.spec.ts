@@ -123,7 +123,7 @@ test("searches sessions, syncs, and exports diagnostics", async ({ page }) => {
   await expect(page.getByRole("link", { name: /Session One/ })).toBeVisible();
   await openSessionActions(page);
   const downloadPromise = page.waitForEvent("download");
-  await page.getByText("Exporter les diagnostics").click();
+  await page.getByText("Export diagnostics").click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("one-diagnostics.json");
 });
@@ -264,12 +264,12 @@ test("unpins, cancels delete, and starts a new chat from the header", async ({ p
   await mock.open(page, "/chat/one");
 
   await openSessionActions(page);
-  await page.getByText("Désépingler").click();
+  await page.getByText("Unpin").click();
   expect(mock.state.conversations[0]?.pinned).toBe(false);
 
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("button", { name: "Annuler" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("link", { name: /Session One/ })).toBeVisible();
   expect(mock.state.conversations).toHaveLength(1);
 
@@ -310,14 +310,14 @@ test("shares copies a session URL and downloads markdown from the sidebar", asyn
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
   await openSessionActions(page);
-  await page.getByText("Partager").click();
+  await page.getByText("Share").click();
   await expect
     .poll(async () => page.evaluate(() => navigator.clipboard.readText()))
     .toContain("/chat/one");
 
   await openSessionActions(page);
   const downloadPromise = page.waitForEvent("download");
-  await page.getByText("Télécharger").click();
+  await page.getByText("Download").click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/session-one\.md|conversation\.md/);
 });
@@ -329,7 +329,7 @@ test("shares a session via navigator.share when available", async ({ page }) => 
   await mock.open(page, "/chat/one", { share: "mock" });
 
   await openSessionActions(page);
-  await page.getByText("Partager").click();
+  await page.getByText("Share").click();
   await expect
     .poll(async () =>
       page.evaluate(

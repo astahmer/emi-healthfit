@@ -1752,7 +1752,7 @@ When("they restore the session from the sidebar", async ({ page }) => {
     .first();
   await item.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await item.getByLabel("Session actions").click({ force: true });
-  await page.getByText("Restaurer").click({ force: true });
+  await page.getByText("Restore").click({ force: true });
 });
 
 When("they copy the assistant message", async ({ page }) => {
@@ -1772,20 +1772,20 @@ When("they open session one from the sidebar", async ({ page }) => {
 
 When("they delete the active session from the sidebar", async ({ page }) => {
   await openSessionActions(page, { href: new URL(page.url()).pathname });
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 });
 
 When("they cancel deleting the active session", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Annuler" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
 });
 
 When("they delete session two from the sidebar", async ({ page }) => {
   await openSessionActions(page, { href: "/chat/two" });
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 });
 
 When("the delete request finishes", async ({ page }) => {
@@ -2075,7 +2075,7 @@ Then("the branch {string} should be pinned", async ({ page }, title: string) => 
 
 When("they rename session one to {string} from the sidebar", async ({ page }, title: string) => {
   await openSessionActions(page);
-  await page.getByText("Renommer").click();
+  await page.getByText("Rename").click();
   await page.getByRole("list").getByRole("textbox").fill(title);
   await page.getByRole("list").getByRole("textbox").press("Enter");
   await expect(page.getByText(title).first()).toBeVisible();
@@ -2083,7 +2083,7 @@ When("they rename session one to {string} from the sidebar", async ({ page }, ti
 
 When("they try to rename session one to an empty title from the sidebar", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Renommer").click();
+  await page.getByText("Rename").click();
   await page.getByRole("list").getByRole("textbox").fill("");
   await page.getByRole("list").getByRole("textbox").press("Enter");
 });
@@ -2094,47 +2094,47 @@ Then("the session rename input should be visible", async ({ page }) => {
 
 When("they pin session one from the sidebar", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Épingler").click();
+  await page.getByText("Pin").click();
 });
 
 When("they unpin session one from the sidebar", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Désépingler").click();
+  await page.getByText("Unpin").click();
 });
 
 When("they copy session one as markdown from the sidebar", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await openSessionActions(page);
-  await page.getByText("Copier en .md").click();
+  await page.getByText("Copy as .md").click();
 });
 
 When("they share session one from the sidebar", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await openSessionActions(page);
-  await page.getByText("Partager").click();
+  await page.getByText("Share").click();
 });
 
 When("they download session one as markdown from the sidebar", async ({ page }) => {
   await openSessionActions(page);
   const downloadPromise = page.waitForEvent("download");
-  await page.getByText("Télécharger").click();
+  await page.getByText("Download").click();
   pageDownloads.set(page, await downloadPromise);
 });
 
 When("they clone session one from the sidebar", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Cloner").click();
+  await page.getByText("Clone").click();
 });
 
 When("they archive session one from the sidebar", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Archiver").click();
+  await page.getByText("Archive").click();
 });
 
 When("they delete session one from the sidebar", async ({ page }) => {
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 });
 
 When("they start a new chat from the header", async ({ page }) => {
@@ -2145,7 +2145,7 @@ When("they start a new chat from the header", async ({ page }) => {
 When("they export diagnostics from the sidebar", async ({ page }) => {
   await openSessionActions(page);
   const downloadPromise = page.waitForEvent("download");
-  await page.getByText("Exporter les diagnostics").click();
+  await page.getByText("Export diagnostics").click();
   pageDownloads.set(page, await downloadPromise);
 });
 
@@ -2935,7 +2935,7 @@ Then("the session should no longer be archived", async ({ page }) => {
     .first();
   await item.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await item.getByLabel("Session actions").click({ force: true });
-  await expect(page.getByText("Archiver")).toBeVisible();
+  await expect(page.getByText("Archive")).toBeVisible();
 });
 
 Then("the session should be archived", async ({ page }) => {
@@ -2945,7 +2945,7 @@ Then("the session should be archived", async ({ page }) => {
     .first();
   await item.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await item.getByLabel("Session actions").click({ force: true });
-  await expect(page.getByText("Restaurer")).toBeVisible();
+  await expect(page.getByText("Restore")).toBeVisible();
 });
 
 Then("they should see the status {string}", async ({ page }, text: string) => {

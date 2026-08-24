@@ -259,7 +259,7 @@ test("restores an archived session from the sidebar", async ({ page }) => {
     .first();
   await item.hover();
   await item.getByLabel("Session actions").click();
-  await page.getByText("Restaurer").click();
+  await page.getByText("Restore").click();
   expect(mock.state.conversations[0]?.status).toBe("regular");
 });
 

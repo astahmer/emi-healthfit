@@ -263,39 +263,39 @@ const SidebarItem = ({
             <DropdownMenuContent align="start" side="right">
               <DropdownMenuItem onClick={() => send({ type: "share" })}>
                 <ShareIcon />
-                <span>Partager</span>
+                <span>Share</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => send({ type: "download" })}>
                 <DownloadIcon />
-                <span>Télécharger</span>
+                <span>Download</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => void downloadDiagnostics({ conversationId: thread.id })}
               >
                 <DownloadIcon />
-                <span>Exporter les diagnostics</span>
+                <span>Export diagnostics</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => send({ type: "copy.markdown" })}>
                 {state.context.copiedId === thread.id ? <CheckIcon /> : <FileTextIcon />}
-                <span>{state.context.copiedId === thread.id ? "Copié !" : "Copier en .md"}</span>
+                <span>{state.context.copiedId === thread.id ? "Copied!" : "Copy as .md"}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => send({ type: "rename.start" })}>
                 <PencilIcon />
-                <span>Renommer</span>
+                <span>Rename</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => send({ type: "pin.toggle" })}>
                 <PinIcon />
-                <span>{thread.pinned ? "Désépingler" : "Épingler"}</span>
+                <span>{thread.pinned ? "Unpin" : "Pin"}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => send({ type: "clone" })}>
                 <CopyIcon />
-                <span>Cloner</span>
+                <span>Clone</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => send({ type: thread.status === "archived" ? "restore" : "archive" })}
               >
                 <ArchiveIcon />
-                <span>{thread.status === "archived" ? "Restaurer" : "Archiver"}</span>
+                <span>{thread.status === "archived" ? "Restore" : "Archive"}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -303,7 +303,7 @@ const SidebarItem = ({
                 className="text-destructive"
               >
                 <Trash2Icon />
-                <span>Supprimer</span>
+                <span>Delete</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -318,20 +318,20 @@ const SidebarItem = ({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette session ?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this session?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Toutes les messages de cette session seront supprimés.
+              This action cannot be undone. All messages in this session will be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => send({ type: "delete.cancel" })}>
-              Annuler
+              Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => send({ type: "delete.confirm" })}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

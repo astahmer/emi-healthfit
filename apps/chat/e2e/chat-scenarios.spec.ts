@@ -88,8 +88,8 @@ test("resets before delete finishes and sends a new-chat suggestion", async ({ p
 
   await expect(page.getByText("one message answer")).toBeVisible();
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 
   await expect(page).toHaveURL(/\/chat\/?$/);
   await expect(page.getByRole("button", { name: "Summarize my last workout." })).toBeVisible();
@@ -123,8 +123,8 @@ test("deletes the active conversation after entering it from the new-chat route"
   await expect(page.getByText("one message answer")).toBeVisible();
 
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 
   await expect(page).toHaveURL(/\/chat\/?$/);
   await expect(page.getByRole("button", { name: "Summarize my last workout." })).toBeVisible();
@@ -146,8 +146,8 @@ test("does not resurrect a deleted conversation from stale message loads", async
   await expect(page).toHaveURL(/\/chat\/one$/);
 
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 
   await expect(page).toHaveURL(/\/chat\/?$/);
   mock.releaseMessages();
@@ -476,35 +476,35 @@ test("renames, pins, archives, clones, copies, shares, and deletes from the side
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
   await openSessionActions(page);
-  await page.getByText("Renommer").click();
+  await page.getByText("Rename").click();
   await page.getByRole("list").getByRole("textbox").fill("Renamed One");
   await page.getByRole("list").getByRole("textbox").press("Enter");
   await expect(page.getByText("Renamed One").first()).toBeVisible();
 
   await openSessionActions(page);
-  await page.getByText("Épingler").click();
+  await page.getByText("Pin").click();
   expect(mock.state.conversations.find((conversation) => conversation.id === "one")?.pinned).toBe(
     true,
   );
 
   await openSessionActions(page);
-  await page.getByText("Copier en .md").click();
+  await page.getByText("Copy as .md").click();
 
   await openSessionActions(page);
-  await page.getByText("Partager").click();
+  await page.getByText("Share").click();
 
   await openSessionActions(page);
-  await page.getByText("Télécharger").click();
+  await page.getByText("Download").click();
 
   await openSessionActions(page);
-  await page.getByText("Cloner").click();
+  await page.getByText("Clone").click();
 
   await openSessionActions(page);
-  await page.getByText("Archiver").click();
+  await page.getByText("Archive").click();
 
   await openSessionActions(page);
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
 
   await expect
     .poll(() => mock.state.conversations.find((conversation) => conversation.id === "one"))

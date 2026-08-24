@@ -16,5 +16,5 @@ export const openSessionActions = async (
   const actions = item.getByLabel("Session actions");
   await expect(actions).toBeVisible();
   await actions.click();
-  await expect(page.getByRole("menuitem", { name: "Renommer" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Rename" })).toBeVisible();
 };

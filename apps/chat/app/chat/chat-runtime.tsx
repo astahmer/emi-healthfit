@@ -157,6 +157,7 @@ const createHealthFitChatRuntime = ({
         baseUrl: useSettings.getState().settings.baseUrl,
         model: configRef.current.model,
         systemPrompt: useSettings.getState().settings.systemPrompt,
+        showTokenUsage: useSettings.getState().settings.showTokenUsage,
         titleModel: configRef.current.model,
         titlePrompt: "",
         memoryEnabled: true,

@@ -123,8 +123,8 @@ Then("deleting the conversation removes its uploaded photos", async ({ page }) =
   const src = await page.locator('img[alt^="label-photo"]').first().getAttribute("src");
   expect(src).toMatch(/^\/api\/attachments\//);
   await openSessionActions(page, { href: new URL(page.url()).pathname });
-  await page.getByText("Supprimer", { exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer" }).click();
+  await page.getByText("Delete", { exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
   await expect(page).toHaveURL(/\/chat\/?$/);
   await expect
     .poll(async () => (await page.request.get(src ?? "")).status(), { timeout: 10_000 })
