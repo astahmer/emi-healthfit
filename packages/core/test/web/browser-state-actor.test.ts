@@ -141,3 +141,137 @@ describe("browserStateActor", () => {
     actor.stop();
   });
 });
+
+describe("browserStateActor cross-tab draft sync regressions", () => {
+  type StorageChangeListener = (event: { key: string | null; newValue: string | null }) => void;
+
+  const createSyncFixture = () => {
+    const store = new Map<string, string>([["draft", "Ghost draft"]]);
+    const listeners = new Set<StorageChangeListener>();
+    const writes: Array<{ op: "set" | "remove"; value?: string }> = [];
+    let sessionEvents: ChatSessionEvent[] = [];
+    const actor = createActor(browserStateActor, {
+      input: {
+        draftStorageKey: "draft",
+        sendSession: (event) => sessionEvents.push(event),
+        browser: {
+          online: () => true,
+          subscribeOnline: () => () => undefined,
+          subscribeStorage: (listener) => {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+          },
+          storage: {
+            getItem: (key) => store.get(key) ?? null,
+            setItem: (key, value) => {
+              store.set(key, value);
+              writes.push({ op: "set", value });
+              for (const listener of listeners)
+                listener({ key, newValue: value });
+            },
+            removeItem: (key) => {
+              store.delete(key);
+              writes.push({ op: "remove" });
+              for (const listener of listeners) listener({ key, newValue: null });
+            },
+          },
+        },
+      },
+    }).start();
+    return {
+      actor,
+      writes: () => writes,
+      events: () => sessionEvents,
+      remoteSet: (value: string | null) => {
+        if (value === null) store.delete("draft");
+        else store.set("draft", value);
+        for (const listener of listeners) listener({ key: "draft", newValue: value });
+      },
+    };
+  };
+
+  const syncRoute = (actor: ReturnType<typeof createActor<never>>) =>
+    actor.send({
+      type: "route-sync-requested",
+      route: { historyReady: true, sessionId: "c1", threadId: undefined, temporary: false },
+    });
+
+  it("clears the local composer when another tab removes the saved draft", async () => {
+    const fixture = createSyncFixture();
+    syncRoute(fixture.actor as never);
+    await vi.waitFor(() => expect(fixture.actor.getSnapshot().context.draftHydrated).toBe(true));
+    expect(fixture.events()).toContainEqual({ type: "draft-changed", draft: "Ghost draft" });
+
+    fixture.remoteSet(null);
+
+    await vi.waitFor(() => {
+      expect(fixture.events().at(-1)).toEqual({ type: "draft-changed", draft: "" });
+    });
+    fixture.actor.stop();
+  });
+
+  it("adopts a draft typed in another tab without echoing writes back", async () => {
+    const fixture = createSyncFixture();
+    syncRoute(fixture.actor as never);
+    await vi.waitFor(() => expect(fixture.actor.getSnapshot().context.draftHydrated).toBe(true));
+
+    fixture.writes().length = 0;
+    fixture.remoteSet("Typed elsewhere");
+
+    await vi.waitFor(() => {
+      expect(fixture.events().at(-1)).toEqual({ type: "draft-changed", draft: "Typed elsewhere" });
+    });
+    expect(fixture.writes()).toEqual([]);
+    fixture.actor.stop();
+  });
+
+  it("does not persist-loop when the restored remote draft matches the last persisted value", async () => {
+    const fixture = createSyncFixture();
+    syncRoute(fixture.actor as never);
+    await vi.waitFor(() => expect(fixture.actor.getSnapshot().context.draftHydrated).toBe(true));
+
+    fixture.actor.send({ type: "draft-persist-requested", draft: "Same text" });
+    const writesAfterFirst = fixture.writes().length;
+    fixture.actor.send({ type: "draft-persist-requested", draft: "Same text" });
+
+    expect(fixture.writes().length).toBe(writesAfterFirst);
+    fixture.actor.stop();
+  });
+
+  it("ignores a stale asynchronous hydration once a newer draft was persisted", async () => {
+    let releaseHydration!: (value: string | null) => void;
+    const hydrationGate = new Promise<string | null>((resolve) => {
+      releaseHydration = resolve;
+    });
+    const sessionEvents: ChatSessionEvent[] = [];
+    const actor = createActor(browserStateActor, {
+      input: {
+        draftStorageKey: "draft",
+        sendSession: (event) => sessionEvents.push(event),
+        browser: {
+          online: () => true,
+          subscribeOnline: () => () => undefined,
+          storage: {
+            getItem: () => hydrationGate,
+            setItem: () => undefined,
+            removeItem: () => undefined,
+          },
+        },
+      },
+    }).start();
+
+    actor.send({
+      type: "route-sync-requested",
+      route: { historyReady: true, sessionId: "c1", threadId: undefined, temporary: false },
+    });
+    actor.send({ type: "draft-persist-requested", draft: "" });
+    releaseHydration("Stale pre-send draft");
+
+    await vi.waitFor(() => expect(actor.getSnapshot().context.draftHydrated).toBe(true));
+    expect(sessionEvents).not.toContainEqual({
+      type: "draft-changed",
+      draft: "Stale pre-send draft",
+    });
+    actor.stop();
+  });
+});

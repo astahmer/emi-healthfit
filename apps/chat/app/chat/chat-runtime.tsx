@@ -80,6 +80,7 @@ const createHealthFitChatRuntime = ({
     draftsStorage: window.localStorage,
     navigator: window.navigator,
     eventTarget: window,
+    storageEventTarget: window,
     createId: () => crypto.randomUUID(),
     now: () => new Date().toISOString(),
   });

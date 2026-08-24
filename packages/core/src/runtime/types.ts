@@ -94,6 +94,9 @@ export interface ChatRuntimeOptions {
   readonly browser: {
     readonly online: boolean;
     readonly subscribeOnline: (listener: (online: boolean) => void) => () => void;
+    readonly subscribeStorage?: (
+      listener: (event: { readonly key: string | null; readonly newValue: string | null }) => void,
+    ) => () => void;
   };
   readonly webmcp?: {
     readonly modelContext?: WebMcpModelContext;

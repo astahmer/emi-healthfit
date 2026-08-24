@@ -223,6 +223,7 @@ export const createChatRuntimeActor = (options: ChatRuntimeOptions): RuntimeActo
       browser: {
         online: () => options.browser.online,
         subscribeOnline: options.browser.subscribeOnline,
+        subscribeStorage: options.browser.subscribeStorage,
         storage: draftsStorage,
       },
       draftStorageKey,
@@ -263,9 +264,27 @@ export const createChatRuntime = (options: ChatRuntimeOptions): ChatRuntime => {
   let autoDrainQueuedFollowUps = false;
   let drainQueuedFollowUp = () => undefined;
   let lastRetryAt = 0;
+  let lastForwardedDraft: string | undefined;
 
   const invalidate = () => {
     const sessionSnapshot = actor.getSnapshot().children.session?.getSnapshot();
+    const draft = sessionSnapshot?.context.draft;
+    if (started && draft !== undefined) {
+      if (lastForwardedDraft === undefined) {
+        // First observation is a baseline, not a change: forwarding it would
+        // race the initial hydration and erase a legitimately saved draft.
+        lastForwardedDraft = draft;
+      } else if (draft !== lastForwardedDraft) {
+        // Programmatic clears (send, queueing, edit-discard) are silent assigns
+        // without a draft-changed event; forward every transition so the
+        // saved-draft storage can never keep a stale message.
+        lastForwardedDraft = draft;
+        actor.send({
+          type: "browser-state-event",
+          event: { type: "draft-persist-requested", draft },
+        });
+      }
+    }
     const isStreaming = sessionSnapshot?.matches("streaming") ?? false;
     const shouldDrain =
       autoDrainQueuedFollowUps &&

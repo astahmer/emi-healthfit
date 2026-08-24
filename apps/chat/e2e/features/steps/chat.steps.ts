@@ -2976,3 +2976,16 @@ Then(
 Then("the queued panel should disappear", async ({ page }) => {
   await expect(page.getByLabel("Queued follow-ups")).toHaveCount(0);
 });
+
+When("they clear the composer draft", async ({ page }) => {
+  await page.getByLabel("Message input").fill("");
+});
+
+When("they reload the page", async ({ page }) => {
+  await page.reload();
+  await expect(page.getByLabel("Message input")).toBeVisible();
+});
+
+Then("the composer draft should be empty", async ({ page }) => {
+  await expect(page.getByLabel("Message input")).toHaveValue("");
+});

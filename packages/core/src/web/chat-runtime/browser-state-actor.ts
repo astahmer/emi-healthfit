@@ -4,9 +4,17 @@ import type { ChatSessionEvent } from "../chat-session-machine.ts";
 import type { ChatRouteInput } from "../../runtime/types.ts";
 import type { SettingsStorage } from "./settings-actor.ts";
 
+export interface BrowserStorageChange {
+  readonly key: string | null;
+  readonly newValue: string | null;
+}
+
 export interface BrowserStateAdapter {
   online: () => boolean;
   subscribeOnline: (listener: (online: boolean) => void) => () => void;
+  subscribeStorage?: (
+    listener: (event: BrowserStorageChange) => void,
+  ) => () => void;
   storage: Pick<SettingsStorage, "getItem" | "setItem"> & {
     removeItem: (key: string) => unknown;
   };
@@ -39,9 +47,12 @@ const errorMessage = ({ cause }: { cause: unknown }): string =>
 const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserStateActorInput>(
   ({ input, receive, sendBack }) => {
     let hydratedOnce = false;
-    const hydrate = (draft: string | null) => {
+    let persistCounter = 0;
+    let lastPersistedDraft: string | undefined;
+    const hydrate = (draft: string | null, requestedAt: number) => {
       hydratedOnce = true;
-      if (draft !== null) sendBack({ type: "draft-restored", draft });
+      if (requestedAt === persistCounter && draft !== null && draft !== "")
+        sendBack({ type: "draft-restored", draft });
       sendBack({ type: "draft-hydrated" });
     };
 
@@ -49,8 +60,18 @@ const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserState
       sendBack({ type: "online-changed", online });
     });
 
+    const unsubscribeStorage = input.browser.subscribeStorage?.((event) => {
+      if (event.key !== input.draftStorageKey) return;
+      const remoteDraft = event.newValue ?? "";
+      if (remoteDraft === lastPersistedDraft) return;
+      sendBack({ type: "draft-restored", draft: remoteDraft });
+    });
+
     receive((event) => {
       if (event.type === "draft-persist-requested") {
+        if (event.draft === lastPersistedDraft) return;
+        lastPersistedDraft = event.draft;
+        const requestedAt = ++persistCounter;
         try {
           const persistence =
             event.draft === ""
@@ -68,14 +89,18 @@ const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserState
       if (event.type === "route-sync-requested") {
         if (hydratedOnce || !event.route.historyReady) return;
         try {
+          const requestedAt = persistCounter;
           const draft = input.browser.storage.getItem(input.draftStorageKey);
           if (draft instanceof Promise) {
-            void draft.then(hydrate, (cause: unknown) => {
-              sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
-              sendBack({ type: "draft-hydrated" });
-            });
+            void draft.then(
+              (value) => hydrate(value, requestedAt),
+              (cause: unknown) => {
+                sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
+                sendBack({ type: "draft-hydrated" });
+              },
+            );
           } else {
-            hydrate(draft);
+            hydrate(draft, requestedAt);
           }
         } catch (cause) {
           sendBack({ type: "browser-state-failed", error: errorMessage({ cause }) });
@@ -85,7 +110,10 @@ const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserState
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeStorage?.();
+      unsubscribe();
+    };
   },
 );
 
