@@ -1174,6 +1174,7 @@ Given("a user is on session one with a token budget of {int}", async ({ page }, 
     tokenBudget: budget,
   });
   await expect(page.getByText("one message answer")).toBeVisible();
+  await expect(page.getByText("Token usage").first()).toBeVisible();
 });
 
 Given(
@@ -1194,6 +1195,7 @@ Given(
       tokenBudget: budget,
     });
     await expect(page.getByText("one message answer")).toBeVisible();
+    await expect(page.getByText("Token usage").first()).toBeVisible();
   },
 );
 

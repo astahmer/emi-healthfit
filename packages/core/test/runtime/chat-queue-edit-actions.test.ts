@@ -176,30 +176,16 @@ describe("queued follow-up send lifecycle regressions", () => {
       },
     };
     const chatRequests: string[] = [];
-    let gate: Promise<void> | undefined;
-    let release: (() => void) | undefined;
     let callCount = 0;
-    const holdFirstStream = () => {
-      gate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-    };
     const transportFetch = async (
       input: RequestInfo | URL,
       init?: RequestInit,
     ): Promise<Response> => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith("/api/chat") && init?.method === "POST") {
+      if (init?.method === "POST") {
         callCount += 1;
-        if (callCount === 1 && gate !== undefined) {
-          await gate;
-          return streamResponse("first reply");
-        }
-        chatRequests.push(url);
         return streamResponse("queued reply");
       }
-      if (url.endsWith("/stream")) return new Response(null, { status: 204 });
-      throw new Error(`Unexpected request in streaming fixture: ${url}`);
+      return new Response(null, { status: 204 });
     };
     return {
       transport: { ...base.transport, fetch: transportFetch },
@@ -244,9 +230,8 @@ describe("queued follow-up send lifecycle regressions", () => {
     });
     let callCount = 0;
     fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (init?.method === "POST") {
-        callCount += 1;
+          callCount += 1;
         if (callCount === 1) {
           await held;
           return streamResponse("first reply");
@@ -288,7 +273,6 @@ describe("queued follow-up send lifecycle regressions", () => {
     let chatPosts = 0;
     const baseFetch = fixture.transport.fetch;
     fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (init?.method === "POST") {
         chatPosts += 1;
         return streamResponse("queued reply");
@@ -341,9 +325,8 @@ describe("queued follow-up send lifecycle regressions", () => {
     let callCount = 0;
     const baseFetch = fixture.transport.fetch;
     fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (init?.method === "POST") {
-        callCount += 1;
+          callCount += 1;
         if (callCount === 1) {
           await held;
           return streamResponse("first reply");

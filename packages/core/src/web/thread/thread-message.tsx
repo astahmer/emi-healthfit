@@ -11,7 +11,7 @@ import {
   PencilIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Bubble, BubbleContent } from "../../components/styled/internal/ui/bubble.tsx";
 import { Button } from "../../components/styled/internal/ui/button.tsx";
 import {

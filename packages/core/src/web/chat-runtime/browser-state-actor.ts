@@ -71,7 +71,7 @@ const browserStateOperations = fromCallback<BrowserStateActorEvent, BrowserState
       if (event.type === "draft-persist-requested") {
         if (event.draft === lastPersistedDraft) return;
         lastPersistedDraft = event.draft;
-        const requestedAt = ++persistCounter;
+        persistCounter += 1;
         try {
           const persistence =
             event.draft === ""
