@@ -41,46 +41,68 @@ export const fulfillMockApi = async ({
 
 export type TestSettingsOptions = {
   share?: "off" | "mock";
+  tokenBudgetEnabled?: boolean;
+  tokenBudget?: number;
 };
 
-export const setTestSettings = async (page: Page, options: TestSettingsOptions = {}) => {
+export const setTestSettings = async (
+  page: Page,
+  options: TestSettingsOptions = {},
+): Promise<void> => {
   const share = options.share ?? "off";
-  await page.addInitScript((shareMode: "off" | "mock") => {
-    if (shareMode === "off") {
-      Object.defineProperty(navigator, "share", {
-        configurable: true,
-        value: undefined,
-      });
-    } else {
-      const calls: ShareData[] = [];
-      Object.defineProperty(window, "emiShareCalls", {
-        configurable: true,
-        value: calls,
-      });
-      Object.defineProperty(navigator, "share", {
-        configurable: true,
-        value: async (data: ShareData) => {
-          calls.push(data);
-        },
-      });
-    }
-    localStorage.setItem(
-      "emi-chat-settings",
-      JSON.stringify({
-        state: {
-          settings: {
-            provider: "openai",
-            baseUrl: "",
-            apiKey: "sk-test",
-            model: "gpt-4o-mini",
-            systemPrompt: "You are a test assistant.",
-            coachMode: false,
+  const budgetOptions = {
+    tokenBudgetEnabled: options.tokenBudgetEnabled ?? null,
+    tokenBudget: options.tokenBudget ?? null,
+  };
+  await page.addInitScript(
+    ({
+      shareMode,
+      budget,
+    }: {
+      shareMode: "off" | "mock";
+      budget: { tokenBudgetEnabled: boolean | null; tokenBudget: number | null };
+    }) => {
+      if (shareMode === "off") {
+        Object.defineProperty(navigator, "share", {
+          configurable: true,
+          value: undefined,
+        });
+      } else {
+        const calls: ShareData[] = [];
+        Object.defineProperty(window, "emiShareCalls", {
+          configurable: true,
+          value: calls,
+        });
+        Object.defineProperty(navigator, "share", {
+          configurable: true,
+          value: async (data: ShareData) => {
+            calls.push(data);
           },
-        },
-        version: 0,
-      }),
-    );
-  }, share);
+        });
+      }
+      localStorage.setItem(
+        "emi-chat-settings",
+        JSON.stringify({
+          state: {
+            settings: {
+              provider: "openai",
+              baseUrl: "",
+              apiKey: "sk-test",
+              model: "gpt-4o-mini",
+              systemPrompt: "You are a test assistant.",
+              coachMode: false,
+              ...(budget.tokenBudgetEnabled !== null
+                ? { tokenBudgetEnabled: budget.tokenBudgetEnabled }
+                : {}),
+              ...(budget.tokenBudget !== null ? { tokenBudget: budget.tokenBudget } : {}),
+            },
+          },
+          version: 0,
+        }),
+      );
+    },
+    { shareMode: share, budget: budgetOptions },
+  );
 };
 
 export const installMockApi = async ({

@@ -58,6 +58,12 @@ type PersistedChatSettings = typeof PersistedChatSettingsSchema.Type;
 
 const decodePersistedChatSettings = Schema.decodeUnknownSync(PersistedChatSettingsSchema);
 
+declare global {
+  interface Window {
+    __emiSettings?: SettingsState;
+  }
+}
+
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({

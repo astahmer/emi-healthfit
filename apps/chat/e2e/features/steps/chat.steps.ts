@@ -1141,6 +1141,10 @@ Given("a user is on the settings page", async ({ page }) => {
   await mock.open(page, "/settings");
 });
 
+When("they enable the token budget", async ({ page }) => {
+  await page.getByLabel("Limit response size with a token budget").check();
+});
+
 When("they set the default token budget to {int}", async ({ page }, budget: number) => {
   await page.getByLabel("Default token budget").fill(String(budget));
 });
@@ -1153,7 +1157,7 @@ When("they navigate to session one", async ({ page }) => {
 
 Then("the conversation token budget should be {int}", async ({ page }, budget: number) => {
   await page
-    .getByText(/tokens/)
+    .getByRole("button", { name: /Token usage/i })
     .first()
     .click();
   await expect(page.getByLabel("Token budget")).toHaveValue(String(budget));
@@ -1165,7 +1169,10 @@ Given("a user is on session one with a token budget of {int}", async ({ page }, 
   }, budget);
   const mock = createChatMock({ state: { snapshots: { one: sessionOneSnapshot() } } });
   registerPageMock(page, mock);
-  await mock.open(page, "/chat/one");
+  await mock.open(page, "/chat/one", {
+    tokenBudgetEnabled: true,
+    tokenBudget: budget,
+  });
   await expect(page.getByText("one message answer")).toBeVisible();
 });
 
@@ -1182,7 +1189,10 @@ Given(
       },
     });
     registerPageMock(page, mock);
-    await mock.open(page, "/chat/one");
+    await mock.open(page, "/chat/one", {
+      tokenBudgetEnabled: true,
+      tokenBudget: budget,
+    });
     await expect(page.getByText("one message answer")).toBeVisible();
   },
 );
@@ -1262,7 +1272,7 @@ Given(
 
 Then("the conversation usage should show it is over budget", async ({ page }) => {
   await page
-    .getByText(/tokens/)
+    .getByRole("button", { name: /Token usage/i })
     .first()
     .click();
   await expect(page.getByText(/150% used/)).toBeVisible();

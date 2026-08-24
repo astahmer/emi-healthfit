@@ -2,6 +2,7 @@ Feature: Conversation usage
 
   Scenario: Uses the default token budget from settings
     Given a user is on the settings page
+    When they enable the token budget
     When they set the default token budget to 250000
     When they navigate to session one
     Then the conversation token budget should be 250000

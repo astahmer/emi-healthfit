@@ -1,8 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActionFeedbackProvider } from "./action-feedback";
 import { MemoryPanel } from "./memory-panel";
@@ -21,12 +20,22 @@ vi.mock("./memories", () => ({
   },
 }));
 
+type ListArgs = NonNullable<Parameters<(typeof MemoryDomain)["list"]>[0]>;
+
 const memoryRow = {
   id: "memory-1",
   content: "Prefers concise answers",
   source: "manual",
+  thread_id: null,
   created_at: "2026-07-14T10:00:00.000Z",
   deleted: false,
+  rank: 1,
+};
+
+const memorySummary = {
+  content: "Merged summary",
+  memory_count: 1,
+  updated_at: "2026-07-14T11:00:00.000Z",
 };
 
 const renderPanel = () => {
@@ -39,18 +48,26 @@ const renderPanel = () => {
         <MemoryPanel />
       </ActionFeedbackProvider>
     </QueryClientProvider>,
-  ) as ReactNode & { unmount: () => void };
+  );
 };
 
-const mocked = () => vi.mocked(MemoryDomain.list);
-
 describe("MemoryPanel query failures", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
   it("shows a friendly card with retry instead of the raw query error for the list", async () => {
-    mocked().mockImplementation(async ({ deleted }: { deleted?: boolean }) => {
-      if (deleted !== true) throw new TypeError(`["memories","list"] data is undefined`);
-      return [];
+    vi.mocked(MemoryDomain.list).mockImplementation(async (args?: ListArgs) => {
+      const deleted = args?.deleted;
+      if (deleted === true) return [];
+      throw new TypeError(`["memories","list"] data is undefined`);
     });
-    vi.mocked(MemoryDomain.summary).mockResolvedValue(null);
+    vi.mocked(MemoryDomain.summary).mockResolvedValue({
+      content: "",
+      memory_count: 0,
+      updated_at: "2026-07-14T10:00:00.000Z",
+    });
 
     renderPanel();
 
@@ -64,18 +81,15 @@ describe("MemoryPanel query failures", () => {
   it("recovers through the retry button after the summary query fails", async () => {
     const user = userEvent.setup();
     let failSummary = true;
-    vi.mocked(MemoryDomain.list).mockImplementation(async ({ deleted }: { deleted?: boolean }) =>
-      deleted === true ? [] : [memoryRow],
-    );
+    vi.mocked(MemoryDomain.list).mockImplementation(async (args?: ListArgs) => {
+      const deleted = args?.deleted;
+      return deleted === true ? [] : [memoryRow];
+    });
     vi.mocked(MemoryDomain.summary).mockImplementation(async () => {
       if (failSummary) {
         throw new TypeError(`["memories","summary"] data is undefined`);
       }
-      return {
-        content: "Merged summary",
-        memory_count: 1,
-        updated_at: "2026-07-14T11:00:00.000Z",
-      };
+      return memorySummary;
     });
 
     renderPanel();
@@ -95,10 +109,33 @@ describe("MemoryPanel query failures", () => {
   });
 
   it("keeps loading and empty states intact when queries succeed", async () => {
-    vi.mocked(MemoryDomain.list).mockImplementation(async ({ deleted }: { deleted?: boolean }) =>
-      deleted === true ? [] : [memoryRow],
+    vi.mocked(MemoryDomain.list).mockImplementation(async (args?: ListArgs) => {
+      const deleted = args?.deleted;
+      return deleted === true ? [] : [memoryRow];
+    });
+    vi.mocked(MemoryDomain.summary).mockResolvedValue({
+      content: "",
+      memory_count: 0,
+      updated_at: "2026-07-14T10:00:00.000Z",
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Prefers concise answers")).toBeVisible();
+    });
+    expect(screen.getByText(/0 source memories/)).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("treats a null summary payload as an empty state instead of crashing", async () => {
+    vi.mocked(MemoryDomain.list).mockImplementation(async (args?: ListArgs) => {
+      const deleted = args?.deleted;
+      return deleted === true ? [] : [memoryRow];
+    });
+    vi.mocked(MemoryDomain.summary).mockResolvedValue(
+      null as unknown as { content: string; memory_count: number; updated_at: string },
     );
-    vi.mocked(MemoryDomain.summary).mockResolvedValue(null);
 
     renderPanel();
 
