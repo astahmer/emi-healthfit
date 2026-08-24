@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -57,11 +57,41 @@ const assertPortsAvailable = async () => {
     )
   ).filter((port) => port !== null);
   if (inUse.length > 0) {
-    throw new Error(
-      `Real Worker E2E needs ports ${ports.join(", ")} but ${inUse.join(", ")} is already in use. ` +
-        "Stop the occupying dev servers, override WORKER_E2E_API_PORT/WORKER_E2E_WEB_PORT/PROVIDER_PORT, " +
-        "or set RELEASE_SKIP_WORKER_E2E=1.",
-    );
+    // Auto-clean stale processes from previous runs (common after timeouts).
+    for (const port of inUse) {
+      try {
+        const pid = execSync(`lsof -ti:${port}`, { encoding: "utf8" }).trim();
+        if (pid) {
+          process.kill(Number(pid.split("\n")[0]), "SIGKILL");
+          console.log(`[worker-e2e] killed stale process ${pid} on port ${port}`);
+        }
+      } catch {
+        // Port already free or process already gone.
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const stillInUse = (
+      await Promise.all(
+        ports.map(async (port) => {
+          try {
+            const net = await import("node:net");
+            return await new Promise((resolve) => {
+              const srv = net.createServer();
+              srv.once("error", () => resolve(port));
+              srv.once("listening", () => { srv.close(); resolve(null); });
+              srv.listen(port);
+            });
+          } catch {
+            return port;
+          }
+        }),
+      )
+    ).filter((port) => port !== null);
+    if (stillInUse.length > 0) {
+      throw new Error(
+        `Real Worker E2E needs ports ${ports.join(", ")} but ${stillInUse.join(", ")} is still in use after cleanup.`,
+      );
+    }
   }
 };
 

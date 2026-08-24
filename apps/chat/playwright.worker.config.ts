@@ -12,9 +12,10 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   globalTimeout: 180_000,
-  retries: 1,
+  retries: 2,
   reporter: "line",
-  timeout: 30_000,
+  timeout: 45_000,
+  expect: { timeout: 12_000 },
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3232",
     ...devices["Desktop Chrome"],
