@@ -124,12 +124,7 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
 
   return (
     <details className="group relative">
-      <summary
-        className="list-none"
-        role="button"
-        tabIndex={0}
-        aria-label="Token usage"
-      >
+      <summary className="list-none" role="button" tabIndex={0} aria-label="Token usage">
         <span className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
           <CoinsIcon className="size-3.5" /> Token usage
         </span>

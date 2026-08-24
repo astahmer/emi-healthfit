@@ -1,6 +1,6 @@
 "use client";
 
-import { useState , useEffect } from "react";
+import { useState, useEffect } from "react";
 import { ArrowDownIcon, ArrowUpIcon, ArrowUpRightIcon } from "lucide-react";
 import type { ChatUiMessage } from "@emi/core/chat";
 import { useQuery } from "@tanstack/react-query";
@@ -48,20 +48,20 @@ const StreamingIndicator = () => {
     return () => window.clearInterval(timer);
   }, []);
   return (
-  <span
-    className="inline-flex animate-pulse items-center gap-1.5 text-sm font-medium text-foreground/80"
-    role="status"
-    aria-label="Assistant is working"
-  >
-    <span>Thinking</span>
-    <span className="typing-dots" aria-hidden="true">
-      <span />
-      <span />
-      <span />
+    <span
+      className="inline-flex animate-pulse items-center gap-1.5 text-sm font-medium text-foreground/80"
+      role="status"
+      aria-label="Assistant is working"
+    >
+      <span>Thinking</span>
+      <span className="typing-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      {elapsed > 0 ? <span className="tabular-nums">· {elapsed}s</span> : null}
     </span>
-    {elapsed > 0 ? <span className="tabular-nums">· {elapsed}s</span> : null}
-  </span>
-);
+  );
 };
 
 const FollowUpSuggestions = () => {
@@ -375,22 +375,22 @@ export const ThreadMessageList = ({
                 {incompleteUserMessage !== undefined &&
                   !runtime.errorMessageId &&
                   !runtime.error && (
-                  <div
-                    data-testid="incomplete-turn-notice"
-                    aria-live="polite"
-                    className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
-                  >
-                    <span>Coach did not finish this reply.</span>
-                    <button
-                      type="button"
-                      className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={runtime.isRetrying || runtime.isStreaming}
-                      onClick={() => void runtime.revise({ messageId: incompleteUserMessage.id })}
+                    <div
+                      data-testid="incomplete-turn-notice"
+                      aria-live="polite"
+                      className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
                     >
-                      {runtime.isRetrying ? "Retrying…" : "Retry coach response"}
-                    </button>
-                  </div>
-                )}
+                      <span>Coach did not finish this reply.</span>
+                      <button
+                        type="button"
+                        className="ms-auto cursor-pointer font-medium underline disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={runtime.isRetrying || runtime.isStreaming}
+                        onClick={() => void runtime.revise({ messageId: incompleteUserMessage.id })}
+                      >
+                        {runtime.isRetrying ? "Retrying…" : "Retry coach response"}
+                      </button>
+                    </div>
+                  )}
                 {runtime.isStreaming && runtime.messages.at(-1)?.role !== "assistant" && (
                   <Message align="start" aria-live="polite" className="py-1">
                     <MessageContent>

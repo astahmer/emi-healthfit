@@ -156,7 +156,5 @@ test("removes Hevy cached data after confirmation", async ({ page }) => {
   expect(mock.state.hevy.workouts).toHaveLength(0);
 
   await page.getByRole("link", { name: "Workouts" }).click();
-  await expect(
-    page.getByText("No workouts yet"),
-  ).toBeVisible();
+  await expect(page.getByText("No workouts yet")).toBeVisible();
 });

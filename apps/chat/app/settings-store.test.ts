@@ -5,15 +5,16 @@ const seedPersistedSettings = (payload: unknown): void => {
 };
 
 type PersistedSettings = {
-  state: { settings: {
-    provider: "openai";
-    baseUrl: string;
-    apiKey: string;
-    model: string;
-    systemPrompt: string;
-    coachMode: boolean;
-    showTokenUsage?: boolean;
-    tokenBudgetEnabled?: boolean;
+  state: {
+    settings: {
+      provider: "openai";
+      baseUrl: string;
+      apiKey: string;
+      model: string;
+      systemPrompt: string;
+      coachMode: boolean;
+      showTokenUsage?: boolean;
+      tokenBudgetEnabled?: boolean;
       tokenBudget?: number;
     };
   };

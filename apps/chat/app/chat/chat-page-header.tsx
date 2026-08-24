@@ -169,7 +169,9 @@ export const ChatPageHeader = ({
               >
                 <DownloadIcon className="size-4" />
               </TooltipIconButton>
-              <TooltipIconButton className="hidden sm:inline-flex"                 tooltip="Compact conversation and start fresh"
+              <TooltipIconButton
+                className="hidden sm:inline-flex"
+                tooltip="Compact conversation and start fresh"
                 side="bottom"
                 type="button"
                 variant="ghost"

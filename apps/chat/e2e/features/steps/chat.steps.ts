@@ -1265,8 +1265,12 @@ Given(
       },
     });
     registerPageMock(page, mock);
-    await mock.open(page, "/chat/one");
+    await mock.open(page, "/chat/one", {
+      tokenBudgetEnabled: true,
+      tokenBudget: budget,
+    });
     await expect(page.getByText("one message answer")).toBeVisible();
+    await expect(page.getByText("Token usage").first()).toBeVisible();
     await page.getByRole("button", { name: "Branch", exact: true }).click();
     await expect(page.getByText("Branch question")).toBeVisible();
   },
@@ -2369,7 +2373,6 @@ Then("the memory page should scroll to the last memory", async ({ page }) => {
   expect(scrollTop).toBeGreaterThan(0);
 });
 
-
 const clickMessageOverflowAction = async ({
   page,
   messageId,
@@ -2501,9 +2504,7 @@ Then("the Hevy data removed notice should be visible", async ({ page }) => {
 });
 
 Then("the no workouts notice should be visible", async ({ page }) => {
-  await expect(
-    page.getByText("No workouts yet"),
-  ).toBeVisible();
+  await expect(page.getByText("No workouts yet")).toBeVisible();
 });
 
 When("they generate a Discord link code", async ({ page }) => {

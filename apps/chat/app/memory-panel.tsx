@@ -16,13 +16,7 @@ const memorySource = (source: string | null | undefined): string => {
   return "Saved";
 };
 
-const QueryErrorCard = ({
-  title,
-  onRetry,
-}: {
-  title: string;
-  onRetry: () => void;
-}) => (
+const QueryErrorCard = ({ title, onRetry }: { title: string; onRetry: () => void }) => (
   <div
     role="alert"
     className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"
