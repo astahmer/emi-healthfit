@@ -173,7 +173,6 @@ describe("queued follow-up send lifecycle regressions", () => {
       },
     };
     const chatRequests: string[] = [];
-    let releaseFirstPost: ((value: Response) => void) | undefined;
     let callCount = 0;
     const transportFetch = async (
       input: RequestInfo | URL,
