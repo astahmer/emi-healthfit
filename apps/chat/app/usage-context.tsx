@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CoinsIcon } from "lucide-react";
 import { chatModels } from "./models";
-import { Button } from "@/components/ui/button";
 import type { MessageUsage, MessageWithUsage } from "./sessions";
 import { useSettings } from "./settings-store";
 
@@ -125,12 +124,15 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
 
   return (
     <details className="group relative">
-      <summary className="list-none">
-        <Button type="button" variant="ghost" size="sm" asChild>
-          <span className="cursor-pointer gap-1.5 text-xs text-muted-foreground">
-            <CoinsIcon className="size-3.5" /> Token usage
-          </span>
-        </Button>
+      <summary
+        className="list-none"
+        role="button"
+        tabIndex={0}
+        aria-label="Token usage"
+      >
+        <span className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+          <CoinsIcon className="size-3.5" /> Token usage
+        </span>
       </summary>
       <div className="absolute right-0 z-50 mt-2 w-80 space-y-4 rounded-xl border bg-popover p-4 text-popover-foreground shadow-xl">
         <div>
