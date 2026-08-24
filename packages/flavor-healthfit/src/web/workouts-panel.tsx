@@ -99,8 +99,17 @@ export const WorkoutsPanel = () => {
 
   if (workouts.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        No workouts found. Upload a Hevy export to get started.
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm font-medium">No workouts yet</p>
+        <p className="max-w-sm text-xs text-muted-foreground">
+          Import a Hevy export to unlock training history, streaks, and volume trends.
+        </p>
+        <a
+          href="/upload"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center rounded-md px-4 text-sm font-medium"
+        >
+          Upload a Hevy export
+        </a>
       </div>
     );
   }

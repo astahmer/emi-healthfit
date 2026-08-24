@@ -33,9 +33,10 @@ const ChartCard = ({
   </section>
 );
 
-const EmptyChart = () => (
-  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-    No data in this period.
+const EmptyChart = ({ hint }: { hint: string }) => (
+  <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+    <p className="text-sm font-medium">No data yet</p>
+    <p className="text-xs text-muted-foreground">{hint}</p>
   </div>
 );
 
@@ -146,7 +147,7 @@ const SummaryPanelContent = () => {
         <div className="grid gap-4 lg:grid-cols-2">
           <ChartCard title="Daily activity" subtitle="Steps and active calories">
             {data === undefined || data.activity.length === 0 ? (
-              <EmptyChart />
+              <EmptyChart hint="Sync steps from a HealthExportKit upload to see daily activity." />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={data.activity}>
@@ -177,7 +178,7 @@ const SummaryPanelContent = () => {
 
           <ChartCard title="Sleep" subtitle="Nightly asleep time">
             {sleep.length === 0 ? (
-              <EmptyChart />
+              <EmptyChart hint="Upload a HealthExportKit export to follow your sleep trends." />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={sleep}>
@@ -199,7 +200,7 @@ const SummaryPanelContent = () => {
 
           <ChartCard title="Training volume" subtitle="Daily Hevy volume">
             {data === undefined || data.training.length === 0 ? (
-              <EmptyChart />
+              <EmptyChart hint="Import Hevy workouts to chart weekly training volume." />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.training}>
@@ -220,7 +221,7 @@ const SummaryPanelContent = () => {
 
           <ChartCard title="Body weight" subtitle="Imported body metric measurements">
             {data === undefined || data.body.length === 0 ? (
-              <EmptyChart />
+              <EmptyChart hint="Log body weight in HealthExportKit or Hevy to see the trend here." />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data.body}>
@@ -264,7 +265,7 @@ const SummaryPanelContent = () => {
 };
 
 export const SummaryPanel = () => (
-  <Suspense fallback={<EmptyChart />}>
+  <Suspense fallback={<EmptyChart hint="Loading health metrics…" />}>
     <SummaryPanelContent />
   </Suspense>
 );

@@ -39,9 +39,21 @@ export const Releases = () => {
       {history === null && !failed && (
         <p className="text-muted-foreground mt-6 text-sm">Loading releases…</p>
       )}
-      {failed && <p className="text-destructive mt-6 text-sm">Could not load release history.</p>}
+      {failed && (
+        <div className="mt-6 space-y-2">
+          <p className="text-destructive text-sm">Could not load release history.</p>
+          <a href="/chat" className="text-sm underline hover:text-foreground">
+            Back to chat
+          </a>
+        </div>
+      )}
       {history?.releases.length === 0 && (
-        <p className="text-muted-foreground mt-6 text-sm">No production releases recorded yet.</p>
+        <div className="mt-6 space-y-2">
+          <p className="text-muted-foreground text-sm">No production releases recorded yet.</p>
+          <a href="/chat" className="text-sm underline hover:text-foreground">
+            Back to chat
+          </a>
+        </div>
       )}
       <div className="mt-6 space-y-4">
         {history?.releases.map((release) => (

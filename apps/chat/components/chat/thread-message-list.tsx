@@ -1,7 +1,7 @@
 "use client";
 
 import { useState , useEffect } from "react";
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpRightIcon } from "lucide-react";
 import type { ChatUiMessage } from "@emi/core/chat";
 import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
@@ -278,9 +278,10 @@ export const ThreadMessageList = ({
                     <Button
                       key={suggestion}
                       variant="outline"
-                      className="h-auto justify-start whitespace-normal p-3 text-left"
+                      className="h-auto justify-start gap-2 whitespace-normal p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
                       onClick={() => void runtime.submit(suggestion)}
                     >
+                      <ArrowUpRightIcon className="size-4 shrink-0 text-muted-foreground" />
                       {suggestion}
                     </Button>
                   ))}
