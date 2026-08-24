@@ -13,6 +13,7 @@ describe("generic chat settings", () => {
     assert.equal(decoded.systemPrompt, "");
     assert.equal(decoded.titlePrompt, "");
     assert.equal(decoded.webSearch, false);
+    assert.equal(decoded.showTokenUsage, false);
     assert.equal(decoded.theme, "light");
   });
 });

@@ -6,6 +6,7 @@ import { UsageProvider } from "@/app/usage-context";
 import { ActionFeedbackProvider } from "@/app/action-feedback";
 import type { MessageWithUsage } from "@/app/sessions";
 import { chatModels } from "@/app/models";
+import { useSettings } from "@/app/settings-store";
 import { useChatRuntime } from "@/app/chat/chat-runtime-context";
 import { MemoryDomain } from "@/app/memories";
 import { Thread, type ComposerControls } from "./thread";
@@ -262,7 +263,10 @@ describe("Thread", () => {
     expect(screen.getByText("Only one SELECT query is allowed.")).toBeInTheDocument();
   });
 
-  it("restores persisted timestamp, model, and token metadata", () => {
+  it("restores persisted timestamp and model metadata with token usage enabled", () => {
+    useSettings.setState({
+      settings: { ...useSettings.getState().settings, showTokenUsage: true },
+    });
     const message: MessageWithUsage = {
       id: "assistant-1",
       role: "assistant",
@@ -281,6 +285,29 @@ describe("Thread", () => {
     expect(screen.getAllByText("GPT-5.6 Terra").length).toBeGreaterThan(0);
     expect(screen.getByText("30 tokens")).toBeInTheDocument();
     expect(view.container.querySelector("time")).toHaveAttribute("datetime", message.createdAt);
+  });
+
+  it("hides token metadata when the showTokenUsage setting is off", () => {
+    useSettings.setState({
+      settings: { ...useSettings.getState().settings, showTokenUsage: false },
+    });
+    const message: MessageWithUsage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Progress" }],
+      model: "gpt-5.6-terra",
+      createdAt: "2026-07-14T10:00:00.000Z",
+      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+    };
+    vi.mocked(useChatRuntime).mockReturnValue({
+      ...vi.mocked(useChatRuntime)(),
+      messages: [message],
+    });
+
+    renderThread([message]);
+
+    expect(screen.queryByText("30 tokens")).not.toBeInTheDocument();
+    expect(screen.getAllByText("GPT-5.6 Terra").length).toBeGreaterThan(0);
   });
 
   it("previews image attachments before submission", () => {

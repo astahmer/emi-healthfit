@@ -292,7 +292,10 @@ export const ThreadMessageList = ({
                         (candidate) =>
                           candidate.id === usage.metaByMessageId.get(message.id)?.model,
                       )?.label,
-                      totalTokens: usage.usageByMessageId.get(message.id)?.totalTokens ?? undefined,
+                      totalTokens:
+                        settings.showTokenUsage === true
+                          ? (usage.usageByMessageId.get(message.id)?.totalTokens ?? undefined)
+                          : undefined,
                       createdAt: usage.metaByMessageId.get(message.id)?.createdAt,
                     }}
                     onFork={onForkMessage}

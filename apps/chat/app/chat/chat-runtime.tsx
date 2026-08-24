@@ -103,10 +103,12 @@ const createHealthFitChatRuntime = ({
             notesContext === ""
               ? currentSettings.systemPrompt
               : `${currentSettings.systemPrompt}\n\n${notesContext}`,
-          tokenBudget: effectiveTokenBudget({
-            conversationId,
-            defaultBudget: currentSettings.tokenBudget,
-          }),
+          tokenBudget: currentSettings.tokenBudgetEnabled
+            ? effectiveTokenBudget({
+                conversationId,
+                defaultBudget: currentSettings.tokenBudget,
+              })
+            : undefined,
           config: {
             provider: currentSettings.provider,
             apiKey: currentSettings.apiKey,

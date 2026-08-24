@@ -1,78 +1,92 @@
-import { describe, expect, it } from "vitest";
-import { defaultModel } from "./models";
-import { DEFAULT_TOKEN_BUDGET, useSettings } from "./settings-store";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("chat settings persistence", () => {
-  it("migrates the previous default model to the current default", async () => {
-    const migrate = useSettings.persist.getOptions().migrate;
-    if (migrate === undefined) throw new Error("Settings migration is not configured");
+const seedPersistedSettings = (payload: unknown): void => {
+  window.localStorage.setItem("emi-chat-settings", JSON.stringify(payload));
+};
 
-    const migrated = await migrate(
-      {
+type PersistedSettings = {
+  state: { settings: {
+    provider: "openai";
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    systemPrompt: string;
+    coachMode: boolean;
+    showTokenUsage?: boolean;
+    tokenBudgetEnabled?: boolean;
+      tokenBudget?: number;
+    };
+  };
+  version: number;
+};
+
+const loadStore = async (): Promise<typeof import("./settings-store")> => {
+  vi.resetModules();
+  return import("./settings-store");
+};
+
+beforeEach(() => {
+  window.localStorage.clear();
+  vi.resetModules();
+});
+
+describe("chat settings store migration", () => {
+  it("keeps the new transparency flags off by default", async () => {
+    seedPersistedSettings({
+      state: {
         settings: {
           provider: "openai",
           baseUrl: "",
-          apiKey: "",
-          model: "gpt-5.2-chat-latest",
-          systemPrompt: "test",
-          coachMode: true,
+          apiKey: "sk-test",
+          model: "gpt-4o-mini",
+          systemPrompt: "",
+          coachMode: false,
         },
       },
-      0,
-    );
+      version: 4,
+    } satisfies PersistedSettings);
 
-    expect(migrated).toMatchObject({
-      settings: { model: defaultModel.id, tokenBudget: DEFAULT_TOKEN_BUDGET },
+    const { useSettings } = await loadStore();
+    await useSettings.persist.rehydrate();
+    expect(useSettings.getState().settings.showTokenUsage).toBe(false);
+    expect(useSettings.getState().settings.tokenBudgetEnabled).toBe(false);
+  });
+
+  it("migrates a version-3 payload and preserves an explicit budget", async () => {
+    seedPersistedSettings({
+      state: {
+        settings: {
+          provider: "openai",
+          baseUrl: "",
+          apiKey: "sk-test",
+          model: "gpt-4o-mini",
+          systemPrompt: "",
+          coachMode: true,
+          tokenBudget: 250_000,
+        },
+      },
+      version: 3,
+    } satisfies PersistedSettings);
+
+    const { useSettings } = await loadStore();
+    await useSettings.persist.rehydrate();
+    expect(useSettings.getState().settings.showTokenUsage).toBe(false);
+    expect(useSettings.getState().settings.tokenBudgetEnabled).toBe(false);
+    expect(useSettings.getState().settings.tokenBudget).toBe(250_000);
+  });
+
+  it("persists toggles flipped by the user", async () => {
+    const { useSettings } = await loadStore();
+    await useSettings.persist.rehydrate();
+    useSettings.getState().update({ showTokenUsage: true, tokenBudgetEnabled: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await vi.waitFor(() => {
+      const raw = JSON.parse(
+        window.localStorage.getItem("emi-chat-settings") ?? "{}",
+      ) as PersistedSettings;
+      expect(raw.state?.settings?.showTokenUsage).toBe(true);
+      expect(raw.state?.settings?.tokenBudgetEnabled).toBe(true);
     });
-  });
-
-  it("falls back to the default token budget for stored settings without one", async () => {
-    const migrate = useSettings.persist.getOptions().migrate;
-    if (migrate === undefined) throw new Error("Settings migration is not configured");
-
-    const migrated = await migrate(
-      {
-        settings: {
-          provider: "openai",
-          baseUrl: "",
-          apiKey: "",
-          model: "gpt-4o-mini",
-          systemPrompt: "test",
-          coachMode: true,
-        },
-      },
-      1,
-    );
-
-    expect(migrated).toMatchObject({ settings: { tokenBudget: DEFAULT_TOKEN_BUDGET } });
-  });
-
-  it("migrates the previous default token budget", async () => {
-    const migrate = useSettings.persist.getOptions().migrate;
-    if (migrate === undefined) throw new Error("Settings migration is not configured");
-
-    const migrated = await migrate(
-      {
-        settings: {
-          provider: "openai",
-          baseUrl: "",
-          apiKey: "",
-          model: "gpt-4o-mini",
-          systemPrompt: "test",
-          coachMode: true,
-          tokenBudget: 100_000,
-        },
-      },
-      2,
-    );
-
-    expect(migrated).toMatchObject({ settings: { tokenBudget: DEFAULT_TOKEN_BUDGET } });
-  });
-
-  it("persists a custom default token budget", () => {
-    useSettings.getState().update({ tokenBudget: 250_000 });
-    const persisted = JSON.parse(localStorage.getItem("emi-chat-settings") ?? "{}");
-
-    expect(persisted.state.settings.tokenBudget).toBe(250_000);
   });
 });

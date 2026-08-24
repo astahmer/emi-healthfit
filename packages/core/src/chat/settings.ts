@@ -13,6 +13,7 @@ export const GenericChatSettingsSchema = Schema.Struct({
   memoryEnabled: Schema.Boolean,
   memoryModel: Schema.String,
   webSearch: Schema.Boolean,
+  showTokenUsage: Schema.Boolean,
   theme: ThemeSchema,
 });
 
@@ -27,7 +28,8 @@ export const PersistedGenericChatSettingsSchema = Schema.Struct({
   memoryEnabled: Schema.Boolean,
   memoryModel: Schema.String,
   webSearch: Schema.optional(Schema.Boolean),
-  theme: ThemeSchema,
+  showTokenUsage: Schema.optional(Schema.Boolean),
+  theme: Schema.optional(ThemeSchema),
 });
 
 export type GenericChatSettings = typeof GenericChatSettingsSchema.Type;
@@ -43,5 +45,6 @@ export const defaultGenericChatSettings: GenericChatSettings = {
   memoryEnabled: true,
   memoryModel: "gpt-4o-mini",
   webSearch: false,
+  showTokenUsage: false,
   theme: "light",
 };

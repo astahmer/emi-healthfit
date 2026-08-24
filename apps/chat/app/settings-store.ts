@@ -14,6 +14,8 @@ interface ChatSettings {
   model: string;
   systemPrompt: string;
   coachMode: boolean;
+  showTokenUsage: boolean;
+  tokenBudgetEnabled: boolean;
   tokenBudget: number;
 }
 
@@ -25,6 +27,8 @@ const defaultSettings: ChatSettings = {
   systemPrompt:
     "You are EmiFit, a helpful fitness assistant. You have access to the user's health and workout data via tools.",
   coachMode: true,
+  showTokenUsage: false,
+  tokenBudgetEnabled: false,
   tokenBudget: DEFAULT_TOKEN_BUDGET,
 };
 
@@ -41,6 +45,8 @@ const PersistedChatSettingsSchema = Schema.Struct({
     model: Schema.String,
     systemPrompt: Schema.String,
     coachMode: Schema.Boolean,
+    showTokenUsage: Schema.optional(Schema.Boolean),
+    tokenBudgetEnabled: Schema.optional(Schema.Boolean),
     tokenBudget: Schema.Number.pipe(
       Schema.optional,
       Schema.withDecodingDefaultType(Effect.succeed(DEFAULT_TOKEN_BUDGET)),
@@ -60,30 +66,54 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: "emi-chat-settings",
-      version: 3,
+      version: 4,
+      merge: (persisted, current): SettingsState => {
+        const persistedSettings =
+          typeof persisted === "object" && persisted !== null
+            ? ((persisted as { settings?: Partial<ChatSettings> }).settings ?? {})
+            : {};
+        const mergedSettings = { ...current.settings, ...persistedSettings };
+        // New transparency/budget keys must always exist even when an
+        // older payload with a matching store version skips migration.
+        if (mergedSettings.showTokenUsage === undefined)
+          mergedSettings.showTokenUsage = current.settings.showTokenUsage;
+        if (mergedSettings.tokenBudgetEnabled === undefined)
+          mergedSettings.tokenBudgetEnabled = current.settings.tokenBudgetEnabled;
+        if (mergedSettings.tokenBudget === undefined)
+          mergedSettings.tokenBudget = current.settings.tokenBudget;
+        return { ...current, settings: mergedSettings };
+      },
       partialize: (state): PersistedChatSettings => ({ settings: state.settings }),
       migrate: (persistedState, version): PersistedChatSettings => {
         try {
           const decoded = decodePersistedChatSettings(persistedState);
-          if (version < 1 && decoded.settings.model === "gpt-5.2-chat-latest") {
+          const withDefaults = {
+            ...defaultSettings,
+            ...decoded.settings,
+            showTokenUsage: decoded.settings.showTokenUsage ?? false,
+            tokenBudgetEnabled: decoded.settings.tokenBudgetEnabled ?? false,
+          };
+          if (version < 1 && withDefaults.model === "gpt-5.2-chat-latest") {
             return {
               settings: {
-                ...decoded.settings,
+                ...withDefaults,
                 model: defaultModel.id,
                 tokenBudget:
-                  version < 3 && decoded.settings.tokenBudget === LEGACY_DEFAULT_TOKEN_BUDGET
+                  version < 3 && withDefaults.tokenBudget === LEGACY_DEFAULT_TOKEN_BUDGET
                     ? DEFAULT_TOKEN_BUDGET
-                    : decoded.settings.tokenBudget,
+                    : withDefaults.tokenBudget,
               },
             };
           }
           return {
             settings: {
-              ...decoded.settings,
+              ...withDefaults,
               tokenBudget:
-                version < 3 && decoded.settings.tokenBudget === LEGACY_DEFAULT_TOKEN_BUDGET
+                version < 3 &&
+                decoded.settings.tokenBudget !== undefined &&
+                decoded.settings.tokenBudget === LEGACY_DEFAULT_TOKEN_BUDGET
                   ? DEFAULT_TOKEN_BUDGET
-                  : decoded.settings.tokenBudget,
+                  : (decoded.settings.tokenBudget ?? DEFAULT_TOKEN_BUDGET),
             },
           };
         } catch {

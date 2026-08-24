@@ -107,6 +107,8 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
   const usage = useUsage();
   const { settings } = useSettings();
   const storageKey = tokenBudgetStorageKey(conversationId);
+  const budgetFeatureEnabled = settings.tokenBudgetEnabled === true;
+  if (!budgetFeatureEnabled) return null;
   const [budget, setBudget] = useState(settings.tokenBudget);
 
   useEffect(() => {
@@ -126,7 +128,7 @@ export const ConversationUsage = ({ conversationId }: { conversationId: string }
       <summary className="list-none">
         <Button type="button" variant="ghost" size="sm" asChild>
           <span className="cursor-pointer gap-1.5 text-xs text-muted-foreground">
-            <CoinsIcon className="size-3.5" /> {formatTokens(totalTokens)} tokens
+            <CoinsIcon className="size-3.5" /> Token usage
           </span>
         </Button>
       </summary>
