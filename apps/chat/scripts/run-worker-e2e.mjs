@@ -78,7 +78,10 @@ const assertPortsAvailable = async () => {
             return await new Promise((resolve) => {
               const srv = net.createServer();
               srv.once("error", () => resolve(port));
-              srv.once("listening", () => { srv.close(); resolve(null); });
+              srv.once("listening", () => {
+                srv.close();
+                resolve(null);
+              });
               srv.listen(port);
             });
           } catch {
