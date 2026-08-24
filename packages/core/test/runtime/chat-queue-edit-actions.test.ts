@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createChatRuntime } from "../../src/runtime.export.ts";
-import type { ChatQueueSyncAdapter } from "../../src/runtime.export.ts";
+import type {
+  ChatQueueSyncAdapter,
+  ChatQueueSyncPayload,
+} from "../../src/runtime.export.ts";
 import type { Attachment } from "../../src/protocol/parts.ts";
 
 const attachment: Attachment = {
@@ -236,7 +239,7 @@ describe("queued follow-up send lifecycle regressions", () => {
       return response;
     };
     // hold the first stream open until released
-    let releaseHeld!: () => void;
+    let releaseHeld!: (value: Response) => void;
     const held = new Promise<Response>((resolve) => {
       releaseHeld = resolve;
     });
@@ -264,7 +267,7 @@ describe("queued follow-up send lifecycle regressions", () => {
     runtime.actions.sendMessage({ text: "Queued while streaming" });
     expect(runtime.getState().queuedFollowUps).toHaveLength(1);
 
-    releaseHeld();
+    releaseHeld(new Response(null));
     await vi.waitFor(() => {
       expect(runtime.getState().queuedFollowUps).toHaveLength(0);
     });
@@ -318,18 +321,12 @@ describe("queued follow-up send lifecycle regressions", () => {
   });
 
   it("Cancel removes a queued item and it stays removed after the queue re-syncs", async () => {
-    const store = new Map<
-      string,
-      { revision: number; items: Array<{ id: string; text: string }> }
-    >();
+    const store = new Map<string, ChatQueueSyncPayload>();
     const adapter: ChatQueueSyncAdapter = {
       tabId: "tab-main",
       read: (sessionId) => store.get(sessionId) ?? null,
       write: (payload) => {
-        store.set(payload.sessionId, {
-          revision: payload.revision,
-          items: payload.items as Array<{ id: string; text: string }>,
-        });
+        store.set(payload.sessionId, payload);
       },
       subscribe: (_sessionId, listener) => {
         void listener;
@@ -338,7 +335,7 @@ describe("queued follow-up send lifecycle regressions", () => {
       broadcast: () => undefined,
     };
     const fixture = createStreamingOptions();
-    let releaseHeld!: () => void;
+    let releaseHeld!: (value: Response) => void;
     const held = new Promise<Response>((resolve) => {
       releaseHeld = resolve;
     });
@@ -369,11 +366,14 @@ describe("queued follow-up send lifecycle regressions", () => {
     runtime.actions.removeQueuedFollowUp({ id: queuedId });
     expect(runtime.getState().queuedFollowUps).toHaveLength(0);
 
-    releaseHeld();
+    releaseHeld(new Response(null));
     await vi.waitFor(() => expect(runtime.getState().activeThread.isStreaming).toBe(false));
 
     runtime.actions.syncRoute({
-      route: { historyReady: true, sessionId: undefined, threadId: undefined, temporary: false },
+      historyReady: true,
+      sessionId: undefined,
+      threadId: undefined,
+      temporary: false,
     });
 
     expect(

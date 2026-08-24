@@ -68,7 +68,9 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
     let unsubscribe: (() => void) | undefined;
     let isStreaming = false;
     let appliedRouteKey: string | undefined;
-    let pendingLocalForceSend: { id: string; timer: ReturnType<typeof setTimeout> } | undefined;
+    let pendingLocalForceSend:
+      | { itemId: string; timer: ReturnType<typeof setTimeout> }
+      | undefined;
 
     const cancelPendingLocalForceSend = (): void => {
       if (pendingLocalForceSend === undefined) return;
@@ -127,7 +129,7 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
       if (message.type === "queue.force-send-claim") {
         if (
           pendingLocalForceSend !== undefined &&
-          pendingLocalForceSend.id === message.itemId &&
+          pendingLocalForceSend.itemId === message.itemId &&
           message.tabId !== adapter?.tabId
         ) {
           cancelPendingLocalForceSend();
@@ -176,13 +178,13 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
       });
       cancelPendingLocalForceSend();
       pendingLocalForceSend = {
-        id,
+        itemId: id,
         timer: setTimeout(() => {
-          const fallbackId = pendingLocalForceSend?.id;
+          const fallbackId = pendingLocalForceSend?.itemId;
           pendingLocalForceSend = undefined;
           if (fallbackId === undefined || isStreaming) return;
           input.onForceSend?.({ id: fallbackId });
-        }, 250),
+        }, 400),
       };
     };
 

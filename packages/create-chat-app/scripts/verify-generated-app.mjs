@@ -183,6 +183,12 @@ try {
     });
     await waitForUrl({ url: `${workerOrigin}/api/health`, server: worker });
     await waitForUrl({ url: `${webOrigin}/api/health`, server: web });
+    // Warm the auth handler and D1 binding: the first signed request pays a
+    // multi-second cold-start that otherwise eats into test timeouts.
+    await Promise.all([
+      fetch(`${workerOrigin}/api/auth/get-session`).then((r) => r.text()).catch(() => undefined),
+      fetch(`${webOrigin}/api/auth/get-session`).then((r) => r.text()).catch(() => undefined),
+    ]);
     await run({
       command: "pnpm",
       args: ["--dir", "web", "test:api"],
