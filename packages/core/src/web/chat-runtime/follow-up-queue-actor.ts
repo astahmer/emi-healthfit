@@ -68,9 +68,7 @@ const followUpQueueOperations = fromCallback<FollowUpQueueActorEvent, FollowUpQu
     let unsubscribe: (() => void) | undefined;
     let isStreaming = false;
     let appliedRouteKey: string | undefined;
-    let pendingLocalForceSend:
-      | { itemId: string; timer: ReturnType<typeof setTimeout> }
-      | undefined;
+    let pendingLocalForceSend: { itemId: string; timer: ReturnType<typeof setTimeout> } | undefined;
 
     const cancelPendingLocalForceSend = (): void => {
       if (pendingLocalForceSend === undefined) return;

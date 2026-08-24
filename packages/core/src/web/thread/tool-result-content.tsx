@@ -148,10 +148,7 @@ const ToolResultContentImpl: FC<ToolResultContentProps> = ({
   }
 
   return (
-    <div
-      data-testid="tool-result-card"
-      className="overflow-hidden rounded-xl border bg-muted/30"
-    >
+    <div data-testid="tool-result-card" className="overflow-hidden rounded-xl border bg-muted/30">
       {!hideHeader && (
         <div className="flex items-center gap-1.5 border-b bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
           <WrenchIcon className="size-3" />

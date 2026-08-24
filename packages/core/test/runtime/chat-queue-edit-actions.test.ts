@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createChatRuntime } from "../../src/runtime.export.ts";
-import type {
-  ChatQueueSyncAdapter,
-  ChatQueueSyncPayload,
-} from "../../src/runtime.export.ts";
+import type { ChatQueueSyncAdapter, ChatQueueSyncPayload } from "../../src/runtime.export.ts";
 import type { Attachment } from "../../src/protocol/parts.ts";
 
 const attachment: Attachment = {
@@ -145,9 +142,9 @@ describe("queued follow-up send lifecycle regressions", () => {
 
   const createStreamingOptions = () => {
     const base = createOptions();
-    const settingsStore = (base.storage.settings as {
+    const settingsStore = base.storage.settings as {
       get: (key: string) => Promise<string | null>;
-    }) satisfies { get: (key: string) => Promise<string | null> };
+    } satisfies { get: (key: string) => Promise<string | null> };
     void settingsStore;
     const settingsBacking = new Map<string, string>();
     settingsBacking.set(
@@ -193,7 +190,6 @@ describe("queued follow-up send lifecycle regressions", () => {
       browser: base.browser,
       identity: base.identity,
       chatRequests,
-      releaseFirstStream: () => release?.(),
     };
   };
 
@@ -231,7 +227,7 @@ describe("queued follow-up send lifecycle regressions", () => {
     let callCount = 0;
     fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
-          callCount += 1;
+        callCount += 1;
         if (callCount === 1) {
           await held;
           return streamResponse("first reply");
@@ -326,7 +322,7 @@ describe("queued follow-up send lifecycle regressions", () => {
     const baseFetch = fixture.transport.fetch;
     fixture.transport.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
-          callCount += 1;
+        callCount += 1;
         if (callCount === 1) {
           await held;
           return streamResponse("first reply");
@@ -358,9 +354,7 @@ describe("queued follow-up send lifecycle regressions", () => {
       temporary: false,
     });
 
-    expect(
-      runtime.getState().queuedFollowUps.some((item) => item.id === queuedId),
-    ).toBe(false);
+    expect(runtime.getState().queuedFollowUps.some((item) => item.id === queuedId)).toBe(false);
     runtime.dispose();
   });
 });

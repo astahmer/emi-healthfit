@@ -246,7 +246,11 @@ export const ThreadMessage = ({
             {isUser ? "You" : assistantLabel}
           </span>
           {metadata?.modelLabel !== undefined &&
-            (isUser ? <span>{metadata.modelLabel}</span> : <span>Replied with {metadata.modelLabel}</span>)}
+            (isUser ? (
+              <span>{metadata.modelLabel}</span>
+            ) : (
+              <span>Replied with {metadata.modelLabel}</span>
+            ))}
           {typeof metadata?.totalTokens === "number" && metadata.totalTokens > 0 && (
             <span>{metadata.totalTokens.toLocaleString()} tokens</span>
           )}

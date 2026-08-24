@@ -59,11 +59,7 @@ describe("ThreadMessage action wall and model identity", () => {
     const user = userEvent.setup();
     const onRemember = vi.fn();
     render(
-      <ThreadMessage
-        message={assistantMessage}
-        isStreaming={false}
-        onRemember={onRemember}
-      />,
+      <ThreadMessage message={assistantMessage} isStreaming={false} onRemember={onRemember} />,
     );
 
     const menu = screen.getByLabelText("More actions").closest("details");
@@ -79,9 +75,7 @@ describe("ThreadMessage action wall and model identity", () => {
     expect(menu).not.toHaveAttribute("open");
 
     await user.click(screen.getByLabelText("More actions"));
-    expect(
-      screen.getByRole("button", { name: "Export message as Markdown" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Export message as Markdown" })).toBeTruthy();
   });
 
   it("gives footer action buttons 40px touch hit areas", () => {

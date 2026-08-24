@@ -12,9 +12,7 @@ export interface BrowserStorageChange {
 export interface BrowserStateAdapter {
   online: () => boolean;
   subscribeOnline: (listener: (online: boolean) => void) => () => void;
-  subscribeStorage?: (
-    listener: (event: BrowserStorageChange) => void,
-  ) => () => void;
+  subscribeStorage?: (listener: (event: BrowserStorageChange) => void) => () => void;
   storage: Pick<SettingsStorage, "getItem" | "setItem"> & {
     removeItem: (key: string) => unknown;
   };

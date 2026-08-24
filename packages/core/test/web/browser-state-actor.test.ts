@@ -166,8 +166,7 @@ describe("browserStateActor cross-tab draft sync regressions", () => {
             setItem: (key, value) => {
               store.set(key, value);
               writes.push({ op: "set", value });
-              for (const listener of listeners)
-                listener({ key, newValue: value });
+              for (const listener of listeners) listener({ key, newValue: value });
             },
             removeItem: (key) => {
               store.delete(key);
