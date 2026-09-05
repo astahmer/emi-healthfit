@@ -153,6 +153,23 @@ describe("conversation thread tools", () => {
     );
   });
 
+  it("rejects disabled sleep tools even when called directly", async () => {
+    const { db: rawDb } = makeSqliteDatabase();
+    const toolsDb = narrowQueryDatabaseClient<HealthfitToolsDatabaseSchema>(rawDb);
+
+    await assert.rejects(
+      run(
+        HealthFit.tools.execute({
+          db: toolsDb,
+          userId: "disabled-sleep-tool-user",
+          name: "get_sleep_trend",
+          args: {},
+        }),
+      ),
+      (error: unknown) => error instanceof Error && error.message === "Unknown tool.",
+    );
+  });
+
   it("does not expose unscoped SQL", () => {
     assert.ok(!tools.some((tool) => tool.name === "query_database"));
   });

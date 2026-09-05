@@ -12,6 +12,7 @@ import { ConversationSearchTool, MemoryTools } from "@emi/core/server";
 import { ServerDatabase } from "@emi/core/server/database";
 import { ToolSchema } from "@emi/core/server/tool-schema";
 import { buildChatContext } from "../chat/context.ts";
+import { isConversationToolEnabled } from "../chat/tool-availability.ts";
 import {
   getDataSummary,
   getExerciseProgress,
@@ -758,17 +759,19 @@ const makeHandlers = Effect.fn("FitnessToolkit.makeHandlers")(function* ({
   });
 });
 
-export const tools: ToolDefinition[] = Object.values(FitnessToolkit.tools).map((tool) => {
-  const parameters: JSONSchema7 = Tool.getJsonSchema(tool);
-  if (parameters.type !== "object") {
-    throw new Error(`Tool '${tool.name}' parameters must use a root object JSON Schema.`);
-  }
-  return {
-    name: tool.name,
-    description: Tool.getDescription(tool) ?? "",
-    parameters,
-  };
-});
+export const tools: ToolDefinition[] = Object.values(FitnessToolkit.tools)
+  .filter((tool) => isConversationToolEnabled(tool.name))
+  .map((tool) => {
+    const parameters: JSONSchema7 = Tool.getJsonSchema(tool);
+    if (parameters.type !== "object") {
+      throw new Error(`Tool '${tool.name}' parameters must use a root object JSON Schema.`);
+    }
+    return {
+      name: tool.name,
+      description: Tool.getDescription(tool) ?? "",
+      parameters,
+    };
+  });
 
 export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   db,
@@ -787,7 +790,7 @@ export const executeTool = Effect.fn("FitnessToolkit.execute")(function* ({
   requestId?: string;
   summarize?: ThreadToolOptions["summarize"];
 }) {
-  if (!(name in FitnessToolkit.tools)) {
+  if (!(name in FitnessToolkit.tools) || !isConversationToolEnabled(name)) {
     return yield* toolError({ tool: name, message: "Unknown tool." });
   }
 

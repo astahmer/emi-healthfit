@@ -11,12 +11,10 @@ describe("HealthFit tools", () => {
     expect(
       [
         "get_summary",
-        "get_recovery",
         "get_workout_history",
         "get_workout_details",
         "get_session_template",
         "get_exercise_progress",
-        "get_sleep_trend",
         "get_workout_streak",
         "search_memory_summary",
         "search_memories",
@@ -24,6 +22,14 @@ describe("HealthFit tools", () => {
         "render_component",
       ].filter((name) => !names.has(name)),
     ).toEqual([]);
+  });
+
+  it("keeps sleep-dependent tools disabled while retaining their implementations", () => {
+    const names = new Set(tools.map((tool) => tool.name));
+    expect(names).not.toContain("get_recovery");
+    expect(names).not.toContain("get_recovery_timeline");
+    expect(names).not.toContain("get_sleep_trend");
+    expect(names).not.toContain("get_next_workout");
   });
 
   it("exposes the shared thread tool surface", () => {
