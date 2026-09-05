@@ -111,7 +111,7 @@ describe("handleDiscordAsk", () => {
 
     assert.equal(prompts.length, 1);
     assert.match(prompts[0]!.prompt, /How is recovery\?/);
-    assert.match(prompts[0]!.prompt, /Recovery:/);
+    assert.doesNotMatch(prompts[0]!.prompt, /Recovery:/);
     assert.match(prompts[0]!.system, /Discord slash command/);
 
     const conversationDb = narrowQueryDatabaseClient<ServerDatabase.ConversationDatabaseSchema>(db);

@@ -64,13 +64,6 @@ const daysAgo = (days: number): string => {
   return formatDate(d);
 };
 
-const minutesToHours = (minutes: number | null): string => {
-  if (minutes === null) return "unknown";
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
-};
-
 const weekdayNames = [
   "Sunday",
   "Monday",
@@ -376,9 +369,8 @@ Latest recorded weight: ${
       ? "none in the last 120 days"
       : `${ctx.latestWeightKg} kg on ${ctx.latestWeightDate}`
   }
-Recovery: ${ctx.recoveryLabel} — ${ctx.recoveryExplanation}
 Last workout: ${ctx.lastWorkout.lastSessionSummary}
-Last 7 days: ${ctx.sleep.sevenDayAverage !== null ? minutesToHours(ctx.sleep.sevenDayAverage) : "unknown"} sleep avg, ${ctx.recentWorkoutCount} workouts, ${Math.round(ctx.lastWorkout.recentVolume)} kg·reps volume
+Last 7 days: ${ctx.recentWorkoutCount} workouts, ${Math.round(ctx.lastWorkout.recentVolume)} kg·reps volume
 Recent exercises: ${recentExercises}
 
 Weekly schedule derived from the last 6 weeks of logged sessions:
