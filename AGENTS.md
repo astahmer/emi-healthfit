@@ -153,6 +153,21 @@ Always on. **Every reply starts with `OUGABOUGA`** then terse caveman talk — *
 - Avoid unnecessary destructuring; use dot notation.
 - Avoid `else`; prefer early returns.
 
+## Runtime ownership and Hevy freshness
+
+- Keep React components view-only. XState actors own application state,
+  transitions, lifecycle, cancellation, retry, and stale-result protection.
+  Effect owns typed server use cases, services, and layers.
+- Put generic infrastructure in `@emi/core` only when multiple real consumers
+  share stable semantics; keep HealthFit and provider-specific behavior in its
+  flavor or app adapter.
+- For generated personalized answers that depend on Hevy data, freshness is a
+  hard precondition. Use the `hevy-answer-freshness` skill and reject the
+  answer path when synchronization fails. Ordinary dashboard reads may retain
+  their documented stale-readable fallback.
+- When changing generated generic-web behavior, update its canonical source
+  and generator acceptance assertions in the same revision.
+
 ## Database migrations
 
 - Drizzle schema files are the sole source of truth for database structure.
